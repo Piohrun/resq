@@ -1,0 +1,21 @@
+#!/bin/bash
+# resq - CLI Wrapper
+# Usage: resq [command] [args]
+
+# Resolve project root (symlink safe)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do 
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" 
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+PROJECT_ROOT="$(dirname "$DIR")"
+
+# We must run from project root so that lib/ and tests/ 
+# relative paths resolve correctly inside q.
+cd "$PROJECT_ROOT"
+
+# Execute resq.q
+export QPATH="$PROJECT_ROOT/vendor"
+exec q "$PROJECT_ROOT/resq.q" "$@" -e 1

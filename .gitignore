@@ -1,0 +1,38 @@
+# OS / System
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+
+# Editors
+.idea/
+.vscode/
+.claude/
+.git-backup/
+*.swp
+*~
+*.bak
+
+# KDB+ / Q Logs and Output
+q.log
+*.log
+*.out
+core
+gmon.out
+
+# Build artifacts (if any C code involved)
+*.so
+*.o
+*.a
+
+# Testing artifacts (optional, uncomment if these directories are generated)
+# test-results/
+# coverage/
+missingTests/
+plans/
+output/
+
+# Data directories (common conventions, uncomment if used)
+# hdb/
+# db/
+# wdb/
+# sym

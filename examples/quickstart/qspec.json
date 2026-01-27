@@ -1,0 +1,10 @@
+{
+    "fmt": "console",
+    "outDir": "test-output",
+    "exit": true,
+    "failFast": false,
+    "runPerformance": true,
+    "excludeSpecs": [],
+    "xmlOutput": true,
+    "passOnly": false
+}
