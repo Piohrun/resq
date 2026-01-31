@@ -83,29 +83,41 @@ runExpec:{[spec;expec];
  if[`before in key expec;
     c: expec`before;
     if[type[c] within 100 104h;
-        expec: @[{[e;c] e[`before]:c; c[]; e}[expec;c]; (); {[e;err] .tst.expecError[e;"before";err]}[expec]];
+        expec: @[{[e;c] e[`before]:c; c[]; e}[expec;c]; (); {[e;err] 
+            bt: .Q.sbt .Q.bt[];
+            .tst.expecError[e;"before";err, "\nStack Trace:\n", bt]
+        }[expec]];
     ];
  ];
  
- / Main Test
- beforeBad:`test;
- if[not count expec[`result];
-    res: @[.tst.callExpec; expec; {[e;err] .tst.expecError[e;string e`type;err]}[expec]];
-    $[99h=type res; expec:res; @[{[e;r] e[`result]:`error; e[`errorText]:r; e}; expec; res]];
- ];
+  / Main Test
+  beforeBad:`test;
+  if[not count expec[`result];
+     timeout: first .tst.app.maxTestTime;
+     if[timeout > 0; system "T ", string timeout];
+     res: @[.tst.callExpec; expec; {[e;err] 
+         bt: .Q.sbt .Q.bt[];
+         .tst.expecError[e; $[err ~ "stop"; "timeout"; string e`type]; err, "\nStack Trace:\n", bt]
+     }[expec]];
+     if[timeout > 0; system "T 0"];
+     $[99h=type res; expec:res; @[{[e;r] e[`result]:`error; e[`errorText]:r; e}; expec; res]];
+  ];
  
  / After Block
  beforeBad:`after;
  if[`after in key expec;
     c: expec`after;
     if[type[c] within 100 104h;
-        expec: @[{[e;c] e[`after]:c; c[]; e}[expec;c]; (); {[e;err] .tst.expecError[e;"after";err]}[expec]];
+        expec: @[{[e;c] e[`after]:c; c[]; e}[expec;c]; (); {[e;err] 
+            bt: .Q.sbt .Q.bt[];
+            .tst.expecError[e;"after";err, "\nStack Trace:\n", bt]
+        }[expec]];
     ];
  ];
  
+ expec[`time]:.z.p - time;
  expec:.tst.teardownExpec[spec;expec];
  if[.tst.halt; .tst.stageBadExpec[spec;startExpec;beforeBad]];
- expec[`time]:.z.p - time;
  expec
  }
 
@@ -118,16 +130,20 @@ stageBadExpec:{[spec;expec;beforeBad]
  }
 
 setupExpec:{[spec;expec];
- expec[`result]:();
- ((` sv `.q,) each .tst.uiRuntimeNames) .tst.mock' .tst.uiRuntimeCode;
- system "d ", string .tst.context;
- expec
+  expec[`result]:();
+  ((` sv `.q,) each .tst.uiRuntimeNames) .tst.mock' .tst.uiRuntimeCode;
+  
+  / Safe context switch - if no context defined (e.g. unit tests), stay in current
+  if[`context in key .tst; system "d ", string .tst.context];
+  
+  expec
  }
 
 teardownExpec:{[spec;expec];
  system "d .tst";
- .tst.restore[];
- .tst.assertState:.tst.defaultAssertState;
+  .tst.restore[];
+  @[.tst.runCleanupTasks; (); {}];
+  .tst.assertState:.tst.defaultAssertState;
  .tst.callbacks.expecRan[spec;expec];
  expec
  }

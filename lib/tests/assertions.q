@@ -9,8 +9,9 @@ asserts[`must]:{[val;message];
   }
 
 asserts[`musteq]:{[l;r]; 
-   if[l=r; :.tst.assertState.assertsRun+:1];
-   m: "Expected ", (-3!l), " to match ", (-3!r);
+    if[l ~ r; :.tst.assertState.assertsRun+:1];
+    m: "Expected ", (-3!l), " to match ", (-3!r);
+    if[not (type l) = type r; m,: " (Type mismatch: ", string[type l], " != ", string[type r], ")"];
    -1 "";
    -1 "FAILURE DIFF ---------------------------------------------------";
    -1 .tst.diff[r;l];

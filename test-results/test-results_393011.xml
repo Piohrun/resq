@@ -1,0 +1,76 @@
+<test-suite>
+<test-suite name="Phase 2 Hardening: Dirty Types Reporting" reports="1" skips="0" tests="4" errors="0" failures="4" test-cases="4" errors-detail="0" failures-detail="4">
+<test-case name="handle lambda comparison failure" label="should handle lambda comparison failure" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Failure: lambdas should match (they won&apos;t)
+1 assertion was run.
+Test code: 
+{
+        f1: {x+1};
+        f2: {x+2};
+        must[f1 ~ f2; &quot;lambdas should match (they won&apos;t)&quot;];
+    }
+
+
+</sysout>
+
+</test-case>
+
+<test-case name="handle valid ipc handle comparison failure" label="should handle valid ipc handle comparison failure" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Failure: handles should match
+1 assertion was run.
+Test code: 
+{
+        / We need a real handle, so we&apos;ll open one to self if possible, or just a dummy int
+        h1: 100i;
+        h2: 101i;
+        / To make it &quot;dirty&quot;, we cast to handle type so it prints as `ipc
+        h1: `int$h1; 
+        / Actually, handle type is just int in KDB unless we use .z.w structure or similar.
+        / Let&apos;s try to make it look like a handle
+        must[h1 = h2; &quot;handles should match&quot;];
+    }
+
+
+</sysout>
+
+</test-case>
+
+<test-case name="handle projection comparison failure" label="should handle projection comparison failure" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Failure: projections should match
+1 assertion was run.
+Test code: 
+{
+        p1: +[1;];
+        p2: *[2;];
+        must[p1 ~ p2; &quot;projections should match&quot;];
+    }
+
+
+</sysout>
+
+</test-case>
+
+<test-case name="handle huge table comparison failure" label="should handle huge table comparison failure" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Failure: huge tables should match
+1 assertion was run.
+Test code: 
+{
+        t1: ([] a: 10000?100; b: 10000?100.0);
+        t2: t1;
+        t2[0;`a]: 999;
+        must[t1 ~ t2; &quot;huge tables should match&quot;];
+    }
+
+
+</sysout>
+
+</test-case>
+
+</test-suite>
+
+</test-suite>
+

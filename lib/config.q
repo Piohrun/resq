@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`fuzzLimit`failFast`failHard!(
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`fuzzLimit`failFast`failHard`maxTestTime!(
     `text;                / Output format
     ".";                  / Output directory
     0b;                   / Describe only mode
@@ -16,7 +16,8 @@ defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`run
     0b;                   / Exit after tests
     100;                  / Fuzz display limit
     0b;                   / Fail fast
-    0b                    / Fail hard
+    0b;                   / Fail hard
+    0                     / Max test time (seconds), 0 = no timeout
  );
 
 / Load configuration from JSON file
@@ -40,6 +41,8 @@ loadConfig:{[path]
         if[10h = type merged`excludeSpecs; merged[`excludeSpecs]: `$"," vs merged`excludeSpecs];
         if[10h = type merged`runSpecs; merged[`runSpecs]: `$"," vs merged`runSpecs];
         if[10h = type merged`fmt; merged[`fmt]: `$merged`fmt];
+        if[10h = type merged`fuzzLimit; merged[`fuzzLimit]: "I"$merged`fuzzLimit];
+        if[10h = type merged`maxTestTime; merged[`maxTestTime]: "I"$merged`maxTestTime];
         
         :merged;
     ];
@@ -62,6 +65,7 @@ applyConfig:{[cfg]
     if[`failFast in key cfg; .tst.app.failFast: cfg`failFast];
     if[`failHard in key cfg; .tst.app.failHard: cfg`failHard];
     if[`fuzzLimit in key cfg; .tst.output.fuzzLimit: cfg`fuzzLimit];
+    if[`maxTestTime in key cfg; .tst.app.maxTestTime: cfg`maxTestTime];
     
     / Map to .resq.config
     if[`fmt in key cfg; .resq.config.fmt: cfg`fmt];

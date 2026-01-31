@@ -178,4 +178,29 @@ findDirVars:{
   ()]
  }
 
+/ Cleanup Registry
+if[not `cleanupTasks in key `.tst; cleanupTasks:: ()];
+
+registerCleanup:{[func;args]
+    .tst.cleanupTasks,: enlist `func`args!(func;args);
+ }
+
+runCleanupTasks:{[]
+    if[0 = count .tst.cleanupTasks; :()];
+    tasks: .tst.cleanupTasks;
+    .tst.cleanupTasks:: (); / Clear first to prevent recursion or double runs
+    {[t] .[t`func; t`args; { [e] -1 "WARNING: Cleanup task failed: ", .tst.toString e }] } each tasks;
+ }
+
+tempFile:{[suffix]
+    / Generate unique name
+    fn: "resq_", .tst.toString[.z.p], "_", string[first 1?1000], suffix;
+    path: .utl.normalizePath (system "cd"), "/", fn;
+    
+    / Register for cleanup
+    .tst.registerCleanup[{[p] @[hdel; hsym `$p; {}]}; enlist path];
+    
+    path
+ }
+
 \d .

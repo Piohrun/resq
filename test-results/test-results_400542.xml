@@ -1,0 +1,99 @@
+<test-suite>
+<test-suite name="Phase 2 Hardening: Dirty Types Reporting" reports="1" skips="0" tests="5" errors="0" failures="5" test-cases="5" errors-detail="0" failures-detail="5">
+<test-case name="handle lambda comparison failure" label="should handle lambda comparison failure" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Error: testFail &apos;()
+Failure: Expected {x+1} to match {x+2}
+1 assertion was run.
+Test code: 
+{
+        f1: {x+1};
+        f2: {x+2};
+        mustmatch[f1; f2];
+    }
+
+
+</sysout>
+
+</test-case>
+
+<test-case name="handle valid ipc handle comparison failure" label="should handle valid ipc handle comparison failure" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Error: testFail &apos;()
+Failure: Expected 100i to match 101i
+1 assertion was run.
+Test code: 
+{
+        / We need a real handle, so we&apos;ll open one to self if possible, or just a dummy int
+        h1: 100i;
+        h2: 101i;
+        / To make it &quot;dirty&quot;, we cast to handle type so it prints as `ipc
+        h1: `int$h1; 
+        / Actually, handle type is just int in KDB unless we use .z.w structure or similar.
+        / Let&apos;s try to make it look like a handle
+        mustmatch[h1; h2];
+    }
+
+
+</sysout>
+
+</test-case>
+
+<test-case name="handle projection comparison failure" label="should handle projection comparison failure" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Error: testFail &apos;()
+Failure: Expected +[1;] to match *[2;]
+1 assertion was run.
+Test code: 
+{
+        p1: +[1;];
+        p2: *[2;];
+        mustmatch[p1; p2];
+    }
+
+
+</sysout>
+
+</test-case>
+
+<test-case name="handle huge table comparison failure" label="should handle huge table comparison failure" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Error: testFail &apos;()
+Failure: Expected +`a`b!(6 67 95 94 25 73 5.. to match +`a`b!(999 67 95 94 25 73..
+1 assertion was run.
+Test code: 
+{
+        t1: ([] a: 10000?100; b: 10000?100.0);
+        t2: t1;
+        t2[0;`a]: 999;
+        mustmatch[t1; t2];
+    }
+
+
+</sysout>
+
+</test-case>
+
+<test-case name="survive injection of raw objects into failures" label="should survive injection of raw objects into failures" errors="0" failures="1" skip="0" tests="1">
+<sysout>
+Error: testFail &apos;()
+Failure: {x+1}
+1 assertion was run.
+Test code: 
+{
+        / Manually inject a dirty object into the assert state
+        / This simulates a custom assertion that failed to stringify
+        .tst.assertState.failures,: enlist ({x+1}); 
+        .tst.assertState.assertsRun+: 1;
+        / This makes the test fail, but with a raw lambda in the failures list
+    }
+
+
+</sysout>
+
+</test-case>
+
+</test-suite>
+
+</test-suite>
+

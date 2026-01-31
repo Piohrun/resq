@@ -51,12 +51,11 @@
     if[not 100h=type orig; '"Not a func"];
     if[impl~(::); impl:orig];
     r: count (value orig) 1;
-    if[r>8; r:8];
-    if[r<1; r:1];
-    args: ";" sv string r#`a`b`c`d`e`f`g`h;
+    argNames: `$"a",/:string til r;
+    args: ";" sv string argNames;
     / For arity 1, (a) is just an atom. Use "enlist a" to make a list
-    argsAsList: $[r=1; "enlist ", args; "(", args, ")"];
-    wrapper: "{[",args,"] .tst.spyLogCallback[",(.Q.s1 name),";",argsAsList,"]; .tst.spyLog.impls[",(.Q.s1 name),"][",args,"]}";
+    argsAsList: $[r=1; "enlist a0"; "(", args, ")"];
+    wrapper: "{[",args,"] .tst.spyLogCallback[",(.Q.s1 name),";",argsAsList,"]; .tst.spyLog.impls[",(.Q.s1 name),"] . ",argsAsList,"}";
     compiled: value wrapper;
     .tst.spyLog.impls[name]: impl;
     .tst.spyLog.calls[name]: ();
@@ -91,7 +90,7 @@
         parts: "." vs s;
         ns: `$ "." sv -1 _ parts;  / namespace (e.g. .foo)
         vn: `$ last parts;          / variable name (e.g. bar)
-        @[{![x;();0b;enlist y]}; (ns;vn); {}];
+        .[{x set ![value x;();0b;enlist y]}; (ns;vn); {[n;v;e] -1 "WARN: deleteVar failed for ",string[n],".",string[v],": ",e}[ns;vn]];
         :()
     ];
     / Handle root-level variables (e.g. foo)
@@ -102,8 +101,8 @@
     .tst.seqs[name]: vals;
     orig: get name;
     r: count (value orig) 1;
-    if[r>8; r:8];
-    args: ";" sv string r#`a`b`c`d`e`f`g`h;
+    argNames: `$"a",/:string til r;
+    args: ";" sv string argNames;
     wrapper: "{[",args,"] .tst.nextSeq[",(.Q.s1 name),"]}";
     .tst.mock[name; value wrapper];
  }

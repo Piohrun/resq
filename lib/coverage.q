@@ -73,7 +73,15 @@
     .tst.coverageData[fileSym;funcName]+: 1;
  };
 
-/ Wrap a function with tracking logic
+/ Generic wrapper for any function
+/ @param f (function) Original function
+/ @param fileSym (symbol) Source file
+/ @param name (symbol) Function name
+/ @param args (list) Arguments passed to the function
+.tst.genericWrapper:{[f;fileSym;name;args]
+    .tst.recordExecution[fileSym;name];
+    f . args
+ };
 / @param name (symbol) Function name (e.g. `.user.create`)
 / @param fileSym (symbol) Source file symbol
 .tst.wrapFunc:{[name;fileSym]
@@ -83,20 +91,24 @@
 
     orig: .tst.safeValue name;
     if[orig ~ .tst._covMissing; :()];
+    
+    / Handle potential projections or lists with metadata
+    if[0h = type orig; orig: first orig];
+    
     if[not type[orig] within (100h;104h); :()];
 
     .tst.origFuncs[name]: orig;
-
+    
     args: value[orig] 1;
     argStr: $[0 < count args; ";" sv string args; ""];
     callArgs: "[", argStr, "]";
-
-    wrapperCode: "{", callArgs,
-        " .tst.recordExecution[`", string fileSym, "`;`", string name, "];",
-        " .tst.origFuncs[`", string name, "]", callArgs,
-        " }";
-
-    @[name set; value wrapperCode; {[n;e]
+    
+    wrapperCode: raze ("{"; callArgs;
+        " .tst.recordExecution[hsym "; -3!string fileSym; ";`"; string name; " ];";
+        " .tst.origFuncs[`"; string name; " ]"; callArgs;
+        " }");
+    
+    @[set; (name; value wrapperCode); {[n;e]
         -1 "Coverage wrap failed for ", string n, ": ", .Q.s1 e;
         :()
     }[name]];

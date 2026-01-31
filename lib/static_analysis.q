@@ -119,22 +119,51 @@
       newNs: trim 3 _ cleanL;
       if[(count newNs) and not " " in newNs; currentNs: $[newNs~"."; ""; newNs]];
     ];
-    if[(not inFunc) and (braceDepth=0) and cleanL like funcPat;
-       bracePos: l ? .tst.static.LBRACE;
-       if[maskedL[bracePos] = .tst.static.LBRACE;
-          parts: ":" vs cleanL;
-          namePart: trim first parts;
-          if[(count namePart) and not any namePart in badChars;
-            currName: $[namePart like ".*"; namePart; count currentNs; currentNs,".",namePart; namePart];
-            currLine: i+1;
-            currBody: cleanL;
-            currArgs: ();
-            if[(cleanL?"[") < cleanL?"]";
-              argPart: (1 + cleanL?"[") _ (cleanL?"]") # cleanL;
-              currArgs: trim each ";" vs argPart;
-            ];
-            inFunc: 1b;
-          ];
+    if[(not inFunc) and (braceDepth=0);
+       isColon: cleanL like funcPat;
+       isSet: cleanL like "* set {*";  / Remove extra wildcard in middle
+       
+       if[isColon or isSet;
+           bracePos: l ? .tst.static.LBRACE;
+           
+           / Verify brace is real (masked check)
+           if[maskedL[bracePos] = .tst.static.LBRACE;
+              validStart: 0b;
+              
+              if[isColon;
+                  parts: ":" vs cleanL;
+                  namePart: trim first parts;
+                  if[(count namePart) and not any namePart in badChars;
+                      currName: $[namePart like ".*"; namePart; count currentNs; currentNs,".",namePart; namePart];
+                      validStart: 1b;
+                  ];
+              ];
+              
+              if[isSet;
+                  parts: " set " vs cleanL;
+                  namePart: trim first parts;
+                  / Handle symbol usage `myFunc set ...
+                  if[namePart like "`*"; namePart: 1 _ namePart];
+                  
+                  if[(count namePart) and not any namePart in badChars;
+                      currName: $[namePart like ".*"; namePart; count currentNs; currentNs,".",namePart; namePart];
+                      validStart: 1b;
+                  ];
+              ];
+
+              if[validStart;
+                  currLine: i+1;
+                  currBody: cleanL;
+                  currArgs: ();
+                  if[(cleanL?"[") < cleanL?"]";
+                    argPart: (1 + cleanL?"[") _ (cleanL?"]") # cleanL;
+                    currArgs: trim each ";" vs argPart;
+                    / Remove empty args
+                    currArgs: currArgs where 0 < count each currArgs;
+                  ];
+                  inFunc: 1b;
+              ];
+           ];
        ];
     ];
     if[inFunc;
@@ -144,7 +173,13 @@
             inFunc: 0b;
             braceDepth: 0;
             deps: .tst.static.findDeps[currBody; currName];
-            fns: fns upsert (`$currName; currArgs; currLine; `$string file; enlist deps; enlist currBody);
+            / Ensure args is a enlisted list of strings if empty
+            if[0=count currArgs; currArgs: enlist ""];
+            if[currArgs ~ enlist ""; currArgs: ()]; 
+            
+            fileSym: $[10h=type file; `$file; -11h=type file; file; `$string file];
+            row: (`$currName; currArgs; currLine; fileSym; enlist deps; enlist currBody);
+            fns: fns upsert row;
         ];
     ];
     i+: 1;

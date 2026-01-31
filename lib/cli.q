@@ -17,7 +17,7 @@ getFlag:{[name]
 initCLI:{[]
     / Manual Argument Parsing (CLI overrides config file)
     if[any .z.x like "-perf"; .tst.app.runPerformance: 1b];
-    if[any .z.x like "-junit"; .resq.config.fmt: `junit; .tst.app.xmlOutput: 1b];
+    if[any .z.x in ("-junit";"-xml"); .resq.config.fmt: `junit; .tst.app.xmlOutput: 1b];
     if[any .z.x like "-xunit"; .resq.config.fmt: `xunit; .resq.config.outDir: "test-results"; .tst.app.xmlOutput: 1b];
     if[any .z.x like "-json"; .resq.config.fmt: `json; .tst.app.xmlOutput: 0b];
     if[any .z.x like "-noquit"; .tst.app.exit: 0b];

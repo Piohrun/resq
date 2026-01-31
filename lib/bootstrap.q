@@ -13,9 +13,18 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
   / Check for leading bracket safely
   if["[" = first p; :(::)];
   
+  / Track dependency
+  if[not `testDeps in key `.utl; .utl.testDeps: ()!()];
+  if[`FILELOADING in key `.utl;
+     caller: .utl.pathToHsym .utl.FILELOADING;
+     req: .utl.pathToHsym p;
+     .utl.testDeps[caller]: distinct except[ (),.utl.testDeps[caller], req; (::) ];
+  ];
+  if[count .utl.testDeps; .utl.testDeps: (key[.utl.testDeps] except hsym `) # .utl.testDeps];
+
   / Avoid double loading
   if[p in .utl.loaded; :(::)];
-  
+
   if[.utl.DEBUG; -1 "DEBUG: loading ", p];
   
   / Try load

@@ -5,6 +5,7 @@ resetExpecList:{.tst.expecList: ()}
 resetExpecList[];
 currentBefore:{}
 currentAfter:{}
+currentNs:`.
 
 before:{[code]
  .tst.currentBefore: code
@@ -37,12 +38,12 @@ alt:{[code]
 should:{[des;code]
   desStr: .tst.toString des;
   tags: `$ {x where x like "#*"} " " vs desStr;
-  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags!(desStr;code;tags))
+  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace!(desStr;code;tags;.tst.currentNs))
  }
 
 holds:{[des;props;code]
   desStr: .tst.toString des;
-  d: .tst.internals.fuzzObj, (`desc`code!(desStr;code));
+  d: .tst.internals.fuzzObj, (`desc`code`namespace!(desStr;code;.tst.currentNs));
   / Handle single-key dict (type -20 enumeration) and regular dict (type 99)
   propsDict: $[99h = type props; props;
                (type props) in -20 20h; (enlist key props)!(enlist value props);
@@ -64,8 +65,6 @@ perf:{[des;props;code]
 
 uiRuntimeNames:`fixture`fixtureAs`mock
 uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
-uiNames:`before`after`should`holds`perf`alt
-uiCode:(before;after;should;holds;perf;alt)
 
 .tst.desc:{[title;expectations]
  oldBefore: .tst.currentBefore;
@@ -77,31 +76,40 @@ uiCode:(before;after;should;holds;perf;alt)
  specObj[`title]: titleStr;
  specObj[`tags]: `$ {x where x like "#*"} " " vs titleStr;
  / Capture the context where this spec is defined
- specObj[`context]: system "d";
+  specObj[`context]: specObj[`namespace]: system "d";
 
+ oldDir: system "d";
  expectations[];
+ system "d ", string oldDir;
  
  / Use hsym format for tstPath - compatible with ` vs for path operations
  specObj[`tstPath]: $[`FILELOADING in key `.utl; .utl.FILELOADING; `$":unknown"];
- specObj[`expectations]:fillExpecBA .tst.expecList;
- .tst.currentBefore: oldBefore;
- .tst.currentAfter: oldAfter;
- .tst.expecList: oldExpecList;
- / Note: Don't add spec to expecList - it causes type conflicts when tests
- / call should[] while expecList contains specs (different column structure).
- / The descLoaded callback handles spec collection via .tst.app.allSpecs.
- .tst.restore[];
- .tst.callbacks.descLoaded specObj;
- specObj
+  specObj[`expectations]:fillExpecBA .tst.expecList;
+  .tst.currentBefore: oldBefore;
+  .tst.currentAfter: oldAfter;
+  .tst.expecList: oldExpecList;
+  / Note: Don't add spec to expecList - it causes type conflicts when tests
+  / call should[] while expecList contains specs (different column structure).
+  / The descLoaded callback handles spec collection via .tst.app.allSpecs.
+  .tst.restore[];
+  .tst.callbacks.descLoaded specObj;
+  specObj
  }
+describe:desc
+it:should
+
+uiNames:`before`after`should`it`holds`perf`alt`describe
+uiCode:(before;after;should;it;holds;perf;alt;desc)
 
 \d .
-describe: .tst.desc
-should: .tst.should
-holds: .tst.holds
-perf: .tst.perf
-alt: .tst.alt
-before: .tst.before
-after: .tst.after
+/ Expose DSL to root and .q namespaces
+describe: .tst.desc; should: .tst.should; it: .tst.should;
+before: .tst.before; after: .tst.after;
+holds: .tst.holds; perf: .tst.perf; alt: .tst.alt;
+
+.q.describe: .tst.desc; .q.should: .tst.should; .q.it: .tst.should;
+.q.before: .tst.before; .q.after: .tst.after;
+.q.holds: .tst.holds; .q.perf: .tst.perf; .q.alt: .tst.alt;
+
 \d .tst
 ::

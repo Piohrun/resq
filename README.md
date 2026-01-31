@@ -71,6 +71,31 @@ perf["Fast SMA"; `maxTime`runs!(10; 100)]{
 };
 ```
 
+```
+
+---
+
+## 🛡️ Robustness Features (New)
+
+resQ now includes advanced safeguards to ensure test integrity in production:
+
+### 🔒 Strict Mode
+Prevent false positives in CI pipelines.
+```bash
+q resq.q -strict my_tests/
+```
+If no tests are found/executed, this flag forces a **non-zero exit code**, ensuring that an empty test suite is treated as a failure.
+
+### 📦 Namespace Isolation (Sandboxing)
+Every test file is automatically loaded into a unique, isolated namespace (e.g., `.sandbox_S...`).
+- **Benefit**: No need to manually cleanup local test variables.
+- **Safety**: Tests cannot accidentally pollute the global namespace or affect unrelated tests.
+
+### 🚨 Global Pollution Guard
+The runner takes a snapshot of the global namespace (`.`) before and after each test.
+- **Detection**: If a test leaks a global variable (e.g., `myGlobal:: 1`), resQ detects it.
+- **Action**: It logs a **WARNING** and automatically deletes the leaked variable to protect subsequent tests.
+
 ---
 
 ## 🛠️ Writing Tests

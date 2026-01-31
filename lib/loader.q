@@ -11,9 +11,16 @@
 
         -1 "Loading Test: ", p;
 
-        / Ensure we are in root namespace
-        system "d .";
-
+        / Namespace Sandbox
+        / Sanitize path to create unique namespace
+        / Replace non-alphanumeric chars with _
+        cleanP: p;
+        cleanP[where not cleanP in .Q.a,.Q.A,.Q.n]: first "_";
+        nsName: `$".sandbox_S", cleanP;
+        
+        / Track current namespace for DSL capture
+        .tst.currentNs: nsName;
+        
         / Make path absolute to avoid CWD issues when tests change directory
         absPath: $["/" = first p; p; (system "cd"), "/", p];
         absPath: .utl.normalizePath absPath;
@@ -21,24 +28,56 @@
         / Set loading context with absolute path
         .utl.FILELOADING: .utl.pathToHsym absPath;
 
-        / Read and evaluate
-        content: @[read0; .utl.FILELOADING; {[p;e] -1 "ERROR reading ", p, ": ", e; ()}[p]];
+        / Read content
+        content: @[read0; .utl.FILELOADING; {[p;e] 
+            -1 "ERROR reading ", p, ": ", e; 
+            `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `read);
+            ()
+        }[p]];
         if[0 = count content; :()];
 
-        @[{value "\n" sv x}; content; {[p;e] -1 "CRITICAL LOAD ERROR in ", p, ": ", e}[p]];
+        / Snapshot spec count
+        preCount: count .tst.app.allSpecs;
 
-        / If coverage is enabled and available, instrument the just-loaded file.
-        covSuppressed: $[`tst in key `.; 1b ~ @[get; `.tst.coverageLoading; 0b]; 0b];
-        if[not covSuppressed;
-            if[all `instrumentFile`coverageEnabled in key `.tst;
-                if[.tst.coverageEnabled;
-                    covAbs: $[`resolvePath in key `.tst; .tst.resolvePath absPath; absPath];
-                    @[.tst.instrumentFile; covAbs; {[cp;e]
-                        -1 "WARNING: coverage instrumentation failed for ", cp, ": ", e
-                    }[covAbs]];
-                ];
+        / Inject namespace logic
+        / 1. Init: ensure namespace exists
+        / 2. Switch: system "d .ns"
+        / 3. Restore: system "d ."
+        
+        / Inject namespace logic
+        
+        nsInit: string[nsName],".init:0;";
+        
+        nsSwitch: "@[system; \"d ", string[nsName], "\"; { -1 \"FAIL FULL namespace switch ", string[nsName], ": \", x }];";
+        nsRestore: "system \"d .\";";
+        
+        content: enlist[nsInit], enlist[nsSwitch], content, enlist[nsRestore];
+
+
+
+        @[{value "\n" sv x}; content; {[p;preCount;e] 
+            -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
+             `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
+
+             / Rollback partial specs
+             if[(count .tst.app.allSpecs) > preCount;
+                .tst.app.allSpecs: preCount # .tst.app.allSpecs;
+                -1 "  -> Rolled back partial specs from ", p;
+             ];
+        }[p;preCount]];
+
+        / Warn if no tests loaded
+        if[(count .tst.app.allSpecs) = preCount;
+            msg: "File ", p, " loaded but added no tests.";
+            -1 "WARNING: ", msg;
+            if[.tst.app.strict;
+                `.tst.app.loadErrors upsert `file`error`type!(`$p; msg; `emptyFile);
             ];
         ];
+
+        / Reset current namespace
+        .tst.currentNs: `;
+        
     } each tests;
  };
 

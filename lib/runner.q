@@ -8,6 +8,7 @@
     .resq.reportXml:{[results] 
       / JUnit/XUnit output expects spec objects, not the flat results table
       specs: $[`results in key `.tst.app; .tst.app.results; ()];
+      specs: .tst.sanitize specs;
       xmlReport: .tst.output.top specs;
       outDirStr: .tst.toString .resq.config.outDir;
       if[0 = count outDirStr; outDirStr: "."];
@@ -35,6 +36,7 @@
         ];
     ];
      
+
     if[.tst.app.runCoverage;
         if[not `coverageLoading in key `.tst; .tst.coverageLoading: 0b];
         .tst.coverageLoading: 1b;
@@ -83,6 +85,124 @@
 
     .tst.callbacks.descLoaded:{[specObj] .tst.app.allSpecs,:enlist specObj; };
 
+ .tst.runSpec:{[spec]
+    / Deep Snapshot: all top-level namespaces and their keys AND values
+    namespaces: key `;
+    / Skip system namespaces and .tst/.resq internals
+    namespaces: namespaces except `q`Q`j`h`o`s`v`z`tst`resq;
+    
+    if[any namespaces like "repro"; -1 "DEBUG: Tracking namespace: ", .Q.s1 namespaces where namespaces like "repro"];
+
+    / Helper to snapshot values
+    / Returns dict: fullyQualifiedName -> value
+    .run.snapValues:{[ns]
+        / Force absolute path
+        rootNs: ` sv (`; ns);
+        ks: key rootNs;
+        if[0=count ks; :()!()];
+        paths: .Q.dd[rootNs;] each ks;
+        / We use error trap on get just in case of weird view/projection states, though unlikely for globals
+        vals: { @[get; x; { (`GENERIC_ERROR; x) }] } each paths;
+        paths!vals
+    };
+    
+    fullSnapshot: namespaces!.run.snapValues each namespaces;
+
+    / Resource Snapshot (Phase 1 Hardening)
+    origHandles: (), "J"$ raze " " vs/: system "ls /proc/self/fd";
+    origTs: @[get; `.z.ts; {::}];
+
+    / Switch to spec context if defined
+    ctx: $[`namespace in key spec; spec`namespace; `context in key spec; spec`context; `];
+    if[not ctx ~ `; .tst.context: ctx; system "d ", string ctx];
+
+    / Run Before Hooks
+    if[`before in key spec; .tst.runHook[spec`before]];
+
+    / Run Expectations
+    / UI tests store tests in `expectations`, simple tests in `code`
+    list: $[`expectations in key spec; spec`expectations; spec`code];
+    
+    / Clean up list (ensure it is a list of objects)
+    t: type list;
+    if[not t in 0 98h; list: enlist list];
+    
+    res: .tst.runExpec[spec] each list;
+    
+    / Run After Hooks
+    if[`after in key spec; .tst.runHook[spec`after]];
+    
+    / Restore Root Namespace
+    system "d .";
+
+    / Check for Global/Deep Pollution
+    currentNamespaces: key `;
+    currentNamespaces: currentNamespaces except `q`Q`j`h`o`s`v`z`tst`resq;
+    
+    newNamespaces: currentNamespaces except namespaces;
+    if[count newNamespaces;
+        -1 "WARNING: Test '", .tst.toString[spec`title], "' leaked new namespaces: ", .tst.toString newNamespaces;
+        .tst.deleteVar each newNamespaces;
+        -1 "  -> Cleaned up leaked namespaces.";
+    ];
+
+    / Check existing namespaces for new keys AND modified values
+    / Check existing namespaces for new keys AND modified values
+    checkNs: namespaces inter currentNamespaces;
+    
+    if[count checkNs;
+        { [title; ns; originalState]
+            currentState: .run.snapValues ns;
+            
+            / 1. Detect New Keys (Pollution)
+            newKeys: (key currentState) except (key originalState);
+            if[count newKeys;
+                -1 "WARNING: Test '", .tst.toString[title], "' leaked members in ", string[ns], ": ", .tst.toString newKeys;
+                .tst.deleteVar each newKeys;
+                 -1 "  -> Cleaned up leaked members in ", string[ns], ".";
+            ];
+            
+            / 2. Detect Modified Values (Mutation)
+            commonKeys: (key currentState) inter (key originalState);
+            / Filter out views or functions that might be tricky? For now check all.
+            modifiedKeys: commonKeys where not { x ~ y }'[originalState commonKeys; currentState commonKeys];
+            
+            if[count modifiedKeys;
+                -1 "WARNING: Test '", .tst.toString[title], "' modified globals in ", string[ns], ": ", .tst.toString modifiedKeys;
+                 / Restore values
+                { [k; v] 
+                    / Check if view by attempting to get definition
+                    / Wrap result in (isView; result) to distinguish success/fail
+                    r: @[{ (1b; view x) }; k; { (0b; x) }];
+                    isView: r 0;
+                    
+                    if[not isView; k set v];
+                }'[modifiedKeys; originalState modifiedKeys];
+                -1 "  -> Restored modified globals in ", string[ns], ".";
+            ];
+            
+        }[spec`title]'[checkNs; fullSnapshot checkNs];
+    ];
+
+    / Resource Teardown (Phase 1 Hardening)
+    currentHandles: (), "J"$ raze " " vs/: system "ls /proc/self/fd";
+    leaked: currentHandles except origHandles;
+    if[count leaked;
+        -1 "WARNING: Test Suite '", .tst.toString[spec`title], "' leaked handles: ", .tst.toString leaked;
+        { @[hclose; x; {}] } each leaked;
+        -1 "  -> Closed leaked handles.";
+    ];
+
+    currentTs: @[get; `.z.ts; {::}];
+    if[not currentTs ~ origTs;
+        -1 "WARNING: Test Suite '", .tst.toString[spec`title], "' modified .z.ts. Restoring.";
+        .z.ts: origTs;
+    ];
+
+    spec[`expectations]: res;
+    spec
+ };
+
     .tst.callbacks.expecRan:{[s;e] 
           .tst.app.expectationsRan+:1;
           r: e[`result];
@@ -125,14 +245,68 @@
 
     .tst.loadTests .tst.app.args;
 
-    if[1b ~ .tst.app.failHard;.tst.app.allSpecs[;`failHard]: 1b];
+    if[count .tst.app.allSpecs;
+        if[1b ~ .tst.app.failHard;.tst.app.allSpecs[;`failHard]: 1b];
+        if[0 <> count .tst.app.excludeSpecs;.tst.app.allSpecs: .tst.app.allSpecs where not (or) over .tst.app.allSpecs[;`title] like/: .tst.app.excludeSpecs];
+        if[0 <> count .tst.app.runSpecs;.tst.app.allSpecs: .tst.app.allSpecs where (or) over .tst.app.allSpecs[;`title] like/: .tst.app.runSpecs];
+    ];
+
+    if[.utl.DEBUG; -1 "DEBUG: allSpecs count: ", string count .tst.app.allSpecs];
+    .tst.app.results: $[not 1b ~ .tst.app.describeOnly; .tst.runSpec each .tst.app.allSpecs; .tst.app.allSpecs];
+    if[.utl.DEBUG; -1 "DEBUG: results count: ", string count .tst.app.results];
+
+    / Process Load Errors
+    if[0 < count .tst.app.loadErrors;
+        { [err]
+            toInsert: flip `suite`description`status`message`time`failures`assertsRun ! (
+                enlist `FILE_LOAD_ERROR;
+                enlist err`file;
+                enlist `error;
+                enlist err`error;
+                enlist 0Nn;
+                enlist enlist err`error;
+                enlist 0i
+            );
+            `.resq.state.results upsert toInsert;
+
+            / Synthetic Spec for XML IO
+            syntheticExpec: `desc`type`time`result`errorText`failures`code`before`after`assertsRun!(
+                "File: ", (string err`file);
+                `test;
+                0Nn;
+                `fileLoadError;
+                err`error;
+                enlist err`error;
+                {}; {}; {};
+                0
+            );
+            syntheticSpec: `title`expectations!(`FILE_LOAD_ERROR; enlist syntheticExpec);
+            .tst.app.results,: enlist syntheticSpec;
+        } each .tst.app.loadErrors;
+    ];
+
+    / STRICT MODE: Fail if no tests run or no expectations executed
+    if[.tst.app.strict and (0 = .tst.app.expectationsRan);
+        toInsert: flip `suite`description`status`message`time`failures`assertsRun ! (
+            enlist `STRICT_MODE_FAILURE;
+            enlist `NO_TESTS_FOUND;
+            enlist `error;
+            enlist "Strict mode enabled but no tests were found/executed.";
+            enlist 0Nn;
+            enlist enlist "No tests executed.";
+            enlist 0i
+        );
+        `.resq.state.results upsert toInsert;
+    ];
+
+    r: raze { $[count x`expectations; x`expectations; ()] } each .tst.app.results;
+    allResPass: $[count r; all r[;`result] ~\: `pass; 1b];
+    allStatePass: $[count .resq.state.results; all .resq.state.results[`status] = `pass; 1b];
+
+    .tst.app.passed: allResPass and (0 = count .tst.app.loadErrors) and allStatePass and (0 < count .resq.state.results);
+    / If we have load errors or strict mode failure, passed should be 0b even if state.results is empty
+    if[0 < count .tst.app.loadErrors; .tst.app.passed: 0b];
     
-    if[0 <> count .tst.app.excludeSpecs;.tst.app.allSpecs: .tst.app.allSpecs where not (or) over .tst.app.allSpecs[;`title] like/: .tst.app.excludeSpecs];
-    if[0 <> count .tst.app.runSpecs;.tst.app.allSpecs: .tst.app.allSpecs where (or) over .tst.app.allSpecs[;`title] like/: .tst.app.runSpecs];
-
-    .tst.app.results: $[not 1b ~ .tst.app.describeOnly;.tst.runSpec each .tst.app.allSpecs;.tst.app.allSpecs];
-
-    .tst.app.passed:all `pass = .tst.app.results[;`result];
     .resq.report[.resq.state.results];
     
     if[1b ~ .tst.app.runCoverage;
@@ -176,6 +350,14 @@
     .tst.cleanupAllFixtures[];
     .tst.restoreOriginalQ[];
     .tst.restore[];
+
+    / Sandbox Cleanup
+    / Delete all namespaces created for suites (flat namespaces .sandbox_*)
+    rootKeys: key `.;
+    sandboxKeys: rootKeys where (string rootKeys) like "sandbox_*";
+    if[0 < count sandboxKeys;
+        ![`.; (); 0b; sandboxKeys]
+    ];
 
     if[1b ~ .tst.app.exit; .tst.die `int$not .tst.app.passed];
  };

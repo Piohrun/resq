@@ -22,6 +22,7 @@ if[not `runCoverage in key `.tst.app; .tst.app.runCoverage: 0b];
 if[not `exit in key `.tst.app; .tst.app.exit: 0b];
 if[not `failFast in key `.tst.app; .tst.app.failFast: 0b];
 if[not `failHard in key `.tst.app; .tst.app.failHard: 0b];
+if[not `maxTestTime in key `.tst.app; .tst.app.maxTestTime: 0];
 if[not `passOnly in key `.tst.app; .tst.app.passOnly: 0b];
 if[not `allSpecs in key `.tst.app; .tst.app.allSpecs: ()];
 if[not `passed in key `.tst.app; .tst.app.passed: 1b];

@@ -1,4 +1,6 @@
+if[not `utl in key `; .utl:(enlist `)!enlist (::)];
 if[not `PKGLOADING in key .utl; .utl.PKGLOADING:"lib"];
+.utl.DEBUG: 0b;
 
 / Initialize .resq namespace and state
 if[not `resq in key `; .resq.tmp:1; .resq.state.tmp:1; .resq.config.tmp:1];
@@ -15,6 +17,7 @@ if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: "
 .utl.require .utl.PKGLOADING,"/snapshot.q"
 .utl.require .utl.PKGLOADING,"/snapshot_txt.q"
 .utl.require .utl.PKGLOADING,"/tests/internals.q"
+.utl.require .utl.PKGLOADING,"/output/sanitize.q"
 .utl.require .utl.PKGLOADING,"/tests/assertions.q"
 .utl.require .utl.PKGLOADING,"/deps.q"
 .utl.require .utl.PKGLOADING,"/diff_assertions.q"
@@ -35,6 +38,9 @@ if[`resq in key `;
 
 / Define report function
 / Define report function for flat table results
+.tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
+if[not `strict in key .tst.app; .tst.app.strict: 0b];
+
 .resq.report:{[results]
     / Group by suite for display
     suites: distinct results`suite;
@@ -65,6 +71,21 @@ if[`resq in key `;
         :()];
         
     -1 "All tests passed.";
+    
+    / Print Dependency Summary if tracked
+    if[count .utl.testDeps;
+        -1 "\n----------------------------------------------------------------";
+        -1 "DEPENDENCY SUMMARY:";
+        { [f; ds] -1 string[f], " depends on: ", " " sv string ds }'[key .utl.testDeps; value .utl.testDeps];
+    ];
+
+    / Wall of Fame (Slowest Tests)
+    if[count results;
+        -1 "\n----------------------------------------------------------------";
+        -1 "SLOWEST TESTS (TOP 5):";
+        slow: 5 # xdesc[ `time; 0!select last time by suite, description from results ];
+        { [r] -1 "  ", .Q.s1[r`time], " - ", string[r`suite], ": ", string[r`description] } each slow;
+    ];
  };
 
 / Namespace Safety Guards
@@ -122,6 +143,8 @@ if[`resq in key `;
 .q.mock: .tst.mock;
 .q.fixture: .tst.fixture;
 .q.fixtureAs: .tst.fixtureAs;
+.q.tempFile: .tst.tempFile;
+.q.registerCleanup: .tst.registerCleanup;
 
 .tst.PKGNAME: .utl.PKGLOADING
 
