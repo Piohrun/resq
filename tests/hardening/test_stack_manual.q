@@ -1,5 +1,6 @@
-\l lib/bootstrap.q
-\l lib/init.q
+if[not `FILELOADING in key `.utl;
+system "l lib/bootstrap.q";
+system "l lib/init.q";
 
 .tst.desc["Manual Stack Trace Check"]{
     should["show stack trace"]{
@@ -19,3 +20,4 @@ r: .resq.state.results;
 show r;
 
 exit 0;
+];

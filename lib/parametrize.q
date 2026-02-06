@@ -48,6 +48,11 @@ parametrize:{[paramDict;func]
     
     pNames: key pd;
     pValues: value pd;
+    / Ensure single-key dicts are treated as lists
+    if[-11h = type pNames;
+        pNames: enlist pNames;
+        pValues: enlist pValues;
+    ];
     
     / Ensure all values are lists
     pValues: {$[0 > type x; enlist x; x]} each pValues;

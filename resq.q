@@ -81,7 +81,11 @@ if[.resq.mode ~ `test;
     .tst.initReporting[]; 
     .tst.runAll[]; 
     if[not any .z.x like "-noquit"; 
-        exit `int$not .tst.app.passed
+        / Granular exit codes for CI/CD
+        exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
+                    not .tst.app.passed; .resq.EXIT.FAIL;
+                    .resq.EXIT.PASS];
+        exit exitCode
     ]
  ];
 

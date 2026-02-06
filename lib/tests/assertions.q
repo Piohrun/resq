@@ -11,7 +11,17 @@ asserts[`must]:{[val;message];
 asserts[`musteq]:{[l;r]; 
     if[l ~ r; :.tst.assertState.assertsRun+:1];
     m: "Expected ", (-3!l), " to match ", (-3!r);
-    if[not (type l) = type r; m,: " (Type mismatch: ", string[type l], " != ", string[type r], ")"];
+    if[not (type l) = type r; m,: " (Type mismatch: ", string[type l], " vs ", string[type r], ")"];
+    / Show numeric diff for numbers
+    if[(type l) within (-9h;-6h); if[(type r) within (-9h;-6h);
+        m,: " (diff: ", string[l - r], ")"
+    ]];
+    / Show length diff for lists
+    if[(type l) >= 0h; if[(type r) >= 0h;
+        if[not (count l) = count r;
+            m,: " (length: ", string[count l], " vs ", string[count r], ")"
+        ]
+    ]];
    -1 "";
    -1 "FAILURE DIFF ---------------------------------------------------";
    -1 .tst.diff[r;l];

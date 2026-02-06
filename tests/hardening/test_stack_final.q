@@ -1,5 +1,6 @@
-\l lib/bootstrap.q
-\l lib/init.q
+if[not `FILELOADING in key `.utl;
+system "l lib/bootstrap.q";
+system "l lib/init.q";
 
 / Use explicit namespace to avoid any collisions
 .tst.desc["ST"] {
@@ -32,3 +33,4 @@ if[count fail;
 -1 "FAIL: Stack trace missing or incomplete.";
 show results;
 exit 1;
+];

@@ -1,5 +1,6 @@
-\l lib/bootstrap.q
-\l lib/init.q
+if[not `FILELOADING in key `.utl;
+system "l lib/bootstrap.q";
+system "l lib/init.q";
 
 .tst.desc["Large Table Diff Benchmark"; {
     before[{
@@ -50,3 +51,4 @@ output: .h.ty .resq.state.results;
 `test_output.txt 0: enlist output;
 
 exit `int$not .tst.app.passed;
+];

@@ -8,8 +8,12 @@
     .resq.reportXml:{[results] 
       / JUnit/XUnit output expects spec objects, not the flat results table
       specs: $[`results in key `.tst.app; .tst.app.results; ()];
-      specs: .tst.sanitize specs;
-      xmlReport: .tst.output.top specs;
+      specs: $[`sanitize in key `.tst; .tst.sanitize specs; specs];
+      / Defensive serialization to avoid reporter crashes
+      xmlReport: @[.tst.output.top; specs; {[e]
+          -1 "ERROR: XML reporter failed: ", .tst.toString e;
+          "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"reporter_failed\"/></testsuite></testsuites>"
+        }];
       outDirStr: .tst.toString .resq.config.outDir;
       if[0 = count outDirStr; outDirStr: "."];
       baseDirStr: .tst.toString .tst.app.baseDir;
@@ -86,6 +90,9 @@
     .tst.callbacks.descLoaded:{[specObj] .tst.app.allSpecs,:enlist specObj; };
 
  .tst.runSpec:{[spec]
+    oldContext: .tst.context;
+    oldPath: .tst.tstPath;
+    specTitle: $[`title in key spec; spec`title; `];
     / Deep Snapshot: all top-level namespaces and their keys AND values
     namespaces: key `;
     / Skip system namespaces and .tst/.resq internals
@@ -108,32 +115,62 @@
     
     fullSnapshot: namespaces!.run.snapValues each namespaces;
 
-    / Resource Snapshot (Phase 1 Hardening)
-    origHandles: (), "J"$ raze " " vs/: system "ls /proc/self/fd";
+    / Resource Snapshot (Phase 1 Hardening) - Cross-platform
+    origHandles: $[.utl.isLinux;
+        (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
+        key .z.W  / Fallback: IPC handles on macOS/Windows
+    ];
     origTs: @[get; `.z.ts; {::}];
 
-    / Switch to spec context if defined
-    ctx: $[`namespace in key spec; spec`namespace; `context in key spec; spec`context; `];
-    if[not ctx ~ `; .tst.context: ctx; system "d ", string ctx];
+    / Switch to spec context if defined (default to root)
+    ctx: $[`namespace in key spec; spec`namespace; `context in key spec; spec`context; `.`];
+    if[ctx ~ `; ctx: `.`];
+    .tst.context: ctx;
+    system "d ", string ctx;
+    if[`tstPath in key spec; .tst.tstPath: spec`tstPath];
+
+    / If halting prior to running, skip hooks/expectations and leave context/path as-is
+    if[.tst.halt; :spec];
 
     / Run Before Hooks
     if[`before in key spec; .tst.runHook[spec`before]];
 
     / Run Expectations
     / UI tests store tests in `expectations`, simple tests in `code`
-    list: $[`expectations in key spec; spec`expectations; spec`code];
+    exList: $[`expectations in key spec; spec`expectations; spec`code];
     
     / Clean up list (ensure it is a list of objects)
-    t: type list;
-    if[not t in 0 98h; list: enlist list];
+    t: type exList;
+    if[98h = t;
+        exList: $[0 = count exList; (); {[tbl; idx] tbl idx}[exList] each til count exList];
+        t: type exList;
+    ];
+    if[not t in 0 98h; exList: enlist exList];
+    / Remove null expectations
+    exList: exList where not (::)~/: exList;
     
-    res: .tst.runExpec[spec] each list;
+    res: {[s; ex] if[.tst.halt; :()]; .tst.runExpec[s; ex]}[spec] each exList;
+    / Remove skipped expectations (halt)
+    res: res where not (::)~/: res;
     
-    / Run After Hooks
-    if[`after in key spec; .tst.runHook[spec`after]];
+    / Run After Hooks (skip if halting)
+    if[not .tst.halt;
+        if[`after in key spec; .tst.runHook[spec`after]];
+    ];
+
+    / Set spec result
+    specResult: $[count res; $[all res[;`result] = `pass; `pass; `fail]; `pass];
+    spec[`expectations]: res;
+    spec[`result]: specResult;
+
+    / If halting, do not restore context/path (per spec runner semantics)
+    if[.tst.halt; :spec];
     
     / Restore Root Namespace
     system "d .";
+    .tst.restoreDir[];
+    .tst.context: oldContext;
+    .tst.tstPath: oldPath;
 
     / Check for Global/Deep Pollution
     currentNamespaces: key `;
@@ -141,7 +178,7 @@
     
     newNamespaces: currentNamespaces except namespaces;
     if[count newNamespaces;
-        -1 "WARNING: Test '", .tst.toString[spec`title], "' leaked new namespaces: ", .tst.toString newNamespaces;
+        -1 "WARNING: Test '", .tst.toString[specTitle], "' leaked new namespaces: ", .tst.toString newNamespaces;
         .tst.deleteVar each newNamespaces;
         -1 "  -> Cleaned up leaked namespaces.";
     ];
@@ -181,80 +218,125 @@
                 -1 "  -> Restored modified globals in ", string[ns], ".";
             ];
             
-        }[spec`title]'[checkNs; fullSnapshot checkNs];
+        }[specTitle]'[checkNs; fullSnapshot checkNs];
     ];
 
-    / Resource Teardown (Phase 1 Hardening)
-    currentHandles: (), "J"$ raze " " vs/: system "ls /proc/self/fd";
+    / Resource Teardown (Phase 1 Hardening) - Cross-platform
+    currentHandles: $[.utl.isLinux;
+        (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
+        key .z.W  / Fallback: IPC handles on macOS/Windows
+    ];
     leaked: currentHandles except origHandles;
     if[count leaked;
-        -1 "WARNING: Test Suite '", .tst.toString[spec`title], "' leaked handles: ", .tst.toString leaked;
+        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' leaked handles: ", .tst.toString leaked;
         { @[hclose; x; {}] } each leaked;
         -1 "  -> Closed leaked handles.";
     ];
 
     currentTs: @[get; `.z.ts; {::}];
     if[not currentTs ~ origTs;
-        -1 "WARNING: Test Suite '", .tst.toString[spec`title], "' modified .z.ts. Restoring.";
+        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' modified .z.ts. Restoring.";
         .z.ts: origTs;
     ];
 
-    spec[`expectations]: res;
     spec
  };
 
     .tst.callbacks.expecRan:{[s;e] 
-          .tst.app.expectationsRan+:1;
-          r: e[`result];
-          if[r ~ `pass; .tst.app.expectationsPassed+:1];
-          if[r in `testFail`fuzzFail; .tst.app.expectationsFailed+:1];
-          if[r like "*Error"; .tst.app.expectationsErrored+:1];
-          
-          status: $[r ~ `pass; `pass; r in `testFail`fuzzFail; `fail; `error];
-          messageText: $[status ~ `pass; ""; 0 < count e[`failures]; e[`failures]; e[`errorText]];
+          .[{
+              [s;e]
+              .tst.app.expectationsRan+:1;
+              r: e[`result];
+              if[r ~ `pass; .tst.app.expectationsPassed+:1];
+              if[r in `testFail`fuzzFail; .tst.app.expectationsFailed+:1];
+              if[r like "*Error"; .tst.app.expectationsErrored+:1];
+              
+              status: $[r ~ `pass; `pass; r in `testFail`fuzzFail; `fail; `error];
+              messageText: $[status ~ `pass; ""; 0 < count e[`failures]; e[`failures]; e[`errorText]];
 
-          / Safe conversion to symbol - handles strings, symbols, and other types
-          toSym: {$[-11h = type x; x; 10h = type x; `$x; `$string x]};
-          exTime: first e[`time];
-          dur: @[{"n"$x}; exTime; { 0Nn }];
+              / Safe conversion to symbol atom - normalize via toString
+              toSym: {`$ .tst.toString x};
+              exTime: first e[`time];
+              / Ensure timespan type for results table
+              dur: `timespan$ exTime;
 
-          toInsert: flip `suite`description`status`message`time`failures`assertsRun ! (
-              enlist toSym s[`title];
-              enlist toSym e[`desc];
-              enlist status;
-              enlist messageText;
-              enlist dur;
-              enlist $[`failures in key e; e[`failures]; ()];
-              enlist $[`assertsRun in key e; e[`assertsRun]; 0i]
-          );
-          
-          `.resq.state.results upsert toInsert;
+              toInsert: flip `suite`description`status`message`time`failures`assertsRun ! (
+                  enlist toSym s[`title];
+                  enlist toSym e[`desc];
+                  enlist status;
+                  enlist messageText;
+                  enlist dur;
+                  enlist $[`failures in key e; e[`failures]; ()];
+                  enlist $[`assertsRun in key e; e[`assertsRun]; 0i]
+              );
+              / Align row types with results table to avoid type errors on upsert
+              / Ensure results table is initialized and correct type
+              if[not 98h = type .resq.state.results;
+                  .resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
+              ];
+              
+              .resq.state.results: .resq.state.results upsert toInsert;
 
-          / Fix: Ensure boolean atoms for AND/OR
-          isFail: not r ~ `pass;
-          shouldHalt: (1b ~ .tst.app.failFast) or (1b ~ .tst.app.failHard);
-          if[shouldHalt and isFail;
-            -1 "!!! HALTING FAILURE !!!";
-            -1 "Suite: ", .tst.toString s[`title];
-            -1 "Desc:  ", .tst.toString e[`desc];
-            -1 "Error: ", .tst.toString messageText;
-            if[1b ~ .tst.app.failHard;.tst.halt:1b];
-            if[(1b ~ .tst.app.exit) and not 1b ~ .tst.app.failHard;.tst.die 1];
-          ];
+              / Fix: Ensure boolean atoms for AND/OR
+              isFail: not r ~ `pass;
+              shouldHalt: (1b ~ .tst.app.failFast) or (1b ~ .tst.app.failHard);
+              if[shouldHalt and isFail;
+                -1 "!!! HALTING FAILURE !!!";
+                -1 "Suite: ", .tst.toString s[`title];
+                -1 "Desc:  ", .tst.toString e[`desc];
+                -1 "Error: ", .tst.toString messageText;
+                if[1b ~ .tst.app.failHard;.tst.halt:1b];
+                if[(1b ~ .tst.app.exit) and not 1b ~ .tst.app.failHard;.tst.die 1];
+              ];
+          };
+          (s;e);
+          { [args; err]
+              spec: first args;
+              expec: last args;
+              -1 "ERROR: expecRan failed for suite ", .tst.toString spec`title, " / desc ", .tst.toString expec`desc, ": ", .tst.toString err;
+              :()
+          }]
     };
 
+    .tst._runAllStep: "loadTests";
     .tst.loadTests .tst.app.args;
 
+    .tst._runAllStep: "filterSpecs";
     if[count .tst.app.allSpecs;
         if[1b ~ .tst.app.failHard;.tst.app.allSpecs[;`failHard]: 1b];
         if[0 <> count .tst.app.excludeSpecs;.tst.app.allSpecs: .tst.app.allSpecs where not (or) over .tst.app.allSpecs[;`title] like/: .tst.app.excludeSpecs];
         if[0 <> count .tst.app.runSpecs;.tst.app.allSpecs: .tst.app.allSpecs where (or) over .tst.app.allSpecs[;`title] like/: .tst.app.runSpecs];
+        
+        / Tag-based filtering
+        if[`tagFilter in key .tst.app;
+            if[0 < count .tst.app.tagFilter;
+                .tst.app.allSpecs: .tst.app.allSpecs where {[spec;tags] any tags in $[`tags in key spec; spec`tags; ()]}[;.tst.app.tagFilter] each .tst.app.allSpecs
+            ]
+        ];
+        if[`excludeTagFilter in key .tst.app;
+            if[0 < count .tst.app.excludeTagFilter;
+                .tst.app.allSpecs: .tst.app.allSpecs where {[spec;tags] not any tags in $[`tags in key spec; spec`tags; ()]}[;.tst.app.excludeTagFilter] each .tst.app.allSpecs
+            ]
+        ];
     ];
 
     if[.utl.DEBUG; -1 "DEBUG: allSpecs count: ", string count .tst.app.allSpecs];
-    .tst.app.results: $[not 1b ~ .tst.app.describeOnly; .tst.runSpec each .tst.app.allSpecs; .tst.app.allSpecs];
+    .tst._runAllStep: "runSpecs";
+    specsList: $[98h = type .tst.app.allSpecs;
+                {[tbl; idx] tbl idx}[.tst.app.allSpecs] each til count .tst.app.allSpecs;
+                .tst.app.allSpecs];
+    / Run specs with error logging to avoid hard crashes
+    .tst.app.results: $[not 1b ~ .tst.app.describeOnly;
+        { [spec]
+            @[.tst.runSpec; spec; { [s; err]
+                -1 "ERROR running spec: ", .tst.toString s[`title], ": ", .tst.toString err;
+                s
+            }]
+        } each specsList;
+        specsList];
     if[.utl.DEBUG; -1 "DEBUG: results count: ", string count .tst.app.results];
 
+    .tst._runAllStep: "loadErrors";
     / Process Load Errors
     if[0 < count .tst.app.loadErrors;
         { [err]
@@ -285,6 +367,7 @@
         } each .tst.app.loadErrors;
     ];
 
+    .tst._runAllStep: "strictMode";
     / STRICT MODE: Fail if no tests run or no expectations executed
     if[.tst.app.strict and (0 = .tst.app.expectationsRan);
         toInsert: flip `suite`description`status`message`time`failures`assertsRun ! (
@@ -299,7 +382,11 @@
         `.resq.state.results upsert toInsert;
     ];
 
-    r: raze { $[count x`expectations; x`expectations; ()] } each .tst.app.results;
+    .tst._runAllStep: "resultsSummary";
+    resList: $[98h = type .tst.app.results;
+               {[tbl; idx] tbl idx}[.tst.app.results] each til count .tst.app.results;
+               .tst.app.results];
+    r: raze { [x] $[99h = type x; $[count x`expectations; x`expectations; ()]; ()] } each resList;
     allResPass: $[count r; all r[;`result] ~\: `pass; 1b];
     allStatePass: $[count .resq.state.results; all .resq.state.results[`status] = `pass; 1b];
 
@@ -307,8 +394,10 @@
     / If we have load errors or strict mode failure, passed should be 0b even if state.results is empty
     if[0 < count .tst.app.loadErrors; .tst.app.passed: 0b];
     
+    .tst._runAllStep: "report";
     .resq.report[.resq.state.results];
     
+    .tst._runAllStep: "coverage";
     if[1b ~ .tst.app.runCoverage;
         / Be defensive about outDir types (string/symbol/etc.)
         outDirStr: .tst.toString .resq.config.outDir;
@@ -347,9 +436,11 @@
         ];
     ];
     
-    .tst.cleanupAllFixtures[];
-    .tst.restoreOriginalQ[];
-    .tst.restore[];
+    .tst._runAllStep: "cleanup";
+    / Protected cleanup - ensure all cleanups run even if one fails
+    @[.tst.cleanupAllFixtures; (); {[e] -1 "WARNING: Fixture cleanup failed: ", .tst.toString e}];
+    @[.tst.restoreOriginalQ; (); {[e] -1 "WARNING: Original .q restore failed: ", .tst.toString e}];
+    @[.tst.restore; (); {[e] -1 "WARNING: Mock restore failed: ", .tst.toString e}];
 
     / Sandbox Cleanup
     / Delete all namespaces created for suites (flat namespaces .sandbox_*)

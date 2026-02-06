@@ -1,11 +1,14 @@
+oldFL: @[get; `.utl.FILELOADING; {::}];
+if[`FILELOADING in key `.utl; .utl.FILELOADING: ::];
 system "l examples/quickstart/src/order/service.q";
+if[not oldFL ~ (::); .utl.FILELOADING: oldFL];
 / Comprehensive Test Suite for Order Service
 / Showcases: Async Testing, Mock Sequences, Partial Mocks
 
 .tst.desc["Order Processing Service"]{
   before{
     / Reset order database
-    `.order.orders set ([id:`int$()] userId:`int$(); items:(); totalAmount:`float$(); status:`symbol$(); createdAt:`timestamp$());
+    `.order.orders set ([id:`long$()] userId:`long$(); items:(); totalAmount:`float$(); status:`symbol$(); createdAt:`timestamp$());
   };
 
   / === PHASE 1: Mock Sequences ===
@@ -47,12 +50,12 @@ system "l examples/quickstart/src/order/service.q";
   / === PHASE 3: Async Testing with Deferred ===
   should["handle async payment callback"]{
     / Create deferred for async payment
-    paymentDeferred: .tst.deferred[];
+    .tst.paymentDeferred:: .tst.deferred[];
     
     / Mock async payment to resolve deferred
     .tst.mock[`.order.processPaymentAsync; {[oid;amt]
       / Simulate async operation completing
-      .tst.resolve[paymentDeferred; (`success; oid)];
+      .tst.resolve[.tst.paymentDeferred; (`success; oid)];
     }];
     
     / Create order
@@ -61,7 +64,7 @@ system "l examples/quickstart/src/order/service.q";
     id: .order.create[1; items];
     
     / Wait for payment to process
-    result: .tst.await[paymentDeferred; 1000];
+    result: .tst.await[.tst.paymentDeferred; 1000];
     result[0] musteq `success;
     result[1] musteq id;
   };
@@ -70,9 +73,11 @@ system "l examples/quickstart/src/order/service.q";
   should["calculate correct totals for all tier combinations"]{
     .tst.mock[`.order.processPaymentAsync; {[x;y] ()}];
     
-    / Test all pricing tiers
-    .tst.parametrize[`tier`basePrice`expected!(`standard`premium`vip; 100 100 100; 100.0 90.0 80.0); {[tier;basePrice;expected]
-      .tst.mock[`.order.getUserTier; {[x] tier}];
+    / Test all pricing tiers (zipped scenarios)
+    cases: ([] tier:`standard`premium`vip; basePrice: 100 100 100; expected: 100.0 90.0 80.0);
+    .tst.forall[cases; {[tier;basePrice;expected]
+      .tst.currentTier:: tier;
+      .tst.mock[`.order.getUserTier; {[x] .tst.currentTier}];
       items: enlist (`item; 1; basePrice);
       id: .order.create[1; items];
       .order.orders[id;`totalAmount] musteq expected;

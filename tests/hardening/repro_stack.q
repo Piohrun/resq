@@ -1,4 +1,5 @@
-\l resq.q
+if[not `FILELOADING in key `.utl;
+system "l resq.q";
 
 describe["Stack Trace Verification"]{
     it["should report a deep stack trace on failure"]{
@@ -8,3 +9,4 @@ describe["Stack Trace Verification"]{
         deep1[10];
     };
 };
+];

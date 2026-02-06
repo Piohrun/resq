@@ -32,6 +32,7 @@
   `othertable mustnin tables `;
   };
  should["load directory fixtures not containing partitions"]{
+  origQ: .Q;
   // Newer Q versions will load hidden files
   ep:` sv (hsym `$emptyDir;`.empty);
   / Ensure the sentinel exists before deleting it
@@ -48,6 +49,7 @@
   system "l ", emptyDir;
   .Q:`pv`pt`pf _ .Q;
   mustnotthrow[();{fixture `no_part_fixture}];
+  @[`.Q; `pv`pt`pf; :; origQ[`pv`pt`pf]];
   ep set ()
   };
- };
+};

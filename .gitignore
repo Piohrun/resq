@@ -30,6 +30,13 @@ gmon.out
 missingTests/
 plans/
 output/
+resq_*.txt
+resq_*.q
+repro_*.q
+test_dummy.*
+verify_*.q
+coverage_state.txt
+*.lcov
 
 # Data directories (common conventions, uncomment if used)
 # hdb/

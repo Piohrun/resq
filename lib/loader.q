@@ -39,32 +39,33 @@
         / Snapshot spec count
         preCount: count .tst.app.allSpecs;
 
-        / Inject namespace logic
-        / 1. Init: ensure namespace exists
-        / 2. Switch: system "d .ns"
-        / 3. Restore: system "d ."
-        
-        / Inject namespace logic
-        
+        / Ensure namespace exists and switch to it
         nsInit: string[nsName],".init:0;";
-        
-        nsSwitch: "@[system; \"d ", string[nsName], "\"; { -1 \"FAIL FULL namespace switch ", string[nsName], ": \", x }];";
-        nsRestore: "system \"d .\";";
-        
-        content: enlist[nsInit], enlist[nsSwitch], content, enlist[nsRestore];
-
-
-
-        @[{value "\n" sv x}; content; {[p;preCount;e] 
+        @[value; nsInit; {[p;e]
             -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
-             `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
+            `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
+        }[p]];
 
-             / Rollback partial specs
-             if[(count .tst.app.allSpecs) > preCount;
+        @[system; "d ", string nsName; {[p;e]
+            -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
+            `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
+        }[p]];
+
+        / Evaluate script content
+        code: "\n" sv content;
+        res: @[value; code; {(`err0x; x)}];
+        if[(2 = count res) and (first res) ~ `err0x;
+            e: last res;
+            -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
+            `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
+            if[(count .tst.app.allSpecs) > preCount;
                 .tst.app.allSpecs: preCount # .tst.app.allSpecs;
                 -1 "  -> Rolled back partial specs from ", p;
-             ];
-        }[p;preCount]];
+            ];
+        ];
+
+        / Restore root namespace
+        @[system; "d ."; {}];
 
         / Warn if no tests loaded
         if[(count .tst.app.allSpecs) = preCount;

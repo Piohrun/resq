@@ -10,9 +10,9 @@ system "l examples/quickstart/src/analytics/moving_avg.q";
     expected_sma: (1 1.5 2.5 3.5 4.5; 1 1 2 3 4f)
   );
 
-  .tst.forall[cases; {[row]
-    res: .analytics.sma[row`window; row`input];
-    mustmatch[row`expected_sma;res]
+  .tst.forall[cases; {[window;input;expected_sma]
+    res: .analytics.sma[window; input];
+    mustmatch[expected_sma; res]
   }];
 
   };

@@ -71,13 +71,13 @@
   mustnotthrow[();{[x;y] .tst.runExpec[x]}[e]];
   };
  should["call the expecRan callback with the results of running the expectation and current specification"]{
-  `..callbackCalled mock 0b;                                / The context will be in .tst when the callback is executed
-  `.tst.callbacks.expecRan mock {[x;y]`..callbackCalled set 1b};
+  `.tst.callbackCalled mock 0b;                                / The context will be in .tst when the callback is executed
+  `.tst.callbacks.expecRan mock {[x;y]`.tst.callbackCalled set 1b};
   should["run this"]{};
   e:getExpec[];
   .tst.runExpec[();e];
   .tst.contextHelper[];
-   must[callbackCalled;"Expected the descLoaded callback to have been called"];
+   must[.tst.callbackCalled;"Expected the descLoaded callback to have been called"];
   };
  should["restage an expectation if the test run is to immediately halt"]{
   `beforeCounter mock 0;;

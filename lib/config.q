@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`fuzzLimit`failFast`failHard`maxTestTime!(
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`fuzzLimit`failFast`failHard`maxTestTime`reportLimit`reportListLimit!(
     `text;                / Output format
     ".";                  / Output directory
     0b;                   / Describe only mode
@@ -17,7 +17,9 @@ defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`run
     100;                  / Fuzz display limit
     0b;                   / Fail fast
     0b;                   / Fail hard
-    0                     / Max test time (seconds), 0 = no timeout
+    0;                    / Max test time (seconds), 0 = no timeout
+    50000;                / Reporting string limit
+    1000                  / Reporting list/table row limit
  );
 
 / Load configuration from JSON file
@@ -43,6 +45,8 @@ loadConfig:{[path]
         if[10h = type merged`fmt; merged[`fmt]: `$merged`fmt];
         if[10h = type merged`fuzzLimit; merged[`fuzzLimit]: "I"$merged`fuzzLimit];
         if[10h = type merged`maxTestTime; merged[`maxTestTime]: "I"$merged`maxTestTime];
+        if[10h = type merged`reportLimit; merged[`reportLimit]: "I"$merged`reportLimit];
+        if[10h = type merged`reportListLimit; merged[`reportListLimit]: "I"$merged`reportListLimit];
         
         :merged;
     ];
@@ -66,6 +70,8 @@ applyConfig:{[cfg]
     if[`failHard in key cfg; .tst.app.failHard: cfg`failHard];
     if[`fuzzLimit in key cfg; .tst.output.fuzzLimit: cfg`fuzzLimit];
     if[`maxTestTime in key cfg; .tst.app.maxTestTime: cfg`maxTestTime];
+    if[`reportLimit in key cfg; .tst.output.reportLimit: cfg`reportLimit];
+    if[`reportListLimit in key cfg; .tst.output.reportListLimit: cfg`reportListLimit];
     
     / Map to .resq.config
     if[`fmt in key cfg; .resq.config.fmt: cfg`fmt];

@@ -1,12 +1,15 @@
 / Comprehensive Test Suite for User Service";
 / Showcases: Mocking, Spies, Parameterization, Coverage Tracking
 
+oldFL: @[get; `.utl.FILELOADING; {::}];
+if[`FILELOADING in key `.utl; .utl.FILELOADING: ::];
 system "l examples/quickstart/src/user/service.q";
+if[not oldFL ~ (::); .utl.FILELOADING: oldFL];
 
 .tst.desc["User Management Service"]{
   before{
     / Reset user database
-    `.user.users set ([id:`int$()] name:`symbol$(); email:`symbol$(); role:`symbol$(); active:`boolean$());
+    `.user.users set ([id:`long$()] name:`symbol$(); email:`symbol$(); role:`symbol$(); active:`boolean$());
     / Clear spy logs
     .tst.clearSpyLogs[];
   };
@@ -36,7 +39,8 @@ system "l examples/quickstart/src/user/service.q";
   should["validate user creation with various roles"]{
     / Test all combinations of valid inputs
     .tst.parametrize[`name`role!(`alice`bob`charlie; `admin`user`guest); {[name;role]
-      userId: .user.create[name; `$string[name],"@test.com"; role];
+      email: `$ (string[name], "@test.com");
+      userId: .user.create[name; email; role];
       userId mustgt 0;
       user: .user.findById[userId];
       user[`role] musteq role;
@@ -71,13 +75,13 @@ system "l examples/quickstart/src/user/service.q";
   };
 
   should["get active users only"]{
-    `.user.users set ([id:`int$()] name:`symbol$(); email:`symbol$(); role:`symbol$(); active:`boolean$());
+    `.user.users set ([id:`long$()] name:`symbol$(); email:`symbol$(); role:`symbol$(); active:`boolean$());
     id1: .user.create[`user1; `$"u1@test.com"; `user];
     id2: .user.create[`user2; `$"u2@test.com"; `user];
     .user.deactivate[id1];
     
     active: .user.getActive[];
     count[active] musteq 1;
-    first[(key active)`id] musteq id2;
+    first exec id from active musteq id2;
   };
 }

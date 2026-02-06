@@ -17,11 +17,11 @@ fmtVal:{[v;color]
  };
 
 / Internal recursive diff
-diffDeep:{[path;exp;act]
-    if[exp ~ act; :()];
+diffDeep:{[path;expected;actual]
+    if[expected ~ actual; :()];
     
-    tExp: type exp;
-    tAct: type act;
+    tExp: type expected;
+    tAct: type actual;
     pStr: $[count path; path, ": "; ""];
     
     if[not tExp = tAct;
@@ -30,8 +30,8 @@ diffDeep:{[path;exp;act]
     
     / Dictionary Diff (Recursive)
     if[99h = tExp;
-        kExp: key exp;
-        kAct: key act;
+        kExp: key expected;
+        kAct: key actual;
         
         / Key mismatches
         msg: ();
@@ -44,7 +44,7 @@ diffDeep:{[path;exp;act]
         / Value mismatches for common keys
         common: kExp inter kAct;
         pNext: $[count path; path, "."; ""];
-        resList: { [p;e;a;k] .tst.diffDeep[p, .tst.toString[k]; e k; a k] }[pNext;exp;act] each common;
+        resList: { [p;e;a;k] .tst.diffDeep[p, .tst.toString[k]; e k; a k] }[pNext;expected;actual] each common;
         msg,: raze resList;
         
         if[count msg; :msg];
@@ -52,14 +52,18 @@ diffDeep:{[path;exp;act]
     
     / Table diff
     if[98h=tExp;
-        if[not (cExp:cols exp)~(cAct:cols act);
+        if[not (cExp:cols expected)~(cAct:cols actual);
             :(enlist pStr, "Column mismatch";"  Expected: ",.tst.fmtVal[cExp;`green];"  Actual:   ",.tst.fmtVal[cAct;`red]);
         ];
         
         msg: ();
-        if[not (nExp:count exp)=(nAct:count act);
+        nExp: count expected;
+        nAct: count actual;
+        if[not nExp = nAct;
             msg,: enlist pStr, "Count mismatch (Alignment might be off)";
             msg,: ("  Expected rows: ",.tst.fmtVal[nExp;`green]; "  Actual rows:   ",.tst.fmtVal[nAct;`red]);
+            / If row counts differ, return early to avoid length errors
+            :msg
         ];
         
         / Check rows
@@ -67,7 +71,7 @@ diffDeep:{[path;exp;act]
         badRows: ();
         
         / ADAPTIVE DIFF: For large tables, avoid row-by-row full scan
-        isLarge: (count exp) > 1000;
+        isLarge: (count expected) > 1000;
         
         if[isLarge;
             / Quick column check using functional select/exec for speed
@@ -77,7 +81,7 @@ diffDeep:{[path;exp;act]
             / Compare columns individually to find bad rows indices
             / We use a sampled approach or chunked approach to avoid huge memory
             chunkSize: 1000;
-            n: count exp;
+            n: count expected;
             
             / Check first, middle, last chunk
             indices: distinct (til 5), (n - 1 - til 5), (1000 + til 5);
@@ -88,7 +92,7 @@ diffDeep:{[path;exp;act]
             if[n > 10000; indices: distinct indices, 5?n];
             
             / Check these rows specifically
-            badRows: indices where not (exp indices) ~' (act indices);
+            badRows: indices where not (expected indices) ~' (actual indices);
             
             / If we found bad rows, great. If not, and we suspect mismatch (count matches), 
             / we might want to do a full scan but it is expensive.
@@ -103,12 +107,12 @@ diffDeep:{[path;exp;act]
             
             if[0 = count badRows;
                 / Try to find ANY index where they differ
-                badRows: limit sublist where not exp ~' act;
+                badRows: limit sublist where not expected ~' actual;
             ];
         ];
 
         if[not isLarge;
-            badRows: limit sublist where not exp ~' act;
+            badRows: limit sublist where not expected ~' actual;
         ];
         
         if[0<count badRows;
@@ -116,15 +120,14 @@ diffDeep:{[path;exp;act]
              msg,: raze {[r;ex;ac] 
                 rowExp: ex r;
                 rowAct: ac r;
+                colNames: key rowExp;
                 diffCols: where not (value rowExp) ~' (value rowAct);
                 rMsg: enlist "  Row ",string[r],":";
-                colMsgs: { [re;ra;c]
-                    (enlist "    Col ",string[c],":";
-                     "      Exp: ", .tst.fmtVal[re c;`green];
-                     "      Act: ", .tst.fmtVal[ra ra[c];`red])
-                }[rowExp;rowAct] each diffCols;
+                colMsgs: { [re;ra;cn]
+                    enlist "    Col ", string[cn], ": Exp=", .tst.fmtVal[re cn;`green], " Act=", .tst.fmtVal[ra cn;`red]
+                }[rowExp;rowAct] each colNames diffCols;
                 rMsg, raze colMsgs
-             }[;exp;act] each badRows;
+             }[;expected;actual] each badRows;
              :msg
         ];
         
@@ -133,24 +136,24 @@ diffDeep:{[path;exp;act]
     
     / List diff (generic)
     if[(tExp >= 0h) and (tExp < 20h);
-        if[not (nExp:count exp)=(nAct:count act);
+        if[not (nExp:count expected)=(nAct:count actual);
             :(enlist pStr, "Count mismatch";"  Expected len: ",.tst.fmtVal[nExp;`green];"  Actual len:   ",.tst.fmtVal[nAct;`red]);
         ];
         
-        badIdx: 5 sublist where not exp ~' act;
+        badIdx: 5 sublist where not expected ~' actual;
         if[0<count badIdx;
              msg: enlist pStr, "List content mismatch (showing first ",string[count badIdx]," mismatches):";
              msg,: raze {[i;ex;ac] 
                 (enlist "  Idx ",string[i],":";
                 "    Exp: ", .tst.fmtVal[ex i;`green];
                 "    Act: ", .tst.fmtVal[ac i;`red])
-             }[;exp;act] each badIdx;
+             }[;expected;actual] each badIdx;
              :msg
         ];
     ];
     
     / Default fallback
-    (enlist pStr, "Value mismatch";"  Expected: ", .tst.fmtVal[exp;`green];"  Actual:   ", .tst.fmtVal[act;`red])
+    (enlist pStr, "Value mismatch";"  Expected: ", .tst.fmtVal[expected;`green];"  Actual:   ", .tst.fmtVal[actual;`red])
  }
 
 / detailed difference between two objects

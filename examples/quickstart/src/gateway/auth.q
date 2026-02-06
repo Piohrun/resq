@@ -1,4 +1,4 @@
-\d .perm
+system "d .perm";
 
 / Permission Registry (In-memory for simplicity)
 privileges: `user`admin!(`read`write`exec; `read`write`exec`admin);
@@ -19,4 +19,4 @@ shutdown:{[user]
   1b
  };
 
-\d .
+system "d .";

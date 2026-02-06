@@ -51,8 +51,12 @@ mustmatchSnap:{[actual;name]
     if[not actual~stored;
         diffs: .tst.diff[stored;actual];
         -1 "Snapshot mismatch for '",n,"'";
-        -1 diffs;
-        '"Snapshot mismatch for '",n,"'"
+        if[10h = type diffs;
+            -1 diffs;
+            -1 "\n" sv .tst.toString each diffs;
+        ];
+        errSym: `$"Snapshot mismatch for '",n,"'";
+        ' errSym
     ];
     
     1b

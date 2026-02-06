@@ -4,7 +4,7 @@
 if[not `fixtures in key `.tst; fixtures:: ((),`)!(),(::)];
 
 currentDirFixture: ` 
-savedDir: `directory`vars!("";(`,())!(),(::))
+savedDir: `directory`vars`context!("";(`,())!(),(::);`.)
 
 fixtureAs:{[fixtureName;name]
     / Get directory of current test file (tstPath should be absolute from loader)
@@ -120,7 +120,19 @@ loadFixtureDir:{[f;name]
     dirLoaded: not ` ~ .tst.currentDirFixture;
     if[not dirLoaded; .tst.saveDir[]];
     / Note: q doesn't support multiline if blocks, so consolidate
-    if[not fixtureName ~ .tst.currentDirFixture; if[dirLoaded; .tst.removeDirVars `]; system "l ", p; .tst.currentDirFixture: fixtureName];
+    if[not fixtureName ~ .tst.currentDirFixture;
+        if[dirLoaded; .tst.removeDirVars `];
+        / Clear any previously loaded tables before switching fixtures
+        origCtx: system "d";
+        ctx: $[`context in key `.tst; .tst.context; origCtx];
+        system "d ", string ctx;
+        tbls: tables[];
+        if[count tbls; ![ctx; (); 0b; tbls]];
+        / Load fixture data in the current test context (protected)
+        res: @[system; "l ", p; {[p;e] '("Fixture load failed for '", p, "': ", e)}[p]];
+        system "d ", string origCtx;
+        .tst.currentDirFixture: fixtureName
+    ];
     / Return the fixture name (like other load functions)
     fixtureName ^ name
  }
@@ -154,19 +166,33 @@ loadFixtureFile:{[f;name]
  }
 
 saveDir:{
- if[not () ~ dirVars: .tst.findDirVars[];
-  .tst.savedDir:`directory`vars!(system "cd";(!).(::;get each) @\:` sv' `.,'dirVars);
-  .tst.removeDirVars dirVars];
+  origCtx: system "d";
+  ctx: $[`context in key `.tst; .tst.context; origCtx];
+  system "d ", string ctx;
+  dirVars: .tst.findDirVars[];
+  tbls: tables[];
+  if[(not () ~ dirVars) or (0 < count tbls);
+    .tst.savedDir:`directory`vars`context!(system "cd";(!).(::;get each) @\:` sv' `.,'dirVars;ctx);
+    if[0 < count tbls; ![ctx; (); 0b; tbls]];
+    if[not () ~ dirVars; .tst.removeDirVars dirVars];
+  ];
+  system "d ", string origCtx;
  }
 
 removeDirVars:{v:reverse x^.tst.findDirVars[]; if[0<count v; {value "delete ",string[x]," from `."} each v]}
 
 restoreDir:{
+ origCtx: system "d";
  if[not ` ~ .tst.currentDirFixture; .tst.removeDirVars ` ; .tst.currentDirFixture: ` ];
  if[not "" ~ .tst.savedDir.directory;
+  ctx: .tst.savedDir.context;
+  system "d ", string ctx;
+  tbls: tables[];
+  if[count tbls; ![ctx; (); 0b; tbls]];
   system "l ", .tst.savedDir.directory;
   (key .tst.savedDir.vars) set' value .tst.savedDir.vars;
-  .tst.savedDir: `directory`vars!("";(`,())!(),(::));]
+  system "d ", string origCtx;
+  .tst.savedDir: `directory`vars`context!("";(`,())!(),(::);`.)]
  }
 
 findDirVars:{

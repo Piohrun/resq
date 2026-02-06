@@ -3,6 +3,9 @@
   `defaultSpecification mock `context`tstPath`expectations!(`.foo;`:/foo/bar;enlist (`result,())!(),`pass);
   `.tst.runExpec mock {[x;y]y};
   };
+ after{
+  .tst.restore[];
+  };
  should["set the correct context and the correct filepath for its expectations"]{
   `.tst.runExpec mock {[x;y];
    .tst.context mustmatch `.foo;
@@ -51,6 +54,7 @@
   .tst.restoreDir[];
   .tst.context:myOldContext;
   .tst.tstPath:myOldPath;
+  .tst.restore[];
   };
  should["not run further expectations"]{
   `.tst.runExpec mock {[x;y]'"error"};

@@ -36,6 +36,8 @@ if[not `expectationsErrored in key `.tst.app; .tst.app.expectationsErrored: 0];
 / Output configuration
 if[not `mode in key `.tst.output; .tst.output.mode: `run];
 if[not `fuzzLimit in key `.tst.output; .tst.output.fuzzLimit: 10];
+if[not `reportLimit in key `.tst.output; .tst.output.reportLimit: 50000];
+if[not `reportListLimit in key `.tst.output; .tst.output.reportListLimit: 1000];
 
 / Initialize .resq namespace if not exists
 if[not `resq in key `.; .resq.state.init_: 1b; .resq.config.init_: 1b];
@@ -83,4 +85,3 @@ internals[`perfObj]: internals[`defaultExpecObj], ((),`type)!(),`perf
 
 / Callbacks - must exist before any test loading
 if[not `callbacks in key `.tst; .tst.callbacks.descLoaded: {[specObj]}; .tst.callbacks.expecRan: {[spec;expec]}];
-

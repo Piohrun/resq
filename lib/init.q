@@ -5,6 +5,14 @@ if[not `PKGLOADING in key .utl; .utl.PKGLOADING:"lib"];
 / Initialize .resq namespace and state
 if[not `resq in key `; .resq.tmp:1; .resq.state.tmp:1; .resq.config.tmp:1];
 .resq.VERSION: "0.1.0-alpha";
+
+/ Exit code constants for CI/CD integration
+.resq.EXIT.PASS: 0;        / All tests passed
+.resq.EXIT.FAIL: 1;        / One or more tests failed
+.resq.EXIT.CONFIG_ERROR: 2; / Configuration/CLI parsing error
+.resq.EXIT.NO_TESTS: 3;    / No tests found (strict mode)
+.resq.EXIT.LOAD_ERROR: 4;  / File load/syntax error
+
 .resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
 if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: ":."];
 
@@ -53,15 +61,42 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
         fails: select from sRes where not status=`pass;
         { [f] 
             -1 "- ",string[f`description],": [",string[f`status],"]";
-            / Fix: Raze and stringify message safely
-            msg: $[10h=abs type f`message; f`message; .Q.s1 f`message];
+            msg: .tst.toString f`message;
             if[0<count msg; -1 "  Error: ",msg];
-            if[0<count f`failures; -1 "  Failures: "; { -1 "    ",x } each (),f`failures];
+            if[0<count f`failures;
+                -1 "  Failures: ";
+                { -1 "    ", .tst.toString x } each (),f`failures
+            ];
         } each fails;
         
         / Print summary for suite
         -1 "  (",string[count sRes]," tests, ",string[count fails]," failed)";
     }[;results] each suites;
+
+    / Calculate statistics
+    totalTests: count results;
+    passed: count select from results where status=`pass;
+    failed: count select from results where status=`fail;
+    errored: count select from results where status=`error;
+    skipped: count select from results where status in `skip`pending;
+    
+    totalTime: sum results`time;
+    totalAsserts: sum results`assertsRun;
+    
+    / Print summary statistics
+    -1 "";
+    -1 "======================================================================";
+    -1 "SUMMARY";
+    -1 "----------------------------------------------------------------------";
+    -1 "Tests:      ", string[totalTests], " total (",
+        string[passed], " passed, ",
+        string[failed], " failed, ",
+        string[errored], " error, ",
+        string[skipped], " skipped)";
+    -1 "Assertions: ", string[totalAsserts], " total";
+    duration: $[null totalTime; "0"; string `second$totalTime];
+    -1 "Duration:   ", duration, "s";
+    -1 "======================================================================";
 
     allFails: select from results where not status=`pass;
     -1 "\n----------------------------------------------------------------";
@@ -92,6 +127,8 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
 / Save original .q functions before overwriting
 .tst.saveOriginalQ:{[]
     if[not `originalQ in key `.tst; .tst.originalQ:: ()!()];
+    / Defensive: reset if corrupted by mocks or bad state
+    if[not 99h = type .tst.originalQ; .tst.originalQ:: ()!()];
 
     / Capture all .q keys that aren't already saved
     qKeys: key `.q;
@@ -112,6 +149,8 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
 / Restore original .q functions
 .tst.restoreOriginalQ:{[]
     if[not `originalQ in key `.tst; :()];
+    / Defensive: bail out if corrupted
+    if[not 99h = type .tst.originalQ; delete originalQ from `.tst; :()];
     if[0 = count .tst.originalQ; :()];
 
     / Restore each saved function

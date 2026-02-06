@@ -44,5 +44,12 @@ initCLI:{[]
     
     only: getArg[`only; ""];
     if[0<count only; .tst.app.runSpecs: `$"," vs " " sv $[10h=abs type only; enlist only; only]];
+    
+    / Tag-based filtering
+    tagFilter: getArg[`tag; ""];
+    if[0<count tagFilter; .tst.app.tagFilter: `$"," vs tagFilter];
+    
+    excludeTag: getArg[`$"exclude-tag"; ""];
+    if[0<count excludeTag; .tst.app.excludeTagFilter: `$"," vs excludeTag];
  };
 \d .

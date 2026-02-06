@@ -2,6 +2,18 @@
 
 runners:()!()
 
+/ Stack trace capture for debugging test failures
+/ Returns execution context as a string for error diagnostics
+.tst.stackTrace:{[]
+    / Try to capture backtrace using .Q.bt if available 
+    / .Q.bt returns a list of strings, not a single string
+    bt: @[{raze .Q.bt[],\:"\n"}; (); {""}];
+    if[(10h = type bt) and (0 < count bt); :"\nStack trace:\n", bt];
+    
+    / Fallback: return empty string if no .Q.bt available
+    ""
+ };
+
 runners[`perf]:{[expec];
   opts: `runs`gc!10b;
   if[0<count expec`props; opts: opts, expec`props];
@@ -83,9 +95,9 @@ runExpec:{[spec;expec];
  if[`before in key expec;
     c: expec`before;
     if[type[c] within 100 104h;
-        expec: @[{[e;c] e[`before]:c; c[]; e}[expec;c]; (); {[e;err] 
-            bt: .Q.sbt .Q.bt[];
-            .tst.expecError[e;"before";err, "\nStack Trace:\n", bt]
+        expec: @[{[e;c] e[`before]:c; c[]; e}[expec;c]; (); {[e;err]
+            st: .tst.stackTrace[];
+            .tst.expecError[e;"before"; err, st]
         }[expec]];
     ];
  ];
@@ -95,9 +107,9 @@ runExpec:{[spec;expec];
   if[not count expec[`result];
      timeout: first .tst.app.maxTestTime;
      if[timeout > 0; system "T ", string timeout];
-     res: @[.tst.callExpec; expec; {[e;err] 
-         bt: .Q.sbt .Q.bt[];
-         .tst.expecError[e; $[err ~ "stop"; "timeout"; string e`type]; err, "\nStack Trace:\n", bt]
+     res: @[.tst.callExpec; expec; {[e;err]
+         st: .tst.stackTrace[];
+         .tst.expecError[e; $[err ~ "stop"; "timeout"; string e`type]; err, st]
      }[expec]];
      if[timeout > 0; system "T 0"];
      $[99h=type res; expec:res; @[{[e;r] e[`result]:`error; e[`errorText]:r; e}; expec; res]];
@@ -108,9 +120,9 @@ runExpec:{[spec;expec];
  if[`after in key expec;
     c: expec`after;
     if[type[c] within 100 104h;
-        expec: @[{[e;c] e[`after]:c; c[]; e}[expec;c]; (); {[e;err] 
-            bt: .Q.sbt .Q.bt[];
-            .tst.expecError[e;"after";err, "\nStack Trace:\n", bt]
+        expec: @[{[e;c] e[`after]:c; c[]; e}[expec;c]; (); {[e;err]
+            st: .tst.stackTrace[];
+            .tst.expecError[e;"after"; err, st]
         }[expec]];
     ];
  ];

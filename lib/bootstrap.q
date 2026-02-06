@@ -4,6 +4,12 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 .utl.PKGLOADING: "lib";
 .utl.DEBUG: 0b;
 
+/ OS Detection Utilities
+.utl.OS: $[(string .z.o) like "l*"; `linux; (string .z.o) like "m*"; `macos; `windows];
+.utl.isLinux: .utl.OS = `linux;
+.utl.isMac: .utl.OS = `macos;
+.utl.isWindows: .utl.OS = `windows;
+
 .utl.require: {[path]
   / Convert to string
   p: $[10h=abs type path; path; string path];

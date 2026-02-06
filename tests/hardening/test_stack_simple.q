@@ -1,5 +1,6 @@
-\l lib/bootstrap.q
-\l lib/init.q
+if[not `FILELOADING in key `.utl;
+system "l lib/bootstrap.q";
+system "l lib/init.q";
 
 .tst.desc["ST"] {[x]
   it["fails"; {
@@ -19,3 +20,4 @@ m: exec first message from .resq.state.results;
 -1 "--- END MESSAGE ---";
 
 exit 0;
+];

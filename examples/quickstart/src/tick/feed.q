@@ -1,4 +1,4 @@
-\d .feed
+system "d .feed";
 
 / Ticker Feed
 / Simulates publishing updates to listeners
@@ -20,4 +20,4 @@ genTrade:{
   ([] time:n#.z.t; sym:n?syms; price:100+n?10.0; size:100*1+n?10)
  };
 
-\d .
+system "d .";
