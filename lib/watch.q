@@ -8,6 +8,11 @@
 .tst.watch.watchDirs: enlist "."
 .tst.watch.fileStates: ()!()
 .tst.watch.lastScan: 0p
+/ Phase 4: Debouncing support
+.tst.watch.debounceMs: 200;  / Wait 200ms after last change before running
+.tst.watch.lastChange: 0Np;
+.tst.watch.pendingRun: 0b;
+.tst.watch.pendingFiles: ();
 
 / Default runner command (can be overridden)
 .tst.watch.runnerCmd: { 

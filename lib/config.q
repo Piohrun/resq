@@ -55,6 +55,44 @@ loadConfig:{[path]
     .tst.defaultConfig
  };
 
+/ Phase 4: Configuration validation
+/ @param cfg (dict) Configuration dictionary to validate
+/ @return (list) List of warning messages (empty if valid)
+validateConfig:{[cfg]
+    warnings: ();
+    
+    / Check for unknown keys
+    knownKeys: key .tst.defaultConfig;
+    unknownKeys: (key cfg) except knownKeys;
+    if[0 < count unknownKeys;
+        warnings,: enlist "Unknown config keys: ", ", " sv string unknownKeys
+    ];
+    
+    / Check type mismatches
+    if[`fmt in key cfg;
+        if[not (type cfg`fmt) in -11 10h;
+            warnings,: enlist "fmt must be a symbol or string"
+        ]
+    ];
+    if[`maxTestTime in key cfg;
+        if[not (type cfg`maxTestTime) in -6 -7h;
+            warnings,: enlist "maxTestTime must be an integer"
+        ]
+    ];
+    if[`reportLimit in key cfg;
+        if[not (type cfg`reportLimit) in -6 -7h;
+            warnings,: enlist "reportLimit must be an integer"
+        ]
+    ];
+    
+    / Log warnings
+    if[0 < count warnings;
+        {-1 "CONFIG WARNING: ", x} each warnings
+    ];
+    
+    warnings
+ };
+
 / Apply configuration to .tst.app and .resq.config
 / @param cfg (dict) Configuration dictionary
 applyConfig:{[cfg]

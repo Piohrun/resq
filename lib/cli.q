@@ -26,6 +26,12 @@ initCLI:{[]
     / Coverage Support
     .tst.app.runCoverage: 0b;
     if[any .z.x in ("-cov";"-coverage"); .tst.app.runCoverage: 1b];
+    
+    / Coverage Include/Exclude (Phase 3 enhancement)
+    covInclude: getArg[`$"cov-include"; ""];
+    if[0<count covInclude; .tst.app.coverageInclude: "," vs covInclude];
+    covExclude: getArg[`$"cov-exclude"; ""];
+    if[0<count covExclude; .tst.app.coverageExclude: "," vs covExclude];
 
     / Version check
     if[getFlag[`v] or getFlag[`version]; -1 "resQ version ", .resq.VERSION; exit 0];

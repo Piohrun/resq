@@ -15,6 +15,18 @@ after:{[code]
  .tst.currentAfter: code
  }
 
+/ Phase 4: File-level setup/teardown (runs once per describe block)
+currentBeforeAll:{}
+currentAfterAll:{}
+
+beforeAll:{[code]
+ .tst.currentBeforeAll: code
+ }
+
+afterAll:{[code]
+ .tst.currentAfterAll: code
+ }
+
 fillExpecBA:{[x]
   { [ex]
     if[not `before in key ex; ex[`before]: .tst.currentBefore];
@@ -82,6 +94,24 @@ skipIf:{[condition;reason;code]
   $[condition; skip[reason; code]; should[reason; code]]
  }
 
+/ Phase 5: Retry flaky tests
+/ @param retries (int) Number of retries
+/ @param des (string) Test description
+/ @param code (function) Test code
+retry:{[retries;des;code]
+  desStr: .tst.toString des;
+  d: .tst.internals.testObj, (`desc`code`retries`namespace!(desStr;code;retries;.tst.currentNs));
+  .tst.expecList,: enlist d
+ }
+
+/ Phase 5: Focus on a single test (testOnly)
+/ When any testOnly tests exist in a suite, only those tests run
+testOnly:{[des;code]
+  desStr: ".tst.only. ", .tst.toString des;  / Prefix marks as focused
+  tags: (`$.tst.only), `$ {x where x like "#*"} " " vs desStr;
+  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`only!(desStr;code;tags;.tst.currentNs;1b))
+ }
+
 uiRuntimeNames:`fixture`fixtureAs`mock
 uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
 
@@ -124,13 +154,17 @@ uiCode:(before;after;should;it;holds;perf;alt;desc;skip;pending;skipIf)
 / Expose DSL to root and .q namespaces
 describe: .tst.desc; should: .tst.should; it: .tst.should;
 before: .tst.before; after: .tst.after;
+beforeAll: .tst.beforeAll; afterAll: .tst.afterAll;
 holds: .tst.holds; perf: .tst.perf; alt: .tst.alt;
 skip: .tst.skip; pending: .tst.pending; skipIf: .tst.skipIf;
+retry: .tst.retry; testOnly: .tst.testOnly;
 
 .q.describe: .tst.desc; .q.should: .tst.should; .q.it: .tst.should;
 .q.before: .tst.before; .q.after: .tst.after;
+.q.beforeAll: .tst.beforeAll; .q.afterAll: .tst.afterAll;
 .q.holds: .tst.holds; .q.perf: .tst.perf; .q.alt: .tst.alt;
 .q.skip: .tst.skip; .q.pending: .tst.pending; .q.skipIf: .tst.skipIf;
+.q.retry: .tst.retry; .q.testOnly: .tst.testOnly;
 
 \d .tst
 ::

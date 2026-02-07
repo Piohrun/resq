@@ -81,6 +81,8 @@
     .tst.app.expectationsPassed:0;
     .tst.app.expectationsFailed:0;
     .tst.app.expectationsErrored:0;
+    / Execution state tracking for exit code logic
+    .tst.app.executionState: `notStarted;  / notStarted, running, completed
     / Capture base directory for output paths before tests may change CWD
     .tst.app.baseDir: system "cd";
 
@@ -128,6 +130,10 @@
     .tst.context: ctx;
     system "d ", string ctx;
     if[`tstPath in key spec; .tst.tstPath: spec`tstPath];
+    
+    / Set current context for stack traces (Phase 3 enhancement)
+    .tst.currentContext[`file]: .tst.toString .tst.tstPath;
+    .tst.currentContext[`suite]: .tst.toString specTitle;
 
     / If halting prior to running, skip hooks/expectations and leave context/path as-is
     if[.tst.halt; :spec];
@@ -322,6 +328,7 @@
 
     if[.utl.DEBUG; -1 "DEBUG: allSpecs count: ", string count .tst.app.allSpecs];
     .tst._runAllStep: "runSpecs";
+    .tst.app.executionState: `running;
     specsList: $[98h = type .tst.app.allSpecs;
                 {[tbl; idx] tbl idx}[.tst.app.allSpecs] each til count .tst.app.allSpecs;
                 .tst.app.allSpecs];
@@ -437,6 +444,8 @@
     ];
     
     .tst._runAllStep: "cleanup";
+    / Mark execution as completed
+    .tst.app.executionState: `completed;
     / Protected cleanup - ensure all cleanups run even if one fails
     @[.tst.cleanupAllFixtures; (); {[e] -1 "WARNING: Fixture cleanup failed: ", .tst.toString e}];
     @[.tst.restoreOriginalQ; (); {[e] -1 "WARNING: Original .q restore failed: ", .tst.toString e}];

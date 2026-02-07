@@ -12,6 +12,7 @@ if[not `resq in key `; .resq.tmp:1; .resq.state.tmp:1; .resq.config.tmp:1];
 .resq.EXIT.CONFIG_ERROR: 2; / Configuration/CLI parsing error
 .resq.EXIT.NO_TESTS: 3;    / No tests found (strict mode)
 .resq.EXIT.LOAD_ERROR: 4;  / File load/syntax error
+.resq.EXIT.PARTIAL: 5;     / Partial execution (some tests skipped/errored)
 
 .resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
 if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: ":."];

@@ -2,16 +2,28 @@
 
 runners:()!()
 
+/ Context tracking for better error diagnostics
+.tst.currentContext: `file`suite`test!(""; ""; "");
+
 / Stack trace capture for debugging test failures
 / Returns execution context as a string for error diagnostics
 .tst.stackTrace:{[]
+    / Build context string from current test context
+    ctx: "";
+    if[0 < count .tst.currentContext`file; 
+        ctx,: "File: ", .tst.currentContext`file, "\n"];
+    if[0 < count .tst.currentContext`suite; 
+        ctx,: "Suite: ", .tst.currentContext`suite, "\n"];
+    if[0 < count .tst.currentContext`test; 
+        ctx,: "Test: ", .tst.currentContext`test, "\n"];
+    
     / Try to capture backtrace using .Q.bt if available 
     / .Q.bt returns a list of strings, not a single string
     bt: @[{raze .Q.bt[],\:"\n"}; (); {""}];
-    if[(10h = type bt) and (0 < count bt); :"\nStack trace:\n", bt];
+    if[(10h = type bt) and (0 < count bt); ctx,: "\nQ Backtrace:\n", bt];
     
-    / Fallback: return empty string if no .Q.bt available
-    ""
+    / Return empty if no context available
+    $[0 < count ctx; "\n", ctx; ""]
  };
 
 runners[`perf]:{[expec];
@@ -88,6 +100,8 @@ callExpec:{[expec];
 runExpec:{[spec;expec];
  time:.z.p;
  startExpec:expec;
+ / Set test context for stack traces (Phase 3 enhancement)
+ .tst.currentContext[`test]: $[`desc in key expec; .tst.toString expec`desc; ""];
  expec:.tst.setupExpec[spec;expec];
  
  / Before Block
@@ -106,12 +120,21 @@ runExpec:{[spec;expec];
   beforeBad:`test;
   if[not count expec[`result];
      timeout: first .tst.app.maxTestTime;
-     if[timeout > 0; system "T ", string timeout];
+     testStart: .z.p;
+     / Execute test with error trapping (no session-killing \T command)
      res: @[.tst.callExpec; expec; {[e;err]
          st: .tst.stackTrace[];
-         .tst.expecError[e; $[err ~ "stop"; "timeout"; string e`type]; err, st]
+         .tst.expecError[e; string e`type; err, st]
      }[expec]];
-     if[timeout > 0; system "T 0"];
+     / Post-execution timeout check (safe - doesn't kill session)
+     if[timeout > 0;
+         elapsedSec: `long$(.z.p - testStart) % 1000000000;
+         if[elapsedSec > timeout;
+             / Mark as timeout failure but continue running
+             res: .tst.expecError[expec; "timeout"; 
+                 "Test exceeded timeout of ", string[timeout], "s (took ", string[elapsedSec], "s)"];
+         ];
+     ];
      $[99h=type res; expec:res; @[{[e;r] e[`result]:`error; e[`errorText]:r; e}; expec; res]];
   ];
  

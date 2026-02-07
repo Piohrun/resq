@@ -10,7 +10,11 @@ asserts[`must]:{[val;message];
 
 asserts[`musteq]:{[l;r]; 
     if[l ~ r; :.tst.assertState.assertsRun+:1];
-    m: "Expected ", (-3!l), " to match ", (-3!r);
+    / Use truncation for large values to prevent memory issues
+    limit: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
+    lStr: .tst.truncate[l; `long$limit % 2];
+    rStr: .tst.truncate[r; `long$limit % 2];
+    m: "Expected ", lStr, " to match ", rStr;
     if[not (type l) = type r; m,: " (Type mismatch: ", string[type l], " vs ", string[type r], ")"];
     / Show numeric diff for numbers
     if[(type l) within (-9h;-6h); if[(type r) within (-9h;-6h);

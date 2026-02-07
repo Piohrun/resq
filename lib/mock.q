@@ -72,7 +72,14 @@
     / Helper to set a value regardless of current q namespace
     mockSet: {[n;v] $[not (string n) like ".*"; @[`.;n;:;v]; n set v] };
     if[0<count .tst.mockState.store;
-        { [mockSet;k;v] if[not null k; .[mockSet; (k;v); {}]] }[mockSet]' [key .tst.mockState.store; value .tst.mockState.store]];
+        { [mockSet;k;v] 
+            if[not null k; 
+                res: .[mockSet; (k;v); {(`restoreErr; x)}];
+                if[(2 = count res) and (first res) ~ `restoreErr;
+                    -1 "WARNING: Failed to restore mock '", string[k], "': ", last res
+                ]
+            ]
+        }[mockSet]' [key .tst.mockState.store; value .tst.mockState.store]];
     if[0<count .tst.mockState.removeList;
         .tst.deleteVar each .tst.mockState.removeList];
     .tst.mockState.store: enlist[`]!enlist(::);

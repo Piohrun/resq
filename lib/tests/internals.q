@@ -39,6 +39,20 @@ if[not `fuzzLimit in key `.tst.output; .tst.output.fuzzLimit: 10];
 if[not `reportLimit in key `.tst.output; .tst.output.reportLimit: 50000];
 if[not `reportListLimit in key `.tst.output; .tst.output.reportListLimit: 1000];
 
+/ Truncation utility for safely outputting large values
+/ Prevents memory exhaustion from very large test outputs
+.tst.truncate:{[val;maxLen]
+    s: -3!val;
+    n: count s;
+    if[n > maxLen;
+        truncLen: maxLen - 30;
+        origLen: n;
+        s: truncLen # s;
+        s,: "... [truncated ", string[origLen - truncLen], " chars]"
+    ];
+    s
+ };
+
 / Initialize .resq namespace if not exists
 if[not `resq in key `.; .resq.state.init_: 1b; .resq.config.init_: 1b];
 

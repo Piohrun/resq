@@ -120,6 +120,17 @@
     if[not .tst.coverageEnabled; :()];
 
     absPath: .tst.resolvePath pathStr;
+    
+    / Check include/exclude patterns (Phase 3 enhancement)
+    if[`coverageInclude in key `.tst.app;
+        if[0 < count .tst.app.coverageInclude;
+            if[not any absPath like/: .tst.app.coverageInclude; :()]
+        ]
+    ];
+    if[`coverageExclude in key `.tst.app;
+        if[any absPath like/: .tst.app.coverageExclude; :()]
+    ];
+    
     fileSym: `$absPath;
     .tst.ensureCoverageEntry[fileSym];
 
