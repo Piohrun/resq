@@ -25,7 +25,7 @@
     if[not outDirStr like "/*"; outDirStr: baseDirStr, "/", outDirStr];
     outDirStr: .utl.normalizePath outDirStr;
     outFile: outDirStr, "/test-results_", string[.z.i], ".json";
-    system "mkdir -p ", outDirStr;
+    .utl.ensureDir outDirStr;
     hsym[`$outFile] 0: enlist jsonReport;
     -1 "JSON Report written to ", outFile;
  };

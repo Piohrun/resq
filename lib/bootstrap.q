@@ -100,6 +100,24 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 / Check if path is a file
 .utl.isFile:{[p] k: key .utl.pathToHsym p; $[() ~ k; 0b; 11h = type k; 0b; 1b]};
 
+/ Quote a path for POSIX shell commands.
+.utl.shellQuote:{[p]
+    s: .utl.pathToString p;
+    "'", ssr[s; "'"; "'\"'\"'"], "'"
+ };
+
+/ Ensure a directory exists. Centralizes shell use and path quoting.
+.utl.ensureDir:{[path]
+    p: .utl.normalizePath path;
+    if[0 = count p; p: "."];
+    if[.utl.isDir p; :p];
+    @[system; "mkdir -p ", .utl.shellQuote p; {[p;e]
+        -1 "WARNING: Failed to create directory ", p, ": ", e;
+        :()
+    }[p]];
+    p
+ };
+
 / ============================================================================
 
 .utl.addOpt: {[a;b;c]};

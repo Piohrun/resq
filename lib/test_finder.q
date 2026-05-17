@@ -127,7 +127,7 @@
   if[not count untested; :()];
   od: .tst.toStr outDir;
   -1 "Mirroring structure to: ", od;
-  system "mkdir -p ", od;
+  .utl.ensureDir od;
   b: .tst.toStr baseDir;
   if[(count b) and not "/"=last b; b,: "/"];
 
@@ -147,7 +147,7 @@
     dirP: .tst.getDir rel;
 
     td: od, $[(count dirP) and not dirP~"/"; "/", dirP; ""];
-    system "mkdir -p ", td;
+    .utl.ensureDir td;
 
     baseN: .tst.getBase rel;
     if[baseN like "*.q"; baseN: ((-2 + count baseN) # baseN)];
@@ -174,7 +174,7 @@
           if[0<count deps;
               xml,: enlist "  / Dependencies detected: ", ( ", " sv string deps);
               / Build mock lines without lambda to avoid closure issues
-              mockLines: {[LB;RB;x] "  .resq.mock[`",string[x],"; ",LB,"[args] (::)",RB,"];"}[LB;RB] each deps;
+              mockLines: {[LB;RB;x] "  .tst.mock[`",string[x],"; ",LB,"[args] (::)",RB,"];"}[LB;RB] each deps;
               xml,: mockLines;
               xml,: enlist "";
           ];

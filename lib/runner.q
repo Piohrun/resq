@@ -30,7 +30,7 @@
       if[not outDirStr like "/*"; outDirStr: baseDirStr, "/", outDirStr];
       outDirStr: .utl.normalizePath outDirStr;
       outFile: outDirStr, "/test-results_", string[.z.i], ".xml";
-      system "mkdir -p ", outDirStr;
+      .utl.ensureDir outDirStr;
       hsym[`$outFile] 0: enlist xmlReport;
       -1 "XML Report written to ", outFile;
      };
@@ -430,7 +430,7 @@
         ];
         outDirStr: .utl.normalizePath outDirStr;
         -1 "Coverage outDir: ", outDirStr;
-        system "mkdir -p ", outDirStr;
+        .utl.ensureDir outDirStr;
 
         outFile: outDirStr, "/coverage.lcov";
         covLCOV: @[get; `.tst.generateLCOV; {()}];

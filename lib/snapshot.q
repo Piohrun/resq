@@ -14,16 +14,7 @@ snapPath:{[name]
  };
 
 ensureDir:{[path]
-    / Check if directory exists
-    h: hsym `$path;
-    exists: not () ~ key h;
-
-    if[not exists;
-        / Try to create it
-        @[system; "mkdir -p ", path; {[p;e]
-            -1 "WARNING: Failed to create directory ", p, ": ", e
-        }[path]]
-    ];
+    .utl.ensureDir path;
  };
 
 loadSnap:{[name]
