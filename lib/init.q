@@ -164,6 +164,16 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
         @[qName set; v; { [name; e] -1 "ERROR: Failed to restore ",string[name],": ",e }[qName]];
     }'[key .tst.originalQ; value .tst.originalQ];
 
+    / Remove resQ .q exports that did not exist before exporting.
+    if[`qExports in key `.tst;
+        {[k]
+            if[not k in key .tst.originalQ;
+                qName: ` sv `.q,k;
+                @[value; "delete ", string[k], " from `.q"; {[qn;e] qn set (::)}[qName]];
+            ];
+        } each key .tst.qExports;
+    ];
+
     / Clean up
     delete originalQ from `.tst;
 
@@ -176,19 +186,43 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
     exit x
  };
 
-/ Expose assertions to .q for infix usage
-/ Save original state first
-.tst.saveOriginalQ[];
+/ Register optional .q namespace exports for compatibility.
+/ .q is reserved by kdb+; keep these enabled by default for existing suites,
+/ but allow resq.json to disable them with qNamespaceExports:false.
+if[not `qNamespaceExports in key `.tst; .tst.qNamespaceExports: 1b];
+if[not `qExports in key `.tst; .tst.qExports: ()!()];
 
-/ Map all assertions from the registry to global namespace
-{ (` sv(`.q;x)) set .tst.asserts[x] } each key .tst.asserts;
+.tst.registerQExports:{[exports]
+    if[not 99h = type exports; '`type];
+    .tst.qExports: .tst.qExports, exports;
+    if[.tst.qNamespaceExports;
+        .tst.saveOriginalQ[];
+        { (` sv `.q,x) set y }'[key exports; value exports];
+    ];
+    ::
+ };
 
-/ Expose utilities to .q namespace
-.q.mock: .tst.mock;
-.q.fixture: .tst.fixture;
-.q.fixtureAs: .tst.fixtureAs;
-.q.tempFile: .tst.tempFile;
-.q.registerCleanup: .tst.registerCleanup;
+.tst.setQNamespaceExports:{[enabled]
+    enabled: 1b ~ enabled;
+    if[enabled ~ .tst.qNamespaceExports; :()];
+    .tst.qNamespaceExports: enabled;
+    if[enabled;
+        if[0 < count .tst.qExports;
+            .tst.saveOriginalQ[];
+            { (` sv `.q,x) set y }'[key .tst.qExports; value .tst.qExports];
+        ];
+        :()
+    ];
+    .tst.restoreOriginalQ[];
+    ::
+ };
+
+.tst.registerQExports .tst.asserts, `mock`fixture`fixtureAs`tempFile`registerCleanup!(
+    .tst.mock;
+    .tst.fixture;
+    .tst.fixtureAs;
+    .tst.tempFile;
+    .tst.registerCleanup);
 
 .tst.PKGNAME: .utl.PKGLOADING
 

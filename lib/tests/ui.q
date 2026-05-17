@@ -159,12 +159,24 @@ holds: .tst.holds; perf: .tst.perf; alt: .tst.alt;
 skip: .tst.skip; pending: .tst.pending; skipIf: .tst.skipIf;
 retry: .tst.retry; testOnly: .tst.testOnly;
 
-.q.describe: .tst.desc; .q.should: .tst.should; .q.it: .tst.should;
-.q.before: .tst.before; .q.after: .tst.after;
-.q.beforeAll: .tst.beforeAll; .q.afterAll: .tst.afterAll;
-.q.holds: .tst.holds; .q.perf: .tst.perf; .q.alt: .tst.alt;
-.q.skip: .tst.skip; .q.pending: .tst.pending; .q.skipIf: .tst.skipIf;
-.q.retry: .tst.retry; .q.testOnly: .tst.testOnly;
+if[`registerQExports in key `.tst;
+    .tst.registerQExports `describe`should`it`before`after`beforeAll`afterAll`holds`perf`alt`skip`pending`skipIf`retry`testOnly!(
+        .tst.desc;
+        .tst.should;
+        .tst.should;
+        .tst.before;
+        .tst.after;
+        .tst.beforeAll;
+        .tst.afterAll;
+        .tst.holds;
+        .tst.perf;
+        .tst.alt;
+        .tst.skip;
+        .tst.pending;
+        .tst.skipIf;
+        .tst.retry;
+        .tst.testOnly)
+];
 
 \d .tst
 ::
