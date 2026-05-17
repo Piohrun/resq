@@ -103,7 +103,9 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 / Quote a path for POSIX shell commands.
 .utl.shellQuote:{[p]
     s: .utl.pathToString p;
-    "'", ssr[s; "'"; "'\"'\"'"], "'"
+    $[.utl.isWindows;
+        "\"", ssr[s; "\""; "\\\""], "\"";
+        "'", ssr[s; "'"; "'\"'\"'"], "'"]
  };
 
 / Ensure a directory exists. Centralizes shell use and path quoting.
@@ -111,7 +113,8 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
     p: .utl.normalizePath path;
     if[0 = count p; p: "."];
     if[.utl.isDir p; :p];
-    @[system; "mkdir -p ", .utl.shellQuote p; {[p;e]
+    cmd: $[.utl.isWindows; "mkdir ", .utl.shellQuote p; "mkdir -p ", .utl.shellQuote p];
+    @[system; cmd; {[p;e]
         -1 "WARNING: Failed to create directory ", p, ": ", e;
         :()
     }[p]];
