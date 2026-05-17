@@ -5,7 +5,7 @@
     suites: distinct results`suite;
     
     { [s; res] 
-        sRes: select from res where suite=s;
+        sRes: res where (res`suite) = s;
         -1 "\n",string[s],"::";
         
         sStatus: .tst.normalizeResultStatus each sRes`status;

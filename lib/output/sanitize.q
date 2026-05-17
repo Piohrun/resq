@@ -121,5 +121,5 @@
 .tst.resultTable:{[results]
     rows: .tst.resultRows results;
     if[0 = count rows; :.tst.emptyResultTable[]];
-    flip rows
+    flip flip rows
  };

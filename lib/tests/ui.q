@@ -159,24 +159,22 @@ holds: .tst.holds; perf: .tst.perf; alt: .tst.alt;
 skip: .tst.skip; pending: .tst.pending; skipIf: .tst.skipIf;
 retry: .tst.retry; testOnly: .tst.testOnly;
 
-if[`registerQExports in key `.tst;
-    .tst.registerQExports `describe`should`it`before`after`beforeAll`afterAll`holds`perf`alt`skip`pending`skipIf`retry`testOnly!(
-        .tst.desc;
-        .tst.should;
-        .tst.should;
-        .tst.before;
-        .tst.after;
-        .tst.beforeAll;
-        .tst.afterAll;
-        .tst.holds;
-        .tst.perf;
-        .tst.alt;
-        .tst.skip;
-        .tst.pending;
-        .tst.skipIf;
-        .tst.retry;
-        .tst.testOnly)
-];
+.tst.uiQExports: `describe`should`it`before`after`beforeAll`afterAll`holds`perf`alt`skip`pending`skipIf`retry`testOnly!(
+    .tst.desc;
+    .tst.should;
+    .tst.should;
+    .tst.before;
+    .tst.after;
+    .tst.beforeAll;
+    .tst.afterAll;
+    .tst.holds;
+    .tst.perf;
+    .tst.alt;
+    .tst.skip;
+    .tst.pending;
+    .tst.skipIf;
+    .tst.retry;
+    .tst.testOnly);
 
 \d .tst
 ::

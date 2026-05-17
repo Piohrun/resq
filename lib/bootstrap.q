@@ -29,7 +29,7 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
   if[count .utl.testDeps; .utl.testDeps: (key[.utl.testDeps] except hsym `) # .utl.testDeps];
 
   / Avoid double loading
-  if[p in .utl.loaded; :(::)];
+  if[any p ~/: .utl.loaded; :(::)];
 
   if[.utl.DEBUG; -1 "DEBUG: loading ", p];
   

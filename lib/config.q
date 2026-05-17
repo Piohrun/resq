@@ -29,7 +29,53 @@ loadConfig:{[path] p:$[10h=type path; path; "resq.json"]; cfgText:$[0<count key 
 / Phase 4: Configuration validation
 / @param cfg (dict) Configuration dictionary
 / @return (list) List of warning messages (empty if valid)
-validateConfig:{[cfg] warnings:(); knownKeys:key .tst.defaultConfig; unknownKeys:(key cfg) except knownKeys; if[0<count unknownKeys; warnings: warnings, enlist "Unknown config keys: ", ", " sv string unknownKeys]; cfgFmtRaw: .tst.normalizeFmtInput $[`fmt in key cfg; cfg`fmt; "text"]; if[`fmt in key cfg and not cfgFmtRaw in (`text; `console; `xml; `junit; `xunit; `json); warnings: warnings, enlist "Unsupported format: ", string cfgFmtRaw, " (expected text, console, junit, xunit, or json)"]; if[`describeOnly in key cfg and 1h <> type cfg`describeOnly; warnings: warnings, enlist "describeOnly must be a boolean"]; if[`xmlOutput in key cfg and 1h <> type cfg`xmlOutput; warnings: warnings, enlist "xmlOutput must be a boolean"]; if[`runPerformance in key cfg and 1h <> type cfg`runPerformance; warnings: warnings, enlist "runPerformance must be a boolean"]; if[`passOnly in key cfg and 1h <> type cfg`passOnly; warnings: warnings, enlist "passOnly must be a boolean"]; if[`exit in key cfg and 1h <> type cfg`exit; warnings: warnings, enlist "exit must be a boolean"]; if[`strict in key cfg and 1h <> type cfg`strict; warnings: warnings, enlist "strict must be a boolean"]; if[`failFast in key cfg and 1h <> type cfg`failFast; warnings: warnings, enlist "failFast must be a boolean"]; if[`failHard in key cfg and 1h <> type cfg`failHard; warnings: warnings, enlist "failHard must be a boolean"]; if[`qNamespaceExports in key cfg and 1h <> type cfg`qNamespaceExports; warnings: warnings, enlist "qNamespaceExports must be a boolean"]; if[`fuzzLimit in key cfg and not (type cfg`fuzzLimit) in -7 -6; warnings: warnings, enlist "fuzzLimit must be an integer"]; if[`maxTestTime in key cfg and not (type cfg`maxTestTime) in -7 -6; warnings: warnings, enlist "maxTestTime must be an integer"]; if[`reportLimit in key cfg and not (type cfg`reportLimit) in -7 -6; warnings: warnings, enlist "reportLimit must be an integer"]; if[`reportListLimit in key cfg and not (type cfg`reportListLimit) in -7 -6; warnings: warnings, enlist "reportListLimit must be an integer"]; if[`outDir in key cfg and not (type cfg`outDir) in (10h;11h); warnings: warnings, enlist "outDir must be a string or symbol"]; if[`excludeSpecs in key cfg and not (type cfg`excludeSpecs) in (0h;11h;-11); warnings: warnings, enlist "excludeSpecs should be a symbol list or comma-separated string"]; if[`runSpecs in key cfg and not (type cfg`runSpecs) in (0h;11h;-11); warnings: warnings, enlist "runSpecs should be a symbol list or comma-separated string"]; if[0<count warnings; {-1 "CONFIG WARNING: ", x} each warnings]; warnings}
+validateConfig:{[cfg]
+  warnings:();
+  knownKeys:key .tst.defaultConfig;
+  unknownKeys:(key cfg) except knownKeys;
+  if[0<count unknownKeys; warnings,: enlist "Unknown config keys: ", ", " sv string unknownKeys];
+
+  cfgFmtRaw: .tst.normalizeFmtInput $[`fmt in key cfg; cfg`fmt; "text"];
+  if[`fmt in key cfg;
+    if[not cfgFmtRaw in `text`console`xml`junit`xunit`json;
+      warnings,: enlist "Unsupported format: ", string cfgFmtRaw, " (expected text, console, junit, xunit, or json)"
+    ];
+  ];
+
+  checkType:{[cfg;name;allowed;msg]
+    if[not name in key cfg; :()];
+    $[(type cfg name) in allowed; (); enlist msg]
+  };
+
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`qNamespaceExports;
+  boolMsgs:("describeOnly must be a boolean";
+            "xmlOutput must be a boolean";
+            "runPerformance must be a boolean";
+            "passOnly must be a boolean";
+            "exit must be a boolean";
+            "strict must be a boolean";
+            "failFast must be a boolean";
+            "failHard must be a boolean";
+            "qNamespaceExports must be a boolean");
+  warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
+
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit;
+  intMsgs:("fuzzLimit must be an integer";
+           "maxTestTime must be an integer";
+           "reportLimit must be an integer";
+           "reportListLimit must be an integer");
+  warnings,: raze checkType[cfg;;(-7h;-6h;7h;6h);]'[intNames; intMsgs];
+
+  warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];
+
+  specNames:`excludeSpecs`runSpecs;
+  specMsgs:("excludeSpecs should be a symbol list or comma-separated string";
+            "runSpecs should be a symbol list or comma-separated string");
+  warnings,: raze checkType[cfg;;(0h;11h;-11h);]'[specNames; specMsgs];
+
+  if[0<count warnings; {-1 "CONFIG WARNING: ", x} each warnings];
+  warnings
+ }
 
 / Apply configuration to .tst.app and .resq.config
 / @param cfg (dict) Configuration dictionary

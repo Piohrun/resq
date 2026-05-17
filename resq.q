@@ -24,9 +24,8 @@ config: .tst.loadConfig[::];
 .tst.applyConfig[config];
 
 / Ensure text reporter is loaded before mode dispatch
-if[not .tst.loadOutputModule["text"];
-    -1 "WARNING: Falling back to built-in text reporter."
-];
+textReporterLoaded: .tst.loadOutputModule "text";
+if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."];
 
 / Initialize State (defaults set in lib/tests/internals.q)
 / Here we just reset for a fresh run
