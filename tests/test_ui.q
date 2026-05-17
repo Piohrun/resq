@@ -61,6 +61,13 @@
   description mustmatch first e[`desc];
   func mustmatch first e[`code];
   };
+ should["expose public root helper aliases"]{
+  (get `..mock) mustmatch .tst.mock;
+  (get `..fixture) mustmatch .tst.fixture;
+  (get `..fixtureAs) mustmatch .tst.fixtureAs;
+  (get `..tempFile) mustmatch .tst.tempFile;
+  (get `..registerCleanup) mustmatch .tst.registerCleanup;
+  };
  / SKIPPED: Known q parsing limitation - multi-line nested code blocks fail to parse
  / when evaluated via `value`. This is a pre-existing q language constraint.
  / Test: should["let you mask before and after functions inside of alternate blocks"]

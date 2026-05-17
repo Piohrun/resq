@@ -5,6 +5,7 @@
   cfg: .tst.loadConfig["nonexistent.json"];
   cfg[`fmt] musteq `text;
   cfg[`exit] musteq 0b;
+  cfg[`pollutionGuard] musteq 1b;
   cfg[`fuzzLimit] musteq 100;
   };
  should["load and parse JSON config file"]{
@@ -34,6 +35,11 @@
   0 < count warnings;
   0 < count warnings where warnings like "Unsupported format*";
   };
+ should["warn for non-boolean pollution guard"]{
+  warnings: .tst.validateConfig `pollutionGuard!5;
+  0 < count warnings;
+  0 < count warnings where warnings like "pollutionGuard must be a boolean";
+  };
  should["merge config with defaults"]{
   testCfg: "{ \"fmt\": \"xunit\" }";
   hsym[`$":test_config.json"] 0: enlist testCfg;
@@ -43,12 +49,16 @@
   cfg[`fuzzLimit] musteq 100;
   };
  should["apply config to global settings"]{
-  testCfg: `fmt`exit`failFast!(`console; 1b; 1b);
+  prevGuard: .tst.app.pollutionGuard;
+  testCfg: `fmt`exit`failFast`pollutionGuard!(`console; 1b; 1b; 0b);
   .tst.applyConfig[testCfg];
   
   .resq.config.fmt musteq `console;
   .tst.app.exit musteq 1b;
   .tst.app.failFast musteq 1b;
+  appliedGuard: .tst.app.pollutionGuard;
+  .tst.app.pollutionGuard: prevGuard;
+  appliedGuard musteq 0b;
   };
  };
 
