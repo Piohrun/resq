@@ -29,6 +29,13 @@
 
 .tst.static.findSources:{[p]
   p: .tst.static.toStr p;
+
+  / Accept either a directory or a single q file. The previous implementation
+  / appended "/" unconditionally, which made single-file discovery fail.
+  if[p like "*.q";
+    if[@[{read0 x; 1b}; hsym `$p; {0b}]; :enlist `$p];
+  ];
+
   if[(count p) and not "/"=last p; p,: "/"];
   h: hsym `$p;
   if[() ~ key h; :`symbol$()];
@@ -56,6 +63,9 @@
   deps: deps where not deps like ".Q.*";
   deps: deps where not deps like ".z.*";
   deps: deps where not deps like ".h.*";
+  deps: deps where not deps like ".j.*";
+  deps: deps where not deps like ".kx.*";
+  deps: deps where not deps like ".m.*";
   deps: deps except enlist selfName;
   `$deps
  }
@@ -127,6 +137,7 @@
            bracePos: l ? .tst.static.LBRACE;
            
            / Verify brace is real (masked check)
+           if[bracePos < count maskedL;
            if[maskedL[bracePos] = .tst.static.LBRACE;
               validStart: 0b;
               
@@ -163,6 +174,7 @@
                   ];
                   inFunc: 1b;
               ];
+           ];
            ];
        ];
     ];
