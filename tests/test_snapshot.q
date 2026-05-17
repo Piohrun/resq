@@ -4,7 +4,7 @@
     should["verify snapshot creation"]{
         
         data: `a`b`c!1 2 3;
-        snapName: "test_snap_1";
+        snapName: "tmp_resq_snapshot_test";
         snapFile: .utl.pathToHsym .tst.snapDir, "/", snapName, ".snap";
         
         @[hdel; snapFile; {}];
@@ -20,7 +20,7 @@
         .tst.mustmatchs[data; snapName] musteq 1b;
         
         mustthrow["*Snapshot mismatch*"]{
-            .tst.mustmatchs[`a`b`c!1 2 4; "test_snap_1"];
+            .tst.mustmatchs[`a`b`c!1 2 4; "tmp_resq_snapshot_test"];
         };
     };
 };
