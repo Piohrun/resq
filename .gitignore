@@ -29,7 +29,7 @@ gmon.out
 # coverage/
 missingTests/
 plans/
-output/
+/output/
 resq_*.txt
 resq_*.q
 repro_*.q
