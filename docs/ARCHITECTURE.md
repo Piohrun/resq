@@ -13,6 +13,7 @@ Primary namespace for all testing functionality.
 | `.tst.fixtures` | Fixture registry |
 | `.tst.skip` / `.tst.pending` | Skip/pending test support |
 | `.tst.stackTrace` | Debug trace capture |
+| `.tst.normalizeResultStatus` | Maps internal execution states to public statuses |
 
 ### `.resq` - Runner State
 Runtime state and configuration.
@@ -31,6 +32,13 @@ Runtime state and configuration.
 - `3` - NO_TESTS: No tests found (strict mode)
 - `4` - LOAD_ERROR: File load/syntax error
 
+**Public result statuses**:
+- `pass` - expectation completed successfully
+- `fail` - assertion, fuzz, or explicit test failure
+- `error` - load, hook, timeout, reporter, or unexpected execution error
+- `skip` - skipped expectation
+- `pending` - pending placeholder expectation
+
 ### `.utl` - Utilities
 Low-level utilities and loader.
 
@@ -47,6 +55,8 @@ For convenience, key DSL functions are exported:
 - `musteq`, `mustmatch`, `mustthrow`, etc.
 - `mock`, `fixture`, `fixtureAs`
 - `skip`, `pending`, `skipIf`
+
+For backward compatibility, resQ can also export these helpers into `.q`. `.q` is reserved by kdb+, so this is controlled by `qNamespaceExports` in `resq.json` and defaults to enabled for existing suites.
 
 ## File Structure
 
@@ -66,6 +76,9 @@ lib/
 ├── mock.q           # Mocking
 ├── diff.q           # Deep diff
 └── output/
+    ├── sanitize.q   # Canonical result normalization
+    ├── text.q       # Console reporter
+    ├── json.q       # JSON reporter
     ├── junit.q      # JUnit XML
-    └── xml.q        # XML helpers
+    └── xunit.q      # XUnit XML
 ```

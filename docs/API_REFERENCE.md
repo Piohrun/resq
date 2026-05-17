@@ -1426,13 +1426,19 @@ q resq.q [mode] [options] [paths...]
 |------|-------------|
 | `-junit` | Output JUnit XML |
 | `-xunit` | Output XUnit XML |
+| `-json` | Output JSON report |
 | `-perf` | Include performance tests |
 | `-cov` / `-coverage` | Enable coverage |
+| `-strict` | Fail when no tests are found or executed |
 | `-ff` / `--fail-fast` | Stop on first failure |
 | `-fh` / `--fail-hard` | Hard stop (no cleanup) |
 | `-desc` / `--describe` | List tests without running |
 | `-only PATTERN` | Run only matching specs |
 | `-exclude PATTERN` | Skip matching specs |
+| `-tag TAGS` | Run tests with matching tags |
+| `-exclude-tag TAGS` | Exclude tests with matching tags |
+| `-maxTestTime SECONDS` | Mark a test as timed out after execution exceeds the limit |
+| `-fuzzLimit N` | Limit fuzz failure reporting |
 | `-outDir DIR` | Output directory |
 | `-noquit` | Don't exit after tests |
 | `-exit` | Exit with status code |
@@ -1464,18 +1470,27 @@ Create `resq.json` in project root:
 
 ```json
 {
-    "fmt": "console",
+    "fmt": "text",
     "outDir": "./reports",
     "xmlOutput": false,
     "runPerformance": false,
     "excludeSpecs": "",
     "runSpecs": "",
+    "strict": false,
     "failFast": false,
     "failHard": false,
     "fuzzLimit": 100,
+    "maxTestTime": 0,
+    "reportLimit": 50000,
+    "reportListLimit": 1000,
+    "qNamespaceExports": true,
     "exit": true
 }
 ```
+
+Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `console` is normalized to `text`.
+
+`qNamespaceExports` controls compatibility exports into the reserved `.q` namespace. It defaults to `true` for existing suites. Set it to `false` to rely on root aliases and `.tst.*` APIs without writing resQ helpers into `.q`.
 
 CLI arguments override configuration file values.
 

@@ -86,6 +86,13 @@ q resq.q -strict my_tests/
 ```
 If no tests are found/executed, this flag forces a **non-zero exit code**, ensuring that an empty test suite is treated as a failure.
 
+Strict mode can also be enabled in `resq.json`:
+```json
+{
+  "strict": true
+}
+```
+
 ### 📦 Namespace Isolation (Sandboxing)
 Every test file is automatically loaded into a unique, isolated namespace (e.g., `.sandbox_S...`).
 - **Benefit**: No need to manually cleanup local test variables.
@@ -95,6 +102,14 @@ Every test file is automatically loaded into a unique, isolated namespace (e.g.,
 The runner takes a snapshot of the global namespace (`.`) before and after each test.
 - **Detection**: If a test leaks a global variable (e.g., `myGlobal:: 1`), resQ detects it.
 - **Action**: It logs a **WARNING** and automatically deletes the leaked variable to protect subsequent tests.
+
+### ⚙️ Compatibility Exports
+resQ exports DSL helpers in the root namespace and `.tst.*`. For legacy compatibility it can also export helpers into `.q`, but `.q` is reserved by kdb+. To disable those compatibility exports:
+```json
+{
+  "qNamespaceExports": false
+}
+```
 
 ---
 
