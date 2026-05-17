@@ -5,15 +5,15 @@
 .resq.reportJson:{[results]
     reportRows: .tst.resultRows results;
     reportTable: .tst.resultTable reportRows;
-    statusNorm: .tst.normalizeResultStatus each reportTable`status;
+    summaryStats: .tst.resultSummary reportTable;
     summary: (`fmt`suiteCount`testCount`failCount`errorCount`skipCount`duration)!(
         `json;
-        count distinct reportTable`suite;
-        count reportTable;
-        sum statusNorm = `fail;
-        sum statusNorm = `error;
-        sum statusNorm in `skip`pending;
-        string sum $[98h = type reportTable; reportTable`time; 0N]
+        summaryStats`suiteCount;
+        summaryStats`testCount;
+        summaryStats`failCount;
+        summaryStats`errorCount;
+        summaryStats`skipCount;
+        string summaryStats`duration
     );
     payload: summary, enlist[`tests]!enlist reportRows;
     jsonReport: .j.j payload;

@@ -127,3 +127,17 @@
     if[0 = count rows; :.tst.emptyResultTable[]];
     flip flip rows
  };
+
+.tst.resultSummary:{[results]
+    t: .tst.resultTable results;
+    statusNorm: .tst.normalizeResultStatus each t`status;
+    `suiteCount`testCount`passCount`failCount`errorCount`skipCount`duration`assertsRun!(
+        count distinct t`suite;
+        count t;
+        sum statusNorm = `pass;
+        sum statusNorm = `fail;
+        sum statusNorm = `error;
+        sum (statusNorm in `skip`pending);
+        sum t`time;
+        sum t`assertsRun)
+ };

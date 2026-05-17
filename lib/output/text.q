@@ -23,15 +23,14 @@
         -1 "  (",string[count sRes]," tests, ",string[count fails]," failed)";
     }[;results] each suites;
 
-    totalTests: count results;
-    statusNorm: .tst.normalizeResultStatus each results`status;
-    passed: sum statusNorm = `pass;
-    failed: sum statusNorm = `fail;
-    errored: sum statusNorm = `error;
-    skipped: sum statusNorm in `skip`pending;
-    
-    totalTime: sum results`time;
-    totalAsserts: sum results`assertsRun;
+    summary: .tst.resultSummary results;
+    totalTests: summary`testCount;
+    passed: summary`passCount;
+    failed: summary`failCount;
+    errored: summary`errorCount;
+    skipped: summary`skipCount;
+    totalTime: summary`duration;
+    totalAsserts: summary`assertsRun;
     
     -1 "";
     -1 "======================================================================";
@@ -47,6 +46,7 @@
     -1 "Duration:   ", duration, "s";
     -1 "======================================================================";
 
+    statusNorm: .tst.normalizeResultStatus each results`status;
     allFails: results where statusNorm in `fail`error;
     -1 "\n----------------------------------------------------------------";
     if[0<count allFails;
