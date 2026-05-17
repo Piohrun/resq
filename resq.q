@@ -38,8 +38,6 @@ if[not .tst.loadOutputModule["text"];
 
 / Initialize State (defaults set in lib/tests/internals.q)
 / Here we just reset for a fresh run
-.tst.app.excludeSpecs: ();
-.tst.app.runSpecs: ();
 .tst.app.args: ();
 .tst.app.allSpecs: ();
 .tst.app.passed: 1b;
@@ -57,11 +55,6 @@ if[not count .tst.app.args; .tst.app.args: .z.x where not .z.x like "-*"];
 
 / Handle Debug Flag
 if[any .z.x like "-debug"; .utl.DEBUG: 1b];
-
-/ Handle CLI Flags
-if[any .z.x like "-strict"; .tst.app.strict: 1b];
-if[count i: where .z.x like "-maxTestTime"; p: 1 + last i; if[p < count .z.x; .tst.app.maxTestTime: "I" $ .z.x p]];
-if[count i: where .z.x like "-fuzzLimit"; p: 1 + last i; if[p < count .z.x; .tst.output.fuzzLimit: "I" $ .z.x p]];
 
 / Determine Mode
 .resq.mode: `test;

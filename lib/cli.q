@@ -22,6 +22,13 @@ initCLI:{[]
     if[any .z.x like "-json"; .resq.config.fmt: `json; .tst.app.xmlOutput: 0b];
     if[any .z.x like "-noquit"; .tst.app.exit: 0b];
     if[any .z.x like "-exit"; .tst.app.exit: 1b];
+    if[getFlag[`strict]; .tst.app.strict: 1b];
+
+    maxTestTime: getArg[`$"maxTestTime"; ""];
+    if[0<count maxTestTime; .tst.app.maxTestTime: "I"$maxTestTime];
+
+    fuzzLimit: getArg[`$"fuzzLimit"; ""];
+    if[0<count fuzzLimit; .tst.output.fuzzLimit: "I"$fuzzLimit];
 
     / Coverage Support
     .tst.app.runCoverage: 0b;
