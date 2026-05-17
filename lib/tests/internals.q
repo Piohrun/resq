@@ -139,6 +139,22 @@ if[not `report in key `.resq; .resq.report: {[x]}];
     :: 
  };
 
+.tst.printRunAudit:{[]
+    discovered: $[`discoveredFiles in key `.tst.app; count .tst.app.discoveredFiles; 0];
+    loaded: $[`loadedFiles in key `.tst.app; count .tst.app.loadedFiles; 0];
+    empty: $[`emptyFiles in key `.tst.app; count .tst.app.emptyFiles; 0];
+    specs: $[`allSpecs in key `.tst.app; count .tst.app.allSpecs; 0];
+    executed: $[`expectationsRan in key `.tst.app; .tst.app.expectationsRan; 0];
+
+    -1 "\nRUN AUDIT";
+    -1 "---------";
+    -1 "Files discovered:      ", string discovered;
+    -1 "Files loaded:          ", string loaded;
+    -1 "Files with no tests:   ", string empty;
+    -1 "Specs registered:      ", string specs;
+    -1 "Expectations executed: ", string executed;
+ };
+
 halt:0b
 internals:()!()
 internals[`]:()!()

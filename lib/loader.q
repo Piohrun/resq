@@ -1,5 +1,8 @@
 .tst.loadTests:{[paths]
     tests: .tst.findTests paths;
+    .tst.app.discoveredFiles: tests;
+    .tst.app.loadedFiles: ();
+    .tst.app.emptyFiles: ();
     if[0 = count tests; -1 "WARNING: No test files found"; :()];
 
     {[x]
@@ -10,6 +13,7 @@
         if[not .utl.pathExists p; -1 "ERROR: Test file not found: ", p; :()];
 
         -1 "Loading Test: ", p;
+        .tst.app.loadedFiles,: enlist p;
 
         / Namespace Sandbox
         / Sanitize path to create unique namespace
@@ -76,6 +80,7 @@
         if[(count .tst.app.allSpecs) = preCount;
             msg: "File ", p, " loaded but added no tests.";
             -1 "WARNING: ", msg;
+            .tst.app.emptyFiles,: enlist p;
             if[.tst.app.strict;
                 `.tst.app.loadErrors upsert `file`error`type!(`$p; msg; `emptyFile);
             ];

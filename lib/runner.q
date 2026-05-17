@@ -95,6 +95,9 @@
     .tst.app.expectationsPassed:0;
     .tst.app.expectationsFailed:0;
     .tst.app.expectationsErrored:0;
+    .tst.app.discoveredFiles: ();
+    .tst.app.loadedFiles: ();
+    .tst.app.emptyFiles: ();
     / Execution state tracking for exit code logic
     .tst.app.executionState: `notStarted;  / notStarted, running, completed
     / Capture base directory for output paths before tests may change CWD
@@ -412,6 +415,7 @@
     if[0 < count .tst.app.loadErrors; .tst.app.passed: 0b];
     
     .tst._runAllStep: "report";
+    .tst.printRunAudit[];
     .resq.report[.resq.state.results];
     
     .tst._runAllStep: "coverage";
