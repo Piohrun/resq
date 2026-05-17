@@ -7,7 +7,8 @@
         snapName: "test_snap_1";
         snapFile: .utl.pathToHsym .tst.snapDir, "/", snapName, ".snap";
         
-        system "rm -f ",1_string snapFile;
+        @[hdel; snapFile; {}];
+        .tst.registerCleanup[{[p] @[hdel; p; {}]}; enlist snapFile];
         
         .tst.setUpdateSnaps[1b];
         .tst.mustmatchs[data; snapName];

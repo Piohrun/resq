@@ -1,5 +1,5 @@
 .tst.desc["Configuration File Support"]{
- after{system "rm -f test_config.json"};
+ after{@[hdel; hsym `$":test_config.json"; {}]};
 
  should["load default config when file does not exist"]{
   cfg: .tst.loadConfig["nonexistent.json"];

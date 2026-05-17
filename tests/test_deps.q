@@ -1,14 +1,13 @@
 .tst.desc["Dependency Graph Analysis"]{
   should["parse load directives from file"]{
     testContent: ("\\l lib/mock.q"; ".utl.require \"lib/fixture.q\"; someCode: 1+1");
-    (hsym `$"test_deps_tmp.q") 0: testContent;
+    tmpFile: .tst.tempFile ".q";
+    (hsym `$tmpFile) 0: testContent;
     
-    deps: .tst.parseLoadDirectives "test_deps_tmp.q";
+    deps: .tst.parseLoadDirectives tmpFile;
     
     expected: (`$"lib/mock.q"; `$"lib/fixture.q");
     mustmatch[deps; expected];
-    
-    system "rm test_deps_tmp.q";
   };
 
   should["build dependency graph for directory"]{
