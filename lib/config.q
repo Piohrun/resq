@@ -9,19 +9,61 @@ defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`run
 / Load configuration from JSON file
 / @param path (string) Path to config file (default: "resq.json")
 / @return (dict) Configuration dictionary
-loadConfig:{[path] p:$[10h=type path; path; "resq.json"]; cfgText:$[0<count key hsym `$p; "\n" sv read0 hsym `$p; ""]; cfg:$[0<count cfgText; @[.j.k; cfgText; {[e] -1 "WARNING: Failed to parse config JSON: ", e; ()!()}]; ()!()]; merged:$[0<count cfg; .tst.defaultConfig, cfg; .tst.defaultConfig]; if[10h = type merged`excludeSpecs; merged[`excludeSpecs]: `$"," vs merged`excludeSpecs]; if[10h = type merged`runSpecs; merged[`runSpecs]: `$"," vs merged`runSpecs]; if[`fmt in key merged; merged[`fmt]: .tst.normalizeFmt merged`fmt]; if[10h = type merged`fuzzLimit; merged[`fuzzLimit]: "I"$merged`fuzzLimit]; if[10h = type merged`maxTestTime; merged[`maxTestTime]: "I"$merged`maxTestTime]; if[10h = type merged`reportLimit; merged[`reportLimit]: "I"$merged`reportLimit]; if[10h = type merged`reportListLimit; merged[`reportListLimit]: "I"$merged`reportListLimit]; merged}
+loadConfig:{[path]
+    p:$[10h = type path; path; "resq.json"];
+    cfgText:"";
+
+    if[0 < count key hsym `$p;
+        cfgText: "\n" sv read0 hsym `$p;
+    ];
+
+    cfg:()!();
+    if[0 < count cfgText;
+        cfg: @[.j.k; cfgText; {[e]
+            -1 "WARNING: Failed to parse config JSON: ", e;
+            ()!()
+        }];
+    ];
+
+    merged:$[0 < count cfg; .tst.defaultConfig, cfg; .tst.defaultConfig];
+
+    if[10h = type merged`excludeSpecs;
+        merged[`excludeSpecs]: `$"," vs merged`excludeSpecs
+    ];
+    if[10h = type merged`runSpecs;
+        merged[`runSpecs]: `$"," vs merged`runSpecs
+    ];
+    if[`fmt in key merged;
+        merged[`fmt]: .tst.normalizeFmt merged`fmt
+    ];
+    if[10h = type merged`fuzzLimit;
+        merged[`fuzzLimit]: "I"$merged`fuzzLimit
+    ];
+    if[10h = type merged`maxTestTime;
+        merged[`maxTestTime]: "I"$merged`maxTestTime
+    ];
+    if[10h = type merged`reportLimit;
+        merged[`reportLimit]: "I"$merged`reportLimit
+    ];
+    if[10h = type merged`reportListLimit;
+        merged[`reportListLimit]: "I"$merged`reportListLimit
+    ];
+
+    merged
+ }
 
 .tst.normalizeFmtInput:{[fmt]
-    $[10h = type fmt; `$lower string fmt;
-      11h = type fmt; lower fmt;
+    $[10h = type fmt; `$lower fmt;
+      -11h = type fmt; `$lower string fmt;
+      11h = type fmt; `$lower string first fmt;
       0h = type fmt; `text;
       `$lower string fmt]
  }
 
 .tst.normalizeFmt:{[fmt]
     rawFmt: .tst.normalizeFmtInput fmt;
-    $[rawFmt = `console; `text;
-      rawFmt = `xml; `junit;
+    $[rawFmt ~ `console; `text;
+      rawFmt ~ `xml; `junit;
       rawFmt in (`text; `junit; `xunit; `json); rawFmt;
       `text]
  }
@@ -30,6 +72,9 @@ loadConfig:{[path] p:$[10h=type path; path; "resq.json"]; cfgText:$[0<count key 
 / @param cfg (dict) Configuration dictionary
 / @return (list) List of warning messages (empty if valid)
 validateConfig:{[cfg]
+  if[(type cfg) in -20 20h; cfg:(enlist key cfg)!enlist value cfg];
+  if[not 99h = type cfg; cfg:()!()];
+
   warnings:();
   knownKeys:key .tst.defaultConfig;
   unknownKeys:(key cfg) except knownKeys;
@@ -38,7 +83,7 @@ validateConfig:{[cfg]
   cfgFmtRaw: .tst.normalizeFmtInput $[`fmt in key cfg; cfg`fmt; "text"];
   if[`fmt in key cfg;
     if[not cfgFmtRaw in `text`console`xml`junit`xunit`json;
-      warnings,: enlist "Unsupported format: ", string cfgFmtRaw, " (expected text, console, junit, xunit, or json)"
+      warnings,: enlist "Unsupported format: ", (string cfgFmtRaw), " (expected text, console, junit, xunit, or json)"
     ];
   ];
 
@@ -73,13 +118,39 @@ validateConfig:{[cfg]
             "runSpecs should be a symbol list or comma-separated string");
   warnings,: raze checkType[cfg;;(0h;11h;-11h);]'[specNames; specMsgs];
 
-  if[0<count warnings; {-1 "CONFIG WARNING: ", x} each warnings];
+  if[0<count warnings; {-1 "CONFIG WARNING: ", .tst.toString x} each warnings];
   warnings
  }
 
 / Apply configuration to .tst.app and .resq.config
 / @param cfg (dict) Configuration dictionary
-applyConfig:{[cfg] if[`describeOnly in key cfg; .tst.app.describeOnly: cfg`describeOnly]; if[`xmlOutput in key cfg; .tst.app.xmlOutput: cfg`xmlOutput]; if[`runPerformance in key cfg; .tst.app.runPerformance: cfg`runPerformance]; if[`excludeSpecs in key cfg; .tst.app.excludeSpecs: cfg`excludeSpecs]; if[`runSpecs in key cfg; .tst.app.runSpecs: cfg`runSpecs]; if[`passOnly in key cfg; .tst.app.passOnly: cfg`passOnly]; if[`exit in key cfg; .tst.app.exit: cfg`exit]; if[`strict in key cfg; .tst.app.strict: cfg`strict]; if[`failFast in key cfg; .tst.app.failFast: cfg`failFast]; if[`failHard in key cfg; .tst.app.failHard: cfg`failHard]; if[`fuzzLimit in key cfg; .tst.output.fuzzLimit: cfg`fuzzLimit]; if[`maxTestTime in key cfg; .tst.app.maxTestTime: cfg`maxTestTime]; if[`reportLimit in key cfg; .tst.output.reportLimit: cfg`reportLimit]; if[`reportListLimit in key cfg; .tst.output.reportListLimit: cfg`reportListLimit]; if[`qNamespaceExports in key cfg; if[`setQNamespaceExports in key `.tst; .tst.setQNamespaceExports cfg`qNamespaceExports; .tst.qNamespaceExports: cfg`qNamespaceExports]]; if[`fmt in key cfg; .resq.config.fmt: cfg`fmt]; if[`outDir in key cfg; .resq.config.outDir: cfg`outDir]}
+applyConfig:{[cfg]
+    if[`describeOnly in key cfg; .tst.app.describeOnly: cfg`describeOnly];
+    if[`xmlOutput in key cfg; .tst.app.xmlOutput: cfg`xmlOutput];
+    if[`runPerformance in key cfg; .tst.app.runPerformance: cfg`runPerformance];
+    if[`excludeSpecs in key cfg; .tst.app.excludeSpecs: cfg`excludeSpecs];
+    if[`runSpecs in key cfg; .tst.app.runSpecs: cfg`runSpecs];
+    if[`passOnly in key cfg; .tst.app.passOnly: cfg`passOnly];
+    if[`exit in key cfg; .tst.app.exit: cfg`exit];
+    if[`strict in key cfg; .tst.app.strict: cfg`strict];
+    if[`failFast in key cfg; .tst.app.failFast: cfg`failFast];
+    if[`failHard in key cfg; .tst.app.failHard: cfg`failHard];
+
+    if[`fuzzLimit in key cfg; .tst.output.fuzzLimit: cfg`fuzzLimit];
+    if[`maxTestTime in key cfg; .tst.app.maxTestTime: cfg`maxTestTime];
+    if[`reportLimit in key cfg; .tst.output.reportLimit: cfg`reportLimit];
+    if[`reportListLimit in key cfg; .tst.output.reportListLimit: cfg`reportListLimit];
+
+    if[`qNamespaceExports in key cfg;
+        if[`setQNamespaceExports in key `.tst;
+            .tst.setQNamespaceExports cfg`qNamespaceExports;
+            .tst.qNamespaceExports: cfg`qNamespaceExports
+        ];
+    ];
+
+    if[`fmt in key cfg; .resq.config.fmt: cfg`fmt];
+    if[`outDir in key cfg; .resq.config.outDir: cfg`outDir];
+ }
 
 / Merge CLI arguments into configuration (CLI takes precedence)
 / @param cfg (dict) Base configuration
