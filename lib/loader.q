@@ -95,12 +95,22 @@
 .tst.findTests:{[paths]
     / Ensure paths is a list
     ps: $[10h = type paths; enlist paths; 0h = type paths; paths; enlist paths];
-    ps: distinct ps;
+    ps: distinct .utl.pathToString each ps;
+
+    / Explicit q file paths are always honored. Directory scans are filtered
+    / to test-like names to avoid loading helper/repro dependency files.
+    directFiles: ps where {(.utl.isFile x) and x like "*.q"} each ps;
+    dirs: ps where .utl.isDir each ps;
 
     / Find all .q files matching patterns
-    files: distinct raze .tst.suffixMatch[".q"] each ps;
+    discovered: distinct raze .tst.suffixMatch[".q"] each dirs;
+    isNamedTest:{[p]
+        base: last "/" vs p;
+        (base like "test_*.q") or (base like "*_test.q")
+    };
+    files: distinct directFiles, discovered where isNamedTest each discovered;
 
-    / Return files - suffixMatch already handles test_ filtering
+    / Return convention-matching discovered tests plus explicit files.
     files
  };
 
