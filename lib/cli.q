@@ -13,6 +13,21 @@ getFlag:{[name]
     opts: (("-",string name); ("--",string name));
     any .z.x in opts
  };
+
+validModes:`test`cover`discover`watch;
+
+parseModeArgs:{[args]
+    mode:`test;
+    rest: args;
+    if[0 < count args;
+        cmd: `$first args;
+        if[cmd in .tst.validModes;
+            mode: cmd;
+            rest: 1 _ args;
+        ];
+    ];
+    `mode`args!(mode; rest)
+ };
     
 initCLI:{[]
     / Manual Argument Parsing (CLI overrides config file)

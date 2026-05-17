@@ -56,18 +56,11 @@ if[not count .tst.app.args; .tst.app.args: .z.x where not .z.x like "-*"];
 / Handle Debug Flag
 if[any .z.x like "-debug"; .utl.DEBUG: 1b];
 
-/ Determine Mode
-.resq.mode: `test;
+/ Determine mode and leave only mode-specific positional args.
+parsedMode: .tst.parseModeArgs .tst.app.args;
+.resq.mode: parsedMode`mode;
+.tst.app.args: parsedMode`args;
 args: .tst.app.args;
-
-/ Safer Argument Parsing
-if[0<count args; 
-    cmd: first args; 
-    if[cmd ~ "test"; .resq.mode: `test; .tst.app.args: 1 _ args]; 
-    if[cmd ~ "cover"; .resq.mode: `cover; .tst.app.args: 1 _ args]; 
-    if[cmd ~ "discover"; .resq.mode: `discover; .tst.app.args: 1 _ args]; 
-    if[cmd ~ "watch"; .resq.mode: `watch; .tst.app.args: 1 _ args]
- ];
 
 / --- DISPATCH ---
 
