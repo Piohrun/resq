@@ -1,9 +1,4 @@
 .tst.desc["Phase 1 Hardening: Resource Management"; {
-    .tst.should["inspect tempFile definition"; {
-        -1 "DEBUG: .q.tempFile definition: ", .Q.s1 value .tst.tempFile;
-        -1 "DEBUG: .tst.tempFile value: ", .Q.s1 .tst.tempFile;
-    }];
-
     .tst.should["cleanup temporary files auto-registered via tempFile"; {
         tf: .tst.tempFile ".txt";
         hsym[`$tf] 0: enlist "test content";
