@@ -60,9 +60,9 @@
   `.tst.runExpec mock {[x;y]'"error"};
   mustnotthrow[();{.tst.runSpec defaultSpecification}];
   };
- should["not restore the context and filepath to what they previously were"]{
+ should["restore the context and filepath when halted"]{
   .tst.runSpec defaultSpecification;
-  myOldContext mustnmatch .tst.context;
-  myOldPath mustnmatch .tst.tstPath;
+  myOldContext mustmatch .tst.context;
+  myOldPath mustmatch .tst.tstPath;
   };
  };
