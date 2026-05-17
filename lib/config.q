@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;0;50000;1000;1b)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b)
 
 / Load configuration from JSON file
 / @param path (string) Path to config file (default: "resq.json")
@@ -92,7 +92,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`qNamespaceExports;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -101,6 +101,7 @@ validateConfig:{[cfg]
             "strict must be a boolean";
             "failFast must be a boolean";
             "failHard must be a boolean";
+            "pollutionGuard must be a boolean";
             "qNamespaceExports must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
@@ -135,6 +136,7 @@ applyConfig:{[cfg]
     if[`strict in key cfg; .tst.app.strict: cfg`strict];
     if[`failFast in key cfg; .tst.app.failFast: cfg`failFast];
     if[`failHard in key cfg; .tst.app.failHard: cfg`failHard];
+    if[`pollutionGuard in key cfg; .tst.app.pollutionGuard: cfg`pollutionGuard];
 
     if[`fuzzLimit in key cfg; .tst.output.fuzzLimit: cfg`fuzzLimit];
     if[`maxTestTime in key cfg; .tst.app.maxTestTime: cfg`maxTestTime];

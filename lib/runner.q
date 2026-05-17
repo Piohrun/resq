@@ -100,6 +100,7 @@
     .tst.app.emptyFiles: ();
     / Execution state tracking for exit code logic
     .tst.app.executionState: `notStarted;  / notStarted, running, completed
+    if[not `pollutionGuard in key `.tst.app; .tst.app.pollutionGuard: 1b];
     / Capture base directory for output paths before tests may change CWD
     .tst.app.baseDir: system "cd";
 
@@ -111,10 +112,11 @@
  .tst.runSpec:{[spec]
     runCtx: .tst.captureRuntimeContext[];
     specTitle: $[`title in key spec; spec`title; `];
+    pollutionGuard: $[`pollutionGuard in key `.tst.app; .tst.app.pollutionGuard; 1b];
     / Deep Snapshot: all top-level namespaces and their keys AND values
-    namespaces: key `;
+    namespaces: $[pollutionGuard; key `; `symbol$()];
     / Skip system namespaces and .tst/.resq internals
-    namespaces: namespaces except `q`Q`j`h`o`s`v`z`tst`resq;
+    if[pollutionGuard; namespaces: namespaces except `q`Q`j`h`o`s`v`z`tst`resq];
     
     / Helper to snapshot values
     / Returns dict: fullyQualifiedName -> value
@@ -129,7 +131,7 @@
         paths!vals
     };
     
-    fullSnapshot: namespaces!.tst.snapshotNamespaceValues each namespaces;
+    fullSnapshot: $[pollutionGuard; namespaces!.tst.snapshotNamespaceValues each namespaces; ()!()];
 
     / Resource Snapshot (Phase 1 Hardening) - Cross-platform
     origHandles: $[.utl.isLinux;
@@ -189,8 +191,8 @@
     .tst.restoreRuntimeContext runCtx;
 
     / Check for Global/Deep Pollution
-    currentNamespaces: key `;
-    currentNamespaces: currentNamespaces except `q`Q`j`h`o`s`v`z`tst`resq;
+    currentNamespaces: $[pollutionGuard; key `; `symbol$()];
+    if[pollutionGuard; currentNamespaces: currentNamespaces except `q`Q`j`h`o`s`v`z`tst`resq];
     
     newNamespaces: currentNamespaces except namespaces;
     if[count newNamespaces;

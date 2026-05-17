@@ -102,6 +102,7 @@ Every test file is automatically loaded into a unique, isolated namespace (e.g.,
 The runner takes a snapshot of the global namespace (`.`) before and after each test.
 - **Detection**: If a test leaks a global variable (e.g., `myGlobal:: 1`), resQ detects it.
 - **Action**: It logs a **WARNING** and automatically deletes the leaked variable to protect subsequent tests.
+- **Performance**: Set `"pollutionGuard": false` in `resq.json` to disable deep namespace snapshotting for very large sessions.
 
 ### ⚙️ Compatibility Exports
 resQ exports DSL helpers in the root namespace and `.tst.*`. For legacy compatibility it can also export helpers into `.q`, but `.q` is reserved by kdb+. To disable those compatibility exports:

@@ -1479,6 +1479,7 @@ Create `resq.json` in project root:
     "strict": false,
     "failFast": false,
     "failHard": false,
+    "pollutionGuard": true,
     "fuzzLimit": 100,
     "maxTestTime": 0,
     "reportLimit": 50000,
@@ -1491,6 +1492,8 @@ Create `resq.json` in project root:
 Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `console` is normalized to `text`.
 
 `qNamespaceExports` controls compatibility exports into the reserved `.q` namespace. It defaults to `true` for existing suites. Set it to `false` to rely on root aliases and `.tst.*` APIs without writing resQ helpers into `.q`.
+
+`pollutionGuard` controls deep namespace snapshot/restore checks around each suite. It defaults to `true`. Set it to `false` for very large sessions where global namespace comparison overhead is too high.
 
 CLI arguments override configuration file values.
 
