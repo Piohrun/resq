@@ -88,6 +88,17 @@ if[not `report in key `.resq; .resq.report: {[x]}];
       -3!x]                                 / Fallback - use -3! (show)
  };
 
+/ Normalize internal execution states to the public result contract.
+/ returns: one of `pass`fail`error`skip`pending
+.tst.normalizeResultStatus:{[status]
+    if[not -11h = type status; :`error];
+    $[status in `pass`skip`pending; status;
+      status in `fail`testFail`fuzzFail; `fail;
+      status ~ `error; `error;
+      status like "*Error"; `error;
+      `error]
+ };
+
 halt:0b
 internals:()!()
 internals[`]:()!()

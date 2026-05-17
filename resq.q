@@ -25,7 +25,16 @@
 .utl.require "lib/cli.q"
 .utl.require "lib/runner.q"
 
-.tst.loadOutputModule["text"]
+/ Configuration
+config: .tst.loadConfig[::];
+/ Validate config early; keep warnings non-fatal so execution can continue.
+.resq.config.validationWarnings: .tst.validateConfig[config];
+.tst.applyConfig[config];
+
+/ Ensure text reporter is loaded before mode dispatch
+if[not .tst.loadOutputModule["text"];
+    -1 "WARNING: Falling back to built-in text reporter."
+];
 
 / Initialize State (defaults set in lib/tests/internals.q)
 / Here we just reset for a fresh run
@@ -38,10 +47,6 @@
 
 / Reset results table for fresh run
 .resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
-
-/ Configuration
-config: .tst.loadConfig[::];
-.tst.applyConfig[config];
 
 / Initialize CLI
 .tst.initCLI[];

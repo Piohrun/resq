@@ -3,6 +3,12 @@
     / Defensive: ensure state exists
     if[not `xmlOutput in key `.tst.app; .tst.app.xmlOutput: 0b];
     if[not `runCoverage in key `.tst.app; .tst.app.runCoverage: 0b];
+    reportFmt: .tst.normalizeFmt .resq.config.fmt;
+
+    / Respect config format even when explicit xml flag was not set.
+    if[not .tst.app.xmlOutput;
+        .tst.app.xmlOutput: reportFmt in `junit`xunit;
+    ];
 
     / Define XML reporter function
     .resq.reportXml:{[results] 
@@ -10,10 +16,13 @@
       specs: $[`results in key `.tst.app; .tst.app.results; ()];
       specs: $[`sanitize in key `.tst; .tst.sanitize specs; specs];
       / Defensive serialization to avoid reporter crashes
-      xmlReport: @[.tst.output.top; specs; {[e]
-          -1 "ERROR: XML reporter failed: ", .tst.toString e;
-          "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"reporter_failed\"/></testsuite></testsuites>"
-        }];
+      xmlReport: $[`top in key `.tst.output;
+        @[.tst.output.top; specs; {[e]
+            -1 "ERROR: XML reporter failed: ", .tst.toString e;
+            "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"reporter_failed\"/></testsuite></testsuites>"
+          }];
+        "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"xml_generator_unavailable\"/></testsuite></testsuites>"
+      ];
       outDirStr: .tst.toString .resq.config.outDir;
       if[0 = count outDirStr; outDirStr: "."];
       baseDirStr: .tst.toString .tst.app.baseDir;
@@ -28,15 +37,20 @@
 
     / Apply XML reporter if enabled
     if[.tst.app.xmlOutput;
-      .tst.loadOutputModule[$[.resq.config.fmt=`xunit; "xunit"; "junit"]];
-      .resq.report: .resq.reportXml;
+      reportModule: $[reportFmt=`xunit; "xunit"; "junit"];
+      if[.tst.loadOutputModule[reportModule];
+          if[`top in key `.tst.output;
+              .resq.report: .resq.reportXml;
+          ];
      ];
+    ];
 
     / Apply JSON reporter when explicitly requested (non-XML path)
     if[not .tst.app.xmlOutput;
-        if[.resq.config.fmt ~ `json;
-            .tst.loadOutputModule["json"];
-            if[`reportJson in key `.resq; .resq.report: .resq.reportJson];
+        if[reportFmt ~ `json;
+            if[.tst.loadOutputModule["json"];
+                if[`reportJson in key `.resq; .resq.report: .resq.reportJson];
+            ];
         ];
     ];
      
@@ -100,11 +114,9 @@
     / Skip system namespaces and .tst/.resq internals
     namespaces: namespaces except `q`Q`j`h`o`s`v`z`tst`resq;
     
-    if[any namespaces like "repro"; -1 "DEBUG: Tracking namespace: ", .Q.s1 namespaces where namespaces like "repro"];
-
     / Helper to snapshot values
     / Returns dict: fullyQualifiedName -> value
-    .run.snapValues:{[ns]
+    snapValues:{[ns]
         / Force absolute path
         rootNs: ` sv (`; ns);
         ks: key rootNs;
@@ -115,7 +127,7 @@
         paths!vals
     };
     
-    fullSnapshot: namespaces!.run.snapValues each namespaces;
+    fullSnapshot: namespaces!snapValues each namespaces;
 
     / Resource Snapshot (Phase 1 Hardening) - Cross-platform
     origHandles: $[.utl.isLinux;
@@ -195,7 +207,7 @@
     
     if[count checkNs;
         { [title; ns; originalState]
-            currentState: .run.snapValues ns;
+            currentState: snapValues ns;
             
             / 1. Detect New Keys (Pollution)
             newKeys: (key currentState) except (key originalState);
@@ -253,12 +265,15 @@
               [s;e]
               .tst.app.expectationsRan+:1;
               r: e[`result];
-              if[r ~ `pass; .tst.app.expectationsPassed+:1];
-              if[r in `testFail`fuzzFail; .tst.app.expectationsFailed+:1];
-              if[r like "*Error"; .tst.app.expectationsErrored+:1];
+              status: .tst.normalizeResultStatus r;
+              if[status ~ `pass; .tst.app.expectationsPassed+:1];
+              if[status ~ `fail; .tst.app.expectationsFailed+:1];
+              if[status ~ `error; .tst.app.expectationsErrored+:1];
               
-              status: $[r ~ `pass; `pass; r in `testFail`fuzzFail; `fail; `error];
-              messageText: $[status ~ `pass; ""; 0 < count e[`failures]; e[`failures]; e[`errorText]];
+              messageText: $[status ~ `pass; "";
+                             status in `skip`pending; $[`skipReason in key e; .tst.toString e`skipReason; .tst.toString e`desc];
+                             0 < count e[`failures]; e[`failures];
+                             e[`errorText]];
 
               / Safe conversion to symbol atom - normalize via toString
               toSym: {`$ .tst.toString x};

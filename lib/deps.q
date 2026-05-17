@@ -4,6 +4,9 @@
 depGraph: ()!();
 dependencies: ()!();
 
+/. Keep parse/scan helpers local and dependency-free by loading static analysis utilities here.
+.utl.require "lib/static_analysis.q"
+
 / Parse a .q file for load directives
 parseLoadDirectives:{[filepath]
     filepath: $[10h = abs type filepath; `$filepath; filepath];
@@ -32,10 +35,12 @@ parseLoadDirectives:{[filepath]
 
 / Build dependency graph for directory
 scanDirectory:{[dir]
-    / Find all .q files recursively  
-    files: system "find ", dir, " -name '*.q' -type f 2>/dev/null";
-    files: `$files;
-    
+    / Find all .q files recursively using q-native directory traversal.
+    rootDir: .tst.static.toStr dir;
+    if[0 = count rootDir; :`symbol$()];
+    files: .tst.static.findSources rootDir;
+    files: files where files like "*.q";
+
     {[f] 
         fileDeps: .tst.parseLoadDirectives[f];
         .tst.dependencies[f]: fileDeps;

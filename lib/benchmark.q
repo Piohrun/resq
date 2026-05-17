@@ -34,7 +34,7 @@
   scale: $[maxC=0; 1; 40 % maxC];
   -1 "Dist:";
   { [l;c;s]
-    bar: (floor c * s) # "∎";
+    bar: (floor c * s) # "*";
     if[c=0; bar: ""];
     -1 (.Q.f[2;l]), " | ", bar, " ", string c;
   } ./: flip (lbls;cnts;scale);

@@ -114,7 +114,7 @@
     if[depth < 0; depth: 0];
     
     indent: (depth * 2) # " ";
-    prefix: $[depth <= 0; "📁 "; "|- "];
+    prefix: $[depth <= 0; "DIR "; "|- "];
     pct: floor r`pct;
     bar: (ceiling 15 * pct % 100) # "#";
     bar: 15 # bar, (15 - count bar) # ".";
@@ -195,7 +195,7 @@
 / --- Interactive Flow ---
 
 .tst.start:{[]
-  -1 "\n=== 🛡️ resQ DISCOVERY ENGINE ===";
+  -1 "\n=== RESQ DISCOVERY ENGINE ===";
   -1 "Enter Source Directory (default: examples/quickstart/src):";
   src: first read0 0; if[not count src; src: "examples/quickstart/src"];
   -1 "Enter Test Directory (default: examples/quickstart/test):";
@@ -211,7 +211,7 @@
   .tst.drawTree s;
   
   u: select from c where not covered;
-  if[not count u; -1 "\n✅ SUCCESS: 100% coverage achieved!"; :()];
+  if[not count u; -1 "\nSUCCESS: 100% coverage achieved!"; :()];
   
   -1 "\nFound ",(string count u)," untested functions.";
   -1 "Generate mirrored boilerplate and directory structure? (y/n)";
@@ -220,7 +220,7 @@
     -1 "Target directory (default: missingTests):";
     out: first read0 0; if[not count out; out: "missingTests"];
     .tst.genMirror[u; src; out];
-    -1 "\n🚀 Boilerplate generated.";
+    -1 "\nBoilerplate generated.";
   ];
   -1 "\nDiscovery process complete.";
  };
@@ -250,6 +250,6 @@
     .tst.genMirror[u; src; "missingTests"];
     exit 1; / Fail CI if coverage is missing
   ];
-  -1 "✅ Discovery complete. 100% Coverage.";
+  -1 "Discovery complete. 100% Coverage.";
   exit 0;
  };

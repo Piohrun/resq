@@ -103,6 +103,17 @@ runExpec:{[spec;expec];
  / Set test context for stack traces (Phase 3 enhancement)
  .tst.currentContext[`test]: $[`desc in key expec; .tst.toString expec`desc; ""];
  expec:.tst.setupExpec[spec;expec];
+
+ / Skip and pending expectations are terminal states. Do not run hooks or code.
+ exStatus: .tst.normalizeResultStatus expec`result;
+ if[exStatus in `skip`pending;
+    expec[`result]: exStatus;
+    expec[`failures]: ();
+    expec[`assertsRun]: 0i;
+    expec[`time]: .z.p - time;
+    expec:.tst.teardownExpec[spec;expec];
+    :expec
+ ];
  
  / Before Block
  beforeBad:`before;
@@ -165,7 +176,8 @@ stageBadExpec:{[spec;expec;beforeBad]
  }
 
 setupExpec:{[spec;expec];
-  expec[`result]:();
+  if[not `result in key expec; expec[`result]:()];
+  if[expec[`result] ~ `didNotRun; expec[`result]:()];
   ((` sv `.q,) each .tst.uiRuntimeNames) .tst.mock' .tst.uiRuntimeCode;
   
   / Safe context switch - if no context defined (e.g. unit tests), stay in current

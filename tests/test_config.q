@@ -18,6 +18,25 @@
   / Cleanup
   system "rm test_config.json";
   };
+ should["normalize supported format aliases in config"]{
+  testCfg: "{ \"fmt\": \"XML\", \"fuzzLimit\": 5 }";
+  hsym[`$":test_config.json"] 0: enlist testCfg;
+  
+  cfg: .tst.loadConfig["test_config.json"];
+  cfg[`fmt] musteq `junit;
+  
+  system "rm test_config.json";
+  };
+ should["warn for unsupported format"]{
+  warnings: .tst.validateConfig `fmt`maxTestTime!(`unknown; 10);
+  0 < count warnings;
+  0 < count warnings where warnings like "Unsupported format*";
+  };
+ should["warn for non-text format type"]{
+  warnings: .tst.validateConfig `fmt!5;
+  0 < count warnings;
+  0 < count warnings where warnings like "Unsupported format*";
+  };
  should["merge config with defaults"]{
   testCfg: "{ \"fmt\": \"xunit\" }";
   hsym[`$":test_config.json"] 0: enlist testCfg;
