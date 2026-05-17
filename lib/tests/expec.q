@@ -10,16 +10,15 @@ runners:()!()
 .tst.stackTrace:{[]
     / Build context string from current test context
     ctx: "";
-    if[0 < count .tst.currentContext`file; 
-        ctx,: "File: ", .tst.currentContext`file, "\n"];
-    if[0 < count .tst.currentContext`suite; 
-        ctx,: "Suite: ", .tst.currentContext`suite, "\n"];
-    if[0 < count .tst.currentContext`test; 
-        ctx,: "Test: ", .tst.currentContext`test, "\n"];
+    fileCtx: .tst.toString .tst.currentContext`file;
+    suiteCtx: .tst.toString .tst.currentContext`suite;
+    testCtx: .tst.toString .tst.currentContext`test;
+    if[0 < count fileCtx; ctx,: "File: ", fileCtx, "\n"];
+    if[0 < count suiteCtx; ctx,: "Suite: ", suiteCtx, "\n"];
+    if[0 < count testCtx; ctx,: "Test: ", testCtx, "\n"];
     
-    / Try to capture backtrace using .Q.bt if available 
-    / .Q.bt returns a list of strings, not a single string
-    bt: @[{raze .Q.bt[],\:"\n"}; (); {""}];
+    / Keep this conservative: .Q.bt can itself fail in trapped execution paths.
+    bt: "";
     if[(10h = type bt) and (0 < count bt); ctx,: "\nQ Backtrace:\n", bt];
     
     / Return empty if no context available

@@ -155,6 +155,15 @@ if[not `report in key `.resq; .resq.report: {[x]}];
     -1 "Expectations executed: ", string executed;
  };
 
+.tst.snapshotNamespaceValues:{[ns]
+    rootNs: ` sv (`; ns);
+    ks: key rootNs;
+    if[0=count ks; :()!()];
+    paths: .Q.dd[rootNs;] each ks;
+    vals: { @[get; x; { (`GENERIC_ERROR; x) }] } each paths;
+    paths!vals
+ };
+
 halt:0b
 internals:()!()
 internals[`]:()!()

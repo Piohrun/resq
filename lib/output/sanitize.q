@@ -1,95 +1,99 @@
-.tst.sanitize:{[specs]
-    toList:{[x]
-        $[0h = type x; x;
-          98h = type x; {[tbl; idx] tbl idx}[x] each til count x;
-          99h = type x; enlist x;
-          enlist x]
-    };
+.tst.sanitizeToList:{[x]
+    $[0h = type x; x;
+      98h = type x; {[tbl; idx] tbl idx}[x] each til count x;
+      99h = type x; enlist x;
+      enlist x]
+ };
 
-    toExpectations:{[x]
-        rows: toList x;
-        rows: rows where not (::)~/: rows;
-        $[0 = count rows; (); rows]
-    };
+.tst.sanitizeExpectations:{[x]
+    rows: .tst.sanitizeToList x;
+    rows: rows where not (::)~/: rows;
+    $[0 = count rows; (); rows]
+ };
 
-    normalizeExpectation:{[suite; file; ns; tags; ex]
-        if[not 99h = type ex;
-            :`suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
-                suite;
-                "Unavailable expectation";
-                `pass;
-                "";
-                0Nn;
-                ();
-                0;
-                file;
-                ns;
-                tags)];
-
-        exDesc:     $[`desc in key ex; .tst.toString ex`desc; "Unnamed expectation"];
-        exResult:   .tst.normalizeResultStatus $[`result in key ex; ex`result; `pass];
-        exFailures: $[`failures in key ex; ex`failures; ()];
-        exErr:      $[`errorText in key ex; ex`errorText; ()];
-        rawTime: $[`time in key ex; ex`time; 0Nn];
-        exTime: $[(98h = type rawTime) and (0 < count rawTime); first rawTime;
-                  -16h = type rawTime; rawTime;
-                  0Nn];
-        exAsserts:  $[`assertsRun in key ex;
-                        $[type ex`assertsRun in (1h,4h,7h,-6h,-7h,6h); ex`assertsRun; 0i];
-                        0i];
-        exMsg: $[0 < count exFailures; .tst.toString exFailures;
-                      0 < count exErr; .tst.toString exErr;
-                      ""];
-
-        `suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
+.tst.sanitizeExpectation:{[suite; file; ns; tags; ex]
+    if[not 99h = type ex;
+        :`suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
             suite;
-            exDesc;
-            exResult;
-            exMsg;
-            exTime;
-            exFailures;
-            exAsserts;
+            "Unavailable expectation";
+            `pass;
+            "";
+            0Nn;
+            ();
+            0;
+            file;
+            ns;
+            tags)];
+
+    exDesc:     $[`desc in key ex; .tst.toString ex`desc; "Unnamed expectation"];
+    exResult:   .tst.normalizeResultStatus $[`result in key ex; ex`result; `pass];
+    exFailures: $[`failures in key ex; ex`failures; ()];
+    exErr:      $[`errorText in key ex; ex`errorText; ()];
+    rawTime: $[`time in key ex; ex`time; 0Nn];
+    exTime: $[(98h = type rawTime) and (0 < count rawTime); first rawTime;
+              -16h = type rawTime; rawTime;
+              0Nn];
+    exAsserts:  $[`assertsRun in key ex;
+                    $[(type ex`assertsRun) in (1h,4h,7h,-6h,-7h,6h); ex`assertsRun; 0i];
+                    0i];
+    exMsg: $[0 < count exFailures; .tst.toString exFailures;
+                  0 < count exErr; .tst.toString exErr;
+                  ""];
+
+    `suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
+        suite;
+        exDesc;
+        exResult;
+        exMsg;
+        exTime;
+        exFailures;
+        exAsserts;
+        file;
+        ns;
+        tags)
+ };
+
+.tst.sanitizeSpec:{[spec]
+    suite: $[`title in key spec; .tst.toString spec`title; "Unnamed suite"];
+    file:  $[`tstPath in key spec; .tst.toString spec`tstPath; ""];
+    ns:    $[`namespace in key spec; .tst.toString spec`namespace; ""];
+    tags:  $[`tags in key spec; spec`tags; ()];
+    exs:   $[`expectations in key spec; .tst.sanitizeExpectations spec`expectations; ()];
+
+    if[0 = count exs;
+        :enlist `suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
+            suite;
+            "No expectations";
+            .tst.normalizeResultStatus $[`result in key spec; spec`result; `pass];
+            "";
+            0Nn;
+            ();
+            0i;
             file;
             ns;
             tags)
-    };
+    ];
+    .tst.sanitizeExpectation[suite;file;ns;tags;] each exs
+ };
 
-    normalizeSpec:{[spec]
-        suite: $[`title in key spec; .tst.toString spec`title; "Unnamed suite"];
-        file:  $[`tstPath in key spec; .tst.toString spec`tstPath; ""];
-        ns:    $[`namespace in key spec; .tst.toString spec`namespace; ""];
-        tags:  $[`tags in key spec; spec`tags; ()];
-        exs:   $[`expectations in key spec; toExpectations spec`expectations; ()];
+.tst.isResultRow:{[x]
+    if[not 99h = type x; :0b];
+    all `suite`description`status in key x
+ };
 
-        if[0 = count exs;
-            :enlist `suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
-                suite;
-                "No expectations";
-                .tst.normalizeResultStatus $[`result in key spec; spec`result; `pass];
-                "";
-                0Nn;
-                ();
-                0i;
-                file;
-                ns;
-                tags)
-        ];
-        normalizeExpectation[;file;ns;tags] each exs
-    };
-
+.tst.sanitize:{[specs]
     if[0h = type specs;
         specs: specs where not (::)~/: specs;
         if[0 = count specs; :()];
     ];
-    specs: toList specs;
+    specs: .tst.sanitizeToList specs;
     if[not count specs; :()];
     specs: specs where not (::)~/: specs;
     if[not count specs; :()];
-    if[(all 99h = type each specs) and all {all `suite`description`status in key x} each specs;
+    if[all .tst.isResultRow each specs;
         :specs
     ];
-    rows: raze normalizeSpec each specs;
-    rows
+    raze .tst.sanitizeSpec each specs
  };
 
 .tst.emptyResultTable:{[]

@@ -37,9 +37,9 @@
         );
         rows: .tst.sanitize spec;
         firstRow: rows 0;
-        firstRow`status musteq `pass;
-        firstRow`suite musteq "Suite A";
-        firstRow`description musteq "Example";
+        musteq[firstRow`status; `pass];
+        musteq[firstRow`suite; "Suite A"];
+        musteq[firstRow`description; "Example"];
     };
 
     should["unknown output module is warned and rejected safely"]{

@@ -129,7 +129,7 @@
         paths!vals
     };
     
-    fullSnapshot: namespaces!snapValues each namespaces;
+    fullSnapshot: namespaces!.tst.snapshotNamespaceValues each namespaces;
 
     / Resource Snapshot (Phase 1 Hardening) - Cross-platform
     origHandles: $[.utl.isLinux;
@@ -205,7 +205,7 @@
     
     if[count checkNs;
         { [title; ns; originalState]
-            currentState: snapValues ns;
+            currentState: .tst.snapshotNamespaceValues ns;
             
             / 1. Detect New Keys (Pollution)
             newKeys: (key currentState) except (key originalState);
@@ -351,7 +351,7 @@
             @[.tst.runSpec; spec; { [s; err]
                 -1 "ERROR running spec: ", .tst.toString s[`title], ": ", .tst.toString err;
                 s
-            }]
+            }[spec;]]
         } each specsList;
         specsList];
     if[.utl.DEBUG; -1 "DEBUG: results count: ", string count .tst.app.results];

@@ -229,9 +229,13 @@ if[`uiQExports in key `.tst; .tst.registerQExports .tst.uiQExports];
 .tst.PKGNAME: .utl.PKGLOADING
 
 .tst.loadOutputModule:{[module]
-  outputModule:$[10h = type module; lower `$module; -11h = type module; lower module; 11h = type module; lower module; `text];
-  outputModule:$[outputModule ~ `console; `text; outputModule ~ `xml; `junit; outputModule in `text`junit`xunit`json; outputModule; `text];
-  if[not outputModule in `text`xunit`junit`json; -1 "WARNING: Unknown output module '",string outputModule,"'. Falling back to 'text'."; outputModule:`text];
+  requestedModule:$[10h = type module; lower `$module; -11h = type module; lower module; 11h = type module; lower module; `text];
+  knownModule: requestedModule in `text`console`xml`junit`xunit`json;
+  if[not knownModule;
+    -1 "WARNING: Unknown output module '",(string requestedModule),"'."
+  ];
+  if[not knownModule; :0b];
+  outputModule:$[requestedModule ~ `console; `text; requestedModule ~ `xml; `junit; requestedModule];
 
   modulePath: .tst.PKGNAME, "/output/", (string outputModule), ".q";
   .utl.require[modulePath];
