@@ -18,9 +18,7 @@
         cleanP[where not cleanP in .Q.a,.Q.A,.Q.n]: first "_";
         nsName: `$".sandbox_S", cleanP;
 
-        oldCurrentNs: .tst.currentNs;
-        oldFileLoadingSet: `FILELOADING in key `.utl;
-        oldFileLoading: @[get; `.utl.FILELOADING; {::}];
+        loadCtx: .tst.captureRuntimeContext[];
         
         / Track current namespace for DSL capture
         .tst.currentNs: nsName;
@@ -39,9 +37,7 @@
             ()
         }[p]];
         if[0 = count content;
-            if[oldFileLoadingSet; .utl.FILELOADING: oldFileLoading];
-            if[not oldFileLoadingSet; delete FILELOADING from `.utl];
-            .tst.currentNs: oldCurrentNs;
+            .tst.restoreRuntimeContext loadCtx;
             :()
         ];
 
@@ -86,9 +82,7 @@
         ];
 
         / Restore loader bookkeeping
-        if[oldFileLoadingSet; .utl.FILELOADING: oldFileLoading];
-        if[not oldFileLoadingSet; delete FILELOADING from `.utl];
-        .tst.currentNs: oldCurrentNs;
+        .tst.restoreRuntimeContext loadCtx;
         
     } each tests;
  };

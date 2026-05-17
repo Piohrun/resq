@@ -99,6 +99,46 @@ if[not `report in key `.resq; .resq.report: {[x]}];
       `error]
  };
 
+/ Capture mutable process-level state affected while loading and running tests.
+/ returns: dictionary suitable for .tst.restoreRuntimeContext
+.tst.captureRuntimeContext:{[]
+    `namespace`context`tstPath`currentNs`fileLoadingSet`fileLoading`cwd!(
+        system "d";
+        @[get; `.tst.context; `.];
+        @[get; `.tst.tstPath; `];
+        @[get; `.tst.currentNs; `];
+        `FILELOADING in key `.utl;
+        @[get; `.utl.FILELOADING; {::}];
+        system "cd")
+ };
+
+/ Restore state captured by .tst.captureRuntimeContext.
+/ side effects: current namespace, current directory, loader bookkeeping, test context
+.tst.restoreRuntimeContext:{[ctx]
+    if[not 99h = type ctx; :()];
+
+    if[`context in key ctx; .tst.context: ctx`context];
+    if[`tstPath in key ctx; .tst.tstPath: ctx`tstPath];
+    if[`currentNs in key ctx; .tst.currentNs: ctx`currentNs];
+
+    if[`fileLoadingSet in key ctx;
+        if[ctx`fileLoadingSet; .utl.FILELOADING: ctx`fileLoading];
+        if[not ctx`fileLoadingSet; delete FILELOADING from `.utl];
+    ];
+
+    if[`cwd in key ctx;
+        cwd: .tst.toString ctx`cwd;
+        if[0 < count cwd; @[system; "cd ", cwd; {}]];
+    ];
+
+    if[`namespace in key ctx;
+        ns: .tst.toString ctx`namespace;
+        if[0 < count ns; @[system; "d ", ns; {}]];
+    ];
+
+    :: 
+ };
+
 halt:0b
 internals:()!()
 internals[`]:()!()

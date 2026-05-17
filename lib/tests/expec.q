@@ -178,6 +178,7 @@ stageBadExpec:{[spec;expec;beforeBad]
 setupExpec:{[spec;expec];
   if[not `result in key expec; expec[`result]:()];
   if[expec[`result] ~ `didNotRun; expec[`result]:()];
+  if[not `runtimeContext in key expec; expec[`runtimeContext]: .tst.captureRuntimeContext[]];
   ((` sv `.q,) each .tst.uiRuntimeNames) .tst.mock' .tst.uiRuntimeCode;
   
   / Safe context switch - if no context defined (e.g. unit tests), stay in current
@@ -187,10 +188,12 @@ setupExpec:{[spec;expec];
  }
 
 teardownExpec:{[spec;expec];
+ ctx: $[`runtimeContext in key expec; expec`runtimeContext; ()!()];
  system "d .tst";
   .tst.restore[];
   @[.tst.runCleanupTasks; (); {}];
   .tst.assertState:.tst.defaultAssertState;
  .tst.callbacks.expecRan[spec;expec];
+ if[99h = type ctx; .tst.restoreRuntimeContext ctx];
  expec
  }

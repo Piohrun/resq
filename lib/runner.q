@@ -106,8 +106,7 @@
     .tst.callbacks.descLoaded:{[specObj] .tst.app.allSpecs,:enlist specObj; };
 
  .tst.runSpec:{[spec]
-    oldContext: .tst.context;
-    oldPath: .tst.tstPath;
+    runCtx: .tst.captureRuntimeContext[];
     specTitle: $[`title in key spec; spec`title; `];
     / Deep Snapshot: all top-level namespaces and their keys AND values
     namespaces: key `;
@@ -148,7 +147,7 @@
     .tst.currentContext[`suite]: .tst.toString specTitle;
 
     / If halting prior to running, skip hooks/expectations and leave context/path as-is
-    if[.tst.halt; :spec];
+    if[.tst.halt; .tst.restoreRuntimeContext runCtx; :spec];
 
     / Run Before Hooks
     if[`before in key spec; .tst.runHook[spec`before]];
@@ -181,14 +180,10 @@
     spec[`expectations]: res;
     spec[`result]: specResult;
 
-    / If halting, do not restore context/path (per spec runner semantics)
-    if[.tst.halt; :spec];
+    if[.tst.halt; .tst.restoreRuntimeContext runCtx; :spec];
     
-    / Restore Root Namespace
-    system "d .";
     .tst.restoreDir[];
-    .tst.context: oldContext;
-    .tst.tstPath: oldPath;
+    .tst.restoreRuntimeContext runCtx;
 
     / Check for Global/Deep Pollution
     currentNamespaces: key `;
