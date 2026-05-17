@@ -116,7 +116,7 @@
     / Deep Snapshot: all top-level namespaces and their keys AND values
     namespaces: $[pollutionGuard; key `; `symbol$()];
     / Skip system namespaces and .tst/.resq internals
-    if[pollutionGuard; namespaces: namespaces except `q`Q`j`h`o`s`v`z`tst`resq];
+    if[pollutionGuard; namespaces: namespaces except `q`Q`j`h`o`s`v`z`tst`resq`utl];
     
     / Helper to snapshot values
     / Returns dict: fullyQualifiedName -> value
@@ -192,7 +192,7 @@
 
     / Check for Global/Deep Pollution
     currentNamespaces: $[pollutionGuard; key `; `symbol$()];
-    if[pollutionGuard; currentNamespaces: currentNamespaces except `q`Q`j`h`o`s`v`z`tst`resq];
+    if[pollutionGuard; currentNamespaces: currentNamespaces except `q`Q`j`h`o`s`v`z`tst`resq`utl];
     
     newNamespaces: currentNamespaces except namespaces;
     if[count newNamespaces;
