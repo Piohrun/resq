@@ -226,6 +226,13 @@ if[not `qExports in key `.tst; .tst.qExports: ()!()];
 
 if[`uiQExports in key `.tst; .tst.registerQExports .tst.uiQExports];
 
+/ Root aliases are the preferred compatibility surface. `.q` exports are optional.
+mock: .tst.mock;
+fixture: .tst.fixture;
+fixtureAs: .tst.fixtureAs;
+tempFile: .tst.tempFile;
+registerCleanup: .tst.registerCleanup;
+
 .tst.PKGNAME: .utl.PKGLOADING
 
 .tst.loadOutputModule:{[module]
