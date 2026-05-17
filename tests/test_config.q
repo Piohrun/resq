@@ -1,4 +1,6 @@
 .tst.desc["Configuration File Support"]{
+ after{system "rm -f test_config.json"};
+
  should["load default config when file does not exist"]{
   cfg: .tst.loadConfig["nonexistent.json"];
   cfg[`fmt] musteq `text;
@@ -14,9 +16,6 @@
   cfg[`fmt] musteq `junit;
   cfg[`exit] musteq 1b;
   cfg[`failFast] musteq 1b;
-  
-  / Cleanup
-  system "rm test_config.json";
   };
  should["normalize supported format aliases in config"]{
   testCfg: "{ \"fmt\": \"XML\", \"fuzzLimit\": 5 }";
@@ -24,8 +23,6 @@
   
   cfg: .tst.loadConfig["test_config.json"];
   cfg[`fmt] musteq `junit;
-  
-  system "rm test_config.json";
   };
  should["warn for unsupported format"]{
   warnings: .tst.validateConfig `fmt`maxTestTime!(`unknown; 10);
@@ -44,8 +41,6 @@
   cfg: .tst.loadConfig["test_config.json"];
   cfg[`fmt] musteq `xunit;
   cfg[`fuzzLimit] musteq 100;
-  
-  system "rm test_config.json";
   };
  should["apply config to global settings"]{
   testCfg: `fmt`exit`failFast!(`console; 1b; 1b);
