@@ -158,7 +158,10 @@ if[not `report in key `.resq; .resq.report: {[x]}];
 
 .tst.snapshotNamespaceValues:{[ns]
     rootNs: ` sv (`; ns);
-    ks: key rootNs;
+    ks: @[key; rootNs; {`symbol$()}];
+    if[-11h = type ks; ks: enlist ks];
+    if[not 11h = type ks; :()!()];
+    ks: ks where ks <> rootNs;
     if[0=count ks; :()!()];
     paths: .Q.dd[rootNs;] each ks;
     vals: { @[get; x; { (`GENERIC_ERROR; x) }] } each paths;
