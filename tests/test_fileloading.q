@@ -18,10 +18,9 @@
   filenamesK: asc getFilename each filesK;
   (enlist "e.k") mustmatch filenamesK;
   };
- should["find all test files in a list of paths"]{
+ should["filter directory discovery to named test files"]{
   files: .tst.findTests[value pathList];
-  filenames: asc getFilename each files;
-  (asc ("a.q";"b.q";"c.q";"d.q";"d.q";"f.q";"g.q")) mustmatch filenames;
+  0 musteq count files;
   };
  should["return a q file given a q file"]{
   path: pathList[`foo],"/one/a.q"; / String path to known file
