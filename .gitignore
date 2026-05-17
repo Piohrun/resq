@@ -37,6 +37,7 @@ test_dummy.*
 /test_config.json
 verify_*.q
 coverage_state.txt
+coverage_report.html
 *.lcov
 
 # Data directories (common conventions, uncomment if used)
