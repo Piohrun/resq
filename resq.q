@@ -9,17 +9,9 @@
 .utl.require "qutil/opts.q"
 
 / Load Features
-.utl.require "lib/diff.q"
-.utl.require "lib/snapshot.q"
-.utl.require "lib/snapshot_txt.q"
-.utl.require "lib/diff_assertions.q"
-.utl.require "lib/mock.q"
-.utl.require "lib/parallel_runner.q"
-.utl.require "lib/watch.q"
 .utl.require "lib/parametrize.q"
 .utl.require "lib/async.q"
 .utl.require "lib/bench.q"
-.utl.require "lib/test_finder.q"
 
 / Load CLI/Runner
 .utl.require "lib/cli.q"
