@@ -27,6 +27,7 @@ if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: "
 .utl.require .utl.PKGLOADING,"/snapshot_txt.q"
 .utl.require .utl.PKGLOADING,"/tests/internals.q"
 .utl.require .utl.PKGLOADING,"/output/sanitize.q"
+.utl.require .utl.PKGLOADING,"/output/text.q"
 .utl.require .utl.PKGLOADING,"/tests/assertions.q"
 .utl.require .utl.PKGLOADING,"/deps.q"
 .utl.require .utl.PKGLOADING,"/diff_assertions.q"
@@ -45,92 +46,10 @@ if[`resq in key `;
     { if[not x in key `.tst; .[`.tst; (enlist x); :; get ` sv `.resq, x]] } each key `.resq;
  ];
 
-/ Define report function
-/ Define report function for flat table results
+/ The text reporter (lib/output/text.q, loaded above) defines .resq.reportText
+/ and aliases .resq.report to it. We just need the bookkeeping state here.
 .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
 if[not `strict in key .tst.app; .tst.app.strict: 0b];
-
-.resq.report:{[results]
-    / Group by suite for display
-    suites: distinct results`suite;
-    
-    { [s; res] 
-        sRes: select from res where suite=s;
-        -1 "\n",string[s],"::";
-        
-        / Print failures
-        fails: select from sRes where not status=`pass;
-        { [f] 
-            -1 "- ",string[f`description],": [",string[f`status],"]";
-            msg: .tst.toString f`message;
-            if[0<count msg; -1 "  Error: ",msg];
-            if[0<count f`failures;
-                -1 "  Failures: ";
-                { -1 "    ", .tst.toString x } each (),f`failures
-            ];
-        } each fails;
-        
-        / Print summary for suite
-        -1 "  (",string[count sRes]," tests, ",string[count fails]," failed)";
-    }[;results] each suites;
-
-    / Calculate statistics
-    totalTests: count results;
-    passed: count select from results where status=`pass;
-    failed: count select from results where status=`fail;
-    errored: count select from results where status=`error;
-    skipped: count select from results where status in `skip`pending;
-    
-    totalTime: sum results`time;
-    totalAsserts: sum results`assertsRun;
-    
-    / Print summary statistics
-    -1 "";
-    -1 "======================================================================";
-    -1 "SUMMARY";
-    -1 "----------------------------------------------------------------------";
-    -1 "Tests:      ", string[totalTests], " total (",
-        string[passed], " passed, ",
-        string[failed], " failed, ",
-        string[errored], " error, ",
-        string[skipped], " skipped)";
-    -1 "Assertions: ", string[totalAsserts], " total";
-    duration: $[null totalTime; "0"; string `second$totalTime];
-    -1 "Duration:   ", duration, "s";
-    -1 "======================================================================";
-
-    allFails: select from results where not status=`pass;
-    -1 "\n----------------------------------------------------------------";
-    if[0<count allFails;
-        -1 "TOTAL FAILURES: ",string[count allFails];
-        -1 "Tests FAILED.";
-        :()];
-
-    if[0 = totalTests;
-        -1 "No tests ran.";
-        :()];
-
-    -1 "All tests passed.";
-    
-    / Print Dependency Summary if tracked
-    if[count .utl.testDeps;
-        -1 "\n----------------------------------------------------------------";
-        -1 "DEPENDENCY SUMMARY:";
-        { [f; ds]
-            -1 string[f], " depends on: ", " " sv string ds;
-        }'[key .utl.testDeps; value .utl.testDeps];
-    ];
-
-    / Wall of Fame (Slowest Tests)
-    if[count results;
-        -1 "\n----------------------------------------------------------------";
-        -1 "SLOWEST TESTS (TOP 5):";
-        slow: 5 # xdesc[ `time; 0!select last time by suite, description from results ];
-        { [r] -1 "  ", .Q.s1[r`time], " - ", string[r`suite], ": ", string[r`description] } each slow;
-    ];
- };
-
-.resq.reportText: .resq.report;
 
 / Namespace Safety Guards
 / Save original .q functions before overwriting

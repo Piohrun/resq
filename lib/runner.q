@@ -29,7 +29,7 @@
       if[0 = count baseDirStr; baseDirStr: system "cd"];
       if[not outDirStr like "/*"; outDirStr: baseDirStr, "/", outDirStr];
       outDirStr: .utl.normalizePath outDirStr;
-      outFile: outDirStr, "/test-results_", string[.z.i], ".xml";
+      outFile: outDirStr, "/test-results.xml";
       .utl.ensureDir outDirStr;
       hsym[`$outFile] 0: enlist xmlReport;
       -1 "XML Report written to ", outFile;

@@ -30,6 +30,8 @@ gmon.out
 missingTests/
 plans/
 /output/
+test-results.xml
+test-results.json
 resq_*.txt
 resq_*.q
 repro_*.q
