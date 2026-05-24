@@ -28,7 +28,7 @@ config: .tst.loadConfig[::];
 textReporterLoaded: .tst.loadOutputModule "text";
 if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."];
 
-/ Initialize State (defaults set in lib/tests/internals.q)
+/ Initialize State (defaults set in lib/dsl/internals.q)
 / Here we just reset for a fresh run
 .tst.app.args: ();
 .tst.app.allSpecs: ();
