@@ -2,7 +2,7 @@
 / ============================================================================
 
 / Dependencies
-.utl.require "lib/static_analysis.q"
+.utl.require .utl.PKGLOADING,"/static_analysis.q"
 
 / Configuration
 .tst.watch.watchDirs: enlist "."
@@ -15,10 +15,12 @@
 .tst.watch.pendingFiles: ();
 
 / Default runner command (can be overridden)
-.tst.watch.runnerCmd: { 
+.tst.watch.runnerCmd: {
     files: x;
-    / Reload runner state to clear previous runs
-    system "l lib/runner.q"; 
+    / Reload runner state to clear previous runs. Anchor at install root
+    / so this works no matter where the user invoked resq from.
+    home: @[get; `.resq.HOME; {"."}];
+    system "l ", home, "/lib/runner.q";
     
     / Force no exit for watch mode runner
     .tst.app.exit: 0b;

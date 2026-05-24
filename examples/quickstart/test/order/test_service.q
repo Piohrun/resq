@@ -1,6 +1,8 @@
+/ Resolve the matching src file relative to this test, not CWD.
+.example.projectRoot: "/" sv -3 _ "/" vs $[":" = first f: string .utl.FILELOADING; 1 _ f; f];
 oldFL: @[get; `.utl.FILELOADING; {::}];
 if[`FILELOADING in key `.utl; .utl.FILELOADING: ::];
-system "l examples/quickstart/src/order/service.q";
+system "l ", .example.projectRoot, "/src/order/service.q";
 if[not oldFL ~ (::); .utl.FILELOADING: oldFL];
 / Comprehensive Test Suite for Order Service
 / Showcases: Async Testing, Mock Sequences, Partial Mocks

@@ -1,7 +1,10 @@
 / lib/bootstrap.q - Clean & Robust Loader
 if[not `utl in key `; .utl: enlist[`]!enlist (::)];
 if[not `loaded in key `.utl; .utl.loaded: enlist ""];
-.utl.PKGLOADING: "lib";
+/ Anchor at the install root when resq.q has set it; falls back to "lib"
+/ for direct invocations from inside the repo.
+.utl.resqHomeAtBoot: @[get; `.resq.HOME; {""}];
+.utl.PKGLOADING: $[count .utl.resqHomeAtBoot; .utl.resqHomeAtBoot,"/lib"; "lib"];
 .utl.DEBUG: 0b;
 
 / OS Detection Utilities

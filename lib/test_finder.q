@@ -2,7 +2,7 @@
 / ============================================================================
 
 / Load Static Analysis Library
-.utl.require "lib/static_analysis.q"
+.utl.require .utl.PKGLOADING,"/static_analysis.q"
 
 / Proxy functions to static analysis library
 .tst.exploreFile: .tst.static.exploreFile

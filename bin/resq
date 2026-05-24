@@ -2,20 +2,19 @@
 # resq - CLI Wrapper
 # Usage: resq [command] [args]
 
-# Resolve project root (symlink safe)
+# Resolve install root (symlink safe).
 SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ]; do 
+while [ -h "$SOURCE" ]; do
   DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
   SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" 
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-PROJECT_ROOT="$(dirname "$DIR")"
+RESQ_HOME="$(dirname "$DIR")"
 
-# We must run from project root so that lib/ and tests/ 
-# relative paths resolve correctly inside q.
-cd "$PROJECT_ROOT"
-
-# Execute resq.q
-export QPATH="$PROJECT_ROOT/vendor"
-exec q "$PROJECT_ROOT/resq.q" "$@" -e 1
+# Run from the user's CWD so test/discover paths they pass in resolve
+# against THEIR project, not the framework install. resq.q reads
+# RESQ_HOME to find its own modules.
+export RESQ_HOME
+export QPATH="$RESQ_HOME/vendor"
+exec q "$RESQ_HOME/resq.q" "$@" -e 1

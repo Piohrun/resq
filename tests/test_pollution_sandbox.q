@@ -13,7 +13,8 @@
 
 .tst.desc["Dependency Test"]{
     should["require a dependency"]{
-        .utl.require "lib/config.q";
+        / Use install-root-absolute path so the test passes regardless of CWD.
+        .utl.require .utl.PKGLOADING,"/config.q";
         1 musteq 1;
     };
 };

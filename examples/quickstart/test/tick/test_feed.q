@@ -1,4 +1,6 @@
-system "l examples/quickstart/src/tick/feed.q";
+/ Resolve the matching src file relative to this test, not CWD.
+.example.projectRoot: "/" sv -3 _ "/" vs $[":" = first f: string .utl.FILELOADING; 1 _ f; f];
+system "l ", .example.projectRoot, "/src/tick/feed.q";
 / Test: Ticker Feed
 
 .tst.desc["Ticker Feed"; {

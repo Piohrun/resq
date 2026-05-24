@@ -5,7 +5,7 @@ depGraph: ()!();
 dependencies: ()!();
 
 /. Keep parse/scan helpers local and dependency-free by loading static analysis utilities here.
-.utl.require "lib/static_analysis.q"
+.utl.require .utl.PKGLOADING,"/static_analysis.q"
 
 / Parse a .q file for load directives
 parseLoadDirectives:{[filepath]

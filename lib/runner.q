@@ -58,14 +58,15 @@
     if[.tst.app.runCoverage;
         if[not `coverageLoading in key `.tst; .tst.coverageLoading: 0b];
         .tst.coverageLoading: 1b;
+        home: @[get; `.resq.HOME; {"."}];
         if[not `initCoverage in key `.tst;
-            .utl.require "lib/coverage.q";
+            .utl.require home,"/lib/coverage.q";
         ];
         .tst.coverageLoading: 0b;
 
         / Fallback: attempt a direct load if the require path did not register coverage.
         if[not `initCoverage in key `.tst;
-            @[system; "l lib/coverage.q"; {[e]
+            @[system; "l ", home, "/lib/coverage.q"; {[e]
                 -1 "Coverage module load failed: ", .tst.toString e;
                 :()
             }];

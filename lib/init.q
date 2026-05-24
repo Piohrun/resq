@@ -1,9 +1,16 @@
 if[not `utl in key `; .utl:(enlist `)!enlist (::)];
-if[not `PKGLOADING in key .utl; .utl.PKGLOADING:"lib"];
+/ Anchor module loads at the install root if it has been set (by resq.q).
+/ Falls back to "lib" for direct `q lib/init.q` usage from inside the repo.
+.utl.resqHomeAtBoot: @[get; `.resq.HOME; {""}];
+if[not `PKGLOADING in key .utl; .utl.PKGLOADING: $[count .utl.resqHomeAtBoot; .utl.resqHomeAtBoot,"/lib"; "lib"]];
 .utl.DEBUG: 0b;
 
-/ Initialize .resq namespace and state
-if[not `resq in key `; .resq.tmp:1; .resq.state.tmp:1; .resq.config.tmp:1];
+/ Initialize .resq sub-namespaces. Each guarded independently because
+/ resq.q sets .resq.HOME before init.q runs, so a coarse `resq in key \``
+/ check would skip seeding state/config.
+if[not `resq in key `; .resq.tmp:1];
+if[not `state in key `.resq; .resq.state.tmp:1];
+if[not `config in key `.resq; .resq.config.tmp:1];
 .resq.VERSION: "0.1.0-alpha";
 
 / Exit code constants for CI/CD integration

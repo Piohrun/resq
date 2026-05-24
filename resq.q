@@ -1,21 +1,33 @@
 / resq.q - Unified CLI Entry Point
 \e 1
-/ Always load bootstrap
-\l lib/bootstrap.q
+
+/ Resolve install root. Honor RESQ_HOME if set (bin/resq exports it), else
+/ derive from .z.f (the path of this script). All framework module loads
+/ use this absolute root so the user's CWD stays free for their own
+/ test/discover paths.
+.resq.envHome: getenv `RESQ_HOME;
+.resq.HOME: $[count .resq.envHome;
+              .resq.envHome;
+              { p: string x; $[any p = "/"; (last where p = "/") # p; "."] } .z.f];
+if[not "/" = first .resq.HOME; .resq.HOME: (system "cd"), "/", .resq.HOME];
+
+/ Always load bootstrap (raw \l so we can pass an absolute path before
+/ .utl.require exists).
+system "l ", .resq.HOME, "/lib/bootstrap.q";
 
 / Load Libraries
-.utl.require "lib/init.q"
-.utl.require "lib/config.q"
+.utl.require .resq.HOME,"/lib/init.q"
+.utl.require .resq.HOME,"/lib/config.q"
 .utl.require "qutil/opts.q"
 
 / Load Features
-.utl.require "lib/parametrize.q"
-.utl.require "lib/async.q"
-.utl.require "lib/bench.q"
+.utl.require .resq.HOME,"/lib/parametrize.q"
+.utl.require .resq.HOME,"/lib/async.q"
+.utl.require .resq.HOME,"/lib/bench.q"
 
 / Load CLI/Runner
-.utl.require "lib/cli.q"
-.utl.require "lib/runner.q"
+.utl.require .resq.HOME,"/lib/cli.q"
+.utl.require .resq.HOME,"/lib/runner.q"
 
 / Configuration
 config: .tst.loadConfig[::];
@@ -82,7 +94,9 @@ if[.resq.mode ~ `test;
 
 / MODE: DISCOVER
 if[.resq.mode ~ `discover;
-    src: "examples/quickstart/src"; tst: "examples/quickstart/test";
+    / Defaults point at the bundled quickstart inside the install root,
+    / since "examples/quickstart" is only meaningful relative to resq itself.
+    src: .resq.HOME, "/examples/quickstart/src"; tst: .resq.HOME, "/examples/quickstart/test";
     if[0<count .tst.app.args; src: .tst.app.args 0];
     if[1 < count .tst.app.args; tst: .tst.app.args 1];
     if[any .z.x like "-interactive"; .tst.start[]; exit 0];
@@ -94,13 +108,13 @@ if[.resq.mode ~ `discover;
 if[.resq.mode ~ `watch;
     dirs: enlist ".";
     if[0<count .tst.app.args; dirs: .tst.app.args];
-    .tst.watch.runnerCmd: { 
+    .tst.watch.runnerCmd: {[home;x]
         files: x;
-        system "l lib/runner.q"; 
+        system "l ", home, "/lib/runner.q";
         .tst.app.exit: 0b;
         .tst.app.args: files;
         @[.tst.runAll; ::; {-1 "Error during test run: ", x}];
-    };
+    }[.resq.HOME;];
     .tst.watch.init[dirs];
     .z.ts: { [x] changes: .tst.watch.check[]; if[0<count changes; .tst.watch.onChanges[changes]] };
     system "t 1000";
