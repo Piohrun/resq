@@ -105,7 +105,11 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
         -1 "TOTAL FAILURES: ",string[count allFails];
         -1 "Tests FAILED.";
         :()];
-        
+
+    if[0 = totalTests;
+        -1 "No tests ran.";
+        :()];
+
     -1 "All tests passed.";
     
     / Print Dependency Summary if tracked

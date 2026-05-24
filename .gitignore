@@ -33,7 +33,8 @@ plans/
 resq_*.txt
 resq_*.q
 repro_*.q
-test_dummy.*
+test_dummy*
+qfunc.*.q
 /test_config.json
 verify_*.q
 coverage_state.txt

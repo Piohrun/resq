@@ -59,12 +59,14 @@ args: .tst.app.args;
 if[.resq.mode ~ `cover; .tst.app.runCoverage: 1b; .resq.mode: `test];
 
 / MODE: TEST
-if[.resq.mode ~ `test; 
-    .tst.initReporting[]; 
-    .tst.runAll[]; 
-    if[not any .z.x like "-noquit"; 
+if[.resq.mode ~ `test;
+    .tst.initReporting[];
+    .tst.runAll[];
+    if[not any .z.x like "-noquit";
         / Granular exit codes for CI/CD
+        noTestsFound: (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
         exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
+                    noTestsFound; .resq.EXIT.NO_TESTS;
                     not .tst.app.passed; .resq.EXIT.FAIL;
                     .resq.EXIT.PASS];
         exit exitCode

@@ -53,7 +53,11 @@
         -1 "TOTAL FAILURES: ",string[count allFails];
         -1 "Tests FAILED.";
         :()];
-        
+
+    if[0 = totalTests;
+        -1 "No tests ran.";
+        :()];
+
     -1 "All tests passed.";
     
     if[count .utl.testDeps;
