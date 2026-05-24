@@ -16,11 +16,19 @@ All notable changes to the **resQ** project will be documented in this file.
 - `registerSpecCleanup` — cleanup hook that fires after per-spec resource teardown.
 - `.tst.suppressAssertionDiff` flag, used by the fuzz runner so a failing fuzz spec no longer spams one `FAILURE DIFF` banner per iteration.
 - `./bin/resq test` (no path) defaults to `tests/` when the directory exists.
+- `-quiet` CLI flag: suppresses `Loading Test:` lines, the RUN AUDIT block, and per-suite output for passing suites; failures still print.
+- `testFilePatterns` config option (list of globs) overrides the default `test_*.q` / `*_test.q` discovery convention.
+- `diffLargeTableThreshold` / `diffHugeTableThreshold` config options expose the previously-hardcoded sampling thresholds in `lib/diff.q`.
+- `RESQ_HOME` environment variable: `bin/resq` exports it so `resq.q` finds its own modules regardless of CWD. Makes the framework usable as a globally-installed CLI against any project.
+- One-time NOTE printed on non-Linux hosts explaining that file-handle leak detection requires `/proc` and only IPC handles are tracked on macOS/Windows.
+- `skill/SKILL.md` — Claude Code skill that teaches an LLM how to set up and write tests with resQ.
 
 ### Changed
 - `validateConfig` is silent; new `printConfigWarnings` is what the entry point calls. Unit tests can inspect warnings without polluting output.
 - `lib/tests/` (framework DSL modules) renamed to `lib/dsl/` so it no longer collides visually with the user-facing `tests/` tree.
 - Duplicate text reporter in `lib/init.q` removed; `lib/output/text.q` is now the single source of truth.
+- `getDependents` now uses a cycle-safe recursion (visited-set accumulator), so a circular `\l`/`require` graph in user code no longer blows the stack.
+- `.tst.spy` builds its wrapper from a table of arity-indexed template lambdas instead of `value`-ing a constructed source string. Removes the eval surface for arities 0–7 (arity 8 still uses the fallback because q's lambda ceiling is 8 params).
 
 ### Removed
 - Watch-mode debouncing was listed under 0.2.0 but the implementation never landed — only four config vars were declared and a test that asserted their existence (not the behavior). Removed the dead vars from `lib/watch.q` and the placeholder test. The `.z.ts` handler still fires synchronously on every detected change; reinstate as a real feature if needed.

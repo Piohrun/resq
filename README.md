@@ -120,8 +120,8 @@ Every test file is automatically loaded into a unique, isolated namespace (e.g.,
 
 ### 🚨 Global Pollution Guard
 The runner takes a snapshot of the global namespace (`.`) before and after each test.
-- **Detection**: If a test leaks a global variable (e.g., `myGlobal:: 1`), resQ detects it.
-- **Action**: It logs a **WARNING** and automatically deletes the leaked variable to protect subsequent tests.
+- **Detection**: If a test introduces a top-level name or modifies an existing global, resQ reports it.
+- **Action**: For added members in pre-existing namespaces, the runner cleans them up. For brand-new top-level names, the runner clears the value to `::` and warns — q does not allow removing a top-level identifier once defined, so the name persists but holds no data.
 - **Performance**: Set `"pollutionGuard": false` in `resq.json` to disable deep namespace snapshotting for very large sessions.
 
 ### ⚙️ Compatibility Exports
@@ -131,6 +131,21 @@ resQ exports DSL helpers in the root namespace and `.tst.*`. For legacy compatib
   "qNamespaceExports": false
 }
 ```
+
+### 🤫 Quiet Mode
+Suppress per-file load lines, the RUN AUDIT block, and per-suite output for passing suites — failures still print fully. Useful for noisy CI logs:
+```bash
+q resq.q test tests/ -quiet
+```
+
+### 🔎 Custom Test-File Discovery
+Default discovery matches `test_*.q` and `*_test.q`. Codebases that use other conventions can override via `resq.json`:
+```json
+{
+  "testFilePatterns": ["*_spec.q", "*Test.q"]
+}
+```
+Explicit `.q` file paths on the command line are honoured regardless of patterns.
 
 ---
 
@@ -149,13 +164,23 @@ resQ exports DSL helpers in the root namespace and `.tst.*`. For legacy compatib
 
 ## 📦 Dependencies
 
-- **kdb+ 3.x+**
-- **qspec** (core library)
+- **kdb+ 4.x** (4.0 or newer recommended; the framework uses `.Q.trp` ternary, `.z.W`, and the long default integer behaviour from 3.0+).
+- No runtime dependencies beyond q itself.
+
+## 🤖 LLM Skill
+
+`skill/SKILL.md` is a single-file Claude Code skill that teaches an LLM how to set up resQ in a new project, write idiomatic tests, and avoid q-specific pitfalls that bite test authors. Install with:
+
+```bash
+mkdir -p ~/.claude/skills/resq
+cp skill/SKILL.md ~/.claude/skills/resq/SKILL.md
+```
+
+See `skill/README.md` for what it covers and how to keep it in sync.
 
 ## 🙏 Acknowledgements
 
-This project is built on top of the `qspec` testing library (MIT):
-https://github.com/nugend/qspec
+The BDD-style DSL (`desc` / `should` / `before` / `after`) is inspired by `qspec` (MIT) — https://github.com/nugend/qspec — but resQ does not depend on it at runtime.
 
 ## ⚖️ License
 MIT License.

@@ -828,6 +828,40 @@ Register a fixture value programmatically.
 
 ---
 
+### registerCleanup / registerSpecCleanup
+
+```q
+.tst.registerCleanup[func; args]       / fires after the current expectation
+.tst.registerSpecCleanup[func; args]   / fires after the spec, after handle teardown
+```
+
+Queue a cleanup callable to run once the test scope finishes. `func` is invoked with `args` (a list — single-arg cleanups still pass `enlist value`). Failures are trapped and logged as `WARNING: Cleanup task failed: ...`; one bad cleanup does not abort the rest.
+
+Choose the scope by **what the cleanup depends on**:
+
+- **`registerCleanup`** (expectation scope): runs at the end of the *current* `should` block, before any sibling expectations. Use for state that should not survive into the next expectation (temp values, mock state, expectation-local files). `.tst.tempFile` uses this scope.
+- **`registerSpecCleanup`** (spec scope): runs at the end of the *current* `desc` block, *after* the runner has closed any handles the spec leaked. Use when the cleanup needs the runner to have torn down resources first — e.g. deleting a file whose handle was deliberately leaked to test the resource guard. Required for cross-platform correctness; expectation-scope `hdel` of an open file works on Linux but not macOS/Windows.
+
+**Examples:**
+```q
+should["leak a handle and have the runner close it"]{
+    fn: "scratch.txt";
+    / Spec scope — runs AFTER the runner closes the leaked handle.
+    .tst.registerSpecCleanup[{[p] @[hdel; hsym `$p; {}]}; enlist fn];
+    hsym[`$fn] 0: enlist "data";
+    h: hopen hsym `$fn;
+    / Leave h open intentionally.
+};
+
+should["produce a temp artifact only this expectation needs"]{
+    out: .tst.tempFile ".csv";   / auto-cleaned at expectation end via registerCleanup
+    (hsym `$out) 0: enlist "a,b,c";
+    must[.utl.isFile out; "should write file"];
+};
+```
+
+---
+
 ### registerFixtureWithOpts
 
 ```q
@@ -1442,6 +1476,7 @@ q resq.q [mode] [options] [paths...]
 | `-outDir DIR` | Output directory |
 | `-noquit` | Don't exit after tests |
 | `-exit` | Exit with status code |
+| `-quiet` | Suppress `Loading Test:` lines, the RUN AUDIT block, and per-suite output for passing suites. Failures still print fully. |
 | `-v` / `-version` | Print version |
 
 **Examples:**
@@ -1485,7 +1520,10 @@ Create `resq.json` in project root:
     "reportLimit": 50000,
     "reportListLimit": 1000,
     "qNamespaceExports": true,
-    "exit": true
+    "exit": true,
+    "testFilePatterns": ["test_*.q", "*_test.q"],
+    "diffLargeTableThreshold": 1000,
+    "diffHugeTableThreshold": 10000
 }
 ```
 
@@ -1494,6 +1532,10 @@ Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `con
 `qNamespaceExports` controls compatibility exports into the reserved `.q` namespace. It defaults to `true` for existing suites. Set it to `false` to rely on root aliases and `.tst.*` APIs without writing resQ helpers into `.q`.
 
 `pollutionGuard` controls deep namespace snapshot/restore checks around each suite. It defaults to `true`. Set it to `false` for very large sessions where global namespace comparison overhead is too high.
+
+`testFilePatterns` is the list of glob patterns the loader matches against base filenames when scanning a directory. Defaults to BSD-style `test_*.q` / `*_test.q`. Override for codebases that use other conventions (e.g. `["*_spec.q"]` for BDD, `["*Test.q"]` for xUnit). Explicit `.q` file paths passed on the command line are always honoured regardless of patterns.
+
+`diffLargeTableThreshold` / `diffHugeTableThreshold` control adaptive sampling in `lib/diff.q`. Tables larger than the *large* threshold trigger head/middle/tail sampling instead of a full row scan; tables larger than the *huge* threshold add a random sample on top. Increase both for systems with very large reference tables; decrease for stricter (but slower) diff coverage.
 
 CLI arguments override configuration file values.
 
