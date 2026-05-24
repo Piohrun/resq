@@ -69,27 +69,24 @@ diffDeep:{[path;expected;actual]
         / Check rows
         limit: 5;
         badRows: ();
-        
-        / ADAPTIVE DIFF: For large tables, avoid row-by-row full scan
-        isLarge: (count expected) > 1000;
-        
+
+        / Adaptive diff for large tables: avoid row-by-row full scan. Both
+        / thresholds are configurable (diffLargeTableThreshold turns on the
+        / sampling mode, diffHugeTableThreshold adds a random extra sample).
+        largeT: @[get; `.resq.config.diffLargeTableThreshold; {1000}];
+        hugeT:  @[get; `.resq.config.diffHugeTableThreshold;  {10000}];
+        isLarge: (count expected) > largeT;
+
         if[isLarge;
-            / Quick column check using functional select/exec for speed
-            / Find first mismatches efficiently
-            / Note: This assumes simple columns. For complex columns, fallback to 1000 sample.
-            
-            / Compare columns individually to find bad rows indices
-            / We use a sampled approach or chunked approach to avoid huge memory
-            chunkSize: 1000;
             n: count expected;
-            
-            / Check first, middle, last chunk
-            indices: distinct (til 5), (n - 1 - til 5), (1000 + til 5);
+
+            / Sample the head, tail, and middle of the table.
+            indices: distinct (til 5), (n - 1 - til 5), (largeT + til 5);
             indices: indices where indices < n;
             indices: asc indices;
-            
-            / Also check random sample if really huge
-            if[n > 10000; indices: distinct indices, 5?n];
+
+            / Add a random sample on top for really huge tables.
+            if[n > hugeT; indices: distinct indices, 5?n];
             
             / Check these rows specifically
             badRows: indices where not (expected indices) ~' (actual indices);

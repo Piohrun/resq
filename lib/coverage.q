@@ -121,7 +121,7 @@
 
     absPath: .tst.resolvePath pathStr;
     
-    / Check include/exclude patterns (Phase 3 enhancement)
+    / Apply --cov-include / --cov-exclude filters.
     if[`coverageInclude in key `.tst.app;
         if[0 < count .tst.app.coverageInclude;
             if[not any absPath like/: .tst.app.coverageInclude; :()]

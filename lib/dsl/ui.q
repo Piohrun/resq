@@ -15,7 +15,7 @@ after:{[code]
  .tst.currentAfter: code
  }
 
-/ Phase 4: File-level setup/teardown (runs once per describe block)
+/ File-level setup/teardown hooks (run once per describe block).
 currentBeforeAll:{}
 currentAfterAll:{}
 
@@ -94,18 +94,15 @@ skipIf:{[condition;reason;code]
   $[condition; skip[reason; code]; should[reason; code]]
  }
 
-/ Phase 5: Retry flaky tests
-/ @param retries (int) Number of retries
-/ @param des (string) Test description
-/ @param code (function) Test code
+/ Retry a flaky test up to N times before failing the suite.
 retry:{[retries;des;code]
   desStr: .tst.toString des;
   d: .tst.internals.testObj, (`desc`code`retries`namespace!(desStr;code;retries;.tst.currentNs));
   .tst.expecList,: enlist d
  }
 
-/ Phase 5: Focus on a single test (testOnly)
-/ When any testOnly tests exist in a suite, only those tests run
+/ testOnly: focus the suite on specific tests. When any testOnly test is
+/ defined, only those tests run for that suite.
 testOnly:{[des;code]
   desStr: ".tst.only. ", .tst.toString des;  / Prefix marks as focused
   tags: (`$.tst.only), `$ {x where x like "#*"} " " vs desStr;

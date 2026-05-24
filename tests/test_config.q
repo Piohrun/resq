@@ -43,10 +43,20 @@
  should["merge config with defaults"]{
   testCfg: "{ \"fmt\": \"xunit\" }";
   hsym[`$":test_config.json"] 0: enlist testCfg;
-  
+
   cfg: .tst.loadConfig["test_config.json"];
   cfg[`fmt] musteq `xunit;
   cfg[`fuzzLimit] musteq 100;
+  };
+ should["expose diff-table thresholds with sensible defaults"]{
+  cfg: .tst.loadConfig["nonexistent.json"];
+  cfg[`diffLargeTableThreshold] musteq 1000;
+  cfg[`diffHugeTableThreshold] musteq 10000;
+  };
+ should["warn if diff-table thresholds are non-integer"]{
+  / Build the dict explicitly: shorthand `key!`sym is parsed as enum, not dict.
+  warnings: .tst.validateConfig (enlist `diffLargeTableThreshold)!enlist 1.5;
+  0 < count warnings where warnings like "diffLargeTableThreshold must be an integer*";
   };
  should["apply config to global settings"]{
   prevFmt: .resq.config.fmt;

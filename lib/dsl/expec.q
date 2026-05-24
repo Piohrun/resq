@@ -99,7 +99,7 @@ callExpec:{[expec];
 runExpec:{[spec;expec];
  time:.z.p;
  startExpec:expec;
- / Set test context for stack traces (Phase 3 enhancement)
+ / Record the current test name for stack-trace context.
  .tst.currentContext[`test]: $[`desc in key expec; .tst.toString expec`desc; ""];
  expec:.tst.setupExpec[spec;expec];
 

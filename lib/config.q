@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`diffLargeTableThreshold`diffHugeTableThreshold!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b;1000;10000)
 
 / Load configuration from JSON file
 / @param path (string) Path to config file (default: "resq.json")
@@ -68,9 +68,8 @@ loadConfig:{[path]
       `text]
  }
 
-/ Phase 4: Configuration validation
-/ @param cfg (dict) Configuration dictionary
-/ @return (list) List of warning messages (empty if valid)
+/ Validate a configuration dictionary. Returns a list of warning messages
+/ (empty if the config is valid).
 validateConfig:{[cfg]
   if[(type cfg) in -20 20h; cfg:(enlist key cfg)!enlist value cfg];
   if[not 99h = type cfg; cfg:()!()];
@@ -105,11 +104,13 @@ validateConfig:{[cfg]
             "qNamespaceExports must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold;
   intMsgs:("fuzzLimit must be an integer";
            "maxTestTime must be an integer";
            "reportLimit must be an integer";
-           "reportListLimit must be an integer");
+           "reportListLimit must be an integer";
+           "diffLargeTableThreshold must be an integer";
+           "diffHugeTableThreshold must be an integer");
   warnings,: raze checkType[cfg;;(-7h;-6h;7h;6h);]'[intNames; intMsgs];
 
   warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];

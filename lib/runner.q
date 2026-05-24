@@ -134,7 +134,8 @@
     
     fullSnapshot: $[pollutionGuard; namespaces!.tst.snapshotNamespaceValues each namespaces; ()!()];
 
-    / Resource Snapshot (Phase 1 Hardening) - Cross-platform
+    / Resource snapshot (cross-platform). Used to detect handles/timers a
+    / spec leaks so the runner can warn and clean them up at spec end.
     origHandles: $[.utl.isLinux;
         (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
         key .z.W  / Fallback: IPC handles on macOS/Windows
@@ -148,7 +149,7 @@
     system "d ", string ctx;
     if[`tstPath in key spec; .tst.tstPath: spec`tstPath];
     
-    / Set current context for stack traces (Phase 3 enhancement)
+    / Set current context for stack traces.
     .tst.currentContext[`file]: .tst.toString .tst.tstPath;
     .tst.currentContext[`suite]: .tst.toString specTitle;
 
@@ -247,7 +248,7 @@
         }[specTitle]'[checkNs; fullSnapshot checkNs];
     ];
 
-    / Resource Teardown (Phase 1 Hardening) - Cross-platform
+    / Resource teardown: close handles the spec left open, restore .z.ts.
     currentHandles: $[.utl.isLinux;
         (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
         key .z.W  / Fallback: IPC handles on macOS/Windows

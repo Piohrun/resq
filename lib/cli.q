@@ -50,7 +50,7 @@ initCLI:{[]
     .tst.app.runCoverage: 0b;
     if[any .z.x in ("-cov";"-coverage"); .tst.app.runCoverage: 1b];
     
-    / Coverage Include/Exclude (Phase 3 enhancement)
+    / Coverage include/exclude filters.
     covInclude: getArg[`$"cov-include"; ""];
     if[0<count covInclude; .tst.app.coverageInclude: "," vs covInclude];
     covExclude: getArg[`$"cov-exclude"; ""];
