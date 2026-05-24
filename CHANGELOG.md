@@ -22,6 +22,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - `lib/tests/` (framework DSL modules) renamed to `lib/dsl/` so it no longer collides visually with the user-facing `tests/` tree.
 - Duplicate text reporter in `lib/init.q` removed; `lib/output/text.q` is now the single source of truth.
 
+### Removed
+- Watch-mode debouncing was listed under 0.2.0 but the implementation never landed — only four config vars were declared and a test that asserted their existence (not the behavior). Removed the dead vars from `lib/watch.q` and the placeholder test. The `.z.ts` handler still fires synchronously on every detected change; reinstate as a real feature if needed.
+
 ## [0.2.0] - 2026-02-07 - Hardening Release
 
 ### New Features

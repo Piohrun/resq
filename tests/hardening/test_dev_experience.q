@@ -30,9 +30,4 @@
         0 musteq count warnings;
     };
 
-    should["have watch mode debounce config"]{
-        `debounceMs mustin key `.tst.watch;
-        .tst.watch.debounceMs musteq 200;
-    };
-
 };
