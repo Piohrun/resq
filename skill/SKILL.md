@@ -234,6 +234,37 @@ should["pass the right args to logEvent"]{
 - Cannot mock identifiers in reserved namespaces (`.q`, `.Q`, `.z`, `.h`, `.j`, `.tst`, `.resq`, `.utl`).
 - Mock restore is automatic at the end of each expectation.
 
+### Mock state and framework internals — one sharp edge
+
+`mock` records originals so they can be put back by `.tst.restore[]`,
+which the framework calls between expectations. Most tests never need to
+think about this — restoration just works.
+
+**But:** anything you invoke inside a test body that *itself* calls
+`.tst.restore[]` will wipe your mocks out from under you. In practice
+the only thing in the public API that does this is
+`.tst.runAllPhase.finalCleanup` (the end-of-run cleanup phase — it
+restores mocks as part of its job). If you ever write a test that calls
+`finalCleanup` directly (most likely a meta-test of the framework
+itself), don't use `mock` in the `before` hook — do explicit save /
+restore for just the keys that test perturbs, with a comment noting
+why. The pattern:
+
+```q
+should["finalCleanup transitions executionState"]{
+    / Manual save / restore: finalCleanup calls .tst.restore[] mid-body,
+    / which would undo any `before`-hook mocks before the assertion runs.
+    saved: .tst.app.executionState;
+    .tst.app.executionState: `running;
+    .tst.runAllPhase.finalCleanup[];
+    .tst.app.executionState musteq `completed;
+    .tst.app.executionState: saved;
+};
+```
+
+Two `tests/test_runner.q` specs use this pattern; everything else in the
+codebase uses mock and is fine.
+
 ---
 
 ## 7. Fixtures and cleanup
@@ -405,6 +436,7 @@ Use this checklist when bootstrapping a new test suite.
 - [ ] No test mocks anything in `.q`, `.Q`, `.z`, `.h`, `.j`, `.tst`, `.resq`, `.utl` — mock will refuse.
 - [ ] If loading the SUT, the path is derived from `.utl.FILELOADING` (test-file location), not from CWD.
 - [ ] If asserting that something "doesn't exist," remember q can't remove top-level names — `not \`foo in key \`` will return `1b` only if no test ever created `.foo` in this session.
+- [ ] If the test calls `.tst.runAllPhase.finalCleanup` (or anything else that triggers `.tst.restore[]` mid-body), the `before` hook is NOT using `mock` for the keys under test — `finalCleanup` would wipe them. Use manual save/restore for those specs only.
 
 ---
 
