@@ -21,6 +21,7 @@
 config: .tst.loadConfig[::];
 / Validate config early; keep warnings non-fatal so execution can continue.
 .resq.config.validationWarnings: .tst.validateConfig[config];
+.tst.printConfigWarnings .resq.config.validationWarnings;
 .tst.applyConfig[config];
 
 / Ensure text reporter is loaded before mode dispatch
@@ -60,6 +61,12 @@ if[.resq.mode ~ `cover; .tst.app.runCoverage: 1b; .resq.mode: `test];
 
 / MODE: TEST
 if[.resq.mode ~ `test;
+    / Convention: if no path is given and a local tests/ directory exists,
+    / use it. Keeps `resq test` useful without making the path mandatory.
+    if[(0 = count .tst.app.args) and .utl.isDir "tests";
+        .tst.app.args: enlist "tests";
+        -1 "No path specified; defaulting to tests/";
+    ];
     .tst.initReporting[];
     .tst.runAll[];
     if[not any .z.x like "-noquit";

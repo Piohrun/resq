@@ -119,8 +119,13 @@ validateConfig:{[cfg]
             "runSpecs should be a symbol list or comma-separated string");
   warnings,: raze checkType[cfg;;(0h;11h;-11h);]'[specNames; specMsgs];
 
-  if[0<count warnings; {-1 "CONFIG WARNING: ", .tst.toString x} each warnings];
   warnings
+ }
+
+/ Print validation warnings (separated from validateConfig so unit tests can
+/ inspect warnings without polluting the run output).
+printConfigWarnings:{[warnings]
+    if[0<count warnings; {-1 "CONFIG WARNING: ", .tst.toString x} each warnings];
  }
 
 / Apply configuration to .tst.app and .resq.config
