@@ -12,7 +12,7 @@
         / Verify file exists
         if[not .utl.pathExists p; -1 "ERROR: Test file not found: ", p; :()];
 
-        -1 "Loading Test: ", p;
+        if[not .tst.app.quiet; -1 "Loading Test: ", p];
         .tst.app.loadedFiles,: enlist p;
 
         / Namespace Sandbox

@@ -3,14 +3,16 @@
 .resq.reportText:{[results]
     results: .tst.resultTable results;
     suites: distinct results`suite;
-    
-    { [s; res] 
+    quiet: $[`quiet in key `.tst.app; .tst.app.quiet; 0b];
+
+    { [s; res; quiet]
         sRes: res where (res`suite) = s;
-        -1 "\n",string[s],"::";
-        
         sStatus: .tst.normalizeResultStatus each sRes`status;
         fails: sRes where sStatus in `fail`error;
-        { [f] 
+        / In quiet mode, only show suites that have failures.
+        if[quiet and 0 = count fails; :()];
+        -1 "\n",string[s],"::";
+        { [f]
             -1 "- ",string[f`description],": [",string[f`status],"]";
             msg: .tst.toString f`message;
             if[0<count msg; -1 "  Error: ",msg];
@@ -19,9 +21,9 @@
                 { -1 "    ", .tst.toString x } each (),f`failures
             ];
         } each fails;
-        
+
         -1 "  (",string[count sRes]," tests, ",string[count fails]," failed)";
-    }[;results] each suites;
+    }[;results;quiet] each suites;
 
     summary: .tst.resultSummary results;
     totalTests: summary`testCount;

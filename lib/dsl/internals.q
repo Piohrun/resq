@@ -25,6 +25,7 @@ if[not `failHard in key `.tst.app; .tst.app.failHard: 0b];
 if[not `pollutionGuard in key `.tst.app; .tst.app.pollutionGuard: 1b];
 if[not `maxTestTime in key `.tst.app; .tst.app.maxTestTime: 0];
 if[not `passOnly in key `.tst.app; .tst.app.passOnly: 0b];
+if[not `quiet in key `.tst.app; .tst.app.quiet: 0b];
 if[not `allSpecs in key `.tst.app; .tst.app.allSpecs: ()];
 if[not `passed in key `.tst.app; .tst.app.passed: 1b];
 
@@ -146,6 +147,7 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
  };
 
 .tst.printRunAudit:{[]
+    if[$[`quiet in key `.tst.app; .tst.app.quiet; 0b]; :()];
     discovered: $[`discoveredFiles in key `.tst.app; count .tst.app.discoveredFiles; 0];
     loaded: $[`loadedFiles in key `.tst.app; count .tst.app.loadedFiles; 0];
     empty: $[`emptyFiles in key `.tst.app; count .tst.app.emptyFiles; 0];

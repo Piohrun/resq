@@ -38,6 +38,7 @@ initCLI:{[]
     if[any .z.x like "-noquit"; .tst.app.exit: 0b];
     if[any .z.x like "-exit"; .tst.app.exit: 1b];
     if[getFlag[`strict]; .tst.app.strict: 1b];
+    if[getFlag[`quiet]; .tst.app.quiet: 1b];
 
     maxTestTime: getArg[`$"maxTestTime"; ""];
     if[0<count maxTestTime; .tst.app.maxTestTime: "I"$maxTestTime];
