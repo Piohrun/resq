@@ -30,7 +30,7 @@ Parts of the codebase and documentation were created or reviewed with AI assista
 
 ```bash
 # Run tests
-q resq.q -test examples/quickstart/test
+q resq.q test examples/quickstart/test
 
 # Run with HTML coverage
 q resq.q cover examples/quickstart/test
@@ -82,7 +82,7 @@ resQ now includes advanced safeguards to ensure test integrity in production:
 ### 🔒 Strict Mode
 Prevent false positives in CI pipelines.
 ```bash
-q resq.q -strict my_tests/
+q resq.q test -strict my_tests/
 ```
 If no tests are found/executed, this flag forces a **non-zero exit code**, ensuring that an empty test suite is treated as a failure.
 

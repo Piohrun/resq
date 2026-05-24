@@ -82,6 +82,6 @@ if[not oldFL ~ (::); .utl.FILELOADING: oldFL];
     
     active: .user.getActive[];
     count[active] musteq 1;
-    first exec id from active musteq id2;
+    (first exec id from active) musteq id2;
   };
 }

@@ -71,6 +71,11 @@ if[not `report in key `.resq; .resq.report: {[x]}];
 
 .tst.defaultAssertState:.tst.assertState:``failures`assertsRun!(::;();0);
 .tst.tstPath: `;
+/ When true, failing assertions skip the per-call FAILURE DIFF banner.
+/ The fuzz runner flips this on inside its iteration + shrink loops so
+/ a single fuzz spec does not flood stdout with one banner per attempt
+/ (the runner reports a single shrunk repro at the end instead).
+if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
 
 / Type-safe string conversion
 / Handles: symbols, strings, atoms, lists, nulls

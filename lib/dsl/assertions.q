@@ -26,10 +26,12 @@ asserts[`musteq]:{[l;r];
             m,: " (length: ", string[count l], " vs ", string[count r], ")"
         ]
     ]];
-   -1 "";
-   -1 "FAILURE DIFF ---------------------------------------------------";
-   -1 .tst.diff[r;l];
-   -1 "----------------------------------------------------------------";
+   if[not .tst.suppressAssertionDiff;
+       -1 "";
+       -1 "FAILURE DIFF ---------------------------------------------------";
+       -1 .tst.diff[r;l];
+       -1 "----------------------------------------------------------------";
+   ];
    .tst.asserts[`must][0b; m];
   }
 asserts[`mustmatch]:{[l;r]; asserts.must[l~r;"Expected ", (-3!l), " to match ", (-3!r)]}
@@ -122,7 +124,7 @@ asserts[`mustmatchignoringorder]:{[l;r];
   r1: norm r;
   m: "Expected value (ignoring order) match failed.";
   if[not l1~r1;
-    if[all 2 = count each distinct type each (l1;r1);
+    if[(not .tst.suppressAssertionDiff) and all 2 = count each distinct type each (l1;r1);
       -1 "FAILURE DIFF (Ignoring Order) ------------------------------------";
       $[100h < type .tst.diff; -1 .tst.diff[r1;l1]; -1 "Diff not available"];
       -1 "----------------------------------------------------------------";
@@ -142,7 +144,7 @@ asserts[`mustincludecols]:{[l;r];
   ];
   lSub: cr # l;
   m: "Columns match failed.";
-  if[not lSub~r;
+  if[(not lSub~r) and not .tst.suppressAssertionDiff;
     -1 "FAILURE DIFF (Included Columns) ------------------------------------";
     $[100h < type .tst.diff; -1 .tst.diff[r;lSub]; -1 "Diff not available"];
     -1 "----------------------------------------------------------------";

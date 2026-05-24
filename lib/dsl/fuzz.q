@@ -85,9 +85,13 @@ shrink:{[code;typeCode;val]
 
 runners[`fuzz]:{[expec]
   origState: .tst.assertState;
+  origSuppress: .tst.suppressAssertionDiff;
+  / Quiet per-iteration FAILURE DIFFs; the shrunk repro printed below is the
+  / one diagnostic the user actually needs.
+  .tst.suppressAssertionDiff: 1b;
   fuzzResults:fuzzRunCollector[expec`code] each pickFuzz[expec`vars;expec`runs];
   fails: select from fuzzResults where 0 < count each fuzzFailures;
-  
+
   expec[`shrunkFailure]: (::);
   if[0<count fails;
     firstFail: (first fails)`failedFuzz;
@@ -99,12 +103,13 @@ runners[`fuzz]:{[expec]
 
   expec[`failedFuzz]: exec failedFuzz from fuzzResults where 0 < count each fuzzFailures;
   expec[`fuzzFailureMessages]: exec fuzzFailures from fuzzResults where 0 < count each fuzzFailures;
-  
+
   assertsRun:$[not count fuzzResults;0;max fuzzResults[`assertsRun]];
-  $[(expec[`failRate]:(count expec`failedFuzz)%expec`runs) >= expec`maxFailRate; 
+  $[(expec[`failRate]:(count expec`failedFuzz)%expec`runs) >= expec`maxFailRate;
    expec[`failures`result`assertsRun]:(enlist "Over max failure rate. Shrunk: ", .Q.s1 expec`shrunkFailure;`fuzzFail;assertsRun);
    expec[`failures`result`assertsRun]:(();`pass;assertsRun)];
   .tst.assertState: origState;
+  .tst.suppressAssertionDiff: origSuppress;
   expec
  }
 
