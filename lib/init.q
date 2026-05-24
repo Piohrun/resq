@@ -221,12 +221,13 @@ if[not `qExports in key `.tst; .tst.qExports: ()!()];
     ::
  };
 
-.tst.registerQExports .tst.asserts, `mock`fixture`fixtureAs`tempFile`registerCleanup!(
+.tst.registerQExports .tst.asserts, `mock`fixture`fixtureAs`tempFile`registerCleanup`registerSpecCleanup!(
     .tst.mock;
     .tst.fixture;
     .tst.fixtureAs;
     .tst.tempFile;
-    .tst.registerCleanup);
+    .tst.registerCleanup;
+    .tst.registerSpecCleanup);
 
 if[`uiQExports in key `.tst; .tst.registerQExports .tst.uiQExports];
 
@@ -236,6 +237,7 @@ if[`uiQExports in key `.tst; .tst.registerQExports .tst.uiQExports];
 (` sv `.,`fixtureAs) set .tst.fixtureAs;
 (` sv `.,`tempFile) set .tst.tempFile;
 (` sv `.,`registerCleanup) set .tst.registerCleanup;
+(` sv `.,`registerSpecCleanup) set .tst.registerSpecCleanup;
 
 .tst.PKGNAME: .utl.PKGLOADING
 

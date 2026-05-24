@@ -205,17 +205,36 @@ findDirVars:{
  }
 
 / Cleanup Registry
+/ Two queues: expec-scope (runs after each expectation) and spec-scope
+/ (runs at end of spec, AFTER resource teardown). Spec scope is the right
+/ choice for cleanups that depend on resources the runner closes for you,
+/ e.g. unlinking a file whose handle the test deliberately leaks.
 if[not `cleanupTasks in key `.tst; cleanupTasks:: ()];
+if[not `specCleanupTasks in key `.tst; specCleanupTasks:: ()];
 
 registerCleanup:{[func;args]
     .tst.cleanupTasks,: enlist `func`args!(func;args);
  }
 
+registerSpecCleanup:{[func;args]
+    .tst.specCleanupTasks,: enlist `func`args!(func;args);
+ }
+
+drainQueue:{[q]
+    if[0 = count q; :()];
+    {[t] .[t`func; t`args; { [e] -1 "WARNING: Cleanup task failed: ", .tst.toString e }] } each q;
+ }
+
 runCleanupTasks:{[]
-    if[0 = count .tst.cleanupTasks; :()];
     tasks: .tst.cleanupTasks;
     .tst.cleanupTasks:: (); / Clear first to prevent recursion or double runs
-    {[t] .[t`func; t`args; { [e] -1 "WARNING: Cleanup task failed: ", .tst.toString e }] } each tasks;
+    .tst.drainQueue tasks;
+ }
+
+runSpecCleanupTasks:{[]
+    tasks: .tst.specCleanupTasks;
+    .tst.specCleanupTasks:: ();
+    .tst.drainQueue tasks;
  }
 
 tempFile:{[suffix]

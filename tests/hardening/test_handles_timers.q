@@ -1,8 +1,8 @@
 .tst.desc["Phase 1 Hardening: Handles and Timers"; {
     .tst.should["leak a handle"; {
         fn: "test_dummy_handle_1.txt";
-        / Remove the file after the spec; the runner will close the leaked handle first.
-        .tst.registerCleanup[{[p] @[hdel; hsym `$p; {}]}; enlist fn];
+        / Spec-scope so the unlink runs AFTER the runner closes the leaked handle.
+        .tst.registerSpecCleanup[{[p] @[hdel; hsym `$p; {}]}; enlist fn];
         hsym[`$fn] 0: enlist "dummy";
         / Use a fresh handle each time
         h: hopen hsym `$fn;

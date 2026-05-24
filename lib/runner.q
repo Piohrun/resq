@@ -195,10 +195,17 @@
     if[pollutionGuard; currentNamespaces: currentNamespaces except `q`Q`j`h`o`s`v`z`tst`resq`utl];
     
     newNamespaces: currentNamespaces except namespaces;
+    / Only warn if the new top-level name actually holds state. q does not
+    / let you remove a top-level identifier once defined, so we clear its
+    / value (set to ::) instead -- a name with :: is functionally empty and
+    / not worth pestering the test author about every run.
     if[count newNamespaces;
-        -1 "WARNING: Test '", .tst.toString[specTitle], "' leaked new namespaces: ", .tst.toString newNamespaces;
-        .tst.deleteVar each newNamespaces;
-        -1 "  -> Cleaned up leaked namespaces.";
+        nonTrivial: newNamespaces where {[n] not (::) ~ @[get; n; ::]} each newNamespaces;
+        if[count nonTrivial;
+            -1 "WARNING: Test '", .tst.toString[specTitle], "' introduced top-level names: ", .tst.toString nonTrivial;
+            { @[set; (x; ::); {}] } each nonTrivial;
+            -1 "  -> Cleared values (q retains the bare names).";
+        ];
     ];
 
     / Check existing namespaces for new keys AND modified values
@@ -256,6 +263,10 @@
         -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' modified .z.ts. Restoring.";
         .z.ts: origTs;
     ];
+
+    / Spec-scope cleanups fire now that handles are closed, so file
+    / deletes registered alongside a leaked handle succeed cross-platform.
+    @[.tst.runSpecCleanupTasks; (); {[e] -1 "WARNING: Spec cleanup failed: ", .tst.toString e}];
 
     spec
  };
