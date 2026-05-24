@@ -548,7 +548,7 @@ chmod 755 tests/snapshots
 
 **Solution:**
 ```bash
-q resq.q -test tests/ -exit
+q resq.q test tests/ -exit
 ```
 
 ---
@@ -560,7 +560,7 @@ q resq.q -test tests/ -exit
 **Solutions:**
 ```bash
 # Ensure flags are set
-q resq.q -test tests/ -junit -outDir reports/ -exit
+q resq.q test tests/ -junit -outDir reports/ -exit
 
 # Check directory exists
 mkdir -p reports/
@@ -599,7 +599,7 @@ mkdir -p reports/
 **Diagnosis:**
 ```bash
 # Run with timing
-q resq.q -test tests/ -perf
+q resq.q test tests/ -perf
 ```
 
 **Solutions:**
@@ -721,7 +721,7 @@ Enable debug output for more information:
 
 Or from command line:
 ```bash
-q resq.q -test tests/ -debug
+q resq.q test tests/ -debug
 ```
 
 ---

@@ -67,11 +67,13 @@ lib/
 ├── runner.q         # Test execution
 ├── config.q         # JSON config
 ├── cli.q            # CLI parsing
-├── tests/
+├── dsl/
 │   ├── ui.q         # DSL (describe/should/skip)
 │   ├── spec.q       # Spec runner
 │   ├── expec.q      # Expectation runner
-│   └── assertions.q # Assertions
+│   ├── assertions.q # Assertions
+│   ├── fuzz.q       # Fuzz / property-based testing
+│   └── internals.q  # Shared state, helpers
 ├── fixture.q        # Fixtures
 ├── mock.q           # Mocking
 ├── diff.q           # Deep diff

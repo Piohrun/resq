@@ -24,12 +24,32 @@ Parts of the codebase and documentation were created or reviewed with AI assista
 
 ---
 
+## 📦 Installation
+
+Clone the repo and put the `bin/resq` launcher on your `PATH`:
+
+```bash
+git clone https://github.com/Piohrun/resq.git ~/.local/share/resq
+ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq   # adjust to taste
+```
+
+The launcher resolves its install location (symlink-safe) and exports
+`RESQ_HOME` for `resq.q` to find its modules, so you can invoke `resq`
+from any directory and have it operate on **your** project's `tests/`,
+not the framework's. You can also set `RESQ_HOME` manually if you
+prefer to call `q $RESQ_HOME/resq.q ...` directly.
+
+---
+
 ## 🚀 Quick Start
 
 **resQ** comes with a unified CLI for all operations.
 
 ```bash
-# Run tests
+# Run tests (from your project root, after installing the launcher)
+resq test tests/
+
+# Or invoke q directly from the resq repo
 q resq.q test examples/quickstart/test
 
 # Run with HTML coverage

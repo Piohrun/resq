@@ -16,7 +16,7 @@ resQ provides powerful **Runtime Code Coverage** tracking. Unlike static scanner
 Pass the `-cov` or `-coverage` flag to the test runner.
 
 ```bash
-q resq.q -test tests/ -cov
+q resq.q test tests/ -cov
 ```
 
 ### 2. Update Test Loading

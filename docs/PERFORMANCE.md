@@ -30,7 +30,7 @@ Use `perf` blocks to define dedicated benchmark tests. These tests run your code
 
 **Note:** `perf` tests are **skipped by default**. Run with `-perf` to include them.
 ```bash
-q resq.q -test tests/ -perf
+q resq.q test tests/ -perf
 ```
 
 ## Inline Assertions

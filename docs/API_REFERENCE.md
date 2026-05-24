@@ -1447,13 +1447,13 @@ q resq.q [mode] [options] [paths...]
 **Examples:**
 ```bash
 # Run all tests
-q resq.q -test tests/
+q resq.q test tests/
 
 # Run with JUnit output
-q resq.q -test tests/ -junit -outDir reports/
+q resq.q test tests/ -junit -outDir reports/
 
 # Run only integration tests
-q resq.q -test tests/ -only "*integration*"
+q resq.q test tests/ -only "*integration*"
 
 # Run with coverage
 q resq.q cover src/ tests/
