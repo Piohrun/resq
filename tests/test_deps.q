@@ -26,4 +26,13 @@
     dependents: .tst.getDependents `$"/static_analysis.q";
     mustgt[count dependents; 0];
   };
+
+  should["survive a circular dep graph without stack overflow"]{
+    / Save and restore depGraph so we don't poison later tests.
+    .tst.savedGraph: .tst.depGraph;
+    .tst.depGraph: `a`b`c!(enlist `b; enlist `c; enlist `a);
+    deps: .tst.getDependents `a;
+    .tst.depGraph: .tst.savedGraph;
+    all (`a`b`c) in deps;
+  };
 };

@@ -55,10 +55,15 @@ scanDirectory:{[dir]
     .tst.depGraph
  };
 
-/ Get all files that depend on a given file
-getDependents:{[file]
-    direct: $[file in key .tst.depGraph; .tst.depGraph[file]; ()];
-    transitive: distinct raze .z.s each direct;
+/ Get all files that depend on a given file. Threads a `seen` accumulator
+/ through the recursion so circular requires (A→B→A) do not blow the stack.
+getDependents:{[file] .tst.getDependentsAcc[file; `symbol$()]};
+
+getDependentsAcc:{[file; seen]
+    if[file in seen; :`symbol$()];
+    seen,: file;
+    direct: $[file in key .tst.depGraph; .tst.depGraph[file]; `symbol$()];
+    transitive: distinct raze .tst.getDependentsAcc[; seen] each direct;
     distinct direct, transitive
  };
 

@@ -46,17 +46,40 @@
     .tst.mock[name; orig, partialVal];
  }
 
+/ Arity-indexed spy wrappers. Each template takes `name` as its first
+/ parameter and is projected with the target name when a spy is installed,
+/ giving back a function whose remaining arity matches the original. This
+/ replaces an earlier value-eval of a constructed q source string, which was
+/ correct but a generic injection surface.
+.tst.spyTemplates: enlist[0]!enlist {[name] .tst.spyLogCallback[name; ()]; (.tst.spyLog.impls name)[]};
+.tst.spyTemplates[1]: {[name; a0] .tst.spyLogCallback[name; enlist a0]; (.tst.spyLog.impls name) . enlist a0};
+.tst.spyTemplates[2]: {[name; a0; a1] .tst.spyLogCallback[name; (a0; a1)]; (.tst.spyLog.impls name) . (a0; a1)};
+.tst.spyTemplates[3]: {[name; a0; a1; a2] .tst.spyLogCallback[name; (a0; a1; a2)]; (.tst.spyLog.impls name) . (a0; a1; a2)};
+.tst.spyTemplates[4]: {[name; a0; a1; a2; a3] .tst.spyLogCallback[name; (a0; a1; a2; a3)]; (.tst.spyLog.impls name) . (a0; a1; a2; a3)};
+.tst.spyTemplates[5]: {[name; a0; a1; a2; a3; a4] .tst.spyLogCallback[name; (a0; a1; a2; a3; a4)]; (.tst.spyLog.impls name) . (a0; a1; a2; a3; a4)};
+.tst.spyTemplates[6]: {[name; a0; a1; a2; a3; a4; a5] .tst.spyLogCallback[name; (a0; a1; a2; a3; a4; a5)]; (.tst.spyLog.impls name) . (a0; a1; a2; a3; a4; a5)};
+.tst.spyTemplates[7]: {[name; a0; a1; a2; a3; a4; a5; a6] .tst.spyLogCallback[name; (a0; a1; a2; a3; a4; a5; a6)]; (.tst.spyLog.impls name) . (a0; a1; a2; a3; a4; a5; a6)};
+
+/ Arity-8 fallback: q's hard lambda-arity ceiling (8) means the templated
+/ approach cannot cover it (8 user args + `name` would need 9 params).
+/ Construct via `value` on a fixed source string. Inputs to the format are
+/ all internally generated, so this re-introduces no user-controlled eval.
+.tst.spy8Wrapper:{[name]
+    nameStr: .Q.s1 name;
+    value "{[a0;a1;a2;a3;a4;a5;a6;a7] .tst.spyLogCallback[",nameStr,"; (a0;a1;a2;a3;a4;a5;a6;a7)]; .tst.spyLog.impls[",nameStr,"] . (a0;a1;a2;a3;a4;a5;a6;a7)}"
+ };
+
 .tst.spy:{[name;impl]
     orig: @[get; name; {[n;e] '"Spy on undefined function: ", string n}[name]];
     if[not 100h=type orig; '"Not a func"];
     if[impl~(::); impl:orig];
-    r: count (value orig) 1;
-    argNames: `$"a",/:string til r;
-    args: ";" sv string argNames;
-    / For arity 1, (a) is just an atom. Use "enlist a" to make a list
-    argsAsList: $[r=1; "enlist a0"; "(", args, ")"];
-    wrapper: "{[",args,"] .tst.spyLogCallback[",(.Q.s1 name),";",argsAsList,"]; .tst.spyLog.impls[",(.Q.s1 name),"] . ",argsAsList,"}";
-    compiled: value wrapper;
+    arity: count (value orig) 1;
+    compiled: $[arity in key .tst.spyTemplates;
+                .tst.spyTemplates[arity] name;
+                arity = 8;
+                .tst.spy8Wrapper name;
+                '"Cannot spy on arity-", string[arity], " functions"
+              ];
     .tst.spyLog.impls[name]: impl;
     .tst.spyLog.calls[name]: ();
     .tst.mock[name; compiled];

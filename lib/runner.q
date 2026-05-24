@@ -105,6 +105,14 @@
     / Capture base directory for output paths before tests may change CWD
     .tst.app.baseDir: system "cd";
 
+    / On non-Linux, per-spec leak detection only sees IPC handles (.z.W),
+    / not file descriptors. Warn once per run if we are using the fallback,
+    / and only when the warning has not been silenced via -quiet.
+    if[(not .utl.isLinux) and (not .tst.app.quiet) and not `handleWarnPrinted in key `.tst.app;
+        -1 "NOTE: file-handle leak detection requires Linux /proc; on this OS only IPC handles (.z.W) are tracked.";
+        .tst.app.handleWarnPrinted: 1b;
+    ];
+
     / Reset results table
     .resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
 

@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`diffLargeTableThreshold`diffHugeTableThreshold!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b;1000;10000)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b;1000;10000;("test_*.q"; "*_test.q"))
 
 / Load configuration from JSON file
 / @param path (string) Path to config file (default: "resq.json")
@@ -158,6 +158,10 @@ applyConfig:{[cfg]
 
     if[`fmt in key cfg; .resq.config.fmt: cfg`fmt];
     if[`outDir in key cfg; .resq.config.outDir: cfg`outDir];
+
+    if[`diffLargeTableThreshold in key cfg; .resq.config.diffLargeTableThreshold: cfg`diffLargeTableThreshold];
+    if[`diffHugeTableThreshold in key cfg; .resq.config.diffHugeTableThreshold: cfg`diffHugeTableThreshold];
+    if[`testFilePatterns in key cfg; .resq.config.testFilePatterns: cfg`testFilePatterns];
  }
 
 / Merge CLI arguments into configuration (CLI takes precedence)

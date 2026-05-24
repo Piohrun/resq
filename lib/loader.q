@@ -98,16 +98,21 @@
     ps: distinct .utl.pathToString each ps;
 
     / Explicit q file paths are always honored. Directory scans are filtered
-    / to test-like names to avoid loading helper/repro dependency files.
+    / to a configurable list of test-file glob patterns so we don't load
+    / helper/repro/dependency files. Defaults preserve historical behavior
+    / (test_*.q, *_test.q); override via .resq.config.testFilePatterns
+    / (a list of strings) or the testFilePatterns key in resq.json.
+    patterns: @[get; `.resq.config.testFilePatterns; {("test_*.q"; "*_test.q")}];
+    if[10h = type patterns; patterns: enlist patterns];
+
     directFiles: ps where {(.utl.isFile x) and x like "*.q"} each ps;
     dirs: ps where .utl.isDir each ps;
 
-    / Find all .q files matching patterns
     discovered: distinct raze .tst.suffixMatch[".q"] each dirs;
-    isNamedTest:{[p]
+    isNamedTest: {[pats; p]
         base: last "/" vs p;
-        (base like "test_*.q") or (base like "*_test.q")
-    };
+        any base like/: pats
+    }[patterns;];
     files: distinct directFiles, discovered where isNamedTest each discovered;
 
     / Return convention-matching discovered tests plus explicit files.
