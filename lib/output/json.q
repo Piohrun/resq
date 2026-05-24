@@ -1,7 +1,5 @@
 / JSON reporter.
 
-/ JSON reporter.
-
 .resq.reportJson:{[results]
     reportRows: .tst.resultRows results;
     reportTable: .tst.resultTable reportRows;
