@@ -63,7 +63,7 @@ if[not `fmt in key `.resq.config; .resq.config.fmt: `text];
 if[not `outDir in key `.resq.config; .resq.config.outDir: "."];
 
 / Resq state - results table
-if[not `results in key `.resq.state; .resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$())];
+if[not `results in key `.resq.state; .resq.state.results: .resq.state.emptyResults[]];
 
 / Default reporter (can be overridden)
 if[not `report in key `.resq; .resq.report: {[x]}];

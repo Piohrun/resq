@@ -21,7 +21,7 @@ if[not `config in key `.resq; .resq.config.tmp:1];
 .resq.EXIT.LOAD_ERROR: 4;  / File load/syntax error
 .resq.EXIT.PARTIAL: 5;     / Partial execution (some tests skipped/errored)
 
-.resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
+.resq.state.results: .resq.state.emptyResults[];
 if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: ":."];
 
 / Project Libraries

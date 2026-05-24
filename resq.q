@@ -47,7 +47,7 @@ if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."
 .tst.output.mode: `run;
 
 / Reset results table for fresh run
-.resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
+.resq.state.results: .resq.state.emptyResults[];
 
 / Initialize CLI
 .tst.initCLI[];

@@ -128,3 +128,12 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 / ============================================================================
 
 .tst.die: {[x] exit x};
+
+/ Canonical empty results table. Defined here so every module (bootstrap
+/ order: bootstrap -> init -> dsl/internals -> runner) can call it without
+/ re-typing the schema. Returns a fresh table each call -- it's a builder,
+/ not a shared instance, to avoid accidental aliasing.
+.resq.state.emptyResults:{[]
+    flip `suite`description`status`message`time`failures`assertsRun!(
+        `symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$())
+ };

@@ -267,7 +267,7 @@
         );
         / Defensive: re-initialise the results table if something clobbered it.
         if[not 98h = type .resq.state.results;
-            .resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
+            .resq.state.results: .resq.state.emptyResults[];
         ];
         .resq.state.results: .resq.state.results upsert toInsert;
 
@@ -326,7 +326,7 @@
         .tst.app.handleWarnPrinted: 1b;
     ];
 
-    .resq.state.results: flip `suite`description`status`message`time`failures`assertsRun!(`symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$());
+    .resq.state.results: .resq.state.emptyResults[];
     .tst.callbacks.descLoaded: {[specObj] .tst.app.allSpecs,: enlist specObj};
  };
 
@@ -478,25 +478,33 @@
     if[0 < count sandboxKeys; ![`.; (); 0b; sandboxKeys]];
  };
 
+/ Phase-runner helper. Records the current phase name as a symbol
+/ (overwriting earlier string-literal style) and optionally emits a trace
+/ line under .utl.DEBUG. Used as the single dispatch point in runAll so a
+/ crash mid-run shows where via .tst._runAllStep.
+.tst.runAllPhase.run:{[name; fn]
+    .tst._runAllStep: name;
+    if[.utl.DEBUG; -1 "[runAll] ", string name];
+    fn[]
+ };
+
 / ----------------------------------------------------------------------------
 / runAll: the public entry point. Pure orchestration of the phases above.
+/ Each step records its name via .tst.runAllPhase.run for debugger context;
+/ the initRun and exit-dispatch lines bookend the sequence.
 / ----------------------------------------------------------------------------
 .tst.runAll:{[]
     .tst.runAllPhase.initRun[];
 
-    .tst._runAllStep: "loadTests";       .tst.loadTests .tst.app.args;
-    .tst._runAllStep: "filterSpecs";     .tst.runAllPhase.filterSpecs[];
-    .tst._runAllStep: "runSpecs";        .tst.runAllPhase.runDiscoveredSpecs[];
-    .tst._runAllStep: "loadErrors";      .tst.runAllPhase.injectLoadErrors[];
-    .tst._runAllStep: "strictMode";      .tst.runAllPhase.applyStrictMode[];
-    .tst._runAllStep: "resultsSummary";  .tst.runAllPhase.computePassed[];
-
-    .tst._runAllStep: "report";
-    .tst.printRunAudit[];
-    .resq.report[.resq.state.results];
-
-    .tst._runAllStep: "coverage";        .tst.runAllPhase.generateCoverage[];
-    .tst._runAllStep: "cleanup";         .tst.runAllPhase.finalCleanup[];
+    .tst.runAllPhase.run[`loadTests;       {.tst.loadTests .tst.app.args}];
+    .tst.runAllPhase.run[`filterSpecs;     .tst.runAllPhase.filterSpecs];
+    .tst.runAllPhase.run[`runSpecs;        .tst.runAllPhase.runDiscoveredSpecs];
+    .tst.runAllPhase.run[`loadErrors;      .tst.runAllPhase.injectLoadErrors];
+    .tst.runAllPhase.run[`strictMode;      .tst.runAllPhase.applyStrictMode];
+    .tst.runAllPhase.run[`resultsSummary;  .tst.runAllPhase.computePassed];
+    .tst.runAllPhase.run[`report;          {.tst.printRunAudit[]; .resq.report .resq.state.results}];
+    .tst.runAllPhase.run[`coverage;        .tst.runAllPhase.generateCoverage];
+    .tst.runAllPhase.run[`cleanup;         .tst.runAllPhase.finalCleanup];
 
     if[1b ~ .tst.app.exit; .tst.die `int$not .tst.app.passed];
  };
