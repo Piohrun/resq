@@ -18,7 +18,6 @@ system "l ", .resq.HOME, "/lib/bootstrap.q";
 / Load Libraries
 .utl.require .resq.HOME,"/lib/init.q"
 .utl.require .resq.HOME,"/lib/config.q"
-.utl.require "qutil/opts.q"
 
 / Load Features
 .utl.require .resq.HOME,"/lib/parametrize.q"
@@ -53,9 +52,8 @@ if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."
 / Initialize CLI
 .tst.initCLI[];
 
-/ Parse Args
-.utl.parseArgs[];
-if[not count .tst.app.args; .tst.app.args: .z.x where not .z.x like "-*"];
+/ Parse Args: collect positional args (everything not prefixed with -).
+.tst.app.args: .z.x where not .z.x like "-*";
 
 / Handle Debug Flag
 if[any .z.x like "-debug"; .utl.DEBUG: 1b];
@@ -108,13 +106,8 @@ if[.resq.mode ~ `discover;
 if[.resq.mode ~ `watch;
     dirs: enlist ".";
     if[0<count .tst.app.args; dirs: .tst.app.args];
-    .tst.watch.runnerCmd: {[home;x]
-        files: x;
-        system "l ", home, "/lib/runner.q";
-        .tst.app.exit: 0b;
-        .tst.app.args: files;
-        @[.tst.runAll; ::; {-1 "Error during test run: ", x}];
-    }[.resq.HOME;];
+    / lib/watch.q's default runnerCmd already anchors at .resq.HOME, so
+    / there is no need to override it here.
     .tst.watch.init[dirs];
     .z.ts: { [x] changes: .tst.watch.check[]; if[0<count changes; .tst.watch.onChanges[changes]] };
     system "t 1000";

@@ -37,11 +37,12 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
   if[.utl.DEBUG; -1 "DEBUG: loading ", p];
   
   / Try load
-  res: @[{system "l ", x; 1b}; p; { [p;e] 
-    / Silently ignore qspec/qutil if missing from vendor but handled by init
-    if[not (p like "qutil*") or (p like "qspec*") or (p like "*coverage.q");
+  res: @[{system "l ", x; 1b}; p; { [p;e]
+    / Coverage is loaded lazily by the runner only when -cov is passed,
+    / so its absence from the require chain is expected.
+    if[not p like "*coverage.q";
         -1 "WARNING: Failed to load ", p, " (", e, ")"];
-    0b 
+    0b
   }[p]];
   
   if[res;
@@ -125,9 +126,5 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
  };
 
 / ============================================================================
-
-.utl.addOpt: {[a;b;c]};
-.utl.addArg: {[a;b;c;d]};
-.utl.parseArgs: {[]};
 
 .tst.die: {[x] exit x};

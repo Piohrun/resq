@@ -16,5 +16,4 @@ RESQ_HOME="$(dirname "$DIR")"
 # against THEIR project, not the framework install. resq.q reads
 # RESQ_HOME to find its own modules.
 export RESQ_HOME
-export QPATH="$RESQ_HOME/vendor"
 exec q "$RESQ_HOME/resq.q" "$@" -e 1
