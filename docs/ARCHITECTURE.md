@@ -11,7 +11,8 @@ Primary namespace for all testing functionality.
 | `.tst.asserts` | Assertion registry (musteq, must, etc.) |
 | `.tst.mock` / `.tst.spy` | Mocking and spying |
 | `.tst.fixtures` | Fixture registry |
-| `.tst.skip` / `.tst.pending` | Skip/pending test support |
+| `.tst.skip` / `.tst.pending` | Skip/pending test support (may be mixed freely with `should`) |
+| `.tst.beforeAll` / `.tst.afterAll` | Suite-level setup/teardown hooks (run once per desc block) |
 | `.tst.stackTrace` | Debug trace capture |
 | `.tst.normalizeResultStatus` | Maps internal execution states to public statuses |
 
@@ -27,10 +28,11 @@ Runtime state and configuration.
 
 **Exit Codes**:
 - `0` - PASS: All tests passed
-- `1` - FAIL: One or more tests failed  
+- `1` - FAIL: One or more tests failed
 - `2` - CONFIG_ERROR: Configuration/CLI error
 - `3` - NO_TESTS: No tests found (strict mode)
-- `4` - LOAD_ERROR: File load/syntax error
+- `4` - LOAD_ERROR: File load/syntax error, or explicitly-passed path not found
+- `5` - PARTIAL: Some tests errored or were skipped
 
 **Public result statuses**:
 - `pass` - expectation completed successfully
@@ -56,7 +58,7 @@ For convenience, key DSL functions are exported:
 - `mock`, `fixture`, `fixtureAs`
 - `skip`, `pending`, `skipIf`
 
-For backward compatibility, resQ can also export these helpers into `.q`. `.q` is reserved by kdb+, so this is controlled by `qNamespaceExports` in `resq.json` and defaults to enabled for existing suites.
+For backward compatibility, resQ can also export these helpers into `.q`. `.q` is reserved by kdb+, so this is controlled by `qNamespaceExports` in `resq.json` and defaults to enabled for existing suites. With the flag off, unqualified DSL names will not resolve inside sandboxed test files (q's namespace fallback goes through `.q`); fully-qualified `.tst.*` names are required throughout.
 
 ## File Structure
 
@@ -84,3 +86,7 @@ lib/
     ├── junit.q      # JUnit XML
     └── xunit.q      # XUnit XML
 ```
+
+## Testing the Framework
+
+`tests/` contains the framework's own unit tests (`test_*.q`). In addition, `tests/golden/` holds an end-to-end golden test harness (`test_golden.q`) that runs resQ itself as a subprocess against small fixture suites (`tests/golden/fixtures/f_*.q`) and asserts exit codes, summary lines, and report-file content (JUnit XML structure, JSON via `.j.k`). Fixture files use the `f_` prefix so they are not auto-discovered by normal test runs.

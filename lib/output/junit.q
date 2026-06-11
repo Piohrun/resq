@@ -1,17 +1,19 @@
-.tst.output.escapeXml:{[value]
-    s: .tst.toString value;
+.tst.output.escapeXml:{[val]
+    s: .tst.toString val;
     if[0=count s; :""];
     s: ssr[s;"&";"&amp;"];
     s: ssr[s;"<";"&lt;"];
     s: ssr[s;">";"&gt;"];
     s: ssr[s;"\"";"&quot;"];
     s: ssr[s;"'";"&apos;"];
+    / Strip control chars (0x00-0x1F) illegal in XML 1.0, keeping tab/LF/CR.
+    s: s where (s in "\t\n\r") or not s within ("\000";"\037");
     s
  };
 
-.tst.output.toMillis:{[v]
+.tst.output.toSeconds:{[v]
     raw: $[0h = type v; 0N; 98h = type v; first v; v];
-    if[-16h = type raw; raw*1e-9; 0f]
+    $[-16h = type raw; raw % 1e9; 0f]
  };
 
 .tst.output.normalizeRows:{[rows]
@@ -25,8 +27,8 @@
     statusDesc: $[0=count rec`description; "unspecified"; .tst.toString rec`description];
     suite: .tst.output.escapeXml recSuite;
     msg: .tst.output.escapeXml rec`message;
-    t: .tst.output.toMillis $[`time in key rec; rec`time; 0Nn];
-    attrs: " classname=\"", suite, "\" name=\"", .tst.output.escapeXml statusDesc, "\" time=\"", string t, "\"";
+    t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
+    attrs: " classname=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", string[t], "\"";
     caseOpen: "    <testcase",attrs,">";
     caseClose: "    </testcase>";
     if[recStatus in `pass;
@@ -44,13 +46,17 @@
 .tst.output.top:{[results]
     rows: .tst.output.normalizeRows results;
     if[0=count rows; :"<testsuites></testsuites>"];
-    t: flip rows;
+    / normalizeRows may hand back either a list of row dicts or an already
+    / assembled table; .tst.resultTable canonicalises both to a 98h table.
+    t: .tst.resultTable results;
     if[not 98h = type t; :"<testsuites><testsuite name=\"resq\"/>"];
 
     suites: distinct t`suite;
-    suiteBlocks: raze {
+    / q lambdas do not close over outer locals, so the per-suite table t is
+    / passed in explicitly as the first projected argument.
+    suiteBlocks: raze {[t; x]
         suiteName: .tst.output.escapeXml x;
-        suiteRows: t where t`suite = x;
+        suiteRows: t where (t`suite) = x;
         testCount: count suiteRows;
         suiteStatus: .tst.normalizeResultStatus each suiteRows`status;
         errMask: suiteStatus = `error;
@@ -60,13 +66,13 @@
         errCount: sum errMask;
         skipCount: sum skipMask;
         suiteTime: sum suiteRows`time;
-        suiteTimeSec: .tst.output.toMillis suiteTime;
-        header: "<testsuite name=\"",suiteName,"\" tests=\"",string testCount,"\" failures=\"",string failCount,"\" errors=\"",string errCount,"\" skipped=\"",string skipCount,"\" time=\"",string[suiteTimeSec],"\">";
+        suiteTimeSec: .tst.output.toSeconds suiteTime;
+        header: "<testsuite name=\"",suiteName,"\" tests=\"",string[testCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",string[suiteTimeSec],"\">";
         bodyLines: .tst.output.buildJUnitCase each suiteRows;
         body: "\n" sv bodyLines;
         footer: "</testsuite>";
         $[0<count body; header,"\n",body,"\n",footer; header,"\n",footer]
-    } each suites;
+    }[t;] each suites;
 
     "<testsuites>\n",suiteBlocks,"\n</testsuites>"
  };

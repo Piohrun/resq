@@ -1,3 +1,22 @@
+/ Strip ANSI/CSI color escapes (e.g. "\033[32m" ... "\033[0m") from a string so
+/ junit/xunit/json reports never carry terminal control bytes. diff.q is the
+/ only emitter and it always uses the CSI form ESC "[" <codes> "m"; this walks
+/ the string and drops each run from an ESC up to and including its closing "m".
+/ q has no regex and ssr cannot take an empty replacement, so a char-walk is the
+/ simplest sufficient approach. Non-string args pass through untouched.
+.tst.stripAnsi:{[s]
+    if[not 10h = type s; :s];
+    if[not any s = "\033"; :s];
+    esc: "\033";
+    out: ();
+    i: 0; n: count s;
+    while[i < n;
+        $[s[i] = esc;
+            [ j: i; while[(j < n) and not s[j] = "m"; j+:1]; i: j+1 ];
+            [ out,: s[i]; i+:1 ] ] ];
+    out
+ };
+
 .tst.sanitizeToList:{[x]
     $[0h = type x; x;
       98h = type x; {[tbl; idx] tbl idx}[x] each til count x;
@@ -39,6 +58,14 @@
     exMsg: $[0 < count exFailures; .tst.toString exFailures;
                   0 < count exErr; .tst.toString exErr;
                   ""];
+
+    / Strip terminal color escapes so file reporters (junit/xunit/json) never
+    / carry \033 control bytes. diff colour only ever reaches stdout, but a
+    / failure string could still pick one up, so this is defence in depth.
+    exMsg: .tst.stripAnsi exMsg;
+    exFailures: $[10h = type exFailures; .tst.stripAnsi exFailures;
+                  0h = type exFailures; .tst.stripAnsi each exFailures;
+                  exFailures];
 
     `suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
         suite;

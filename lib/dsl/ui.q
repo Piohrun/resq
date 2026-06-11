@@ -60,7 +60,13 @@ holds:{[des;props;code]
   propsDict: $[99h = type props; props;
                (type props) in -20 20h; (enlist key props)!(enlist value props);
                ()!()];
-  if[0 < count propsDict; d: d, propsDict];
+  / The fuzz runner reads runs/vars/maxFailRate as top-level keys (all in the
+  / base), so override those directly; stash everything under `props too so the
+  / column set stays uniform and any other consumer can read it back.
+  if[0 < count propsDict;
+    known: (key propsDict) inter `runs`vars`maxFailRate;
+    if[0 < count known; d: d, known#propsDict];
+    d[`props]: propsDict];
   .tst.expecList,: enlist d
  }
 
@@ -71,7 +77,8 @@ perf:{[des;props;code]
   propsDict: $[99h = type props; props;
                (type props) in -20 20h; (enlist key props)!(enlist value props);
                ()!()];
-  if[0 < count propsDict; d: d, propsDict];
+  / The perf runner reads opts from expec`props, so stash props there.
+  if[0 < count propsDict; d[`props]: propsDict];
   .tst.expecList,: enlist d
  }
 
@@ -105,7 +112,7 @@ retry:{[retries;des;code]
 / defined, only those tests run for that suite.
 testOnly:{[des;code]
   desStr: ".tst.only. ", .tst.toString des;  / Prefix marks as focused
-  tags: (`$.tst.only), `$ {x where x like "#*"} " " vs desStr;
+  tags: (`$"only"), `$ {x where x like "#*"} " " vs desStr;
   .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`only!(desStr;code;tags;.tst.currentNs;1b))
  }
 
@@ -115,6 +122,10 @@ uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
 .tst.desc:{[title;expectations]
  oldBefore: .tst.currentBefore;
  oldAfter: .tst.currentAfter;
+ oldBeforeAll: .tst.currentBeforeAll;
+ oldAfterAll: .tst.currentAfterAll;
+ .tst.currentBeforeAll: {};
+ .tst.currentAfterAll: {};
  oldExpecList: .tst.expecList;
  .tst.expecList: ();
  specObj: .tst.internals.specObj;
@@ -131,8 +142,14 @@ uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
  / Use hsym format for tstPath - compatible with ` vs for path operations
  specObj[`tstPath]: $[`FILELOADING in key `.utl; .utl.FILELOADING; `$":unknown"];
   specObj[`expectations]:fillExpecBA .tst.expecList;
+  / Attach suite-level hooks unconditionally ({} when never set) so every spec
+  / dict carries identical keys (enlist-dict-becomes-table requires this).
+  specObj[`beforeAll]: .tst.currentBeforeAll;
+  specObj[`afterAll]: .tst.currentAfterAll;
   .tst.currentBefore: oldBefore;
   .tst.currentAfter: oldAfter;
+  .tst.currentBeforeAll: oldBeforeAll;
+  .tst.currentAfterAll: oldAfterAll;
   .tst.expecList: oldExpecList;
   / Note: Don't add spec to expecList - it causes type conflicts when tests
   / call should[] while expecList contains specs (different column structure).

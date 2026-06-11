@@ -20,9 +20,19 @@ The `mustmatchst` assertion (Must Match Snapshot Text) serializes the actual val
 ```
 
 ## Storage & Git
-Snapshots are stored in `tests/__snapshots__/` by default (relative to project root).
+Snapshots are stored in `tests/snapshots/` by default (relative to the current working directory — run from your project root). Override with `.tst.setSnapDir["path/to/dir"]`.
 - **Human Readable**: You can open these files in any text editor.
 - **Git Diffs**: When a snapshot changes, your `git diff` or PR view will show exactly which rows or columns modified in plain text.
+- **Commit snapshots** alongside the test that creates them. Recommended: always run resQ from the project root so the path is consistent between local and CI.
+
+## First Run and CI Safety
+When a snapshot does not yet exist, resQ creates it and prints:
+```
+NOTE: snapshot created: tests/snapshots/eod_report.snap - review and commit it
+```
+Review the file and commit it before pushing to CI.
+
+Under `-strict`, a **missing** snapshot is treated as a test failure with message `Snapshot missing under -strict` rather than silently creating the file. This prevents a missing snapshot from producing a false green in CI.
 
 ## Updating Snapshots
 If a code change legitimately changes the output, enable updates for the run (or delete the old snapshot file). For example:

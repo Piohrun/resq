@@ -33,19 +33,32 @@ mustmatchSnap:{[actual;name]
     n: $[10h=type name; name; string name];
     snapName: `$n,".snap";
     stored: .tst.loadSnap[snapName];
-    
-    if[(.tst.updateSnaps) or (()~stored);
+    missing: ()~stored;
+
+    / Explicit update intent always (re)writes and passes, with a NOTE.
+    if[.tst.updateSnaps;
         .tst.saveSnap[snapName;actual];
+        -1 "NOTE: snapshot created: ", n, " (", .tst.snapDir, ") - review and commit it";
         :1b;
     ];
-    
-    if[not actual~stored;
-        diffs: .tst.diff[stored;actual];
-        -1 "Snapshot mismatch for '",n,"'";
-        if[10h = type diffs;
-            -1 diffs;
-            -1 "\n" sv .tst.toString each diffs;
+
+    / First-run (no stored snapshot). Under -strict, refuse to auto-create-and-
+    / pass: a fresh CI workspace must fail loudly instead of green-washing. Guard
+    / the strict lookup since .tst.app.strict may be undefined in bare sessions.
+    if[missing;
+        if[1b ~ @[get; `.tst.app.strict; 0b];
+            ' "Snapshot missing under -strict: ", n, " (run without -strict once to create it)";
         ];
+        .tst.saveSnap[snapName;actual];
+        -1 "NOTE: snapshot created: ", n, " (", .tst.snapDir, ") - review and commit it";
+        :1b;
+    ];
+
+    if[not actual~stored;
+        -1 "Snapshot mismatch for '",n,"'";
+        / .tst.diff returns a flat list of plain strings; print each line, but a
+        / rendering failure must not mask the snapshot mismatch signal below.
+        @[{ -1 each .tst.diff[x 0; x 1] }; (stored;actual); {[err] -1 "  (diff rendering failed: ", err, ")" }];
         errSym: `$"Snapshot mismatch for '",n,"'";
         ' errSym
     ];

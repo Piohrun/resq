@@ -25,15 +25,40 @@
 
  should["fail when the percentage of failures exceeds the maximum percentage of failures"]{
   `ran mock 0;
-  / 20 runs, maxFailRate 0.5. We fail if more than 10 fail.
+  / 20 runs, maxFailRate 0.5. The comparison is strict (>), so we must EXCEED
+  / 0.5: fail 11 of 20 (failRate 0.55 > 0.5).
   holds["run this"; `runs`maxFailRate!(20;0.5)]{[x]
    ran+:1;
-   if[ran > 10; 1 musteq 2]; 
+   if[ran > 9; 1 musteq 2];
    };
   e:getExpec[];
   e: .tst.runners[`fuzz][e];
   e[`result] musteq `fuzzFail;
-  e[`failRate] mustgt 0.49; / Should be 10/20 = 0.5 exactly
+  e[`failRate] mustgt 0.5; / 11/20 = 0.55 exceeds the 0.5 cap
+  };
+
+ should["pass at exactly the max failure rate (strict comparison)"]{
+  `ran mock 0;
+  / 20 runs, maxFailRate 0.5, exactly 10 failures (failRate 0.5). 0.5 does NOT
+  / exceed 0.5, so the block passes - the boundary is inclusive of the cap.
+  holds["run this"; `runs`maxFailRate!(20;0.5)]{[x]
+   ran+:1;
+   if[ran > 10; 1 musteq 2];
+   };
+  e:getExpec[];
+  e: .tst.runners[`fuzz][e];
+  e[`result] musteq `pass;
+  e[`failRate] musteq 0.5;
+  };
+
+ should["pass with default props when every iteration passes (maxFailRate 0)"]{
+  `ran mock 0;
+  / Default maxFailRate is 0f; failRate 0 must NOT exceed it under strict '>'.
+  holds["always passes"; (enlist `runs)!enlist 5]{[x] ran+:1; must[x~x;"ok"] };
+  e:getExpec[];
+  e: .tst.runners[`fuzz][e];
+  e[`result] musteq `pass;
+  ran musteq 5;
   };
 
  should["provide fuzz variables to the function"]{

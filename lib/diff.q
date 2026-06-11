@@ -153,7 +153,21 @@ diffDeep:{[path;expected;actual]
     (enlist pStr, "Value mismatch";"  Expected: ", .tst.fmtVal[expected;`green];"  Actual:   ", .tst.fmtVal[actual;`red])
  }
 
-/ detailed difference between two objects
-diff: {[expected;actual] .tst.diffDeep["";expected;actual]}
+/ Normalize an arbitrary diff result into a flat list of plain strings (each
+/ element type 10h). Wraps a bare string, flattens one level of nested
+/ string-lists, and stringifies any non-string element via .tst.toString.
+normalizeDiff:{[res]
+    if[10h = type res; :enlist res];
+    if[not 0h = type res; :enlist .tst.toString res];
+    raze {[e] $[10h = type e; enlist e; 0h = type e; .tst.normalizeDiff e; enlist .tst.toString e] } each res
+ }
+
+/ detailed difference between two objects.
+/ Always returns a flat list of plain strings (10h). Internal diff errors are
+/ caught and reported as a single explanatory line so callers (e.g. -1) never
+/ choke on a ragged or mixed-depth list.
+diff: {[expected;actual]
+    .tst.normalizeDiff @[{ .tst.diffDeep["";x 0;x 1] }; (expected;actual); {[err] enlist "(diff unavailable: ", err, ")" }]
+ }
 
 \d .

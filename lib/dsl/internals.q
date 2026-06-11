@@ -179,9 +179,17 @@ halt:0b
 internals:()!()
 internals[`]:()!()
 internals[`specObj]:`result`title`failHard!(`didNotRun;"";0b)
-internals[`defaultExpecObj]:`result`errorText!(`didNotRun;())
+/ Shared key superset so every DSL constructor (should/skip/pending/retry/
+/ testOnly/holds/perf) emits the SAME columns. In q, `enlist d` is a TABLE, so
+/ `.tst.expecList,: enlist d` only works when every appended dict has identical
+/ keys. The `type` value still distinguishes test/fuzz/perf. fuzz-specific keys
+/ (runs/vars/maxFailRate) live in the base too; holds[] overrides them directly.
+/ NOTE: before/after are deliberately NOT in the base - fillExpecBA attaches them
+/ uniformly and its `not `before in key ex` guard must still fire.
+internals[`defaultExpecObj]:`result`errorText`desc`code`tags`namespace`skipReason`retries`only`props`runs`vars`maxFailRate!(
+    `didNotRun;();"";{};`symbol$();`.;"";0;0b;()!();100;`int;0f)
 internals[`testObj]: internals[`defaultExpecObj], ((),`type)!(),`test
-internals[`fuzzObj]: internals[`defaultExpecObj], `type`runs`vars`maxFailRate!(`fuzz;100;`int;0f)
+internals[`fuzzObj]: internals[`defaultExpecObj], ((),`type)!(),`fuzz
 internals[`perfObj]: internals[`defaultExpecObj], ((),`type)!(),`perf
 
 / Callbacks - must exist before any test loading

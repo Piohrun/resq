@@ -32,6 +32,17 @@ When a property test fails, the randomly generated input is often large and nois
 
 This turns "It failed with this giant mess of data" into "It fails when a list contains a negative number."
 
+## Default Pass Behaviour
+A `holds` block with no failing inputs passes. The default `maxFailRate` is `0.0`, meaning zero tolerance for failures. The check is strict: the actual failure rate must **exceed** `maxFailRate` to fail the test. A run where every generated input satisfies the property exits as `pass`.
+
+To allow a small proportion of inputs to fail (e.g. for generators that produce out-of-domain values you filter with early return):
+```q
+holds["occasionally OOD inputs"; `maxFailRate`vars!(0.05; `int)]{[x]
+    if[x < 0; :()];   / skip; does not count as a failure
+    (sqrt x * x) mustwithin (x-0.001; x+0.001);
+};
+```
+
 ## Best Practices
 - **Invariants**: Good properties include:
   - **Round-tripping**: `decode[encode[x]] == x`

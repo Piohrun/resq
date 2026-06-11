@@ -178,7 +178,11 @@ setupExpec:{[spec;expec];
   if[not `result in key expec; expec[`result]:()];
   if[expec[`result] ~ `didNotRun; expec[`result]:()];
   if[not `runtimeContext in key expec; expec[`runtimeContext]: .tst.captureRuntimeContext[]];
-  ((` sv `.q,) each .tst.uiRuntimeNames) .tst.mock' .tst.uiRuntimeCode;
+  / Mirror fixture/fixtureAs/mock into .q so unqualified names resolve via the
+  / .q fallback inside sandbox namespaces. Gated by qNamespaceExports (default
+  / on); when off, tests must use the fully-qualified .tst.mock etc.
+  if[1b ~ @[get; `.tst.qNamespaceExports; 1b];
+    ((` sv `.q,) each .tst.uiRuntimeNames) .tst.mock' .tst.uiRuntimeCode];
   
   / Safe context switch - if no context defined (e.g. unit tests), stay in current
   if[`context in key .tst; system "d ", string .tst.context];

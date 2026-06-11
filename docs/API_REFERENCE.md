@@ -1229,7 +1229,8 @@ Assert value matches stored binary snapshot.
 | `name` | string/symbol | Snapshot name |
 
 **Behavior:**
-- If snapshot doesn't exist: creates it
+- If snapshot doesn't exist and `-strict` is not active: creates it and prints `NOTE: snapshot created: <path> - review and commit it`
+- If snapshot doesn't exist and `-strict` is active: fails with `Snapshot missing under -strict`
 - If `updateSnaps` is true: overwrites snapshot
 - Otherwise: compares and fails on mismatch
 

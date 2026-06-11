@@ -11,13 +11,12 @@
     ];
 
     / Define XML reporter function
-    .resq.reportXml:{[results] 
-      / JUnit/XUnit output expects spec objects, not the flat results table
-      specs: $[`results in key `.tst.app; .tst.app.results; ()];
-      specs: $[`sanitize in key `.tst; .tst.sanitize specs; specs];
+    .resq.reportXml:{[results]
+      / JUnit/XUnit output expects flat result rows (the results argument),
+      / which .tst.resultRows (called inside the reporter) sanitizes itself.
       / Defensive serialization to avoid reporter crashes
       xmlReport: $[`top in key `.tst.output;
-        @[.tst.output.top; specs; {[e]
+        @[.tst.output.top; results; {[e]
             -1 "ERROR: XML reporter failed: ", .tst.toString e;
             "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"reporter_failed\"/></testsuite></testsuites>"
           }];
@@ -83,6 +82,13 @@
      ];
  };
 
+/ Run a suite-level hook (beforeAll/afterAll). Returns `ok or (`failed;errText).
+/ Hooks are trapped: a throwing hook must never crash the runner.
+.tst.runHook:{[h]
+    if[not (type h) within 100 104h; :`ok];
+    @[{x[]; `ok}; h; {[e] (`failed; e)}]
+ };
+
 / Lifecycle of a single spec: snapshot pollution-guard state, switch into
 / the spec's context, run before/each/after hooks, then detect and clean up
 / any state the spec leaked (namespaces, mutated globals, open handles,
@@ -120,8 +126,39 @@
     / If halting prior to running, skip hooks/expectations and leave context/path as-is
     if[.tst.halt; .tst.restoreRuntimeContext runCtx; :spec];
 
-    / Run Before Hooks
-    if[`before in key spec; .tst.runHook[spec`before]];
+    / Run suite-level beforeAll hook (once per spec, before any expectation).
+    beforeAllResult: $[`beforeAll in key spec; .tst.runHook spec`beforeAll; `ok];
+
+    if[not beforeAllResult ~ `ok;
+        / beforeAll threw: do NOT run expectations. Synthesize a single error
+        / expectation (same shape as injectLoadErrors) and route it through the
+        / normal expecRan callback so it lands in .resq.state.results and fails.
+        errText: .tst.toString beforeAllResult 1;
+        syntheticExpec: `desc`type`time`result`errorText`failures`code`before`after`assertsRun!(
+            "beforeAll hook failed";
+            `test;
+            0Nn;
+            `error;
+            errText;
+            enlist errText;
+            {}; {}; {};
+            0i
+        );
+        .tst.callbacks.expecRan[spec; syntheticExpec];
+        spec[`expectations]: enlist syntheticExpec;
+        spec[`result]: `fail;
+        / Run afterAll for cleanup even though beforeAll failed (unless halting).
+        if[not .tst.halt;
+            if[`afterAll in key spec;
+                afterAllResult: .tst.runHook spec`afterAll;
+                if[not afterAllResult ~ `ok;
+                    -1 "WARNING: afterAll hook failed for suite '", .tst.toString[specTitle], "': ", .tst.toString afterAllResult 1;
+                ];
+            ];
+        ];
+        .tst.restoreRuntimeContext runCtx;
+        :spec;
+    ];
 
     / Run Expectations
     / UI tests store tests in `expectations`, simple tests in `code`
@@ -141,13 +178,19 @@
     / Remove skipped expectations (halt)
     res: res where not (::)~/: res;
 
-    / Run After Hooks (skip if halting)
+    / Run suite-level afterAll hook (skip if halting). A failed afterAll is a
+    / cleanup failure: WARN, do not fail the suite.
     if[not .tst.halt;
-        if[`after in key spec; .tst.runHook[spec`after]];
+        if[`afterAll in key spec;
+            afterAllResult: .tst.runHook spec`afterAll;
+            if[not afterAllResult ~ `ok;
+                -1 "WARNING: afterAll hook failed for suite '", .tst.toString[specTitle], "': ", .tst.toString afterAllResult 1;
+            ];
+        ];
     ];
 
     / Set spec result
-    specResult: $[count res; $[all res[;`result] = `pass; `pass; `fail]; `pass];
+    specResult: $[count res; $[all (.tst.normalizeResultStatus each res[;`result]) in `pass`skip`pending; `pass; `fail]; `pass];
     spec[`expectations]: res;
     spec[`result]: specResult;
 
@@ -430,8 +473,8 @@
                {[tbl; idx] tbl idx}[.tst.app.results] each til count .tst.app.results;
                .tst.app.results];
     r: raze { [x] $[99h = type x; $[count x`expectations; x`expectations; ()]; ()] } each resList;
-    allResPass:   $[count r; all r[; `result] ~\: `pass; 1b];
-    allStatePass: $[count .resq.state.results; all .resq.state.results[`status] = `pass; 1b];
+    allResPass:   $[count r; all (.tst.normalizeResultStatus each r[; `result]) in `pass`skip`pending; 1b];
+    allStatePass: $[count .resq.state.results; all .resq.state.results[`status] in `pass`skip`pending; 1b];
 
     .tst.app.passed: allResPass and (0 = count .tst.app.loadErrors) and allStatePass and (0 < count .resq.state.results);
     if[0 < count .tst.app.loadErrors; .tst.app.passed: 0b];

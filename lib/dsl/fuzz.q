@@ -105,7 +105,9 @@ runners[`fuzz]:{[expec]
   expec[`fuzzFailureMessages]: exec fuzzFailures from fuzzResults where 0 < count each fuzzFailures;
 
   assertsRun:$[not count fuzzResults;0;max fuzzResults[`assertsRun]];
-  $[(expec[`failRate]:(count expec`failedFuzz)%expec`runs) >= expec`maxFailRate;
+  / Strict '>' so the default maxFailRate 0f means "no failures tolerated":
+  / failRate 0 does NOT exceed 0, so an all-passing holds block passes.
+  $[(expec[`failRate]:(count expec`failedFuzz)%expec`runs) > expec`maxFailRate;
    expec[`failures`result`assertsRun]:(enlist "Over max failure rate. Shrunk: ", .Q.s1 expec`shrunkFailure;`fuzzFail;assertsRun);
    expec[`failures`result`assertsRun]:(();`pass;assertsRun)];
   .tst.assertState: origState;

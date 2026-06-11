@@ -1,19 +1,8 @@
 \d .tst
 
+/ Initialize the active test execution context. The real .tst.runSpec lives in
+/ lib/runner.q (loaded after this file via resq.q) - a duplicate runSpec used to
+/ live here but was dead (immediately overwritten at load), so it was removed.
+/ This file remains solely to seed .tst.context, which fixture/mock/internals/
+/ expec all read before any spec runs.
 .tst.context:`.
-runSpec:{
- oldContext: .tst.context;
- .tst.context: $[`context in key x; x[`context]; `.];
- .tst.tstPath: x[`tstPath];
- e: x[`expectations];
- if[not type[e] in (0h;98h); e:enlist e];
- e: e where not (::)~/:e;
- x[`expectations]: e;
- x:@[x;`expectations;{[s;e]if[.tst.halt;:()];runExpec[s;e]}[x] each];
- if[.tst.halt;:()];
- .tst.restoreDir[];
- .tst.context: oldContext;
- .tst.tstPath: `;
- x[`result]:$[all `pass = x[`expectations;;`result];`pass;`fail];
- x
- }

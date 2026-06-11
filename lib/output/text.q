@@ -1,5 +1,15 @@
 / Standard console reporter shared by all text-based invocations.
 
+/ Render a message/failure value for the console. A LIST of strings (type 0h
+/ whose items are all char vectors) is joined with an indented newline so it
+/ reads as separate lines instead of q's `,"..."` enlisted-string literal. A
+/ plain string passes through .tst.toString unchanged.
+.resq.renderMsg:{[v]
+    if[(0h = type v) and all 10h = type each v;
+        :"\n    " sv v];
+    .tst.toString v
+ };
+
 .resq.reportText:{[results]
     results: .tst.resultTable results;
     suites: distinct results`suite;
@@ -14,11 +24,11 @@
         -1 "\n",string[s],"::";
         { [f]
             -1 "- ",string[f`description],": [",string[f`status],"]";
-            msg: .tst.toString f`message;
+            msg: .resq.renderMsg f`message;
             if[0<count msg; -1 "  Error: ",msg];
             if[0<count f`failures;
                 -1 "  Failures: ";
-                { -1 "    ", .tst.toString x } each (),f`failures
+                { -1 "    ", .resq.renderMsg x } each (),f`failures
             ];
         } each fails;
 

@@ -128,10 +128,12 @@ Key rules for a test file:
 1. **Top-level `.tst.desc[<title>; <body>]`** registers a spec.
 2. **`should[<desc>; <body>]` inside the desc body** registers an expectation.
 3. **`before` / `after`** hooks run around *each* expectation.
-4. **All `.tst.*` and DSL names** are available globally (assertion verbs are root-exported).
-5. **The test file's own variables** live in a private sandbox namespace
+4. **`beforeAll` / `afterAll`** run once per desc block. If `beforeAll` throws, the block's tests are skipped and one error result is recorded; `afterAll` still runs. A throwing `afterAll` prints a warning but does not fail the suite.
+5. **`skip`, `pending`, `skipIf`, `retry`, `testOnly`** may be mixed freely with `should` in the same desc block. Note: `testOnly` registers and tags but focus-filtering is not yet implemented — it runs like a normal test.
+6. **All `.tst.*` and DSL names** are available globally (assertion verbs are root-exported).
+7. **The test file's own variables** live in a private sandbox namespace
    (`.sandbox_S…`) — they auto-clean.
-6. **Top-level names you create** (e.g. `.foo.x: 1`) trigger the pollution
+8. **Top-level names you create** (e.g. `.foo.x: 1`) trigger the pollution
    guard. Either don't create them, or use `registerSpecCleanup` to wipe them.
 
 ---
@@ -352,7 +354,7 @@ resq test tests/ -tag fast,unit
 | 1 | FAIL — at least one test failed |
 | 2 | CONFIG_ERROR |
 | 3 | NO_TESTS — none discovered (with `-strict` this is reliable) |
-| 4 | LOAD_ERROR — a test file failed to load |
+| 4 | LOAD_ERROR — a test file failed to load, or an explicitly-passed path was not found |
 | 5 | PARTIAL — some tests errored or were skipped |
 
 ---
@@ -384,7 +386,7 @@ All keys are optional; defaults shown:
 Common overrides:
 - `testFilePatterns`: BDD shops set `["*_spec.q"]`, xUnit shops `["*Test.q"]`.
 - `pollutionGuard: false`: opt out of deep namespace snapshotting for very large sessions.
-- `qNamespaceExports: false`: avoid writing helper aliases into the reserved `.q` namespace.
+- `qNamespaceExports: false`: avoid writing helper aliases into the reserved `.q` namespace. **Caveat**: with this flag off, unqualified DSL names (`mock`, `should`, `musteq`, etc.) will not resolve inside sandboxed test files — q's namespace fallback goes through `.q`. Flag-off mode requires fully-qualified `.tst.*` names throughout all test files.
 - `diffLargeTableThreshold` / `diffHugeTableThreshold`: tune adaptive table-diff sampling.
 
 CLI flags always win over config file.
@@ -398,7 +400,9 @@ CLI flags always win over config file.
 | `WARNING: No test files found` | Your files don't match `test_*.q` / `*_test.q`. Either rename or set `testFilePatterns`. Default `resq test` (no path) looks for `./tests/`. |
 | `CRITICAL LOAD ERROR in tests/foo.q: assign` | You assigned to a q built-in name (e.g. `abs:`, `key:`, `count:`). Rename. |
 | `CRITICAL LOAD ERROR in tests/foo.q: [` | Bracket / syntax error somewhere in the file, often a missing `]` or `}`. |
-| `[error]` with `Error: type` on a passing-looking assertion | Almost always q precedence; parenthesise the left operand. See §5. |
+| `[error]` with `Error: type` on a passing-looking assertion | Almost always q precedence; parenthesise the left operand. See §5. Note: a failing `musteq` now correctly surfaces as a failure with a FAILURE DIFF, not as `Error: type` — if you still see the latter it is a genuine type error in the test body. |
+| `Explicit test path not found: <path>` | A file you passed on the command line does not exist. Exit code 4. Fix the typo. |
+| `Snapshot missing under -strict` | A snapshot assertion ran for the first time under `-strict`. Create the snapshot first (run without `-strict`), review it, and commit. |
 | `WARNING: Test '<title>' introduced top-level names: <list>` | The test created a top-level identifier (e.g. `.foo.x: 1`). q can't remove top-level names; values are cleared to `::`. Either restructure the test or accept the warning. |
 | `WARNING: Test Suite '<title>' leaked handles: <list>` | The test opened a handle and didn't close it. Runner closed it for you. Cleanup the test or accept the warning. |
 | `NOTE: file-handle leak detection requires Linux /proc; …` | You're on macOS/Windows. Leak detection only sees IPC handles. File leaks go undetected. |

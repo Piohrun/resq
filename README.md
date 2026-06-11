@@ -106,6 +106,8 @@ q resq.q test -strict my_tests/
 ```
 If no tests are found/executed, this flag forces a **non-zero exit code**, ensuring that an empty test suite is treated as a failure.
 
+Under `-strict`, a snapshot that does not yet exist on disk is treated as a **failure** rather than silently creating the file. Message: `Snapshot missing under -strict`. Outside strict mode, a missing snapshot is created on first run with a note to review and commit it.
+
 Strict mode can also be enabled in `resq.json`:
 ```json
 {
@@ -114,7 +116,7 @@ Strict mode can also be enabled in `resq.json`:
 ```
 
 ### 📦 Namespace Isolation (Sandboxing)
-Every test file is automatically loaded into a unique, isolated namespace (e.g., `.sandbox_S...`).
+Every test file is automatically loaded into a unique, isolated namespace (e.g., `.sandbox_S...`). The name includes a hash of the file path, so two files with similar names (e.g. `test_a.q` and `test-a.q`) never share state.
 - **Benefit**: No need to manually cleanup local test variables.
 - **Safety**: Tests cannot accidentally pollute the global namespace or affect unrelated tests.
 
@@ -132,6 +134,8 @@ resQ exports DSL helpers in the root namespace and `.tst.*`. For legacy compatib
 }
 ```
 
+**Important caveat**: with `"qNamespaceExports": false`, unqualified DSL names (`mock`, `fixture`, `should`, `musteq`, etc.) will **not** resolve inside sandboxed test files — q's namespace fallback goes through `.q`. Flag-off mode requires fully-qualified `.tst.*` names throughout your test files.
+
 ### 🤫 Quiet Mode
 Suppress per-file load lines, the RUN AUDIT block, and per-suite output for passing suites — failures still print fully. Useful for noisy CI logs:
 ```bash
@@ -145,7 +149,9 @@ Default discovery matches `test_*.q` and `*_test.q`. Codebases that use other co
   "testFilePatterns": ["*_spec.q", "*Test.q"]
 }
 ```
-Explicit `.q` file paths on the command line are honoured regardless of patterns.
+Explicit `.q` file paths on the command line are honoured regardless of patterns. Explicitly-passed paths that do not exist are reported as load errors (exit code 4) with a clear message — previously a typo could silently green-light CI.
+
+Discovery recurses into subdirectories with a depth cap of 32. Unreadable entries and broken symlinks are skipped rather than causing a fatal error. Symlinked directories are not followed, preventing symlink loops from hanging or multiplying discovery.
 
 ---
 
@@ -159,6 +165,25 @@ Explicit `.q` file paths on the command line are honoured regardless of patterns
   };
 };
 ```
+
+### Suite-Level Setup and Teardown (`beforeAll` / `afterAll`)
+```q
+.tst.desc["Database Suite"]{
+  beforeAll{
+    `conn mock hopen `:localhost:5000;
+  };
+
+  afterAll{
+    hclose conn;
+  };
+
+  should["query returns rows"]{
+    (count conn "select from trade") mustgt 0;
+  };
+};
+```
+
+`beforeAll` runs once before all expectations in the block. If it throws, the block's tests are skipped and one error result is recorded (the run fails), but other desc blocks still run. `afterAll` runs once after the block's tests even if `beforeAll` failed; a throwing `afterAll` prints a warning but does not fail the suite.
 
 ---
 

@@ -63,31 +63,27 @@ expected: (`$"lib/mock.q"; `$"lib/fixture.q");
 
 ### Error: "type" error when loading test file
 
-**Symptom:**
+**Symptom (previous versions):**
 ```
 !!! HALTING FAILURE !!!
 Suite: My Test Suite
 Error: type
 ```
 
-**Cause:** Multi-line function definitions with nested code blocks can fail to parse when evaluated via `value`. This is a q language limitation.
+**Note:** In current resQ this error class no longer surfaces from a failing assertion — a failing `musteq` is now classified as a failure and shows a proper "Expected X to match Y" FAILURE DIFF. If you still see `Error: type` it is a genuine type mismatch in the test body itself (not in the diff renderer). Check for the right-to-left precedence trap: `(2 + 2) musteq 4`, not `2 + 2 musteq 4`.
 
-**Solution:** Simplify the test structure or split into separate tests:
-```q
-/ Problematic pattern (nested code blocks in multi-line function)
-should["complex test"]{
-    `s mock .tst.desc["Inner"]{
-        .tst.alt {
-            should["nested"]{};
-        };
-    };
-};
+---
 
-/ Better: Test the components separately
-should["test alt behavior"]{
-    / Simpler test without deep nesting
-};
+### Error: FILE_LOAD_ERROR: mismatch
+
+**Symptom (previous versions):**
 ```
+FILE_LOAD_ERROR: mismatch
+```
+
+**Cause:** Mixing `skip`, `pending`, `skipIf`, `retry`, or `testOnly` with `should` inside one desc block used to crash the whole file due to mismatched internal schemas.
+
+**Current behaviour:** This is fixed. All DSL constructors share one unified expectation schema and can be mixed freely. If you still see a `mismatch` error it is a genuine q type mismatch elsewhere in the file.
 
 ---
 
@@ -104,6 +100,8 @@ Error loading test: tests/mytest.q not found
 1. Verify the file exists: `ls tests/mytest.q`
 2. Use absolute paths or paths relative to project root
 3. Check file extension is `.q`
+
+**Note:** When a path is passed explicitly on the command line and the file does not exist, resQ now exits with code 4 (`LOAD_ERROR`) and prints `Explicit test path not found: <path>`. A typo will no longer produce a silent green run.
 
 ---
 
@@ -540,6 +538,21 @@ chmod 755 tests/snapshots
 
 ## 8. CI/CD Integration
 
+### Exit code reference
+
+| Code | Constant | Meaning |
+|------|----------|---------|
+| 0 | `EXIT.PASS` | All tests passed |
+| 1 | `EXIT.FAIL` | One or more tests failed |
+| 2 | `EXIT.CONFIG_ERROR` | Configuration or CLI parsing error |
+| 3 | `EXIT.NO_TESTS` | No tests found (treated as failure under `-strict`) |
+| 4 | `EXIT.LOAD_ERROR` | A test file failed to load, or an explicitly-passed path was not found |
+| 5 | `EXIT.PARTIAL` | Partial execution — some tests errored or were skipped |
+
+Skipped and pending tests do **not** cause a non-zero exit on their own; only actual failures and errors do.
+
+---
+
 ### Exit code is always 0
 
 **Symptom:** CI doesn't fail even when tests fail.
@@ -629,6 +642,33 @@ q resq.q test tests/ -perf
 ---
 
 ## 10. q Language Limitations
+
+### Unqualified DSL names not found with `qNamespaceExports: false`
+
+**Symptom:**
+```
+'mock
+'should
+'musteq
+```
+or similar `'<name>` errors inside a sandboxed test file when `qNamespaceExports` is set to `false` in `resq.json`.
+
+**Cause:** resQ sandboxes each test file into a generated namespace (e.g. `.sandbox_Sabc123`). Inside that namespace, unqualified names like `mock` or `musteq` are resolved via q's namespace fallback chain, which includes `.q`. With `qNamespaceExports: false`, resQ does not write its helpers into `.q`, so the fallback finds nothing.
+
+**Solution:** Use fully-qualified `.tst.*` names throughout your test files when `qNamespaceExports` is off:
+```q
+/ With qNamespaceExports: false, replace:
+`foo mock 42;
+result musteq 42;
+
+/ With:
+`.foo .tst.mock 42;
+.tst.musteq[result; 42];
+```
+
+Alternatively, re-enable the flag (`"qNamespaceExports": true`) to restore unqualified name resolution. The flag defaults to `true` for this reason.
+
+---
 
 ### Multi-line strings in code blocks
 
