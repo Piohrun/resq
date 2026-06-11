@@ -127,10 +127,24 @@
     maskedL: res;
     if[(braceDepth=0) and (not pState`inStr) and cleanL like "\\d *";
       newNs: trim 3 _ cleanL;
-      if[(count newNs) and not " " in newNs; currentNs: $[newNs~"."; ""; newNs]];
+      / `\d .` resets to the root namespace. newNs is a 1-char string ".",
+      / so compare against `enlist "."` -- comparing to the char atom "."
+      / never matches and leaves a stale "." prefix on later globals.
+      if[(count newNs) and not " " in newNs; currentNs: $[newNs ~ enlist "."; ""; newNs]];
     ];
     if[(not inFunc) and (braceDepth=0);
-       isColon: cleanL like funcPat;
+       / Collapse whitespace around the first ":" so `name: {` (space after
+       / the colon, or before it) is detected the same as `name:{`. We only
+       / normalize for definition detection / name extraction below; the raw
+       / cleanL is still used for body capture.
+       normL: cleanL;
+       if[":" in cleanL;
+         ci: cleanL ? ":";
+         lhs: trim ci # cleanL;
+         rhs: trim (ci+1) _ cleanL;
+         normL: lhs, ":", rhs;
+       ];
+       isColon: normL like funcPat;
        isSet: cleanL like "* set {*";  / Remove extra wildcard in middle
        
        if[isColon or isSet;

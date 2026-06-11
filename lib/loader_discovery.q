@@ -5,6 +5,12 @@
 .utl.require .utl.PKGLOADING,"/static_analysis.q"
 .utl.require .utl.PKGLOADING,"/coverage.q"
 
+/ Experimental loader hijacking is OFF by default. autoHijack/hijack rewrite
+/ user functions via string-built code (value), so they must be opted into
+/ explicitly by setting `.tst.loaderHijackEnabled: 1b` from code. `resq
+/ discover` does not use hijacking, so it is unaffected by this gate.
+if[not `loaderHijackEnabled in key `.tst; .tst.loaderHijackEnabled: 0b];
+
 / Check if a function body contains loading logic
 / @param body (string) Function body
 / @return (boolean) True if it looks like a loader
@@ -12,12 +18,14 @@
     / Normalize body to flat string
     s: raze body;
     if[not 10h=abs type s; :0b];
-    
-    / Simple check for system "l" or value "\l"
-    / Use ss to avoid regex issues
-    hasSystem: (0 < count s ss "system") and (0 < count s ss "\"l");
-    hasValue: (0 < count s ss "value") and (0 < count s ss "\"\\l");
-    
+
+    / Require the actual loading SEQUENCES, not independent substrings:
+    / `system "l` or `value "\l`. ss returns match positions; a non-empty
+    / result means the sequence is present. This kills false positives like
+    / "latency" (contains "l" near "system"-ish text) matching on fragments.
+    hasSystem: 0 < count s ss "system \"l";
+    hasValue: 0 < count s ss "value \"\\l";
+
     hasSystem or hasValue
  };
 
@@ -61,14 +69,21 @@
 / @param funcName (symbol) The function to hijack (e.g. `.core.load`)
 / @param argIdx (int) The index of the file path argument (0-based)
 .tst.loader.hijack:{[funcName; argIdx]
-    if[() ~ key funcName; 
+    if[not 1b ~ .tst.loaderHijackEnabled;
+        '"loader hijacking is disabled; set .tst.loaderHijackEnabled:1b to enable (experimental)"
+    ];
+    if[() ~ key funcName;
         -1 "DEBUG: ", string[funcName], " has no key entry";
         :()
     ]; / Must be loaded to hijack
-    
-    / 1. Save Original
-    origName: ` sv `.tst.origLoader, funcName;
-    if[not origName in key `; 
+
+    / 1. Save Original. Use a FLAT backing name: `` ` sv `.tst.origLoader, `.ns.fn ``
+    / would produce an invalid double-dot symbol (`.tst.origLoader..ns.fn`), so
+    / encode the dotted function name into a single flat symbol instead.
+    fnStr: string funcName;
+    fnStr: $["." = first fnStr; 1 _ fnStr; fnStr];  / drop only a leading dot
+    origName: `$".tst.origLoader_", ssr[fnStr; "."; "_"];
+    if[not origName in key `;
         origName set value funcName;
     ];
     
@@ -89,6 +104,9 @@
 / Auto-Discover and Hijack
 / @param dir (string) Directory to scan for loaders
 .tst.loader.autoHijack:{[dir]
+    if[not 1b ~ .tst.loaderHijackEnabled;
+        '"loader hijacking is disabled; set .tst.loaderHijackEnabled:1b to enable (experimental)"
+    ];
     loaders: .tst.loader.findLoaders dir;
     if[0<count loaders;
         -1 "Found ",string[count loaders]," potential loaders.";
