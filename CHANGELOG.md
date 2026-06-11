@@ -5,6 +5,22 @@ All notable changes to the **resQ** project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **`retry[n; "desc"]{...}` now actually retries.** Previously a silent no-op; now makes up to n+1 total attempts. `before`/`after` hooks re-run per attempt. The first passing attempt wins and records one result row. A late pass prints `NOTE: '<desc>' passed on attempt k of m` for flake visibility. Exhausted retries report "failed after m attempts".
+- **Block-comment parsing matches real q.** A line containing only `/` always opens a block comment closed by a lone `\`; a lone `\` outside a block terminates the script. The previous heuristic diverged on the common single-`/` banner idiom.
+- **Duplicate path spellings are deduped.** Passing the same file as `./x.q` and `x.q` now runs it once (canonical absolute-path dedup).
+- **`.tst.forall` first-row false failure fixed.** A precedence bug caused the first row to spuriously fail when prior assertion state contained failures.
+- **`await` on rejected promises raises the actual reason.** String rejection reasons are now signalled correctly; previously raised `'stype`.
+- **`partialMock`/`mockSequence` give clear errors on typos.** A target that is not yet defined now emits `"target not defined: <name>"` instead of a raw q name error.
+- **`resq.json` validation is authoritative.** Invalid values (wrong type, unparseable numbers, unknown keys) are warned AND ignored — defaults remain in effect. Previously bad values were applied after the warning.
+- **`-strict` counts only executed tests.** A suite where every test was skipped now fails under `-strict` with "skipped tests do not count under -strict". Without `-strict`, all-skipped still exits 0.
+- **Empty snapshots validate correctly.** An empty list, dict, or table is no longer mistaken for "missing" — file presence is the existence check. Empty values compare like any other snapshot and work under `-strict`.
+- **Report messages are clean and bounded.** Failure messages in JUnit/xUnit/JSON are newline-joined plain text (no q literal artifacts), capped at `reportLimit` (default 50000) with a truncation marker. `time` attributes are never empty (null durations → 0). Empty classnames fall back to the suite name. ANSI stripping no longer risks eating text after malformed escape sequences.
+- **`resq cover` is now functional.** Instruments functions loaded by test files via `\l` or simple `system "l ", path` forms through a coverage-aware loader. Emits real LCOV (SF/FN/FNDA/FNF/FNH records), a per-function HTML report, and a complete `coverage_state.txt`. Limitations: compiled operators/derived functions are skipped; coverage is function-level (hit counts per function), not line-level; files loaded by other mechanisms are not instrumented.
+- **`resq watch` is now functional.** Change detection uses file size+mtime fingerprints. Test-file classification no longer errors. Works without a TTY (redirected stdin/CI). Uses a foreground poll loop instead of `.z.ts`. Poll interval configurable via `.tst.watch.interval` (seconds, default 1).
+- **Loader hijacking gated behind explicit flag.** `.tst.loader.hijack`/`autoHijack` refuse to run unless `.tst.loaderHijackEnabled: 1b` is set. Also now handles namespaced loaders and has a lower false-positive detection rate. Status: experimental, off by default. `resq discover` does not require it.
+- **Static analysis / discover fixes.** `name: {...}` (space after colon) is now detected. `\d .` namespace resets are handled correctly; generated templates no longer contain invalid `..name` identifiers.
+- **`deps.q` dependency graph is traversable.** Dependency targets resolve to the same absolute paths as graph keys; self-referential pattern matches are excluded.
+- **`.q` namespace exports lifecycle is honest.** Disabling (`qNamespaceExports:false` or restore) neutralises resq-added `.q` keys (sets them to `::`) rather than claiming removal. The original-value snapshot is taken before resQ writes anything. Existing caveat stands: with exports disabled, unqualified DSL names won't resolve inside sandboxed test files.
 - Empty test runs no longer claim "All tests passed." The reporter prints `No tests ran.` and exit code is `EXIT.NO_TESTS` (3) instead of a generic fail.
 - Cleanup ordering: per-expectation `runCleanupTasks` raced the spec-level resource teardown, so a cleanup registered alongside a leaked handle silently failed on non-Linux. New `registerSpecCleanup` defers work until after handles are closed.
 - "leaked new namespaces" warning was misleading — q does not allow removing a top-level identifier once defined, so the runner now reports "introduced top-level names" and clears values to `::` (skipping the warning on re-runs within the same session).
@@ -23,6 +39,7 @@ All notable changes to the **resQ** project will be documented in this file.
 - **Text reporter renders failure messages cleanly** — q list literals like `,"..."` no longer appear in console output.
 
 ### Added
+- **New test files**: `tests/test_retry.q`, `tests/test_watch.q`, `tests/test_strict_behavior.q`, `tests/test_promise_reject.q`. The golden harness gained scenarios for block comments, duplicate-path spelling, coverage LCOV content, strict snapshots, `beforeAll`-junit, and graceful degradation when the `timeout` binary is absent (macOS).
 - `registerSpecCleanup` — cleanup hook that fires after per-spec resource teardown.
 - `.tst.suppressAssertionDiff` flag, used by the fuzz runner so a failing fuzz spec no longer spams one `FAILURE DIFF` banner per iteration.
 - `./bin/resq test` (no path) defaults to `tests/` when the directory exists.
@@ -47,7 +64,8 @@ All notable changes to the **resQ** project will be documented in this file.
 - **`testOnly`** registers and tags expectations but focus-filtering is not yet implemented — `testOnly` currently runs like a normal test. Known limitation.
 
 ### Removed
-- Watch-mode debouncing was listed under 0.2.0 but the implementation never landed — only four config vars were declared and a test that asserted their existence (not the behavior). Removed the dead vars from `lib/watch.q` and the placeholder test. The `.z.ts` handler still fires synchronously on every detected change; reinstate as a real feature if needed.
+- **`parallel_runner.q` removed.** The file was unreachable dead code and architecturally unsound — q threads cannot write globals. Use CI-level parallelism (split test directories across jobs) instead. See `docs/PARALLEL.md`.
+- Watch-mode debouncing was listed under 0.2.0 but the implementation never landed — only four config vars were declared and a test that asserted their existence (not the behavior). Removed the dead vars from `lib/watch.q` and the placeholder test.
 
 ## [0.2.0] - 2026-02-07 - Hardening Release
 

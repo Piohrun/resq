@@ -553,6 +553,26 @@ Skipped and pending tests do **not** cause a non-zero exit on their own; only ac
 
 ---
 
+### All tests skipped but CI is green under `-strict`
+
+**Symptom:** Every test in the suite is skipped, but the run exits 0 when `-strict` is expected to catch this.
+
+**Cause:** `-strict` counts only **executed** tests. A suite where every test was skipped has zero executed tests, which fails under `-strict` with "skipped tests do not count under -strict" (exit code 3). If your CI is still green, check that `-strict` is actually being passed.
+
+Without `-strict`, an all-skipped suite exits 0 — this is intentional.
+
+---
+
+### `resq.json` value is ignored after a warning
+
+**Symptom:** A config warning is printed but the run behaves as if the key was never set.
+
+**Cause:** This is correct behaviour. Invalid `resq.json` values (wrong type, unparseable numbers, unknown keys) are warned **and ignored** — the default for that key stays in effect. Previously bad values were applied after the warning, which was a bug.
+
+**Solution:** Correct the value in `resq.json` and re-run.
+
+---
+
 ### Exit code is always 0
 
 **Symptom:** CI doesn't fail even when tests fail.
@@ -619,7 +639,7 @@ q resq.q test tests/ -perf
 1. **Use session-scoped fixtures** for expensive setup
 2. **Mock slow dependencies** (databases, APIs)
 3. **Reduce fuzz test iterations** in CI
-4. **Run tests in parallel** (when implemented)
+4. **Split test directories across CI jobs** for parallelism — see `docs/PARALLEL.md`.
 
 ---
 
@@ -731,7 +751,7 @@ should["test"]{
 | `'type` | Type mismatch in comparison | Check types with `type` |
 | `'rank` | Wrong number of arguments | Check function arity |
 | `'length` | List length mismatch | Check `count` of operands |
-| `'nyi` | Feature not yet implemented | Use alternative approach |
+| `'nyi` | Feature not yet implemented | Use alternative approach. Watch mode and coverage no longer raise `'nyi` — they are functional. |
 | `'` (empty) | Assignment to undefined variable | Define before use |
 | `'domain` | Invalid input to function | Validate inputs |
 | `'limit` | Exceeded q limits | Reduce data size |
