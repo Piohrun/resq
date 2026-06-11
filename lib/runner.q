@@ -285,9 +285,14 @@
 / failHard (set .tst.halt so subsequent specs short-circuit too).
 .tst.callbacks.expecRan:{[s;e]
     .[{[s;e]
-        .tst.app.expectationsRan+: 1;
         r: e[`result];
         status: .tst.normalizeResultStatus r;
+        / expectationsRan tracks expectations that actually EXECUTED. A skip or
+        / pending expectation did not run, so it must NOT bump this counter --
+        / otherwise an all-skip suite looks like it ran tests and green-washes
+        / under -strict (see .tst.runAllPhase.applyStrictMode). The audit line
+        / labels this value "Expectations executed", matching this semantics.
+        if[status in `pass`fail`error; .tst.app.expectationsRan+: 1];
         if[status ~ `pass;  .tst.app.expectationsPassed+: 1];
         if[status ~ `fail;  .tst.app.expectationsFailed+: 1];
         if[status ~ `error; .tst.app.expectationsErrored+: 1];
@@ -449,18 +454,21 @@
     } each .tst.app.loadErrors;
  };
 
-/ Under -strict, a run that executed zero expectations becomes a failure.
-/ Insert a synthetic row so the failure is visible in the results table
-/ and propagates through computePassed.
+/ Under -strict, a run where no expectation actually EXECUTED becomes a
+/ failure. expectationsRan now counts only EXECUTED expectations (skips and
+/ pendings no longer bump it -- see expecRan above), so an all-skip suite
+/ correctly reports 0 here and fails loudly instead of green-washing. Insert
+/ a synthetic row so the failure is visible in the results table and
+/ propagates through computePassed.
 .tst.runAllPhase.applyStrictMode:{[]
     if[not (.tst.app.strict and 0 = .tst.app.expectationsRan); :()];
     toInsert: flip `suite`description`status`message`time`failures`assertsRun!(
         enlist `STRICT_MODE_FAILURE;
         enlist `NO_TESTS_FOUND;
         enlist `error;
-        enlist "Strict mode enabled but no tests were found/executed.";
+        enlist "Strict mode enabled but no tests were executed (skipped tests do not count under -strict).";
         enlist 0Nn;
-        enlist enlist "No tests executed.";
+        enlist enlist "No tests were executed (skipped tests do not count under -strict).";
         enlist 0i
     );
     `.resq.state.results upsert toInsert;

@@ -79,6 +79,57 @@
   appliedFailFast musteq 1b;
   appliedGuard musteq 0b;
   };
+
+ / --- Bug 1: validation is authoritative; applyConfig skips invalid keys ---
+
+ should["flag a bad-boolean key as invalid"]{
+  .tst.invalidConfigKeys[(enlist `exit)!enlist "yes"] musteq enlist `exit;
+  };
+ should["flag a null-coerced integer key as invalid"]{
+  / loadConfig's "I"$"abc" yields 0Ni; a null int must be rejected, not applied.
+  .tst.invalidConfigKeys[(enlist `fuzzLimit)!enlist 0Ni] musteq enlist `fuzzLimit;
+  };
+ should["flag an unknown key as invalid"]{
+  .tst.invalidConfigKeys[(enlist `bogusKey)!enlist 1] musteq enlist `bogusKey;
+  };
+ should["report no invalid keys for a good config"]{
+  0 musteq count .tst.invalidConfigKeys `exit`fuzzLimit`fmt!(1b; 7i; `junit);
+  };
+
+ should["NOT apply a bad-boolean value (default preserved)"]{
+  prevExit: .tst.app.exit;
+  .tst.app.exit: 0b;
+  .tst.applyConfig[(enlist `exit)!enlist "yes"];
+  applied: .tst.app.exit;
+  .tst.app.exit: prevExit;
+  applied musteq 0b;
+  };
+ should["NOT apply a null integer value (default preserved)"]{
+  prevFuzz: .tst.output.fuzzLimit;
+  .tst.output.fuzzLimit: 100;
+  .tst.applyConfig[(enlist `fuzzLimit)!enlist 0Ni];
+  applied: .tst.output.fuzzLimit;
+  .tst.output.fuzzLimit: prevFuzz;
+  applied musteq 100;
+  };
+ should["apply good keys even when a sibling key is invalid"]{
+  prevExit: .tst.app.exit;
+  prevFuzz: .tst.output.fuzzLimit;
+  .tst.app.exit: 0b;
+  .tst.output.fuzzLimit: 100;
+  / `exit is bad ("yes"); `fuzzLimit is good (7i) and must still apply.
+  .tst.applyConfig[`exit`fuzzLimit!("yes"; 7i)];
+  appliedExit: .tst.app.exit;
+  appliedFuzz: .tst.output.fuzzLimit;
+  .tst.app.exit: prevExit;
+  .tst.output.fuzzLimit: prevFuzz;
+  appliedExit musteq 0b;
+  appliedFuzz musteq 7i;
+  };
+ should["produce a validation warning for a bad-boolean key"]{
+  warnings: .tst.validateConfig (enlist `exit)!enlist "yes";
+  0 mustlt count warnings where warnings like "exit must be a boolean*";
+  };
  };
 
 ::
