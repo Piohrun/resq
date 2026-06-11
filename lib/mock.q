@@ -40,7 +40,7 @@
  }
 
 .tst.partialMock:{[name;partialVal]
-    orig: get name;
+    orig: @[get; name; {[n;e] '"partialMock target not defined: ", string n}[name]];
     if[not 99h=type orig; '"partialMock only supports dictionaries"];
     if[not 99h=type partialVal; '"Partial value must be a dictionary"];
     .tst.mock[name; orig, partialVal];
@@ -129,7 +129,7 @@
 
 .tst.mockSequence:{[name;vals]
     .tst.seqs[name]: vals;
-    orig: get name;
+    orig: @[get; name; {[n;e] '"mockSequence target not defined: ", string n}[name]];
     r: count (value orig) 1;
     argNames: `$"a",/:string til r;
     args: ";" sv string argNames;

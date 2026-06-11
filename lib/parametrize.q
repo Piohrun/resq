@@ -18,7 +18,7 @@ forall:{[data;func]
 
         oldFailList: .tst.assertState.failures;
         @[func .; value row; errHandler];
-        if[count .tst.assertState.failures > count oldFailList;
+        if[(count .tst.assertState.failures) > count oldFailList;
             .tst.assertState.failures: oldFailList;
             '"Assertion failed (Params: ", params, ")"
         ];

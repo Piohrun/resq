@@ -21,6 +21,15 @@
   result: .tst.await[id; 1000];
   result musteq 123;
   };
+ should["await a string-rejected promise raises the message"]{
+  / Regression for promise.q:188 await string-reject bug.
+  code: { id: .tst.deferred[]; .tst.reject[id; "connection refused"]; .tst.await[id; 1000] };
+  mustthrow["*connection refused*"; code];
+  };
+ should["await a symbol-rejected promise raises the message"]{
+  code: { id: .tst.deferred[]; .tst.reject[id; `boom]; .tst.await[id; 1000] };
+  mustthrow["*boom*"; code];
+  };
  should["timeout if promise never settles"]{
   code: { id: .tst.deferred[]; .tst.await[id; 100] };
   mustthrow["*timed out*"; code];

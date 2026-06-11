@@ -26,6 +26,19 @@
   code: { .tst.parametrize[`x!(1 2 3 99); {[x] x mustlt 10}] };
   mustthrow["*Params:*"; code];
   };
+ should["not signal a stale pre-existing failure on first forall row"]{
+  / Regression for forall precedence bug (parametrize.q:21).
+  / Seed a pre-existing failure entry, then run forall over all-passing
+  / rows. The buggy `count a > count b` parse would count a boolean
+  / vector and spuriously throw naming the STALE failure on row 1.
+  saved: .tst.assertState.failures;
+  .tst.assertState.failures,: enlist "stale";
+  res: @[{.tst.forall[([] x: 1 2 3); {[x] :1b}]}; (::); {("THREW: "),x}];
+  / Restore state BEFORE asserting so this test's own pass/fail is clean.
+  .tst.assertState.failures: saved;
+  threw: $[10h = type res; res like "THREW: *"; 0b];
+  threw musteq 0b;
+  };
  };
 
 ::
