@@ -1,18 +1,33 @@
-/ Strip ANSI/CSI color escapes (e.g. "\033[32m" ... "\033[0m") from a string so
-/ junit/xunit/json reports never carry terminal control bytes. diff.q is the
-/ only emitter and it always uses the CSI form ESC "[" <codes> "m"; this walks
-/ the string and drops each run from an ESC up to and including its closing "m".
-/ q has no regex and ssr cannot take an empty replacement, so a char-walk is the
-/ simplest sufficient approach. Non-string args pass through untouched.
+/ Strip ANSI/CSI SGR color escapes (e.g. "\033[32m" ... "\033[0m") from a string
+/ so junit/xunit/json reports never carry terminal control bytes. diff.q is the
+/ only emitter and it always uses the CSI SGR form ESC "[" <digits/;> "m".
+/ q has no regex and ssr cannot take an empty replacement, so this char-walks the
+/ string. It only drops WELL-FORMED SGR sequences: on ESC, if the next char is
+/ "[", it scans over "0123456789;" and requires a terminating "m" within ~16
+/ chars; otherwise it drops ONLY the ESC byte and keeps the rest of the string
+/ (a lone ESC or a non-SGR sequence like ESC[2J must never swallow the tail).
+/ Non-string args pass through untouched.
 .tst.stripAnsi:{[s]
     if[not 10h = type s; :s];
     if[not any s = "\033"; :s];
     esc: "\033";
-    out: ();
+    / Seed with "" (a char vector) so an all-stripped result is "" not () - the
+    / report contract is a char vector even when every byte was a colour code.
+    out: "";
     i: 0; n: count s;
     while[i < n;
         $[s[i] = esc;
-            [ j: i; while[(j < n) and not s[j] = "m"; j+:1]; i: j+1 ];
+            [ / Try to match a well-formed SGR sequence ESC "[" <0-9;>* "m".
+              j: i + 1;
+              matched: 0b;
+              if[(j < n) and s[j] = "[";
+                  k: j + 1;
+                  / Scan over parameter bytes, capped at ~16 chars past "[".
+                  while[(k < n) and (k < j + 16) and s[k] in "0123456789;"; k+:1];
+                  if[(k < n) and s[k] = "m"; matched: 1b; i: k + 1]
+              ];
+              / Not a recognised SGR run: drop ONLY the ESC byte, keep the rest.
+              if[not matched; i+:1] ];
             [ out,: s[i]; i+:1 ] ] ];
     out
  };
@@ -28,6 +43,29 @@
     rows: .tst.sanitizeToList x;
     rows: rows where not (::)~/: rows;
     $[0 = count rows; (); rows]
+ };
+
+/ Render a failures/error field into a single plain char vector suitable for a
+/ report message: a single string passes through; a list of strings joins with
+/ "\n"; non-string elements are stringified via .tst.toString each. The result
+/ is then length-capped at .tst.output.reportLimit. No q literal artifacts (no
+/ leading `,"` from -3! on a 1-element list), no ~80-char show truncation.
+/ Empty/`(::)` inputs collapse to "".
+/ NB: .tst.truncate unconditionally re-runs -3! on its val (re-quoting an
+/ already-final string), so we length-cap here directly, reusing truncate's
+/ "... [truncated N chars]" marker shape so the output contract is identical.
+.tst.renderReportMessage:{[val]
+    limit: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
+    s: $[10h = type val; val;                       / already a char vector
+         0h = type val;                             / general list
+            "\n" sv {[e] $[10h = type e; e; .tst.toString e]} each val;
+         .tst.toString val];                        / atom / symbol / other
+    n: count s;
+    if[n > limit;
+        truncLen: limit - 30;
+        s: (truncLen # s), "... [truncated ", string[n - truncLen], " chars]"
+    ];
+    s
  };
 
 .tst.sanitizeExpectation:{[suite; file; ns; tags; ex]
@@ -55,8 +93,15 @@
     exAsserts:  $[`assertsRun in key ex;
                     $[(type ex`assertsRun) in (1h,4h,7h,-6h,-7h,6h); ex`assertsRun; 0i];
                     0i];
-    exMsg: $[0 < count exFailures; .tst.toString exFailures;
-                  0 < count exErr; .tst.toString exErr;
+    / Render failure/error fields into a single plain char vector. A LIST of
+    / strings must join with "\n" (NOT .tst.toString, which emits the q literal
+    / form: a 1-element list comes out as `,"..."`). Single strings pass through;
+    / non-string elements go via .tst.toString each. The joined string is then
+    / length-capped at .tst.output.reportLimit through .tst.truncate, which only
+    / length-caps an already-string val (it calls -3! on non-strings, so we
+    / always hand it a string here).
+    exMsg: $[0 < count exFailures; .tst.renderReportMessage exFailures;
+                  0 < count exErr; .tst.renderReportMessage exErr;
                   ""];
 
     / Strip terminal color escapes so file reporters (junit/xunit/json) never

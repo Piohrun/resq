@@ -45,4 +45,57 @@
     should["unknown output module is warned and rejected safely"]{
         0b musteq .tst.loadOutputModule["missing-module"];
     };
+
+    / --- Fix 1: report message rendering (sanitize.q .tst.renderReportMessage) -
+    should["renders a list of two failures joined with newline, no q-literal artifact"]{
+        msg: .tst.renderReportMessage ("Expected 1 to match 2"; "second failure line");
+        / Joined on "\n", a single plain char vector.
+        musteq[10h; type msg];
+        musteq[msg; "Expected 1 to match 2\nsecond failure line"];
+        / No leading `,"` artifact from -3! on a 1-element list shape.
+        must[not "," = first msg; "rendered message must not start with a comma"];
+    };
+
+    should["renders a single-element failure list with no leading comma-quote"]{
+        msg: .tst.renderReportMessage enlist "Expected 1 to match 2";
+        musteq[msg; "Expected 1 to match 2"];
+        must[not (msg like ",\"*"); "single failure must not render as the q literal ,\"...\""];
+    };
+
+    should["caps a huge failure message at reportLimit with a truncation marker"]{
+        limit: .tst.output.reportLimit;
+        msg: .tst.renderReportMessage enlist 100000 # "x";
+        must[(count msg) <= limit; "message must be capped at reportLimit"];
+        / NB: both `like` and `ss` treat "[" as a char-class opener, so detect the
+        / marker by a literal sliding-window match over the tail rather than a
+        / pattern. The marker always lands in the final stretch of the message.
+        marker: "... [truncated ";
+        tail: (neg 60) # msg;
+        windows: { x (til 1 + (count x) - y) +\: til y }[tail; count marker];
+        must[any marker ~/: windows; "truncation marker should be present"];
+    };
+
+    / --- Fix 2: stripAnsi edge cases (sanitize.q .tst.stripAnsi) --------------
+    should["stripAnsi keeps text after a lone ESC"]{
+        esc: "\033";
+        musteq[.tst.stripAnsi "before",esc,"AFTER"; "beforeAFTER"];
+    };
+
+    should["stripAnsi never loses the tail after a non-SGR escape"]{
+        esc: "\033";
+        out: .tst.stripAnsi "x",esc,"[2J","TAIL";
+        must[out like "*TAIL"; "the tail after a non-SGR sequence must survive"];
+    };
+
+    should["stripAnsi fully strips a well-formed SGR colour run"]{
+        esc: "\033";
+        musteq[.tst.stripAnsi "a",esc,"[31m","red",esc,"[0m","b"; "aredb"];
+    };
+
+    should["stripAnsi handles empty string and a lone ESC"]{
+        esc: "\033";
+        musteq[.tst.stripAnsi ""; ""];
+        / A string of only ESC drops to empty without error.
+        musteq[.tst.stripAnsi enlist esc; ""];
+    };
  };
