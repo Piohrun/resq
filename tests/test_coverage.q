@@ -73,6 +73,93 @@
     };
 };
 
+.tst.desc["Coverage: safeValue name resolution"]{
+    should["resolve a dotted child-namespace name (the bug-1 regression)"]{
+        / safeValue used to gate on `nsSym in key \`.`, which is false for a
+        / dotted CHILD namespace, so it rejected EVERY .ns.fn and wrapped
+        / nothing. A trapped get must resolve it now.
+        `.covtest.fn set {[a;b] a+b};
+        v: .tst.safeValue `.covtest.fn;
+        must[not v ~ .tst._covMissing; "dotted name must resolve, not return the sentinel"];
+        v[3;4] musteq 7;
+        delete fn from `.covtest;
+    };
+
+    should["resolve a plain root-level name"]{
+        `covtestRoot set {[x] x*x};
+        v: .tst.safeValue `covtestRoot;
+        must[not v ~ .tst._covMissing; "root name must resolve"];
+        v[5] musteq 25;
+        delete covtestRoot from `.;
+    };
+
+    should["return the sentinel for an unbound name"]{
+        .tst.safeValue[`.covtest.doesNotExistXYZ] musteq .tst._covMissing;
+    };
+};
+
+.tst.desc["Coverage: live instrumentation"]{
+    before{
+        `.tst.origCovData mock .tst.coverageData;
+        `.tst.origCovEnabled mock .tst.coverageEnabled;
+        `.tst.origCovFiles mock .tst.trackedFiles;
+        `.tst.origCovOrig mock .tst.origFuncs;
+        .tst.coverageData: ()!();
+        .tst.trackedFiles: ();
+        .tst.origFuncs: ()!();
+        .tst.coverageEnabled: 1b;
+
+        / Scratch source: a \d-namespaced module mixing an explicit-arg fn, an
+        / implicit-arg fn, a zero-arg fn, plus a non-function global that must be
+        / skipped. Written then loaded so the definitions exist before wrapping.
+        .tst.covSrc: .tst.tempFile ".q";
+        (hsym `$.tst.covSrc) 0: (
+            "\\d .covscratch";
+            "expl:{[x;y] x+y};";
+            "impl:{x*y};";
+            "zero:{[] 99};";
+            "notAFn: 123;";
+            "\\d .");
+        system "l ", .tst.covSrc;
+        .tst.instrumentFile .tst.covSrc;
+        .tst.covSym: `$.tst.resolvePath .tst.covSrc;
+    };
+    after{
+        .tst.coverageData: .tst.origCovData;
+        .tst.coverageEnabled: .tst.origCovEnabled;
+        .tst.trackedFiles: .tst.origCovFiles;
+        .tst.origFuncs: .tst.origCovOrig;
+        @[{delete covscratch from `.}; ::; {}];
+    };
+
+    should["wrap exactly the functions, skipping the non-function global"]{
+        wrapped: key .tst.origFuncs;
+        `.covscratch.expl mustin wrapped;
+        `.covscratch.impl mustin wrapped;
+        `.covscratch.zero mustin wrapped;
+        must[not `.covscratch.notAFn in wrapped; "a non-function global must NOT be wrapped"];
+    };
+
+    should["keep wrapped functions computing the same result (explicit, implicit, zero-arg)"]{
+        / Implicit-arg fns ARE wrapped: value[f] 1 resolves their arg names, so
+        / the rebuilt {[x;y] ...} preserves rank and behaviour. No skipping.
+        .covscratch.expl[3;4] musteq 7;
+        .covscratch.impl[5;6] musteq 30;
+        .covscratch.zero[] musteq 99;
+    };
+
+    should["record a hit per call under the source-file key"]{
+        .covscratch.expl[1;1];
+        .covscratch.expl[2;2];
+        .covscratch.impl[2;3];
+        / .covscratch.zero NOT called.
+        fData: .tst.coverageData[.tst.covSym];
+        fData[`.covscratch.expl] musteq 2;
+        fData[`.covscratch.impl] musteq 1;
+        must[not `.covscratch.zero in key fData; "an uncalled fn records no hit"];
+    };
+};
+
 .tst.desc["Coverage: LCOV generation"]{
     before{
         `.tst.origCovData mock .tst.coverageData;
