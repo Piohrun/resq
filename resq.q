@@ -109,7 +109,14 @@ if[.resq.mode ~ `watch;
     / lib/watch.q's default runnerCmd already anchors at .resq.HOME, so
     / there is no need to override it here.
     .tst.watch.init[dirs];
-    .z.ts: { [x] changes: .tst.watch.check[]; if[0<count changes; .tst.watch.onChanges[changes]] };
-    system "t 1000";
     -1 ">> Watch mode active. Press Ctrl+C to exit.";
+    / Explicit foreground loop instead of .z.ts + `system "t": the timer
+    / approach lets q reach EOF on stdin (CI, pipes, `< /dev/null`) and exit
+    / before any tick fires. A blocking loop keeps the process alive without a
+    / TTY. `system "sleep"` is portable; Ctrl+C still interrupts the loop.
+    while[1b;
+        system "sleep ", string .tst.watch.interval;
+        changes: .tst.watch.check[];
+        if[0 < count changes; .tst.watch.onChanges[changes]];
+    ];
  ];
