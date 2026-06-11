@@ -13,24 +13,60 @@
 / identically (e.g. system "l x" == \l x, CWD-relative resolution included),
 / and honours the `\` script terminator. Block comments are tracked so a
 / system-command-looking line inside one is never executed.
-/ Rules (column-1 backslash only - q requires system commands at column 1):
-/   * A line that is exactly "/" (trailing whitespace ignored) opens a block
-/     comment ONLY when the preceding line is blank (or it is the first line) -
-/     this matches q's own rule, where a bare "/" sitting amongst other "/"
-/     line-comments is just an empty comment, not a block-comment opener. A line
-/     that is exactly "\" closes the block. The whole block (the "/", its
-/     interior, and the closing "\") is DROPPED: q's own `value` cannot parse
-/     block comments (it signals on the "\" / interior), so emitting them
-/     verbatim would break loading. Dropping them is comment-equivalent and
-/     guarantees nothing inside the block - including a fake \l - is executed.
+/ Rules (aligned EXACTLY with q's own `\l` lexer):
+/   * A line that rstrips to exactly "/" ALWAYS opens a block comment (trailing
+/     whitespace ignored, preceding line irrelevant - real q opens a block here
+/     regardless of what came before). The block is terminated by a line that
+/     rstrips to exactly "\"; if no such line exists, the block runs to EOF and
+/     the rest of the file is comment (matching real q). The whole block (the
+/     "/", its interior, and the closing "\") is DROPPED: q's own `value` cannot
+/     parse block comments, so emitting them verbatim would break loading.
+/     Dropping is comment-equivalent and guarantees nothing inside the block -
+/     including a fake \l - is executed.
 /   * Outside a block comment, a column-1 "\" line:
-/       - exactly "\"  -> end of script: drop this and all following lines.
-/       - otherwise     -> rewrite "\cmd rest" to system "cmd rest" (backslashes
-/                          and quotes in the remainder escaped).
+/       - rstrips to exactly "\"  -> end of script: drop this and all following
+/                                    lines.
+/       - otherwise                -> rewrite "\cmd rest" to system "cmd rest"
+/                                     (backslashes and quotes escaped).
+/   * "/"-prefixed line comments ("/ text") and ordinary lines pass through.
+/ Check order matters: inside a block we ONLY look for the closing "\".
+/ Otherwise we test block-open (lone "/") BEFORE the terminator / system-command
+/ rewrite - a lone "/" is never a system command, and a lone "\" outside a block
+/ is the terminator, never a block close.
+/ Canonical absolute+normalized form of a path. Absolutizes against the current
+/ working directory when relative, then resolves "." / ".." segments. Two
+/ different spellings of the same file (./x.q vs x.q vs an absolute path) all
+/ collapse to one string here, so it is the right key for de-duplication and for
+/ deriving a stable sandbox name.
+.tst.canonicalPath:{[p]
+    s: .utl.pathToString p;
+    absPath: $["/" = first s; s; (system "cd"), "/", s];
+    .utl.normalizePath absPath
+ };
+
+/ Load a q script the way `\l <path>` does, then (when coverage is enabled)
+/ instrument the functions it just defined. preprocessScript rewrites a test
+/ file's `\l <path>` to a call to this wrapper so that source-under-test loaded
+/ with `\l` becomes visible to coverage (a bare `system "l ..."` is not). The
+/ load runs FIRST - the definitions must exist before they can be wrapped - and
+/ instrumentation is best-effort: a wrapping failure must never break the load
+/ of correct user code. `path` is whatever followed "\l " (relative or
+/ absolute); both `system "l"` and instrumentFile resolve it against the CWD the
+/ same way, so it is passed through unchanged.
+.tst.sysl:{[path]
+    system "l ", path;
+    if[1b ~ @[get; `.tst.coverageEnabled; 0b];
+        if[`instrumentFile in key `.tst;
+            @[.tst.instrumentFile; path; {[p;e]
+                -1 "Coverage: could not instrument ", p, ": ", .tst.toString e
+            }[path]];
+        ];
+    ];
+ };
+
 .tst.preprocessScript:{[lines]
     lines: .utl.pathToString each lines;
     state: 0b;                 / 1b while inside a block comment
-    prevBlank: 1b;             / 1b when the previous line was blank (start = 1b)
     out: enlist ();            / sentinel keeps the accumulator heterogeneous
     i: 0;
     n: count lines;
@@ -40,30 +76,75 @@
         $[state;
             / Inside a block comment: drop the line; watch for the "\" closer.
             if[trimmed ~ enlist "\\"; state: 0b];
-            / Outside a block comment.
-            [ $[(0 < count ln) and "\\" = first ln;
-                  / Column-1 system command.
-                  $[trimmed ~ enlist "\\";
-                      i: n;                          / lone "\": terminate script
-                      / Rewrite \cmd -> system "cmd"; the trailing ";" terminates
-                      / the statement so it does not chain into the next line when
-                      / the whole file is joined and value'd (\cmd was line-
-                      / terminated; system "..." is not).
-                      [ esc: ssr[ssr[1 _ ln; "\\"; "\\\\"]; "\""; "\\\""];
-                        out,: enlist "system \"", esc, "\";" ] ];
-                (trimmed ~ enlist "/") and prevBlank;
-                  / Opens a block comment - drop the "/" line itself too.
-                  / Only a bare "/" preceded by a blank line opens a block; a
-                  / bare "/" amongst other comment lines is just an empty comment.
-                  state: 1b;
-                / Ordinary line.
-                out,: enlist ln ] ] ];
-        / Track blankness of THIS source line for the next iteration's block-open
-        / decision (only meaningful when we did not terminate via "\").
-        prevBlank: 0 = count trimmed;
+          trimmed ~ enlist "/";
+            / Lone "/" outside a block ALWAYS opens a block comment (drop it).
+            state: 1b;
+          (0 < count ln) and "\\" = first ln;
+            / Column-1 backslash: terminator or system command.
+            $[trimmed ~ enlist "\\";
+                i: n;                              / lone "\": terminate script
+                / Rewrite \cmd -> system "cmd"; the trailing ";" terminates the
+                / statement so it does not chain into the next line when the whole
+                / file is joined and value'd (\cmd was line-terminated; system
+                / "..." is not).
+                [ body: 1 _ ln;
+                  esc: ssr[ssr[body; "\\"; "\\\\"]; "\""; "\\\""];
+                  / A `\l <path>` loads the code-under-test. Route it through
+                  / .tst.sysl instead of bare `system "l ..."` so coverage can
+                  / instrument the freshly-loaded source (system "l" is invisible
+                  / to the require/loaded-files hooks). Only the `l` command is
+                  / special-cased - the arg is whatever follows "\l " (path,
+                  / possibly relative; .tst.sysl resolves it the same way q does).
+                  / Every other \cmd keeps the plain system rewrite. Match "l "
+                  / (load with an argument) precisely so "\l" alone and unrelated
+                  / commands fall through unchanged.
+                  $[(body ~ "l") or body like "l *";
+                      / strip the leading "l" + following whitespace to get the path
+                      [ pathArg: $[body ~ "l"; ""; trim 2 _ body];
+                        pEsc: ssr[ssr[pathArg; "\\"; "\\\\"]; "\""; "\\\""];
+                        out,: enlist ".tst.sysl \"", pEsc, "\";" ];
+                      out,: enlist "system \"", esc, "\";" ] ] ];
+            / Ordinary line (includes "/ text" line comments).
+            out,: enlist .tst.rewriteSystemLoad ln ];
         i +: 1;
     ];
     1 _ out
+ };
+
+/ Rewrite a runtime `system "l ", <expr>` load (the form real suites use to load
+/ their code-under-test, e.g. `system "l ", root, "/src/x.q"`) into an
+/ equivalent `.tst.sysl (<expr>)` so coverage can instrument it. `system "l "`
+/ runs the load command whose argument (the file path) is everything AFTER the
+/ "l " prefix; here that prefix lives in the leading string literal and the path
+/ is the concatenation that follows the comma, so passing that concatenation to
+/ .tst.sysl loads the same file (and then instruments it). Only the exact
+/ leading token `system "l ", ` is matched so arbitrary `system` calls and
+/ string occurrences mid-line are left untouched; the original line is returned
+/ verbatim when it does not match.
+.tst.rewriteSystemLoad:{[ln]
+    lt: .tst.lstrip ln;
+    pfx: "system \"l \", ";
+    if[not lt like pfx, "*"; :ln];
+    rt: .tst.rstrip lt;
+    / Only the clean, single-statement form `... ;` is rewritten. A trailing
+    / line comment, a missing terminator, or extra statements on the line are
+    / left verbatim rather than risk a malformed rewrite - coverage is
+    / best-effort, correctness of the load is not.
+    if[(0 = count rt) or ";" <> last rt; :ln];
+    / Preserve leading indentation so column-sensitive checks elsewhere are
+    / unaffected, then swap the prefix for the .tst.sysl call. Drop the trailing
+    / ";" before wrapping in parens (".tst.sysl (expr;)" would not parse) and
+    / re-add it after so the call still terminates cleanly.
+    indent: (count ln) - count lt;
+    rest: -1 _ (count pfx) _ rt;
+    (indent # ln), ".tst.sysl (", rest, ");"
+ };
+
+/ Strip leading spaces/tabs (mirror of .tst.rstrip).
+.tst.lstrip:{[s]
+    s: $[10h = type s; s; enlist s];
+    i: where not s in " \t";
+    $[0 = count i; ""; (first i) _ s]
  };
 
 .tst.loadTests:{[paths]
@@ -87,8 +168,7 @@
         / Done first so both the sandbox name and its hash derive from the
         / canonical absolute path - the sandbox is then stable regardless of how
         / the path was passed (relative or absolute).
-        absPath: $["/" = first p; p; (system "cd"), "/", p];
-        absPath: .utl.normalizePath absPath;
+        absPath: .tst.canonicalPath p;
 
         / Namespace Sandbox
         / Sanitize path to create unique namespace
@@ -172,7 +252,13 @@
 .tst.findTests:{[paths]
     / Ensure paths is a list
     ps: $[10h = type paths; enlist paths; 0h = type paths; paths; enlist paths];
-    ps: distinct .utl.pathToString each ps;
+    / De-dup on the CANONICAL absolute path, not the raw spelling: passing the
+    / same file under two spellings (resq test ./x.q x.q) must register and run
+    / it ONCE. Raw-string `distinct` saw "./x.q" and "x.q" as different, so the
+    / file loaded - and DEFINED - twice. Absolutizing+normalizing first unifies
+    / them. loadTests later derives its sandbox from the same canonical form, so
+    / making paths absolute here is invariant-preserving.
+    ps: distinct .tst.canonicalPath each ps;
 
     / Explicit q file paths are always honored. Directory scans are filtered
     / to a configurable list of test-file glob patterns so we don't load
