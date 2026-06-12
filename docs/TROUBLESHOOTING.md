@@ -609,6 +609,8 @@ If you explicitly want to force exit-on-completion regardless of the config file
 q resq.q test tests/ -exit
 ```
 
+**A test calling `exit` fakes a green run.** A stray `exit 0` inside a test file silently kills the whole process with code 0 — every later file is skipped and CI sees success. Run with `-isolate` so each file runs in its own subprocess: a file that exits without producing results is reported as a per-file failure (exit 1), and an infinite loop is killed at `-isolateTimeout N` (default 300s; needs the `timeout` binary). Exit-code precedence is unchanged (load error → 4, any failure → 1, no files → 3).
+
 ---
 
 ### JUnit XML not generated

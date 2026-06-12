@@ -168,6 +168,10 @@ q resq.q test tests/ -exclude-tag slow
 
 # List suites and tests without running them (exits 0)
 q resq.q test tests/ -desc
+
+# Run each test FILE in its own q subprocess (opt-in process isolation)
+q resq.q test tests/ -isolate
+q resq.q test tests/ -isolate -isolateTimeout 120   # per-file wall-clock cap (s)
 ```
 
 Tags are `#word` tokens embedded in the suite title string:
@@ -216,6 +220,21 @@ Without `-strict`, an all-skipped suite still exits 0.
 
 Under `-strict`, a snapshot that does not yet exist on disk is treated as a
 **failure** rather than silently creating the file.
+
+### Process Isolation (`-isolate`)
+Run each discovered test **file** in its own `q` subprocess; the parent
+aggregates the per-file results and applies the normal summary, reporters
+(`-junit`/`-xunit`/`-json`), and exit codes.
+```bash
+q resq.q test tests/ -isolate
+q resq.q test tests/ -isolate -isolateTimeout 120   # per-file timeout, default 300s
+```
+Isolation converts three run-killers into per-file failures instead of letting
+one bad file corrupt the whole run: a test that calls `exit` (caught as
+"process exited without producing results"), an infinite loop (killed at
+`-isolateTimeout`, reported as a timeout — requires the `timeout` binary for
+preemption), and a process-fatal error (`wsfull`/`stack`). Exit-code semantics
+match the normal path (load errors → 4, any failure → 1, no files → 3).
 
 Strict mode can also be enabled in `resq.json`:
 ```json
