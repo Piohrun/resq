@@ -59,7 +59,7 @@ if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."
 / FOLLOWING each value-flag occurrence. Boolean flags (-strict, -quiet, -junit,
 / ...) are NOT listed here, so they never swallow their successor. The list
 / mirrors cli.q's getArg call sites (both -x and --x spellings).
-.resq.valueFlagWords: `maxTestTime`fuzzLimit, (`$"cov-include"), (`$"cov-exclude"),
+.resq.valueFlagWords: `maxTestTime`fuzzLimit`isolateTimeout, (`$"cov-include"), (`$"cov-exclude"),
   `outDir`exclude`only`tag, (`$"exclude-tag");
 .resq.valueFlagTokens: raze {("-",x;"--",x)} each string .resq.valueFlagWords;
 / Index of every value-flag occurrence; its successor (if present and itself a
@@ -81,7 +81,7 @@ if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."
 / leading-"-" word). A path that legitimately starts with "-" gets silently
 / dropped by the filter above, so surface it and tell the user how to keep it.
 .resq.knownFlagWords: `perf`junit`xml`xunit`json`noquit`exit`cov`coverage`debug,
-  `interactive`strict`quiet`v`version`desc`describe`ff`fh`e,
+  `interactive`strict`quiet`v`version`desc`describe`ff`fh`e`isolate`isolateTimeout,
   (`$"fail-fast"), (`$"fail-hard"), `maxTestTime`fuzzLimit,
   (`$"cov-include"), (`$"cov-exclude"), `outDir`exclude`only`tag, (`$"exclude-tag");
 .resq.knownFlagTokens: raze {("-",x;"--",x)} each string .resq.knownFlagWords;
@@ -115,29 +115,38 @@ if[.resq.mode ~ `test;
         -1 "No path specified; defaulting to tests/";
     ];
     .tst.initReporting[];
-    / -desc/-describe: specs are discovered but NOT executed, so the normal text
-    / reporter would consume the empty results table and print a malformed
-    / "( passed, failed, ...)" summary. Override the .resq.report hook with the
-    / describe-listing reporter AFTER initReporting (the last thing to touch
-    / .resq.report), so runAll's `.resq.report` call lands on our listing.
-    if[1b ~ @[get; `.tst.app.describeOnly; 0b];
-        .resq.report: .tst.describeReport;
+    / Process-isolation mode (-isolate): each discovered FILE runs in its own q
+    / subprocess and the parent aggregates. .tst.isolate.runAll drives reporting
+    / AND the exit itself (honoring -noquit, reusing the .resq.EXIT.* precedence),
+    / so the in-process runAll path below is bypassed entirely.
+    if[1b ~ @[get; `.tst.app.isolate; 0b];
+        .tst.isolate.runAll[.tst.app.args];
     ];
-    .tst.runAll[];
-    if[not any .z.x like "-noquit";
-        / -desc exits cleanly (0) when files loaded without error; a load error
-        / still surfaces as LOAD_ERROR so a broken file is never silently listed.
+    if[not 1b ~ @[get; `.tst.app.isolate; 0b];
+        / -desc/-describe: specs are discovered but NOT executed, so the normal text
+        / reporter would consume the empty results table and print a malformed
+        / "( passed, failed, ...)" summary. Override the .resq.report hook with the
+        / describe-listing reporter AFTER initReporting (the last thing to touch
+        / .resq.report), so runAll's `.resq.report` call lands on our listing.
         if[1b ~ @[get; `.tst.app.describeOnly; 0b];
-            exit $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR; .resq.EXIT.PASS];
+            .resq.report: .tst.describeReport;
         ];
-        / Granular exit codes for CI/CD
-        noTestsFound: (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
-        exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
-                    noTestsFound; .resq.EXIT.NO_TESTS;
-                    not .tst.app.passed; .resq.EXIT.FAIL;
-                    .resq.EXIT.PASS];
-        exit exitCode
-    ]
+        .tst.runAll[];
+        if[not any .z.x like "-noquit";
+            / -desc exits cleanly (0) when files loaded without error; a load error
+            / still surfaces as LOAD_ERROR so a broken file is never silently listed.
+            if[1b ~ @[get; `.tst.app.describeOnly; 0b];
+                exit $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR; .resq.EXIT.PASS];
+            ];
+            / Granular exit codes for CI/CD
+            noTestsFound: (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
+            exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
+                        noTestsFound; .resq.EXIT.NO_TESTS;
+                        not .tst.app.passed; .resq.EXIT.FAIL;
+                        .resq.EXIT.PASS];
+            exit exitCode
+        ];
+    ];
  ];
 
 / MODE: DISCOVER

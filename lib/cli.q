@@ -69,6 +69,13 @@ initCLI:{[]
     if[getFlag[`strict]; .tst.app.strict: 1b];
     if[getFlag[`quiet]; .tst.app.quiet: 1b];
 
+    / Process-isolation mode: each discovered test FILE runs in its own q
+    / subprocess (see lib/isolate.q). -isolateTimeout sets the per-FILE wall
+    / clock cap in seconds (default 300), enforced via the `timeout` binary.
+    if[getFlag[`isolate]; .tst.app.isolate: 1b];
+    isolateTimeout: getArg[`$"isolateTimeout"; ""];
+    if[0<count isolateTimeout; .tst.app.isolateTimeout: "I"$isolateTimeout];
+
     maxTestTime: getArg[`$"maxTestTime"; ""];
     if[0<count maxTestTime; .tst.app.maxTestTime: "I"$maxTestTime];
 
