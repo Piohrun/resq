@@ -34,33 +34,87 @@
     -1 ">> Done.";
  };
 
-/ mtime in epoch seconds. GNU `stat -c %Y` first, then BSD/macOS `stat -f %m`.
-/ Each is its OWN system call - a shell `||` between them stops q from
-/ capturing stdout. Failure (no stat, missing file) yields 0 -> size-only.
-.tst.watch.mtime:{[p]
-    g: @[{"J"$ first system "stat -c %Y ", x}; p; {0N}];
-    if[not null g; :g];
-    b: @[{"J"$ first system "stat -f %m ", x}; p; {0N}];
-    $[null b; 0; b]
+/ Batch-stat a list of path STRINGS in ONE subprocess and return a path->mtime
+/ (epoch seconds) dict. The old code spawned one `stat` PER FILE PER TICK
+/ (~2.6 ms each), so a 500-file tree blew past the 1s poll interval. Here every
+/ tracked path is shell-quoted (.utl.shellQuote - spaces in paths are safe) and
+/ passed to a SINGLE GNU `stat -c '%Y %n'` (BSD `stat -f '%m %N'` fallback).
+/ .
+/ q's `system` THROWS on a nonzero child exit, and `stat` exits nonzero if ANY
+/ argument is missing - but it still PRINTS the lines for the files that exist.
+/ We therefore suffix `; true` to force a zero exit and parse whatever stdout we
+/ got; a path with no line (deleted mid-tick) is simply absent and defaults to
+/ mtime 0 in the caller. Output is `%Y %n` so we split each line on the FIRST
+/ space only - paths may themselves contain spaces.
+.tst.watch.statBatch:{[paths]
+    if[0 = count paths; :()!()];
+    quoted: " " sv .utl.shellQuote each paths;
+    / q's `system` does NOT capture stdout when the command string contains
+    / shell metacharacters like `;` (it streams them to the console instead and
+    / returns nothing). So the WHOLE compound - `stat ... ; true` to swallow the
+    / nonzero exit on a missing file - is wrapped as a single `sh -c <quoted>`
+    / argument; q then sees one simple command and captures its stdout normally.
+    runner: {[inner] system "sh -c ", .utl.shellQuote inner};
+    / GNU form first; if it yields nothing usable, try the BSD form.
+    out: @[runner; "stat -c '%Y %n' ", quoted, " 2>/dev/null ; true"; {()}];
+    if[0 = count out;
+        out: @[runner; "stat -f '%m %N' ", quoted, " 2>/dev/null ; true"; {()}];
+    ];
+    / Parse "MTIME PATH" lines; split on the FIRST space (paths may have spaces).
+    parsed: {[ln]
+        if[0 = count ln; :()];
+        sp: ln ? " ";
+        if[sp <= 0; :()];
+        m: "J"$ sp # ln;
+        p: (sp + 1) _ ln;
+        if[null m; :()];
+        enlist[p]!enlist m
+    } each out;
+    parsed: parsed where 0 < count each parsed;
+    $[0 = count parsed; ()!(); (,/) parsed]
  }
 
-/ Per-file change fingerprint. NOTE: `key` on a *file* hsym returns the symbol
-/ itself (not a modtime), so the old scan stored file!file and `check` never
-/ saw a difference - watch detected nothing. We fingerprint each file by
-/ (size; mtime): `hcount` gives the size with no shell; mtime (above) covers
-/ same-size edits. A missing file yields a sentinel.
-.tst.watch.fingerprint:{[f]
+/ Stat ALL tracked paths for one tick. Command-line length is bounded by
+/ chunking at 200 paths per `stat` call (1-3 calls/tick even for huge trees),
+/ then merging the chunk dicts.
+.tst.watch.statAll:{[paths]
+    if[0 = count paths; :()!()];
+    chunks: 0N 200 # paths;
+    dicts: .tst.watch.statBatch each chunks;
+    (,/) dicts
+ }
+
+/ Per-file change fingerprint built from a PRECOMPUTED mtime map (mtimeMap:
+/ path-string -> epoch seconds from statAll). NOTE: `key` on a *file* hsym
+/ returns the symbol itself (not a modtime), so the old scan stored file!file
+/ and `check` never saw a difference - watch detected nothing. We fingerprint
+/ each file by (size; mtime): `hcount` gives the size with NO shell (cheap, kept
+/ per-file); mtime comes from the batched stat above and covers same-size edits.
+/ A missing file (absent from mtimeMap) yields mtime 0; a missing handle yields
+/ the (-1;-1) sentinel.
+.tst.watch.fingerprintWith:{[mtimeMap;f]
     h: .utl.pathToHsym f;
     if[() ~ key h; :(-1; -1)];          / missing -> sentinel
     sz: @[hcount; h; -1];
-    (sz; .tst.watch.mtime .utl.pathToString f)
+    ps: .utl.pathToString f;
+    mt: $[ps in key mtimeMap; mtimeMap ps; 0];
+    (sz; mt)
  }
 
-/ Scan and return dictionary of file->fingerprint
+/ Single-file fingerprint convenience (used by tests). Runs its own one-path
+/ stat batch so callers need not pre-build a map.
+.tst.watch.fingerprint:{[f]
+    .tst.watch.fingerprintWith[.tst.watch.statAll enlist .utl.pathToString f; f]
+ }
+
+/ Scan and return dictionary of file->fingerprint. Collects every tracked path,
+/ stats them ALL in one (chunked) subprocess, then builds fingerprints from the
+/ resulting mtime map - one batch per tick instead of one stat per file.
 .tst.watch.scanFiles:{[]
     files: raze { .tst.static.findSources x } each .tst.watch.watchDirs;
     if[0 = count files; :()!()];
-    files!.tst.watch.fingerprint each files
+    mtimeMap: .tst.watch.statAll .utl.pathToString each files;
+    files!.tst.watch.fingerprintWith[mtimeMap] each files
  }
 
 / Initialize

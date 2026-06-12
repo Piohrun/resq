@@ -99,6 +99,42 @@
  };
 
 / ---------------------------------------------------------------------------
+/ (4b) Batched fingerprinting (bug 2/3): the per-tick stat is now ONE subprocess
+/ for all paths, shell-quoted so SPACED paths work (the old per-file code split
+/ on whitespace and returned mtime 0 for them). Pin: a fingerprint over a file
+/ under a SPACED directory must (a) report a non-zero mtime, and (b) change when
+/ the file is appended to (size and/or mtime move).
+.tst.desc["watch: fingerprint handles spaced paths and detects edits"]{
+  should["fingerprint a file under a spaced dir, detect an append"]{
+    wd: "/tmp/resq_watchfp_", string[.z.i], "_", string `long$.z.p;
+    sub: wd, "/my dir";
+    tf: sub, "/test_a.q";
+    system "mkdir -p ", .utl.shellQuote sub;
+    (hsym `$tf) 0: enlist "/ a";
+    fp1: .tst.watch.fingerprint tf;
+    / mtime is the second slot; spaced paths used to yield 0 here.
+    must[fp1[1] > 0; "mtime must be non-zero for a spaced path"];
+    / Sleep past 1s so the mtime second-granularity ticks even if size matched.
+    system "sleep 1.1";
+    (hsym `$tf) 0: ("/ a"; "/ bb");
+    fp2: .tst.watch.fingerprint tf;
+    must[not fp1 ~ fp2; "fingerprint must change after an append"];
+    system "rm -rf ", .utl.shellQuote wd;
+  };
+  should["statAll absorbs a missing path without throwing"]{
+    wd: "/tmp/resq_watchfp_m_", string[.z.i], "_", string `long$.z.p;
+    tf: wd, "/test_b.q";
+    system "mkdir -p ", .utl.shellQuote wd;
+    (hsym `$tf) 0: enlist "/ b";
+    / One present, one deleted-mid-tick path: the batch must keep the present one.
+    mm: .tst.watch.statAll (tf; wd, "/gone.q");
+    must[tf in key mm; "present path must appear in the mtime map"];
+    must[not (wd, "/gone.q") in key mm; "missing path must be absent (mtime 0)"];
+    system "rm -rf ", .utl.shellQuote wd;
+  };
+ };
+
+/ ---------------------------------------------------------------------------
 / (5) Subprocess #slow: prove the two CRITICAL bugs are fixed end to end.
 /   - Bug 2: with stdin at EOF the old .z.ts+`system "t"` exited in ~0.2s.
 /     The foreground loop must keep the process alive for the full timeout,
