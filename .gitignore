@@ -47,3 +47,10 @@ coverage_report.html
 # db/
 # wdb/
 # sym
+coverage.html
+coverage.lcov
+coverage_report.html
+missingTests/
+test-results.xml
+test-results.json
+test-results/
