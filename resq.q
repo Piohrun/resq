@@ -53,7 +53,27 @@ if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."
 .tst.initCLI[];
 
 / Parse Args: collect positional args (everything not prefixed with -).
-.tst.app.args: .z.x where not .z.x like "-*";
+/ A value-taking flag (-only "pat", -tag x, ...) has its VALUE as the next
+/ token; that value is NOT a flag (no leading "-") so the naive filter would
+/ also treat it as a positional test path. Exclude the token immediately
+/ FOLLOWING each value-flag occurrence. Boolean flags (-strict, -quiet, -junit,
+/ ...) are NOT listed here, so they never swallow their successor. The list
+/ mirrors cli.q's getArg call sites (both -x and --x spellings).
+.resq.valueFlagWords: `maxTestTime`fuzzLimit, (`$"cov-include"), (`$"cov-exclude"),
+  `outDir`exclude`only`tag, (`$"exclude-tag");
+.resq.valueFlagTokens: raze {("-",x;"--",x)} each string .resq.valueFlagWords;
+/ Index of every value-flag occurrence; its successor (if present and itself a
+/ non-flag token) is the consumed value.
+.resq.valueFlagIdx: where .z.x in .resq.valueFlagTokens;
+.resq.consumedValueIdx: 1 + .resq.valueFlagIdx;
+.resq.consumedValueIdx: .resq.consumedValueIdx where .resq.consumedValueIdx < count .z.x;
+.resq.consumedValueIdx: .resq.consumedValueIdx where not (.z.x .resq.consumedValueIdx) like "-*";
+/ Positionals are every index that is neither a "-"-flag nor a consumed value.
+/ Indexing by position (not `except` on values) keeps a path that legitimately
+/ equals a flag value, e.g. `resq test -only foo.q foo.q`.
+.resq.allIdx: til count .z.x;
+.resq.positionalIdx: .resq.allIdx where (not .z.x like "-*") and not .resq.allIdx in .resq.consumedValueIdx;
+.tst.app.args: .z.x .resq.positionalIdx;
 
 / Loud warning for "-"-prefixed tokens that are NOT recognized flags. Full flag
 / parsing lives in cli.q (getFlag/getArg); here we only need the recognized flag
@@ -95,8 +115,21 @@ if[.resq.mode ~ `test;
         -1 "No path specified; defaulting to tests/";
     ];
     .tst.initReporting[];
+    / -desc/-describe: specs are discovered but NOT executed, so the normal text
+    / reporter would consume the empty results table and print a malformed
+    / "( passed, failed, ...)" summary. Override the .resq.report hook with the
+    / describe-listing reporter AFTER initReporting (the last thing to touch
+    / .resq.report), so runAll's `.resq.report` call lands on our listing.
+    if[1b ~ @[get; `.tst.app.describeOnly; 0b];
+        .resq.report: .tst.describeReport;
+    ];
     .tst.runAll[];
     if[not any .z.x like "-noquit";
+        / -desc exits cleanly (0) when files loaded without error; a load error
+        / still surfaces as LOAD_ERROR so a broken file is never silently listed.
+        if[1b ~ @[get; `.tst.app.describeOnly; 0b];
+            exit $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR; .resq.EXIT.PASS];
+        ];
         / Granular exit codes for CI/CD
         noTestsFound: (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
         exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;

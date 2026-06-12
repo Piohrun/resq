@@ -14,6 +14,35 @@ getFlag:{[name]
     any .z.x in opts
  };
 
+/ Describe-only reporter. Installed as the `.resq.report` hook (replacing the
+/ text reporter) when -desc/-describe is set, so the normal summary path -- which
+/ consumes the EMPTY results table and prints "( passed, failed, ...)" garbage in
+/ describe mode -- is bypassed entirely. In describe mode runDiscoveredSpecs
+/ leaves specs UNEXECUTED and stores them in .tst.app.results, so we list from
+/ there (the `results` arg, the .resq.state.results table, is empty by design).
+.tst.describeReport:{[results]
+    specs: $[`results in key `.tst.app; .tst.app.results; ()];
+    specsList: $[98h = type specs;
+                 {[tbl; idx] tbl idx}[specs] each til count specs;
+                 specs];
+    / Keep only genuine spec dicts (skip any synthetic/empty entries).
+    specsList: specsList where {[s] (99h = type s) and `title in key s} each specsList;
+    nSuites: count specsList;
+    nTests: sum {[s] $[`expectations in key s; count s`expectations; 0]} each specsList;
+    -1 "";
+    -1 "Discovered ", string[nSuites], " suite(s), ", string[nTests], " test(s):";
+    -1 "----------------------------------------------------------------------";
+    {[s]
+        -1 "  ", .tst.toString s`title;
+        exs: $[`expectations in key s; s`expectations; ()];
+        exsList: $[98h = type exs;
+                   {[tbl; idx] tbl idx}[exs] each til count exs;
+                   exs];
+        {[e] if[(99h = type e) and `desc in key e; -1 "      - ", .tst.toString e`desc]} each exsList;
+    } each specsList;
+    -1 "----------------------------------------------------------------------";
+ };
+
 validModes:`test`cover`discover`watch;
 
 parseModeArgs:{[args]
@@ -67,18 +96,28 @@ initCLI:{[]
     if[getFlag[`ff] or getFlag[`$"fail-fast"]; .tst.app.failFast: 1b];
     if[getFlag[`fh] or getFlag[`$"fail-hard"]; .tst.app.failHard: 1b];
     
+    / runSpecs / excludeSpecs are TITLE glob patterns matched with `like` in
+    / runner.q's filterSpecs (`spec[`title] like pattern`). `like` requires a
+    / STRING pattern -- a symbol pattern raises 'type -- so these must be lists
+    / of strings, not symbols (cf. tests/test_runner.q which sets `enlist "a*"`).
     exc: getArg[`exclude; ""];
-    / Fix: Handle string vs list of strings safely
-    if[0<count exc; .tst.app.excludeSpecs: `$"," vs " " sv $[10h=abs type exc; enlist exc; exc]];
-    
+    / Handle string vs list of strings safely.
+    if[0<count exc; .tst.app.excludeSpecs: "," vs " " sv $[10h=abs type exc; enlist exc; exc]];
+
     only: getArg[`only; ""];
-    if[0<count only; .tst.app.runSpecs: `$"," vs " " sv $[10h=abs type only; enlist only; only]];
-    
-    / Tag-based filtering
+    if[0<count only; .tst.app.runSpecs: "," vs " " sv $[10h=abs type only; enlist only; only]];
+
+    / Tag-based filtering. Tags are matched by `in` against spec[`tags] in
+    / runner.q's filterSpecs. The DSL (ui.q) stores a title tag WITH its leading
+    / "#" (e.g. "describe ... #fast" -> `#fast), while config/programmatic tags
+    / use the bare symbol (`fast). A user typing `-tag fast` means either, so we
+    / expand each entry to BOTH the bare and "#"-prefixed symbol; `in` then
+    / matches whichever form the suite actually carries.
+    tagExpand: {[s] raze {[t] s: string t; t, $["#" = first s; `$1 _ s; `$"#", s]} each `$"," vs s};
     tagFilter: getArg[`tag; ""];
-    if[0<count tagFilter; .tst.app.tagFilter: `$"," vs tagFilter];
-    
+    if[0<count tagFilter; .tst.app.tagFilter: tagExpand tagFilter];
+
     excludeTag: getArg[`$"exclude-tag"; ""];
-    if[0<count excludeTag; .tst.app.excludeTagFilter: `$"," vs excludeTag];
+    if[0<count excludeTag; .tst.app.excludeTagFilter: tagExpand excludeTag];
  };
 \d .

@@ -72,3 +72,83 @@
         cnt musteq 0;
     };
 };
+
+/ End-to-end CLI flag plumbing. Each test writes a 2-suite fixture and spawns a
+/ fresh resq process (the arg handling lives in resq.q, which reads .z.x), then
+/ greps the run output. The fixture has a "single suite alpha" (tag #fast) and an
+/ "other suite beta" (no tag) so -only/-exclude/-tag selection is observable.
+.tst.cliFixture: {[dir]
+    / Build the fixture from a shell heredoc; returns the leading shell command
+    / (mkdir + write) the caller prepends to its resq invocation.
+    f: dir, "/cli_flags.q";
+    "mkdir -p ", dir, " && printf '%s\\n' ",
+      "'.tst.desc[\"single suite alpha #fast\"]{ should[\"one\"]{ 1 musteq 1; }; };' ",
+      "'.tst.desc[\"other suite beta\"]{ should[\"two\"]{ 2 musteq 2; }; };' > ", f, " && "
+ };
+
+.tst.desc["CLI value-flag plumbing"]{
+    should["-only filters suites by title pattern (1 of 2 runs)"]{
+        d: "/tmp/p4c/cli_only";
+        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -only \"single*\" -noquit -e 1 < /dev/null 2>&1 | grep -i 'Tests:'";
+        out: @[system; cmd; {[e] enlist ""}];
+        text: "\n" sv $[10h = type out; enlist out; out];
+        (text like "*1 total*") mustmatch 1b;
+    };
+
+    should["-exclude drops matching suites"]{
+        d: "/tmp/p4c/cli_excl";
+        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -exclude \"single*\" -noquit -e 1 < /dev/null 2>&1 | grep -i 'Tests:'";
+        out: @[system; cmd; {[e] enlist ""}];
+        text: "\n" sv $[10h = type out; enlist out; out];
+        (text like "*1 total*") mustmatch 1b;
+    };
+
+    should["-tag filters by suite tag (1 of 2 runs)"]{
+        d: "/tmp/p4c/cli_tag";
+        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -tag fast -noquit -e 1 < /dev/null 2>&1 | grep -i 'Tests:'";
+        out: @[system; cmd; {[e] enlist ""}];
+        text: "\n" sv $[10h = type out; enlist out; out];
+        (text like "*1 total*") mustmatch 1b;
+    };
+
+    should["a value-flag value does NOT become a positional test path"]{
+        / -only's value "single*" must not be treated as a path (old bug reported
+        / 'Explicit test path not found: single*').
+        d: "/tmp/p4c/cli_noleak";
+        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -only \"single*\" -noquit -e 1 < /dev/null 2>&1 | grep -ci 'Explicit test path not found'";
+        out: @[system; cmd; {[e] enlist "0"}];
+        cnt: "J"$ $[count out; first out; "0"];
+        cnt musteq 0;
+    };
+
+    should["a boolean flag does NOT swallow the following path"]{
+        / -strict (boolean) before the path must leave the path as a positional.
+        d: "/tmp/p4c/cli_bool";
+        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test -strict ", d, "/cli_flags.q -noquit -e 1 < /dev/null 2>&1 | grep -i 'Tests:'";
+        out: @[system; cmd; {[e] enlist ""}];
+        text: "\n" sv $[10h = type out; enlist out; out];
+        (text like "*2 total*") mustmatch 1b;
+    };
+};
+
+.tst.desc["CLI describe-only listing"]{
+    should["-desc lists both suites with test names and no malformed summary"]{
+        d: "/tmp/p4c/cli_desc";
+        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -desc -noquit -e 1 < /dev/null 2>&1";
+        out: @[system; cmd; {[e] enlist ""}];
+        text: "\n" sv $[10h = type out; enlist out; out];
+        (text like "*single suite alpha*") mustmatch 1b;
+        (text like "*other suite beta*") mustmatch 1b;
+        / The malformed "( passed,  failed," summary must NOT be emitted.
+        (text like "*( passed,*") mustmatch 0b;
+    };
+
+    should["-desc exits 0 when files load cleanly"]{
+        d: "/tmp/p4c/cli_desc_exit";
+        / No -noquit: let resq emit its real exit code, captured via echo $?.
+        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -desc -e 1 < /dev/null > /dev/null 2>&1; echo $?";
+        out: @[system; cmd; {[e] enlist "99"}];
+        code: "J"$ $[count out; last out; "99"];
+        code musteq 0;
+    };
+};

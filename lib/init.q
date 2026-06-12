@@ -13,13 +13,13 @@ if[not `state in key `.resq; .resq.state.tmp:1];
 if[not `config in key `.resq; .resq.config.tmp:1];
 .resq.VERSION: "0.1.0-alpha";
 
-/ Exit code constants for CI/CD integration
+/ Exit code constants for CI/CD integration. Only codes actually emitted by the
+/ dispatcher (resq.q) are defined; 2 (CONFIG_ERROR) and 5 (PARTIAL) had no
+/ emitting code path and were removed.
 .resq.EXIT.PASS: 0;        / All tests passed
 .resq.EXIT.FAIL: 1;        / One or more tests failed
-.resq.EXIT.CONFIG_ERROR: 2; / Configuration/CLI parsing error
 .resq.EXIT.NO_TESTS: 3;    / No tests found (strict mode)
 .resq.EXIT.LOAD_ERROR: 4;  / File load/syntax error
-.resq.EXIT.PARTIAL: 5;     / Partial execution (some tests skipped/errored)
 
 .resq.state.results: .resq.state.emptyResults[];
 if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: ":."];
