@@ -29,9 +29,15 @@ runners[`perf]:{[expec];
   opts: `runs`gc!10b;
   if[0<count expec`props; opts: opts, expec`props];
   runs: $[`runs in key opts; opts`runs; 100];
-  res: .tst.benchmark.measure[runs; expec`code];
+  / Pass the gc flag through so measure can skip per-iteration .Q.gc[] when off.
+  / NOTE: timings are wall-clock ms (float); maxTime asserts in CI need generous
+  / headroom - a loaded runner can be 10-100x slower than a quiet local machine.
+  res: .tst.benchmark.measureOpts[runs; expec`code; enlist[`gc]!enlist opts`gc];
   expec[`perf]: res;
   expec[`result]: `pass;
+  / perfObj carries no `failures key by default; seed an empty string list so the
+  / threshold branches below can `,:` onto it without a 'type error.
+  if[not `failures in key expec; expec[`failures]: ()];
   if[`maxTime in key opts;
       avgTime: res[`time;`avg];
       if[avgTime > opts`maxTime;
