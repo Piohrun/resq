@@ -7,7 +7,6 @@
 / Configuration
 .tst.watch.watchDirs: enlist "."
 .tst.watch.fileStates: ()!()
-.tst.watch.lastScan: 0p
 / Poll interval in seconds, consumed by the watch loop's sleep. The 1s rescan
 / walks the whole tree via recursive `key` each tick, so raising this trades
 / latency for less churn on large trees.

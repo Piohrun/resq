@@ -1,5 +1,4 @@
-
-/ lib/benchmark.q - Performance profiling and diagnostics
+/ benchmark.q - performance profiling and diagnostics (timing, allocation, histograms)
 
 .tst.benchmark.stats:{[data]
   `min`med`max`avg`dev!(min data; med data; max data; avg data; dev data)

@@ -107,7 +107,7 @@
     musteq[r`code; 1];
     must[.tst.golden.anyLike[r`out; "1 passed, 1 failed"];
          "summary should report 1 passed, 1 failed"];
-    must[.tst.golden.anyLike[r`out; "Expected 1 to match 2"];
+    must[.tst.golden.anyLike[r`out; "Got 1 — expected 2"];
          "real musteq diff message should appear"];
     must[not .tst.golden.anyLike[r`out; "Error: type"];
          "must NOT crash with Error: type"];
@@ -400,7 +400,7 @@
     must[.tst.golden.anyLike[lines; "<testcase"]; "XML should contain <testcase"];
     musteq[count xml ss "<testcase"; 2];          / exactly 2 testcases
     must[.tst.golden.anyLike[lines; "<failure"]; "XML should contain <failure"];
-    must[.tst.golden.anyLike[lines; "Expected 1 to match 2"];
+    must[.tst.golden.anyLike[lines; "Got 1 — expected 2"];
          "failure message should appear in XML"];
     / Report-message rendering fix: the failure text must be the plain message,
     / NOT the q literal form of a 1-element list (which escapes to `,&quot;` in

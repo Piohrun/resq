@@ -59,3 +59,60 @@
   (first testedFailures) mustlike "*the error 'foo'. Error thrown: 'bar'*";
   };
  };
+
+.tst.desc["Assertion aliases"]{
+ should["expose camelCase aliases that behave like their snake_case targets"]{
+  / Passing forms must not register a failure.
+  oldFailures: .tst.assertState.failures;
+  mustEqual[1; 1];
+  mustNotEqual[1; 2];
+  mustLessThan[1; 2];
+  mustGreaterThan[2; 1];
+  testedFailures: .tst.assertState.failures;
+  .tst.assertState.failures: oldFailures;
+  count[testedFailures] musteq 0;
+  };
+ should["fail through camelCase aliases just like the targets"]{
+  oldFailures: .tst.assertState.failures;
+  mustEqual[1; 2];
+  testedFailures: .tst.assertState.failures;
+  .tst.assertState.failures: oldFailures;
+  count[testedFailures] musteq 1;
+  };
+ };
+
+.tst.desc["mustthrow arg-shape guard"]{
+ should["signal a clear message when called with code first (infix misuse)"]{
+  / mustthrow expects [pattern; code]; passing a function first must not crash
+  / with 'type but produce the guidance message instead.
+  / NB: `like` patterns avoid `[` (char-class) and keep to <=2 wildcards.
+  mustthrow["*did you call it infix*"]{ mustthrow[{'"boom"}; `somePattern] };
+  };
+ should["signal the same for mustnotthrow"]{
+  mustthrow["*did you call it infix*"]{ mustnotthrow[{"ok"}; `somePattern] };
+  };
+ should["keep all working pattern shapes working"]{
+  oldFailures: .tst.assertState.failures;
+  mustthrow[(); {'"boom"}];               / no pattern
+  mustthrow["*boom*"; {'"boom"}];         / string pattern
+  mustthrow[`$"boom"; {'"boom"}];         / symbol pattern
+  mustthrow[("*boom*"; "*x*"); {'"boom"}];  / list of patterns (one must match)
+  testedFailures: .tst.assertState.failures;
+  .tst.assertState.failures: oldFailures;
+  count[testedFailures] musteq 0;
+  };
+ };
+
+.tst.desc["mustmatch rich diff"]{
+ should["fail like musteq (same message), not a bare -3! render"]{
+  oldFailures: .tst.assertState.failures;
+  / mustmatch now routes through musteq, so a mismatch yields the musteq message.
+  mustmatch[5; 7];
+  testedFailures: .tst.assertState.failures;
+  .tst.assertState.failures: oldFailures;
+  count[testedFailures] musteq 1;
+  / Single-wildcard pattern (q `like` rejects 3+ stars with 'nyi).
+  (first testedFailures) mustlike "Got 5 *";
+  must[(first testedFailures) like "*expected 7*"; "message should name the expected value"];
+  };
+ };

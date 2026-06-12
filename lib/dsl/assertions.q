@@ -1,3 +1,4 @@
+/ assertions.q - core assertion DSL (musteq, mustthrow, snapshots, aliases)
 \d .tst
 
 / Print expected-vs-actual diff; rendering problems must never mask the assertion failure itself.
@@ -23,7 +24,7 @@ asserts[`musteq]:{[l;r];
     limit: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
     lStr: .tst.truncate[l; `long$limit % 2];
     rStr: .tst.truncate[r; `long$limit % 2];
-    m: "Expected ", lStr, " to match ", rStr;
+    m: "Got ", lStr, " — expected ", rStr;
     if[not (type l) = type r; m,: " (Type mismatch: ", string[type l], " vs ", string[type r], ")"];
     / Show numeric diff for numbers
     if[(type l) within (-9h;-6h); if[(type r) within (-9h;-6h);
@@ -38,13 +39,15 @@ asserts[`musteq]:{[l;r];
    if[not .tst.suppressAssertionDiff; .tst.printDiffSafe[r;l]];
    .tst.asserts[`must][0b; m];
   }
-asserts[`mustmatch]:{[l;r]; asserts.must[l~r;"Expected ", (-3!l), " to match ", (-3!r)]}
+/ mustmatch shares musteq's ~-equality semantics; route it through the same body
+/ so a mismatch renders the rich FAILURE DIFF instead of a bare -3! message.
+asserts[`mustmatch]:{[l;r]; .tst.asserts[`musteq][l;r]}
 asserts[`mustmatchs]:{[l;r]; .tst.mustmatchSnap[l;r]}
 asserts[`mustmatchst]:{[l;r]; .tst.mustmatchTxtSnap[l;r]}
-asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;"Expected ", (-3!l), " to not match ", (-3!r)]}
-asserts[`mustne]:{[l;r]; .tst.asserts[`must][l<>r;"Expected ", (-3!l), " to not be equal to ", (-3!r)]}
-asserts[`mustlt]:{[l;r]; .tst.asserts[`must][l<r;"Expected ", (-3!l), " to be less than ", (-3!r)]}
-asserts[`mustgt]:{[l;r]; .tst.asserts[`must][l>r;"Expected ", (-3!l), " to be greater than ", (-3!r)]}
+asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;"Got ", (-3!l), " — expected it NOT to match ", (-3!r)]}
+asserts[`mustne]:{[l;r]; .tst.asserts[`must][l<>r;"Got ", (-3!l), " — expected it NOT to equal ", (-3!r)]}
+asserts[`mustlt]:{[l;r]; .tst.asserts[`must][l<r;"Got ", (-3!l), " — expected it to be less than ", (-3!r)]}
+asserts[`mustgt]:{[l;r]; .tst.asserts[`must][l>r;"Got ", (-3!l), " — expected it to be greater than ", (-3!r)]}
 asserts[`mustlike]:{[l;r]; .tst.asserts[`must][l like r;"Expected ", (-3!l), " to be like ", (-3!r)]}
 asserts[`mustin]:{[l;r]; .tst.asserts[`must][l in r;"Expected ", (-3!l), " to be in ", (-3!r)]}
 asserts[`mustnin]:{[l;r]; .tst.asserts[`must][not l in r;"Expected ", (-3!l), " to not be in ", (-3!r)]}
@@ -52,6 +55,11 @@ asserts[`mustwithin]:{[l;r]; .tst.asserts[`must][l within r;"Expected ", (-3!l),
 asserts[`mustdelta]:{[tol;l;r]; .tst.asserts[`must][l within (r - abs tol;r + abs tol);"Expected ", (-3!l), " to be within +/-", (-3!tol), " of ", (-3!r)]}
 
 asserts[`mustthrow]:{[e;c];
+  / Arg-shape guard: convention is mustthrow[pattern; code]. If the FIRST arg is
+  / a function and the SECOND is not, the caller swapped them (typically by
+  / writing it infix). Signal a clear message instead of crashing with 'type.
+  if[((type e) within 100 104h) and not (type c) within 100 104h;
+    '"mustthrow expects [pattern; code] — got code first; did you call it infix? Use mustthrow[pattern; {code}]"];
   execCode:{[code]
     t:type code;
     if[t in 100 104h; :code[]];
@@ -74,8 +82,15 @@ asserts[`mustthrow]:{[e;c];
   p:1b;
   m:"Expected '", (-3!c), "' to throw ";
 
-  / Normalize patterns to list of strings
-  pats: $[0=count (),e; (); 10h=abs type e; enlist e; (),e];
+  / Normalize patterns to a list of STRING patterns. A pattern may be a string,
+  / a SYMBOL (stringified so `like` works), a symbol vector, or a list of
+  / strings. `like` cannot match a string against a symbol, so symbols must be
+  / coerced here -- otherwise a symbol pattern crashes with 'type.
+  pats: $[0=count (),e;     ();
+          10h=type e;        enlist e;          / single string
+          -11h=type e;       enlist string e;   / single symbol
+          11h=type e;        string e;          / symbol vector
+          (),e];                                / list of strings
 
   m,: $[0=count pats; "an error.";
         1=count pats; "the error '",(first pats),"'.";
@@ -87,6 +102,9 @@ asserts[`mustthrow]:{[e;c];
   }
 
 asserts[`mustnotthrow]:{[e;c];
+  / Arg-shape guard: convention is mustnotthrow[pattern; code]. See mustthrow.
+  if[((type e) within 100 104h) and not (type c) within 100 104h;
+    '"mustnotthrow expects [pattern; code] — got code first; did you call it infix? Use mustnotthrow[pattern; {code}]"];
   execCode:{[code]
     t:type code;
     if[t in 100 104h; :code[]];
@@ -108,8 +126,13 @@ asserts[`mustnotthrow]:{[e;c];
   errStr: $[10h = type errMsg; errMsg; -3!errMsg];
   m:"Expected '", (-3!c), "' to not throw ";
 
-  / Normalize patterns to list of strings
-  pats: $[0=count (),e; (); 10h=abs type e; enlist e; (),e];
+  / Normalize patterns to a list of STRING patterns (see mustthrow: symbols are
+  / stringified so `like` matches against the string error message).
+  pats: $[0=count (),e;     ();
+          10h=type e;        enlist e;          / single string
+          -11h=type e;       enlist string e;   / single symbol
+          11h=type e;        string e;          / symbol vector
+          (),e];
 
   p:1b;
   if[isErr and not 0 < count pats; m,:"an error. Error thrown: '",errStr,"'";p:0b];
@@ -183,6 +206,17 @@ asserts[`mustHaveBeenCalledWith]:{[name;args]
   .tst.asserts[`must][found; msg];
  };
 
+/ Additive camelCase aliases (compat surface). Assigned AFTER their targets
+/ exist so they capture live function values. Added to .tst.asserts so init.q's
+/ registerQExports picks them up for the optional .q namespace too.
+asserts[`mustEqual]:                asserts[`musteq];
+asserts[`mustNotEqual]:             asserts[`mustne];
+asserts[`mustLessThan]:             asserts[`mustlt];
+asserts[`mustGreaterThan]:          asserts[`mustgt];
+asserts[`mustMatchSnapshot]:        asserts[`mustmatchs];
+asserts[`mustMatchTextSnapshot]:    asserts[`mustmatchst];
+asserts[`mustMatchIgnoringOrder]:   asserts[`mustmatchignoringorder];
+
 \d .
 must: .tst.asserts[`must];
 musteq: .tst.asserts[`musteq];
@@ -208,3 +242,12 @@ mustHaveBeenCalledWith: .tst.asserts[`mustHaveBeenCalledWith];
 
 .tst.mustmatchs: .tst.asserts[`mustmatchs];
 .tst.mustmatchst: .tst.asserts[`mustmatchst];
+
+/ Additive camelCase root aliases (compat). Assigned after targets exist.
+mustEqual: .tst.asserts[`mustEqual];
+mustNotEqual: .tst.asserts[`mustNotEqual];
+mustLessThan: .tst.asserts[`mustLessThan];
+mustGreaterThan: .tst.asserts[`mustGreaterThan];
+mustMatchSnapshot: .tst.asserts[`mustMatchSnapshot];
+mustMatchTextSnapshot: .tst.asserts[`mustMatchTextSnapshot];
+mustMatchIgnoringOrder: .tst.asserts[`mustMatchIgnoringOrder];
