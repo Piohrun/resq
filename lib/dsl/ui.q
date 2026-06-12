@@ -18,13 +18,21 @@ after:{[code]
 / File-level setup/teardown hooks (run once per describe block).
 currentBeforeAll:{}
 currentAfterAll:{}
+/ Flags track whether beforeAll/afterAll was set by a setter since the last
+/ desc consumed (and reset) them. Robust against lambda-identity pitfalls:
+/ comparing two empty lambdas from different definition sites with ~ is not
+/ reliable, so we never compare lambdas to detect "was it set" -- a flag is.
+currentBeforeAllSet:0b
+currentAfterAllSet:0b
 
 beforeAll:{[code]
- .tst.currentBeforeAll: code
+ .tst.currentBeforeAll: code;
+ .tst.currentBeforeAllSet: 1b
  }
 
 afterAll:{[code]
- .tst.currentAfterAll: code
+ .tst.currentAfterAll: code;
+ .tst.currentAfterAllSet: 1b
  }
 
 fillExpecBA:{[x]
@@ -109,9 +117,11 @@ retry:{[retries;des;code]
  }
 
 / testOnly: focus the suite on specific tests. When any testOnly test is
-/ defined, only those tests run for that suite.
+/ defined in a suite, only the testOnly tests run for that suite; the
+/ remaining tests are reported as skipped (see .tst.applyTestOnlyFocus).
+/ The `only:1b flag and `only tag are what the focus pre-step consumes.
 testOnly:{[des;code]
-  desStr: ".tst.only. ", .tst.toString des;  / Prefix marks as focused
+  desStr: .tst.toString des;
   tags: (`$"only"), `$ {x where x like "#*"} " " vs desStr;
   .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`only!(desStr;code;tags;.tst.currentNs;1b))
  }
@@ -124,8 +134,22 @@ uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
  oldAfter: .tst.currentAfter;
  oldBeforeAll: .tst.currentBeforeAll;
  oldAfterAll: .tst.currentAfterAll;
+ / A beforeAll/afterAll defined OUTSIDE a describe block is a silent footgun:
+ / the reset below wipes it before the block's hooks are captured. If the
+ / corresponding flag is already set at entry (i.e. a setter ran before this
+ / desc body executes), warn once -- that hook will be ignored. We rely on the
+ / flag rather than comparing lambdas (empty lambdas from different sites are
+ / not guaranteed ~-equal).
+ if[.tst.currentBeforeAllSet;
+   -1 "WARNING: beforeAll defined outside a describe block is ignored (call it inside the block)";
+ ];
+ if[.tst.currentAfterAllSet;
+   -1 "WARNING: afterAll defined outside a describe block is ignored (call it inside the block)";
+ ];
  .tst.currentBeforeAll: {};
  .tst.currentAfterAll: {};
+ .tst.currentBeforeAllSet: 0b;
+ .tst.currentAfterAllSet: 0b;
  oldExpecList: .tst.expecList;
  .tst.expecList: ();
  specObj: .tst.internals.specObj;
@@ -150,6 +174,10 @@ uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
   .tst.currentAfter: oldAfter;
   .tst.currentBeforeAll: oldBeforeAll;
   .tst.currentAfterAll: oldAfterAll;
+  / The in-block hooks have been captured into specObj; clear the set-flags so
+  / a later top-level desc does not inherit this block's "was set" state.
+  .tst.currentBeforeAllSet: 0b;
+  .tst.currentAfterAllSet: 0b;
   .tst.expecList: oldExpecList;
   / Note: Don't add spec to expecList - it causes type conflicts when tests
   / call should[] while expecList contains specs (different column structure).

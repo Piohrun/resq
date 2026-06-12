@@ -129,7 +129,7 @@ Key rules for a test file:
 2. **`should[<desc>; <body>]` inside the desc body** registers an expectation.
 3. **`before` / `after`** hooks run around *each* expectation.
 4. **`beforeAll` / `afterAll`** run once per desc block. If `beforeAll` throws, the block's tests are skipped and one error result is recorded; `afterAll` still runs. A throwing `afterAll` prints a warning but does not fail the suite.
-5. **`skip`, `pending`, `skipIf`, `retry`, `testOnly`** may be mixed freely with `should` in the same desc block. `retry[n; "desc"]{...}` retries up to n+1 total attempts; before/after hooks re-run per attempt; a late pass is noted for flake visibility. Note: `testOnly` registers and tags but focus-filtering is not yet implemented — it runs like a normal test.
+5. **`skip`, `pending`, `skipIf`, `retry`, `testOnly`** may be mixed freely with `should` in the same desc block. `retry[n; "desc"]{...}` retries up to n+1 total attempts; before/after hooks re-run per attempt; a late pass is noted for flake visibility. `testOnly["desc"]{...}` focuses its suite: if any test in a desc block is a `testOnly`, only the `testOnly` tests run; the rest are reported as **skipped** (not dropped), and a `NOTE: testOnly active in suite ...: running N of M tests` line is printed. Focus is **per-suite** — other suites run normally.
 6. **All `.tst.*` and DSL names** are available globally (assertion verbs are root-exported).
 7. **The test file's own variables** live in a private sandbox namespace
    (`.sandbox_S…`) — they auto-clean.

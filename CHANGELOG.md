@@ -61,7 +61,7 @@ All notable changes to the **resQ** project will be documented in this file.
 - `getDependents` now uses a cycle-safe recursion (visited-set accumulator), so a circular `\l`/`require` graph in user code no longer blows the stack.
 - `.tst.spy` builds its wrapper from a table of arity-indexed template lambdas instead of `value`-ing a constructed source string. Removes the eval surface for arities 0–7 (arity 8 still uses the fallback because q's lambda ceiling is 8 params).
 - **`qNamespaceExports: false`** now also gates per-expectation `.q` exports (previously only init-time exports were gated). Note: with this flag off, unqualified DSL names will not resolve inside sandboxed test files; fully-qualified `.tst.*` names are required.
-- **`testOnly`** registers and tags expectations but focus-filtering is not yet implemented — `testOnly` currently runs like a normal test. Known limitation.
+- **`testOnly` focus-filtering is now implemented (per-suite).** If any test in a `describe` block is a `testOnly`, only the `testOnly` tests in that block run; the rest are reported as **skipped** (visible in CI output) rather than silently dropped. Focus is per-suite — other suites run normally. A `NOTE: testOnly active in suite '<title>': running N of M tests` line is printed once per focused suite. Under `-strict`, a focused-and-passing suite still counts as executed (skips do not).
 
 ### Removed
 - **`parallel_runner.q` removed.** The file was unreachable dead code and architecturally unsound — q threads cannot write globals. Use CI-level parallelism (split test directories across jobs) instead. See `docs/PARALLEL.md`.

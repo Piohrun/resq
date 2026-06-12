@@ -89,6 +89,33 @@
     @[{x[]; `ok}; h; {[e] (`failed; e)}]
  };
 
+/ testOnly focus filtering -- PER-SUITE, not global. If ANY expectation in this
+/ spec is focused (`1b ~ x`only`), the non-focused expectations are converted to
+/ SKIPPED results (result `skip + a skipReason) so they still appear in the
+/ results table as skipped -- CI output then shows the suite is focused and the
+/ -strict executed-count (which excludes skips) stays correct. Only suites that
+/ contain a testOnly entry are affected; other suites run untouched. We mutate
+/ existing dicts in place (set `result`skipReason, mirroring how ui.q skip[]
+/ builds its dict) and never change a dict's key set -- the unified schema
+/ invariant (every expectation already carries `only and `skipReason) makes this
+/ safe, preserving the enlist-dict-becomes-table column uniformity.
+.tst.applyTestOnlyFocus:{[specTitle; exList]
+    if[0 = count exList; :exList];
+    onlyFlags: {$[`only in key x; 1b ~ x`only; 0b]} each exList;
+    if[not any onlyFlags; :exList];
+    nKeep: sum onlyFlags;
+    nTotal: count exList;
+    -1 "NOTE: testOnly active in suite '", .tst.toString[specTitle], "': running ",
+       string[nKeep], " of ", string[nTotal], " tests";
+    skipReason: "skipped: testOnly active in this suite";
+    {[focused; ex; reason]
+        if[focused; :ex];
+        ex[`result]: `skip;
+        ex[`skipReason]: reason;
+        ex
+    }'[onlyFlags; exList; nTotal # enlist skipReason]
+ };
+
 / Lifecycle of a single spec: snapshot pollution-guard state, switch into
 / the spec's context, run before/each/after hooks, then detect and clean up
 / any state the spec leaked (namespaces, mutated globals, open handles,
@@ -173,6 +200,10 @@
     if[not t in 0 98h; exList: enlist exList];
     / Remove null expectations
     exList: exList where not (::)~/: exList;
+
+    / Per-suite testOnly focus: if any expectation is focused, convert the rest
+    / to skipped (they flow through runExpec's terminal skip path unchanged).
+    exList: .tst.applyTestOnlyFocus[specTitle; exList];
 
     res: {[s; ex] if[.tst.halt; :()]; .tst.runExpec[s; ex]}[spec] each exList;
     / Remove skipped expectations (halt)
