@@ -130,6 +130,31 @@
   warnings: .tst.validateConfig (enlist `exit)!enlist "yes";
   0 mustlt count warnings where warnings like "exit must be a boolean*";
   };
+
+ / --- Bug 4: insane-but-typed numeric values are range-checked ---
+
+ should["flag a negative fuzzLimit as invalid"]{
+  / fuzzLimit:-5 is correctly typed (a long) but nonsensical; must be rejected.
+  .tst.invalidConfigKeys[(enlist `fuzzLimit)!enlist -5] musteq enlist `fuzzLimit;
+  };
+ should["flag a negative maxTestTime as invalid"]{
+  .tst.invalidConfigKeys[(enlist `maxTestTime)!enlist -1] musteq enlist `maxTestTime;
+  };
+ should["accept a zero numeric value (boundary)"]{
+  0 musteq count .tst.invalidConfigKeys (enlist `fuzzLimit)!enlist 0;
+  };
+ should["warn for a negative fuzzLimit"]{
+  warnings: .tst.validateConfig (enlist `fuzzLimit)!enlist -5;
+  0 mustlt count warnings where warnings like "fuzzLimit must be >= 0*";
+  };
+ should["NOT apply a negative fuzzLimit (default preserved)"]{
+  prevFuzz: .tst.output.fuzzLimit;
+  .tst.output.fuzzLimit: 100;
+  .tst.applyConfig[(enlist `fuzzLimit)!enlist -5];
+  applied: .tst.output.fuzzLimit;
+  .tst.output.fuzzLimit: prevFuzz;
+  applied musteq 100;
+  };
  };
 
 ::

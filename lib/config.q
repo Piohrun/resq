@@ -113,6 +113,24 @@ validateConfig:{[cfg]
            "diffHugeTableThreshold must be an integer");
   warnings,: raze checkType[cfg;;(-7h;-6h;7h;6h);]'[intNames; intMsgs];
 
+  / Range check: numeric keys must be non-negative. A correctly-typed but
+  / negative value (e.g. fuzzLimit:-5, maxTestTime:-1) is nonsensical; warn and
+  / let invalidConfigKeys ignore it (default retained). Only checked when the
+  / value is an integer of the right type and not null.
+  checkNonNeg:{[cfg;name;msg]
+    if[not name in key cfg; :()];
+    v: cfg name;
+    if[not (type v) in -7 -6 7 6h; :()];
+    $[(not null v) and v < 0; enlist msg; ()]
+  };
+  rangeMsgs:("fuzzLimit must be >= 0";
+             "maxTestTime must be >= 0";
+             "reportLimit must be >= 0";
+             "reportListLimit must be >= 0";
+             "diffLargeTableThreshold must be >= 0";
+             "diffHugeTableThreshold must be >= 0");
+  warnings,: raze checkNonNeg[cfg;;]'[intNames; rangeMsgs];
+
   warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];
 
   specNames:`excludeSpecs`runSpecs;
@@ -146,13 +164,17 @@ invalidConfigKeys:{[cfg]
   boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
-  / Integer-typed keys: must be a single integer-like value AND not null. The
-  / null check catches loadConfig's "I"$"abc" -> 0N coercion path.
+  / Integer-typed keys: must be a single integer-like value, not null, AND
+  / non-negative. The null check catches loadConfig's "I"$"abc" -> 0N coercion
+  / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
+  / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
+  / with a warning, default retained (the warn-and-ignore contract).
   intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold;
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
-      (not (type v) in -7 -6 7 6h) or null v
+      if[not (type v) in -7 -6 7 6h; :1b];
+      (null v) or v < 0
     }[cfg] each intNames;
 
   / outDir: string or symbol.
