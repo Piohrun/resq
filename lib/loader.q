@@ -147,6 +147,84 @@
     $[0 = count i; ""; (first i) _ s]
  };
 
+/ Count the net bracket-nesting contribution of a line: +1 for each of { ( [
+/ and -1 for each } ) ], skipping any char inside a "..." string. Approximate
+/ (does not track \ block comments -- the caller's grouping drops those), but
+/ enough to tell whether a statement's brackets are still open across lines.
+.tst.bracketDelta:{[ln]
+    ln: .utl.pathToString ln;
+    inStr: 0b; delta: 0; i: 0; n: count ln;
+    while[i < n;
+        c: ln i;
+        $[inStr;
+            $[c = "\\"; i +: 1;                   / skip escaped char in string
+              c = "\""; inStr: 0b; ::];
+          c = "\"";    inStr: 1b;
+          c in "{(["; delta +: 1;
+          c in "})]"; delta -: 1;
+          ::];
+        i +: 1;
+    ];
+    delta
+ };
+
+/ Group raw source lines into top-level statements. A new top-level statement
+/ begins only when bracket nesting is back to 0 AND the line is a non-blank
+/ column-1 line (q's script continuation rule: leading whitespace continues the
+/ previous statement). A line inside an unbalanced {([ ... keeps accumulating
+/ regardless of its leading column, so a multi-line `desc[...]{ ... };` block
+/ stays ONE statement (and thus parses as a unit). Returns (startLineNo; lines)
+/ pairs with the 1-based ORIGINAL file line of each statement's first line.
+.tst.groupStatements:{[lines]
+    lines: .utl.pathToString each lines;
+    out: ();              / list of (startLineNo; list-of-lines)
+    depth: 0;             / current unbalanced bracket depth
+    i: 0;
+    n: count lines;
+    while[i < n;
+        ln: lines i;
+        blank: 0 = count .tst.rstrip ln;
+        leadWs: (0 < count ln) and (first ln) in " \t";
+        / Continue the current statement when brackets are still open, or this is
+        / a whitespace-led continuation line, or a blank line inside a statement.
+        cont: (0 < count out) and ((depth > 0) or leadWs or blank);
+        $[blank and 0 = depth;
+            ::;                                   / separator between statements
+          cont;
+            out[(count out)-1; 1]: (out[(count out)-1; 1]), enlist ln;
+            out,: enlist (i+1; enlist ln)         / start a new top-level stmt
+        ];
+        depth +: .tst.bracketDelta ln;
+        if[depth < 0; depth: 0];                  / defensive: never go negative
+        i +: 1;
+    ];
+    out
+ };
+
+/ Parse-only localization of a load error. Re-grouping the ORIGINAL source into
+/ top-level statements and `parse`-ing each (NOT `value`) finds the first
+/ statement q cannot PARSE -- i.e. the syntax error -- with ZERO side effects
+/ (no re-execution, so already-run statements are never run twice). System
+/ commands (\l, \d, ...) and comment/terminator statements are skipped because
+/ `parse` cannot handle them and they are not where a user's syntax error lives.
+/ Returns the 1-based original line of the first un-parseable statement, or 0N
+/ when every statement parses (a RUNTIME error -- caller keeps the plain message).
+.tst.localizeSyntaxError:{[content]
+    stmts: .tst.groupStatements content;
+    if[0 = count stmts; :0N];
+    / 1b = "fine / not parseable in isolation" (system command, comment, or a
+    / multi-line {} fragment that only parses whole); 0b = genuine parse failure.
+    okFlags: {[st]
+        joined: "\n" sv @[.tst.preprocessScript; st 1; {()}];
+        lt: .tst.lstrip joined;
+        if[0 = count lt; :1b];
+        if[(lt like "system \"*") or lt like ".tst.sysl*"; :1b];
+        @[{parse x; 1b}; joined; {0b}]
+    } each stmts;
+    bad: where not okFlags;
+    $[count bad; stmts[first bad; 0]; 0N]
+ };
+
 .tst.loadTests:{[paths]
     tests: .tst.findTests paths;
     .tst.app.discoveredFiles: tests;
@@ -218,11 +296,27 @@
         / Evaluate script content. Preprocess first so q system commands (\l, \d,
         / \t, ...) that `value` cannot execute become equivalent `system "..."`
         / calls, and trailing `\` script terminators are honoured.
+        / Execution path is UNCHANGED: value the whole preprocessed file (a
+        / partial failure rolls back below). Only AFTER a failure do we localize,
+        / and we localize with `parse`, not `value`, so no successful statement is
+        / ever re-executed (re-running would fire side effects twice).
+        / Parse-localization pinpoints the common case (a SYNTAX error); a pure
+        / runtime error parses cleanly and keeps the original whole-file message.
         code: "\n" sv .tst.preprocessScript content;
         res: @[value; code; {(`err0x; x)}];
         if[(2 = count res) and (first res) ~ `err0x;
             e: last res;
-            -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
+            lineNo: @[.tst.localizeSyntaxError; content; {0N}];
+            if[not null lineNo;
+                stmtsForMsg: @[.tst.groupStatements; content; {()}];
+                excerpt: $[count stmtsForMsg;
+                    [ hit: first stmtsForMsg where stmtsForMsg[;0] = lineNo;
+                      stmtTxt: .tst.lstrip "\n" sv hit 1;
+                      (80 & count stmtTxt) # stmtTxt ];
+                    ""];
+                e: e, " (near line ", string[lineNo], $[count excerpt; ": ", excerpt; ""], ")";
+            ];
+            -1 "CRITICAL LOAD ERROR in ", p, $[not null lineNo; " near line ", string[lineNo]; ""], ": ", e;
             `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
             if[(count .tst.app.allSpecs) > preCount;
                 .tst.app.allSpecs: preCount # .tst.app.allSpecs;
