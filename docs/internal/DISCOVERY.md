@@ -1,4 +1,5 @@
 # Automated Test Discovery
+<!-- Internal/contributor reference document. Moved from docs/ to docs/internal/. -->
 
 The `resQ` Discovery Engine scans your codebase to identify untested functions and generates boilerplate test stubs automatically.
 

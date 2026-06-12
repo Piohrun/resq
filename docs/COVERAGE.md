@@ -35,7 +35,7 @@ Reports are written to `outDir` (default: `.`):
 | File | Contents |
 |------|----------|
 | `coverage.lcov` | Standard LCOV with SF/FN/FNDA/FNF/FNH records. Consumable by `genhtml`, Codecov, Coveralls, SonarQube. |
-| `coverage/index.html` | Per-function HTML report showing hit/miss status for each instrumented function. |
+| `coverage.html` | Per-function HTML report showing hit/miss status for each instrumented function. |
 | `coverage_state.txt` | Human-readable dump of the complete coverage state at run end. |
 
 ### Generating HTML locally

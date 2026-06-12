@@ -1,4 +1,5 @@
 # resQ Namespace Architecture
+<!-- Internal/contributor reference document. Users can skip this; see API_REFERENCE.md instead. -->
 
 ## Core Namespaces
 
@@ -26,13 +27,13 @@ Runtime state and configuration.
 | `.resq.VERSION` | Library version |
 | `.resq.EXIT.*` | Exit code constants |
 
-**Exit Codes**:
+**Exit Codes** (see the authoritative table in TROUBLESHOOTING.md § CI/CD Integration):
 - `0` - PASS: All tests passed
-- `1` - FAIL: One or more tests failed
-- `2` - CONFIG_ERROR: Configuration/CLI error
-- `3` - NO_TESTS: No tests found (strict mode)
+- `1` - FAIL: One or more tests failed or errored
+- `3` - NO_TESTS: No test files found and no results (without `-strict`)
 - `4` - LOAD_ERROR: File load/syntax error, or explicitly-passed path not found
-- `5` - PARTIAL: Some tests errored or were skipped
+
+Codes 2 (CONFIG_ERROR) and 5 (PARTIAL) were removed — no code path emits them.
 
 **Public result statuses**:
 - `pass` - expectation completed successfully

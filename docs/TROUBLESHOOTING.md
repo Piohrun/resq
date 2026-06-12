@@ -21,6 +21,21 @@ Common issues and their solutions when using the resQ testing framework.
 
 ## 1. Test Loading Errors
 
+### Syntax errors report "near line N"
+
+When a test file fails to parse, resQ reports the location:
+
+```
+CRITICAL LOAD ERROR in tests/mytest.q near line 7: { (near line 7: bad q syntax {)
+```
+
+The `near line N` fragment points to the failing construct so you can find the
+problem without manually scanning the file. Note: for multi-line constructs (e.g.
+a lambda spanning several lines) the reported line number is where the parser
+encountered the problem, which may be slightly after the actual mistake.
+
+---
+
 ### Error: "CRITICAL LOAD ERROR" with backslash
 
 **Symptom:**
@@ -70,7 +85,7 @@ Suite: My Test Suite
 Error: type
 ```
 
-**Note:** In current resQ this error class no longer surfaces from a failing assertion — a failing `musteq` is now classified as a failure and shows a proper "Expected X to match Y" FAILURE DIFF. If you still see `Error: type` it is a genuine type mismatch in the test body itself (not in the diff renderer). Check for the right-to-left precedence trap: `(2 + 2) musteq 4`, not `2 + 2 musteq 4`.
+**Note:** In current resQ this error class no longer surfaces from a failing assertion — a failing `musteq` is now classified as a failure and shows a proper `Got X — expected Y` FAILURE DIFF. If you still see `Error: type` it is a genuine type mismatch in the test body itself (not in the diff renderer). Check for the right-to-left precedence trap: `(2 + 2) musteq 4`, not `2 + 2 musteq 4`.
 
 ---
 
@@ -134,7 +149,7 @@ Type mismatch
 
 **Symptom:**
 ```
-Expected 3.14159 to match 3.14159
+Got 3.14159 — expected 3.14159
 ```
 
 **Cause:** Floating point precision differences.
@@ -268,14 +283,16 @@ type `.module.func  / Should return 100h for functions
 'Cannot mock a system namespace
 ```
 
-**Cause:** Attempting to mock `.q`, `.Q`, `.z`, `.h`, `.j`, `.tst`, `.resq`, or `.utl`.
+**Cause:** Attempting to mock the bare namespace symbol itself — `.q`, `.Q`, `.z`, `.h`, `.j`, `.tst`, `.resq`, or `.utl`.
 
-**Solution:** Create a wrapper function instead:
+The guard checks whether the mock target equals one of those namespace symbols exactly. Individual members (e.g. `.Q.s`) are **not** blocked by this guard — though mocking framework internals is still inadvisable.
+
+**Solution:** Create a wrapper function and mock that instead:
 ```q
-/ Wrong
-`.Q.s mock {x};
+/ Wrong — tries to replace the entire .Q namespace dict
+`.Q mock (::);
 
-/ Correct: wrap the system function
+/ Correct: wrap the specific function you need to control
 .myModule.serialize: .Q.s;
 / Then mock your wrapper
 `.myModule.serialize mock {x};
@@ -543,13 +560,15 @@ chmod 755 tests/snapshots
 | Code | Constant | Meaning |
 |------|----------|---------|
 | 0 | `EXIT.PASS` | All tests passed |
-| 1 | `EXIT.FAIL` | One or more tests failed |
-| 2 | `EXIT.CONFIG_ERROR` | Configuration or CLI parsing error |
-| 3 | `EXIT.NO_TESTS` | No tests found (treated as failure under `-strict`) |
+| 1 | `EXIT.FAIL` | One or more tests failed or errored; also `-strict` with no executed tests |
+| 3 | `EXIT.NO_TESTS` | No test files found (no `-strict`); with `-strict`, injects a FAIL and exits 1 |
 | 4 | `EXIT.LOAD_ERROR` | A test file failed to load, or an explicitly-passed path was not found |
-| 5 | `EXIT.PARTIAL` | Partial execution — some tests errored or were skipped |
+
+Codes 2 (`CONFIG_ERROR`) and 5 (`PARTIAL`) were removed — no code path emits them.
 
 Skipped and pending tests do **not** cause a non-zero exit on their own; only actual failures and errors do.
+
+**Default exit behaviour**: resQ exits with the appropriate code by default. Use `-noquit` to suppress the `exit` call (process stays running; useful for interactive sessions). `-exit` is a synonym that explicitly enables exit-on-completion and overrides a `"exit": false` in `resq.json`. Failures exit 1 even without `-exit`.
 
 ---
 
@@ -577,9 +596,15 @@ Without `-strict`, an all-skipped suite exits 0 — this is intentional.
 
 **Symptom:** CI doesn't fail even when tests fail.
 
-**Cause:** Missing `-exit` flag.
+**Cause:** The `-noquit` flag is being passed (or `"exit": false` is set in `resq.json`), which suppresses the `exit` call so q falls through to EOF with exit 0.
 
-**Solution:**
+**Solution:** Remove `-noquit` (or set `"exit": true` in `resq.json`). The default behaviour already exits with the correct code — no extra flag is required:
+```bash
+q resq.q test tests/
+# Exits 0 on pass, 1 on failure, 3 if no tests found, 4 on load error.
+```
+
+If you explicitly want to force exit-on-completion regardless of the config file, pass `-exit`:
 ```bash
 q resq.q test tests/ -exit
 ```
@@ -607,7 +632,8 @@ mkdir -p reports/
 
 **Solutions:**
 1. Increase CI timeout
-2. Use `-ff` (fail-fast) to stop on first failure
+2. Use `-ff -exit` (fail-fast) to stop on first failure and exit immediately.
+   Note: `-ff` alone prints `!!! HALTING FAILURE !!!` but still runs remaining tests unless `-exit` is also present — the hard stop requires the exit call.
 3. Run subsets of tests in parallel jobs
 4. Profile slow tests and optimize
 
@@ -744,6 +770,25 @@ should["test"]{
 
 ---
 
+## 11. Color Output
+
+resQ colorizes console output when stdout is a TTY. On Linux it inspects
+`/proc/self/fd/1` for `/dev/pts/*` or `/dev/tty*`; on non-Linux hosts it
+defaults to color-on. CI pipelines that pipe output will not receive color
+sequences.
+
+**To disable color:**
+```bash
+NO_COLOR=1 q resq.q test tests/   # env var (https://no-color.org)
+```
+
+Or in a test helper loaded before the run:
+```q
+.tst.diffColors: 0b;
+```
+
+---
+
 ## Quick Reference: Common Error Messages
 
 | Error | Likely Cause | Quick Fix |
@@ -763,10 +808,10 @@ should["test"]{
 
 ## Getting Help
 
-1. **Check the API Reference:** `documentation/API_REFERENCE.md`
+1. **Check the API Reference:** `docs/API_REFERENCE.md`
 2. **Review examples:** `examples/quickstart/`
-3. **Read the docs:** `docs/` directory
-4. **File an issue:** [GitHub Issues](https://github.com/your-org/resq/issues)
+3. **Read the docs:** `docs/` directory (see `docs/README.md` for a guide)
+4. **File an issue:** [GitHub Issues](https://github.com/Piohrun/resq/issues)
 
 ---
 
