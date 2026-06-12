@@ -20,7 +20,7 @@ Use the `resq` CLI from the project root to run these tests.
 ```bash
 ./bin/resq cover examples/quickstart/test
 ```
-This will generate `coverage.html` in the `test-results/` directory.
+This will generate `coverage.html` in the current directory (or the configured `outDir`).
 
 ### 3. Watch Mode
 ```bash

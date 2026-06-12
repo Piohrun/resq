@@ -6,7 +6,6 @@
 
 / Proxy functions to static analysis library
 .tst.exploreFile: .tst.static.exploreFile
-.tst.findDeps: .tst.static.findDeps
 .tst.toStr: .tst.static.toStr
 .tst.getDir: .tst.static.getDir
 .tst.getBase: .tst.static.getBase

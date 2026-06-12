@@ -66,3 +66,48 @@
         mustthrow["*Snapshot mismatch*"]{ .tst.mustmatchs[([] x:enlist 1); "tmp_resq_emptysnap_table"] };
     };
 };
+
+/ --- Text snapshot parity with binary snapshots (Fix 5) ---------------------
+/ mustmatchst must mirror mustmatchs: print a NOTE on first-run create, and
+/ under -strict FAIL loudly on a missing snapshot instead of green-washing.
+.tst.desc["Text Snapshot Verification"]{
+
+    should["create on first run and validate on the next (no -strict)"]{
+        data: `a`b`c!1 2 3;
+        snapName: "tmp_resq_txtsnap_test";
+        snapFile: .utl.pathToHsym .tst.snapTxtDir, "/", snapName, ".snap.txt";
+
+        @[hdel; snapFile; {}];
+        .tst.registerCleanup[{[p] @[hdel; p; {}]}; enlist snapFile];
+
+        / First run creates the file and passes.
+        .tst.mustmatchst[data; snapName] musteq 1b;
+        must[.tst.snapTxtExists[snapName]; "text snapshot file must exist after create"];
+
+        / Same value must compare and pass (not re-create).
+        .tst.mustmatchst[data; snapName] musteq 1b;
+
+        / A different value must throw the mismatch signal.
+        mustthrow["*snapshotTxtMismatch*"]{
+            .tst.mustmatchst[`a`b`c!1 2 4; "tmp_resq_txtsnap_test"];
+        };
+    };
+
+    should["fail loudly under -strict when the text snapshot is missing"]{
+        snapName: "tmp_resq_txtsnap_strict";
+        snapFile: .utl.pathToHsym .tst.snapTxtDir, "/", snapName, ".snap.txt";
+        @[hdel; snapFile; {}];
+        .tst.registerCleanup[{[p] @[hdel; p; {}]}; enlist snapFile];
+
+        / Simulate -strict for this assertion only, restore afterwards.
+        oldStrict: @[get; `.tst.app.strict; 0b];
+        .tst.app.strict: 1b;
+        mustthrow["*Snapshot missing under -strict*"]{
+            .tst.mustmatchst[`a`b!1 2; "tmp_resq_txtsnap_strict"];
+        };
+        .tst.app.strict: oldStrict;
+
+        / The file must NOT have been created under -strict.
+        must[not .tst.snapTxtExists[snapName]; "missing text snapshot must not be auto-created under -strict"];
+    };
+};

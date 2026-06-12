@@ -4,13 +4,12 @@
 .tst.desc["Exit Code Logic"]{
 
     should["define all exit code constants"]{
-        / Verify exit codes are defined
+        / Verify the emitted exit codes are defined. Codes 2 (CONFIG_ERROR) and
+        / 5 (PARTIAL) were removed: no dispatcher path ever emitted them.
         .resq.EXIT.PASS musteq 0;
         .resq.EXIT.FAIL musteq 1;
-        .resq.EXIT.CONFIG_ERROR musteq 2;
         .resq.EXIT.NO_TESTS musteq 3;
         .resq.EXIT.LOAD_ERROR musteq 4;
-        .resq.EXIT.PARTIAL musteq 5;
     };
 
     should["track execution state"]{

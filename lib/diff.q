@@ -3,7 +3,34 @@
 / Color formatting utility
 if[not `fmt in key `.tst; .tst.fmt.init: 1b];
 
+/ Explicit user override for color. Honoured by the central gate below: 0b forces
+/ color OFF, 1b lets the gate auto-decide (default).
+if[not `diffColors in key `.tst; .tst.diffColors: 1b];
+
+/ Auto-detect whether this process's stdout is a real terminal. q has NO builtin
+/ for this and `system` runs commands via popen, so stdout INSIDE the subshell is
+/ always a pipe -- `test -t 1`/`stty size` inside it can never see the real
+/ terminal. The one reliable signal (Linux only): the subshell's parent (PPID) is
+/ the q process itself, so /proc/$PPID/fd/1 is q's OWN stdout. A symlink to a
+/ /dev/pts/* or /dev/tty* node means a terminal; a pipe:[...] or regular file
+/ means redirected (CI logs, files, golden subprocess capture). On non-Linux no
+/ detection is possible so we assume a terminal (color on unless NO_COLOR set).
+detectTty:{[]
+    if[not .utl.isLinux; :1b];
+    lnk: first @[{system "readlink /proc/$PPID/fd/1 2>/dev/null"}; ::; {enlist ""}];
+    (lnk like "/dev/pts/*") or (lnk like "/dev/tty*")
+ };
+
+/ Central color gate, computed ONCE at load. Color is ON only when:
+/   - the NO_COLOR env var is empty (https://no-color.org), AND
+/   - the explicit .tst.diffColors override is not 0b, AND
+/   - stdout auto-detects as a terminal (see detectTty).
+/ When OFF, fmt.color emits plain text with no escape sequences at all, so CI
+/ logs and redirected files stay clean.
+useColor: (0 = count getenv `NO_COLOR) and .tst.diffColors and detectTty[];
+
 fmt.color:{[c;txt]
+    if[not .tst.useColor; :txt];
     codes: `red`green`yellow`blue`magenta`cyan`bold!(31;32;33;34;35;36;1);
     if[not c in key codes; :txt];
     "\033[",string[codes c],"m",txt,"\033[0m"

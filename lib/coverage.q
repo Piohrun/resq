@@ -1,4 +1,4 @@
-/ Runtime coverage module (instrumentation reintroduced, load-safe)
+/ coverage.q - runtime coverage instrumentation and LCOV/HTML reporting (load-safe)
 .utl.require .utl.PKGLOADING,"/static_analysis.q"
 
 / State
@@ -62,15 +62,6 @@
     .tst.coverageData[fileSym;funcName]+: 1;
  };
 
-/ Generic wrapper for any function
-/ @param f (function) Original function
-/ @param fileSym (symbol) Source file
-/ @param name (symbol) Function name
-/ @param args (list) Arguments passed to the function
-.tst.genericWrapper:{[f;fileSym;name;args]
-    .tst.recordExecution[fileSym;name];
-    f . args
- };
 / @param name (symbol) Function name (e.g. `.user.create`)
 / @param fileSym (symbol) Source file symbol
 .tst.wrapFunc:{[name;fileSym]
@@ -294,52 +285,6 @@
     .tst.instrumentLoadedFiles[];
 
     -1 "Coverage tracking initialized.";
- };
-
-/ Build LCOV records for a file
-.tst._lcovFileRecords:{[fileSym]
-    fData: $[fileSym in key .tst.coverageData; .tst.coverageData[fileSym]; ()!()];
-
-    pathStr: string fileSym;
-    pathStr: $[pathStr like ":*"; 1 _ pathStr; pathStr];
-    fHandle: hsym (`$":" , pathStr);
-
-    fns: @[.tst.static.exploreFile; fHandle; {([] name:`$(); line:`int$())}];
-    if[not 98h = type fns; fns: ([] name:`$(); line:`int$())];
-
-    / Qualify bare names from runtime `system "d <ns>"` modules so the lookup
-    / matches the recorded (loaded) names - same correction as generateLCOV.
-    srcLines: @[read0; fHandle; {()}];
-    nsAt: .tst.coverageSysDNamespaces srcLines;
-
-    fnLines: ();
-    i: 0;
-    do[count fns;
-        row: fns i;
-        nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
-        ln: row`line;
-        hit: $[nm in key fData; fData[nm]; 0];
-        fnLines,: "FN:", string ln, ",", string nm;
-        fnLines,: "FNDA:", string hit, ",", string nm;
-        i+: 1;
-    ];
-
-    hitCount: sum (value fData) > 0;
-
-    sfLine: "SF:", pathStr;
-    fnfLine: "FNF:", string count fns;
-    fnhLine: "FNH:", string hitCount;
-
-    recs: enlist sfLine;
-    j: 0;
-    do[count fnLines;
-        recs,: fnLines j;
-        j+: 1;
-    ];
-    recs,: fnfLine;
-    recs,: fnhLine;
-    recs,: "end_of_record";
-    recs
  };
 
 / Generate LCOV Report

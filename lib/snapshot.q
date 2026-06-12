@@ -1,3 +1,4 @@
+/ snapshot.q - binary (.snap) snapshot storage + mustmatchs assertion
 \d .tst
 
 / Snapshot configuration

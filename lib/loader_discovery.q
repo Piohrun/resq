@@ -73,7 +73,7 @@ if[not `loaderHijackEnabled in key `.tst; .tst.loaderHijackEnabled: 0b];
         '"loader hijacking is disabled; set .tst.loaderHijackEnabled:1b to enable (experimental)"
     ];
     if[() ~ key funcName;
-        -1 "DEBUG: ", string[funcName], " has no key entry";
+        if[.utl.DEBUG; -1 "DEBUG: ", string[funcName], " has no key entry"];
         :()
     ]; / Must be loaded to hijack
 

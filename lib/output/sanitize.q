@@ -202,7 +202,10 @@
 
 .tst.resultSummary:{[results]
     t: .tst.resultTable results;
-    statusNorm: .tst.normalizeResultStatus each t`status;
+    / `symbol$ keeps the empty case a TYPED empty vector: an empty GENERIC
+    / list here makes the sums below return () instead of 0, which crashes
+    / consumers that cond on the counts (e.g. the text reporter's color path).
+    statusNorm: `symbol$ .tst.normalizeResultStatus each t`status;
     `suiteCount`testCount`passCount`failCount`errorCount`skipCount`duration`assertsRun!(
         count distinct t`suite;
         count t;

@@ -1,33 +1,37 @@
 # resQ
 
-**resQ** is an advanced testing, benchmarking, and discovery framework for **kdb+/q**. It extends the BDD-style foundations of `qspec` with modern features required for professional CI/CD pipelines, including high-resolution performance metrics, automated test discovery, and rich JUnit formatting.
+**resQ** is a testing, benchmarking, and discovery framework for **kdb+/q**. It
+extends the BDD-style foundations of `qspec` with features needed for
+professional CI/CD pipelines: automated test discovery, JUnit/JSON/xUnit
+reporters, property-based testing, coverage, watch mode, and rich diff output.
 
-## ⚠️ Project Status
+## Project Status
 
-This is an **alpha** release and should be considered **highly unstable**. APIs and behaviors may change without notice.
+This is an **alpha** release. APIs and behaviours may change without notice.
 
-## 🤖 AI Assistance
+## AI Assistance
 
-Parts of the codebase and documentation were created or reviewed with AI assistance.
+Parts of the codebase and documentation were created or reviewed with AI
+assistance.
 
-## 🌟 Key Features
+## Key Features
 
-- **🚀 High-Resolution Benchmarking**: Professional stats (min, max, avg, percentiles) and ASCII histograms built-in.
-- **🔍 Automated Discovery**: Scans codebase for untested functions and generates boilerplate templates automatically.
-- **📊 CI/CD Integration**: Optimized JUnit XML with detailed performance metrics and build-tracking labels.
-- **🔁 Retry support**: `retry[n; "desc"]{...}` re-runs a flaky test up to n+1 total attempts; before/after hooks re-run per attempt; a late pass is noted with attempt number for visibility.
-- **🛠️ Advanced Utilities**:
+- **High-Resolution Benchmarking**: Professional stats (min, max, avg, percentiles) and ASCII histograms built-in.
+- **Automated Discovery**: Scans codebase for untested functions and generates boilerplate templates.
+- **CI/CD Integration**: JUnit XML, xUnit XML, and JSON reporters with detailed metrics.
+- **Retry support**: `retry[n; "desc"]{...}` re-runs a flaky test up to n+1 total attempts.
+- **Advanced Utilities**:
   - **Fixtures**: Binary, text, and directory-based data injection.
   - **Mocking/Spies**: Clean function and variable mocking with auto-restoration.
   - **Parametrized Tests**: Run tests against a table of scenarios with `.tst.forall`.
   - **Async Testing**: Robust wait-for-condition and sleep utilities.
-  - **Snapshot Testing**: Binary state persistence for complex data structures, including empty lists/dicts/tables.
-- **📈 Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV (SF/FN/FNDA/FNF/FNH records), a per-function HTML report, and `coverage_state.txt`. Coverage is function-level (hit counts per function), not line-level; compiled operators and derived functions are skipped.
-- **👁️ Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change. Uses file size+mtime fingerprints; works without a TTY; poll interval configurable via `.tst.watch.interval` (seconds, default 1).
+  - **Snapshot Testing**: Binary and text snapshots for complex data structures; text snapshots produce readable `git diff` output.
+- **Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV, a per-function HTML report (`coverage.html`), and `coverage_state.txt`. Coverage is function-level; compiled operators and derived functions are skipped.
+- **Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change.
 
 ---
 
-## 📦 Installation
+## Installation
 
 Clone the repo and put the `bin/resq` launcher on your `PATH`:
 
@@ -44,9 +48,9 @@ prefer to call `q $RESQ_HOME/resq.q ...` directly.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-**resQ** comes with a unified CLI for all operations.
+resQ comes with a unified CLI for all operations.
 
 ```bash
 # Run tests (from your project root, after installing the launcher)
@@ -64,9 +68,9 @@ q resq.q discover examples/quickstart/src examples/quickstart/test
 
 ---
 
-## 🔍 Automated Test Discovery
+## Automated Test Discovery
 
-Check your codebase for coverage gaps and generate boilerplate instantly. The discovery engine provides a visual Project Coverage Tree and an interactive workflow.
+Check your codebase for coverage gaps and generate boilerplate instantly.
 
 ### Usage
 ```bash
@@ -80,9 +84,7 @@ q resq.q discover src/ tests/
 
 ---
 
-## 📈 Benchmarking
-
-Measure performance with statistical rigor using the built-in benchmark utilities.
+## Benchmarking
 
 ```q
 / Simple benchmark
@@ -94,77 +96,30 @@ perf["Fast SMA"; `maxTime`runs!(10; 100)]{
 };
 ```
 
-```
-
 ---
 
-## 🛡️ Robustness Features (New)
-
-resQ now includes advanced safeguards to ensure test integrity in production:
-
-### 🔒 Strict Mode
-Prevent false positives in CI pipelines.
-```bash
-q resq.q test -strict my_tests/
-```
-If no tests are found **or executed**, this flag forces a **non-zero exit code**. A suite where every test was skipped counts as no executed tests under `-strict` ("skipped tests do not count under -strict"). Without `-strict`, an all-skipped suite still exits 0.
-
-Under `-strict`, a snapshot that does not yet exist on disk is treated as a **failure** rather than silently creating the file. Message: `Snapshot missing under -strict`. Outside strict mode, a missing snapshot is created on first run with a note to review and commit it. An empty list, dict, or table is a valid snapshot value and is handled correctly — existence is determined by file presence, not by whether the stored value is non-empty.
-
-Strict mode can also be enabled in `resq.json`:
-```json
-{
-  "strict": true
-}
-```
-
-### 📦 Namespace Isolation (Sandboxing)
-Every test file is automatically loaded into a unique, isolated namespace (e.g., `.sandbox_S...`). The name includes a hash of the file path, so two files with similar names (e.g. `test_a.q` and `test-a.q`) never share state.
-- **Benefit**: No need to manually cleanup local test variables.
-- **Safety**: Tests cannot accidentally pollute the global namespace or affect unrelated tests.
-
-### 🚨 Global Pollution Guard
-The runner takes a snapshot of the global namespace (`.`) before and after each test.
-- **Detection**: If a test introduces a top-level name or modifies an existing global, resQ reports it.
-- **Action**: For added members in pre-existing namespaces, the runner cleans them up. For brand-new top-level names, the runner clears the value to `::` and warns — q does not allow removing a top-level identifier once defined, so the name persists but holds no data.
-- **Performance**: Set `"pollutionGuard": false` in `resq.json` to disable deep namespace snapshotting for very large sessions.
-
-### ⚙️ Compatibility Exports
-resQ exports DSL helpers in the root namespace and `.tst.*`. For legacy compatibility it can also export helpers into `.q`, but `.q` is reserved by kdb+. To disable those compatibility exports:
-```json
-{
-  "qNamespaceExports": false
-}
-```
-
-**Important caveat**: with `"qNamespaceExports": false`, unqualified DSL names (`mock`, `fixture`, `should`, `musteq`, etc.) will **not** resolve inside sandboxed test files — q's namespace fallback goes through `.q`. Flag-off mode requires fully-qualified `.tst.*` names throughout your test files.
-
-### 🤫 Quiet Mode
-Suppress per-file load lines, the RUN AUDIT block, and per-suite output for passing suites — failures still print fully. Useful for noisy CI logs:
-```bash
-q resq.q test tests/ -quiet
-```
-
-### 🔎 Custom Test-File Discovery
-Default discovery matches `test_*.q` and `*_test.q`. Codebases that use other conventions can override via `resq.json`:
-```json
-{
-  "testFilePatterns": ["*_spec.q", "*Test.q"]
-}
-```
-Explicit `.q` file paths on the command line are honoured regardless of patterns. Explicitly-passed paths that do not exist are reported as load errors (exit code 4) with a clear message — previously a typo could silently green-light CI.
-
-Discovery recurses into subdirectories with a depth cap of 32. Unreadable entries and broken symlinks are skipped rather than causing a fatal error. Symlinked directories are not followed, preventing symlink loops from hanging or multiplying discovery.
-
----
-
-## 🛠️ Writing Tests
+## Writing Tests
 
 ### Basic Spec
 ```q
 .tst.desc["Math Ops"]{
-  should["add numbers correctly"]{[]
+  should["add numbers correctly"]{
     (1 + 1) musteq 2;
+  };
+};
+```
+
+### Skip, Pending, and Conditional Skip
+```q
+.tst.desc["Feature Tests"]{
+  skip["not implemented yet"]{
+    .myFunc[] musteq 42;
+  };
+
+  pending["will implement later"];
+
+  skipIf[.z.o like "w*"; "skip on Windows"]{
+    .myFunc[] musteq 42;
   };
 };
 ```
@@ -186,18 +141,175 @@ Discovery recurses into subdirectories with a depth cap of 32. Unreadable entrie
 };
 ```
 
-`beforeAll` runs once before all expectations in the block. If it throws, the block's tests are skipped and one error result is recorded (the run fails), but other desc blocks still run. `afterAll` runs once after the block's tests even if `beforeAll` failed; a throwing `afterAll` prints a warning but does not fail the suite.
+`beforeAll` runs once before all expectations in the block. If it throws, the
+block's tests are skipped and one error result is recorded (the run fails), but
+other desc blocks still run. `afterAll` runs once after the block's tests even
+if `beforeAll` failed; a throwing `afterAll` prints a warning but does not fail
+the suite.
 
 ---
 
-## 📦 Dependencies
+## Running Specific Tests
 
-- **kdb+ 4.x** (4.0 or newer recommended; the framework uses `.Q.trp` ternary, `.z.W`, and the long default integer behaviour from 3.0+).
+Filter which suites or tests run without editing files:
+
+```bash
+# Run only suites whose title matches a pattern (glob, case-sensitive)
+q resq.q test tests/ -only "Order*"
+
+# Exclude matching suites
+q resq.q test tests/ -exclude "*slow*"
+
+# Run only suites tagged #fast (tags are #word tokens in the desc title)
+q resq.q test tests/ -tag fast
+
+# Exclude by tag
+q resq.q test tests/ -exclude-tag slow
+
+# List suites and tests without running them (exits 0)
+q resq.q test tests/ -desc
+```
+
+Tags are `#word` tokens embedded in the suite title string:
+```q
+.tst.desc["Price validation suite #fast #unit"]{
+  ...
+};
+```
+
+---
+
+## CI/CD and Exit Codes
+
+resQ exits with a meaningful code by default — no extra flag is needed:
+
+| Code | Meaning |
+|------|---------|
+| 0 | All tests passed |
+| 1 | One or more tests failed or errored; also `-strict` with no executed tests |
+| 3 | No test files found (empty/missing directory) |
+| 4 | File load error or explicitly-passed path not found |
+
+Use `-noquit` to suppress the exit call (interactive sessions). Use `-exit` to
+force exit-on-completion even if `resq.json` has `"exit": false`.
+
+```bash
+# Standard CI invocation — exits 1 on any failure
+q resq.q test tests/
+
+# Hard stop on first failure (requires -exit for the process to actually stop)
+q resq.q test tests/ -ff -exit
+```
+
+---
+
+## Robustness Features
+
+### Strict Mode
+Prevent false positives in CI pipelines.
+```bash
+q resq.q test -strict my_tests/
+```
+If no tests are found **or executed**, this flag forces a **non-zero exit code**.
+A suite where every test was skipped counts as no executed tests under `-strict`.
+Without `-strict`, an all-skipped suite still exits 0.
+
+Under `-strict`, a snapshot that does not yet exist on disk is treated as a
+**failure** rather than silently creating the file.
+
+Strict mode can also be enabled in `resq.json`:
+```json
+{
+  "strict": true
+}
+```
+
+### Namespace Isolation (Sandboxing)
+Every test file is automatically loaded into a unique, isolated namespace. Tests
+cannot accidentally pollute the global namespace or affect unrelated tests.
+
+### Global Pollution Guard
+The runner snapshots the global namespace before and after each test. If a test
+introduces a name or modifies an existing global, resQ reports it.
+
+For members added to existing namespaces, the runner cleans them up. For brand-new
+top-level names, the runner clears the value to `::` and warns — q does not allow
+removing a top-level identifier once defined, so the name persists but holds no
+data. Test files are sandboxed so ordinary local variables do not leak; the guard
+fires only for genuinely top-level names (e.g., bare `x:: 42` at the top level of
+a file, outside any desc block).
+
+Disable for very large sessions: `"pollutionGuard": false` in `resq.json`.
+
+### Compatibility Exports
+resQ exports DSL helpers in the root namespace and `.tst.*`. For legacy
+compatibility it can also export helpers into `.q`, but `.q` is reserved by kdb+.
+To disable those compatibility exports:
+```json
+{
+  "qNamespaceExports": false
+}
+```
+
+With `"qNamespaceExports": false`, unqualified DSL names (`mock`, `fixture`,
+`should`, `musteq`, etc.) will **not** resolve inside sandboxed test files.
+Flag-off mode requires fully-qualified `.tst.*` names throughout your test files.
+
+### Quiet Mode
+Suppress per-file load lines, the RUN AUDIT block, and per-suite output for
+passing suites — failures still print fully:
+```bash
+q resq.q test tests/ -quiet
+```
+
+### Custom Test-File Discovery
+Default discovery matches `test_*.q` and `*_test.q`. Override via `resq.json`:
+```json
+{
+  "testFilePatterns": ["*_spec.q", "*Test.q"]
+}
+```
+
+### Color Output
+Console output is colorized when stdout is a TTY (Linux: `/dev/pts/*` or
+`/dev/tty*` auto-detected; macOS defaults to color-on). Disable with:
+- `NO_COLOR=1` environment variable (https://no-color.org)
+- `.tst.diffColors:0b` in a test helper loaded before the run
+
+---
+
+## Documentation
+
+See `docs/` for detailed guides:
+
+| Guide | Purpose |
+|-------|---------|
+| `docs/API_REFERENCE.md` | Complete API — all DSL, assertions, CLI flags, config keys |
+| `docs/ARCHITECTURE.md` | Namespace layout, file structure, exit codes (contributor reference) |
+| `docs/COVERAGE.md` | Coverage instrumentation, LCOV output, HTML report |
+| `docs/FIXTURES.md` | Fixture scopes, lifecycle hooks, dependency injection |
+| `docs/PARALLEL.md` | CI-level parallelism strategy |
+| `docs/PBT.md` | Property-based testing with `holds` |
+| `docs/PERFORMANCE.md` | Benchmarking and performance assertions |
+| `docs/SNAPSHOTS.md` | Binary and text snapshot testing |
+| `docs/TROUBLESHOOTING.md` | Common errors, exit codes, debug tips |
+| `docs/WATCH.md` | Watch mode configuration |
+| `docs/MIGRATION.md` | Migrating from qspec to resQ |
+
+See `docs/README.md` for a suggested reading order.
+
+---
+
+## Dependencies
+
+- **kdb+ 4.x** (4.0 or newer recommended).
 - No runtime dependencies beyond q itself.
 
-## 🤖 LLM Skill
+## LLM Skill
 
-`skill/SKILL.md` is a single-file Claude Code skill that teaches an LLM how to set up resQ in a new project, write idiomatic tests, and avoid q-specific pitfalls that bite test authors. Install with:
+`skill/SKILL.md` is a single-file Claude Code skill that teaches an LLM how to
+set up resQ in a new project, write idiomatic tests, and avoid q-specific pitfalls.
+Install with:
 
 ```bash
 mkdir -p ~/.claude/skills/resq
@@ -206,9 +318,11 @@ cp skill/SKILL.md ~/.claude/skills/resq/SKILL.md
 
 See `skill/README.md` for what it covers and how to keep it in sync.
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
-The BDD-style DSL (`desc` / `should` / `before` / `after`) is inspired by `qspec` (MIT) — https://github.com/nugend/qspec — but resQ does not depend on it at runtime.
+The BDD-style DSL (`desc` / `should` / `before` / `after`) is inspired by
+`qspec` (MIT) — https://github.com/nugend/qspec — but resQ does not depend on it
+at runtime.
 
-## ⚖️ License
+## License
 MIT License.

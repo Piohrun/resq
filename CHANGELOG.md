@@ -27,7 +27,7 @@ All notable changes to the **resQ** project will be documented in this file.
 - Quickstart example's `get active users only` test errored on `exec ... from` greedy parsing; parenthesized correctly.
 - README CLI examples used `-test` and `-strict` as flags; the real CLI uses positional modes (`q resq.q test path`).
 - JSON / JUnit reporter no longer appends `_<pid>` to the output filename, so reruns overwrite rather than accumulate.
-- **Failing assertions now report correctly.** A failing `musteq` could previously surface as `Error: type` with no message when the diff renderer crashed; it is now classified as a failure (not an error), the real "Expected X to match Y" message is preserved, and a readable FAILURE DIFF is shown. Diff rendering errors can no longer mask the underlying assertion failure.
+- **Failing assertions now report correctly.** A failing `musteq` could previously surface as `Error: type` with no message when the diff renderer crashed; it is now classified as a failure (not an error), and the message reads `Got X — expected Y`. A readable FAILURE DIFF is shown. Diff rendering errors can no longer mask the underlying assertion failure.
 - **`skip` / `pending` / `skipIf` / `retry` / `testOnly` now work together in any mix.** Mixing them with `should` inside one desc block previously crashed the whole file with `FILE_LOAD_ERROR: mismatch`. All DSL constructors now share one unified expectation schema.
 - **Skipped and pending tests no longer fail the run.** A suite that contains only skips exits 0 when nothing failed; skipped tests are counted as skipped in the summary.
 - **JUnit/xUnit XML output now contains actual results.** Previously every report was an empty `<testsuites><testsuite name="resq"/>`. Now: real testcases, correct `failures`/`errors`/`skipped` attributes, `<skipped/>` elements, XML-escaped text, control characters (illegal in XML 1.0) stripped, ANSI colour codes stripped. Output is parseable by standard XML parsers (Jenkins/GitLab compatible). `-junit` writes `test-results.xml` in CWD (or configured `outDir`); `-xunit` writes under `test-results/`.
@@ -39,6 +39,14 @@ All notable changes to the **resQ** project will be documented in this file.
 - **Text reporter renders failure messages cleanly** — q list literals like `,"..."` no longer appear in console output.
 
 ### Added
+- **Additive camelCase assertion aliases**: `mustEqual`, `mustNotEqual`, `mustLessThan`, `mustGreaterThan`, `mustMatchSnapshot`, `mustMatchTextSnapshot`, `mustMatchIgnoringOrder`. These are identical to their lowercase counterparts and are exported to root and `.tst.asserts`.
+- **CLI filtering works end-to-end**: `-only PATTERN`, `-exclude PATTERN`, `-tag TAG`, `-exclude-tag TAG`, `-maxTestTime N` all filter correctly. Patterns are `like` globs (title matching); tags are `#word` tokens embedded in suite titles.
+- **`-desc` / `--describe`** prints a clean suite/test listing and exits 0 (exits 4 if a file had a load error).
+- **Load errors report "near line N"** for syntax errors, so the failing construct is locatable without manual scanning.
+- **Text snapshots (`mustmatchst`) have full parity with binary snapshots**: first-run prints `NOTE: text snapshot created: ...`; under `-strict`, a missing text snapshot fails with `Snapshot missing under -strict`.
+- **`mustmatch` produces the same rich FAILURE DIFF as `musteq`** — it routes through the same diff body.
+- **`mustthrow` misuse guard**: passing code as the first argument (infix style) now gives a guidance error instead of a raw `'type`.
+- **Exit codes 2 (`CONFIG_ERROR`) and 5 (`PARTIAL`) removed.** No code path emitted them; the remaining codes are 0 (pass), 1 (fail/error), 3 (no tests), 4 (load error).
 - **New test files**: `tests/test_retry.q`, `tests/test_watch.q`, `tests/test_strict_behavior.q`, `tests/test_promise_reject.q`. The golden harness gained scenarios for block comments, duplicate-path spelling, coverage LCOV content, strict snapshots, `beforeAll`-junit, and graceful degradation when the `timeout` binary is absent (macOS).
 - `registerSpecCleanup` — cleanup hook that fires after per-spec resource teardown.
 - `.tst.suppressAssertionDiff` flag, used by the fuzz runner so a failing fuzz spec no longer spams one `FAILURE DIFF` banner per iteration.

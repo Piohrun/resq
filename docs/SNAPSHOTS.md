@@ -1,51 +1,99 @@
-# 📝 Text-Based Snapshots & Semantic Diffing
+# Snapshot Testing
 
-Snapshots allow you to assert against large, complex data structures without hard-coding expected values in your test files. `resQ` introduces **Text-Based Snapshots**, which are serialized into human-readable formats for better Git visibility.
+resQ supports two independent snapshot backends. Choose based on what you need
+from `git diff`.
 
-## The Problem
-Hard-coding a 50-row table as an expected value makes tests unreadable and difficult to maintain. Binary snapshots solve this but are opaque to version control (you can't see what changed in a PR).
+---
 
-## The Solution: `mustmatchst`
-The `mustmatchst` assertion (Must Match Snapshot Text) serializes the actual value to a `.txt` file using `.Q.s1` and compares it against a stored reference.
+## Text Snapshots (`mustmatchst`)
+
+Text snapshots serialise the actual value to a plain `.txt` file using `.Q.s1`
+and compare it against the stored text on subsequent runs. The file is human-
+readable and produces meaningful `git diff` output.
 
 ### Usage
 ```q
 .tst.desc["Order Management System"]{
   should["generate correct trade report"]{
     actual: getTradeReport[.z.d];
-    / Assert against a snapshot named "eod_report"
+    / Assert against a text snapshot named "eod_report"
     actual mustmatchst "eod_report";
   };
 };
 ```
 
-## Storage & Git
-Snapshots are stored in `tests/snapshots/` by default (relative to the current working directory — run from your project root). Override with `.tst.setSnapDir["path/to/dir"]`.
-- **Human Readable**: You can open these files in any text editor.
-- **Git Diffs**: When a snapshot changes, your `git diff` or PR view will show exactly which rows or columns modified in plain text.
-- **Commit snapshots** alongside the test that creates them. Recommended: always run resQ from the project root so the path is consistent between local and CI.
+### Storage
+Text snapshots are stored as `<name>.snap.txt` in `tests/__snapshots__/`
+(relative to the current working directory — run from your project root).
+Override with `.tst.setSnapTxtDir["path/to/dir"]`.
 
-## First Run and CI Safety
+### First Run and CI Safety
 When a snapshot does not yet exist, resQ creates it and prints:
 ```
-NOTE: snapshot created: tests/snapshots/eod_report.snap - review and commit it
+NOTE: text snapshot created: eod_report (./tests/__snapshots__) - review and commit it
 ```
 Review the file and commit it before pushing to CI.
 
-Under `-strict`, a **missing** snapshot is treated as a test failure with message `Snapshot missing under -strict` rather than silently creating the file. This prevents a missing snapshot from producing a false green in CI.
+Under `-strict`, a **missing** snapshot is treated as a test failure with message
+`Snapshot missing under -strict` rather than silently creating the file. This
+prevents a missing snapshot from producing a false green in CI.
 
-## Updating Snapshots
-If a code change legitimately changes the output, enable updates for the run (or delete the old snapshot file). For example:
-
+### Updating
 ```q
 .tst.setUpdateSnaps[1b];
 ```
+Or delete the snapshot file and re-run.
 
-## Semantic Diffing
-When a snapshot match fails, `resQ` doesn't just say "failed". It provides a **Semantic Diff**:
+---
+
+## Binary Snapshots (`mustmatchs`)
+
+Binary snapshots store the actual value verbatim via `set` (q's binary
+serialisation) and restore it with `get`. Exact equality is checked with `~`.
+
+### Usage
+```q
+actual mustmatchs "query_output";
+```
+
+### Storage
+Binary snapshots are stored as `<name>.snap` in `tests/snapshots/`
+(different directory and extension from text snapshots).
+Override with `.tst.setSnapDir["path/to/dir"]`.
+
+On first run the framework creates the file and prints:
+```
+NOTE: snapshot created: query_output (./tests/snapshots) - review and commit it
+```
+Under `-strict`, the same missing-snapshot policy applies: failure instead of
+silent creation.
+
+---
+
+## Which to use?
+
+| | Text (`mustmatchst`) | Binary (`mustmatchs`) |
+|--|--|--|
+| File | `tests/__snapshots__/<name>.snap.txt` | `tests/snapshots/<name>.snap` |
+| Override dir | `.tst.setSnapTxtDir` | `.tst.setSnapDir` |
+| Git diff | Human-readable plain text | Opaque binary |
+| Best for | Tables, reports, large structures | Exact binary round-trip |
+
+Both backends honour `-strict`, `setUpdateSnaps[1b]`, and file-presence existence
+checks (an empty list, dict, or table is a valid snapshot value — never confused
+with "missing").
+
+---
+
+## Semantic Diffing on Mismatch
+When a snapshot match fails, resQ provides a **Semantic Diff**:
 - **Table Diffs**: Highlights specific rows and columns that differ.
-- **Order Agnostic**: If you use `mustmatchignoringorder`, the diff engine will only highlight items missing from either set, rather than reporting offset errors.
+- **Order Agnostic**: Use `mustmatchignoringorder` if row order is irrelevant.
 
 ## Best Practices
-- **Avoid Dynamic Data**: Don't snapshot values containing timestamps or random IDs unless they are masked/mocked, as they will cause snapshots to fail every run.
-- **Granularity**: Use snapshots for data-heavy outputs (tables/JSON-like dicts). For simple status codes, standard `musteq` is better.
+- **Avoid Dynamic Data**: Don't snapshot values containing timestamps or random
+  IDs unless they are masked/mocked.
+- **Granularity**: Use snapshots for data-heavy outputs. For simple values,
+  `musteq` is clearer.
+- **Commit snapshots** alongside the test that creates them. Run from your
+  project root so paths are consistent between local and CI.

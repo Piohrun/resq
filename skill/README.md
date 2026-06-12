@@ -13,13 +13,14 @@ That's it. Next time you start Claude Code in a q project, the `resq` skill is a
 
 ## What it covers
 
-- Detecting an existing resQ install or wiring a fresh one in.
+- Setup against three scenarios: an existing on-disk install, vendoring, or a global install.
 - Project layout, discovery conventions, and `resq.json`.
-- The full assertion / mock / spy / fixture / snapshot DSL.
-- Cleanup scopes (`registerCleanup` vs `registerSpecCleanup`) and when to use which.
-- CLI flags and exit codes.
-- q-flavour pitfalls that bite test authors specifically (operator precedence in assertions, single-char string vs char atom, the `` `sym!`sym `` shorthand trap).
-- Step-by-step bootstrap checklist for adding resQ to an existing repo.
+- The canonical test-file pattern (incl. the `.utl.FILELOADING`-relative SUT loader).
+- Block keywords (`should`/`before`/`beforeAll`/`skip`/`pending`/`skipIf`/`retry`/`testOnly`/`holds`/`perf`/`alt`) and the `#tag` filtering convention.
+- The full assertion table (incl. `mustthrow` glob semantics, `mustdelta` arity, and the camelCase aliases), fuzz (`holds`), and the mock-vs-spy decision (only `spy` records calls).
+- Cleanup scopes (`registerCleanup` vs `registerSpecCleanup`) and fixtures.
+- CLI flags, verified exit codes (0/1/3/4), and CI/JUnit wiring.
+- q-flavour pitfalls that bite test authors specifically (operator precedence in assertions, single-char string vs char atom, the `` `sym!`sym `` shorthand trap, spaced-path `'nyi`).
 - A pre-emit verification checklist for the assistant to run before returning code.
 
 For general q syntax/idioms (not test-specific), load the companion `q-kdb` skill alongside this one.

@@ -12,11 +12,15 @@ By default, every time a test asks for a fixture, it is freshly instantiated. Th
 ### Registering Scopes
 ```q
 / A session-level connection (Only opened once!)
-.tst.registerFixture[`hdbConn; 0i; `scope`setup`teardown!(
-    `session; 
-    {hopen `:localhost:5000}; 
-    {[h] hclose h}
- )];
+/ registerFixture takes exactly 2 args (name; value). To add lifecycle options,
+/ use registerFixtureWithOpts (name; value; opts-dict).
+.tst.registerFixtureWithOpts[`hdbConn; 0i;
+    `scope`setup`teardown!(
+        `session;
+        {[h] hopen `:localhost:5000};
+        {[h] hclose h}
+    )
+];
 ```
 
 ## Lifecycle Hooks: `setup` & `teardown`
@@ -28,10 +32,13 @@ Hooks allow you to execute logic before and after a fixture is used.
 
 ### Example: Temporary Files
 ```q
-.tst.registerFixture[`tempFile; "temp.txt"; `setup`teardown!(
-    {[f] hsym[`$f] 0: enlist "init"; f};
-    {[f] system "rm ",f}
- )];
+/ Use registerFixtureWithOpts for the 3-arg (name; value; opts) form.
+.tst.registerFixtureWithOpts[`tempFile; "temp.txt";
+    `setup`teardown!(
+        {[f] hsym[`$f] 0: enlist "init"; f};
+        {[f] system "rm ",f}
+    )
+];
 
 should["read from file"]{[tempFile]
   "init" mustmatch read0 hsym `$tempFile;

@@ -213,14 +213,27 @@ Define a property-based (fuzz) test.
 
 **Example:**
 ```q
-holds["sorting is idempotent"; `runs`vars!(100;`int$())]{[xs]
-    (asc xs) musteq asc asc xs;
+/ Each holds call in its own desc block when vars types differ (see note below)
+
+.tst.desc["sorting"]{
+  holds["sorting is idempotent"; `runs`vars!(100; `int$())]{[xs]
+    (asc xs) musteq asc asc xs
+  };
 };
 
-holds["addition is commutative"; `vars!(`int;`int)]{[a;b]
-    (a+b) musteq (b+a);
+/ Multi-var: vars is a dict; function receives ONE dict — access keys with x[`key]
+.tst.desc["commutative"]{
+  holds["addition is commutative"; `runs`vars!(100; `a`b!(`int;`int))]{[x]
+    (x[`a]+x[`b]) musteq (x[`b]+x[`a])
+  };
 };
 ```
+
+**Note:** Each `holds` call in the same `.tst.desc` block must use a compatible
+`vars` type. Mixing a simple type spec (`` `int ``) with a dict spec
+(`` `a`b!(`int;`int) ``) in one block throws a `'type` load error because q
+cannot build a uniform expectation table. Put holds with different var shapes in
+separate desc blocks.
 
 **Props Dictionary:**
 | Key | Type | Default | Description |
@@ -255,9 +268,79 @@ perf["sorting 10000 elements"; `iterations`warmup!(1000;100)]{
 
 ---
 
+### skip / pending / skipIf
+
+```q
+skip[reason; code]
+pending[reason]
+skipIf[condition; reason; code]
+```
+
+Mark a test as skipped, pending, or conditionally skipped. Skipped and pending
+tests are reported in the summary but do not cause the run to fail.
+
+**Parameters:**
+| Function | Parameters | Description |
+|----------|-----------|-------------|
+| `skip` | `reason` (string); `code` (function) | Skip with a reason; code is not run |
+| `pending` | `reason` (string) | Placeholder with no code |
+| `skipIf` | `condition` (bool); `reason`; `code` | Skip when condition is true; otherwise runs as a normal `should` |
+
+**Example:**
+```q
+.tst.desc["Feature Tests"]{
+  skip["not implemented yet"]{
+    .myFunc[] musteq 42;
+  };
+
+  pending["will implement later"];
+
+  skipIf[.z.o like "w*"; "skip on Windows"]{
+    .myFunc[] musteq 42;
+  };
+};
+```
+
+**Notes:**
+- All three mix freely with `should`, `holds`, `retry`, and each other in the same `desc` block.
+- Under `-strict`, skipped tests do not count as executed — an all-skip suite fails `-strict`.
+
+---
+
 ## 2. Assertions
 
 All assertions are available in the root namespace for convenience.
+
+### Assertion Cheat-Sheet
+
+| Name | Args | Meaning | Example |
+|------|------|---------|---------|
+| `must` | `condition; message` | condition is true | `must[x > 0; "positive"]` |
+| `musteq` / `mustEqual` | `actual; expected` | `actual ~ expected` (match) | `result musteq 42` |
+| `mustmatch` | `actual; expected` | same as `musteq` | `(asc t) mustmatch expected` |
+| `mustne` / `mustNotEqual` | `actual; expected` | `actual <> expected` | `userId mustne 0` |
+| `mustlt` / `mustLessThan` | `actual; expected` | `actual < expected` | `latency mustlt 100` |
+| `mustgt` / `mustGreaterThan` | `actual; expected` | `actual > expected` | `count users mustgt 0` |
+| `mustlike` | `actual; pattern` | `actual like pattern` | `email mustlike "*@*.com"` |
+| `mustin` | `actual; list` | `actual in list` | `status mustin \`a\`b\`c` |
+| `mustnin` | `actual; list` | `not actual in list` | `x mustnin \`bad` |
+| `mustnmatch` | `actual; expected` | `not actual ~ expected` | `a mustnmatch b` |
+| `mustwithin` | `actual; range` | `actual within range` | `score mustwithin 0 100` |
+| `mustdelta` | `tol; actual; expected` | within ±tolerance | `mustdelta[0.001; r; 3.14]` |
+| `mustthrow` | `pattern; code` | code signals matching error | `mustthrow["*nyi*"; {.f[]}]` |
+| `mustnotthrow` | `pattern; code` | code does not throw | `mustnotthrow[""; {.f[]}]` |
+| `mustmatchignoringorder` / `mustMatchIgnoringOrder` | `actual; expected` | equal ignoring order | `mustmatchignoringorder[r; e]` |
+| `mustincludecols` | `actual; expected` | table contains expected cols | `t mustincludecols exp` |
+| `mustmatchs` / `mustMatchSnapshot` | `actual; name` | matches binary snapshot | `r mustmatchs "snap1"` |
+| `mustmatchst` / `mustMatchTextSnapshot` | `actual; name` | matches text snapshot | `r mustmatchst "snap1"` |
+| `mustBeFasterThan` | `code; limitMs` | avg time under limit | `mustBeFasterThan[{f[]}; 10]` |
+| `mustAllocLessThan` | `code; limitBytes` | allocation under limit | `mustAllocLessThan[{f[]}; 1e6]` |
+| `mustHaveBeenCalledWith` | `name; args` | spy received these args | `mustHaveBeenCalledWith[\`.f; enlist 42]` |
+
+camelCase aliases (`mustEqual`, `mustNotEqual`, `mustLessThan`, `mustGreaterThan`,
+`mustMatchSnapshot`, `mustMatchTextSnapshot`, `mustMatchIgnoringOrder`) are
+additive aliases for the lowercase forms — both spellings are identical in
+behaviour and are exported to the root namespace and `.tst.asserts`.
 
 ### must
 
@@ -469,9 +552,30 @@ mustthrow["*negative*"; (.math.sqrt; -1)];
 ```
 
 **Notes:**
-- Pattern uses `like` matching (wildcards: `*`, `?`)
-- Code can be a function or `(function; arg1; arg2; ...)` list
-- Multiple patterns: throws if ANY pattern matches
+- Pattern matching uses q's `like` operator: `"type"` matches exactly `"type"`;
+  for substring matching use `"*type*"`. A bare `"type"` does NOT match an error
+  message like `"oh no, type mismatch"` — add `*` wildcards for substring semantics.
+- Pattern can be: a string, a symbol (stringified internally), a symbol vector, or
+  a list of strings. Symbols are coerced to strings before matching.
+- Multiple patterns: passes if ANY pattern matches the thrown error.
+- `code` can be a zero-arg function or `(function; arg1; arg2; ...)` list.
+- Argument-order guard: passing code as the first argument (infix style) gives a
+  guidance error instead of a raw `'type`.
+
+```q
+mustthrow["*not found*"; {.user.get[`nonexistent]}];
+mustthrow["type"; {1 + "a"}];           / exact match for the 'type error
+mustthrow[("*invalid*";"*error*"); {.api.call[]}];
+
+/ With arguments
+mustthrow["*negative*"; (.math.sqrt; -1)];
+
+/ Symbol pattern (stringified internally)
+mustthrow[`type; {1 + "a"}];
+
+/ Wrong: code first (infix) triggers guidance error
+/ {.user.get[`nonexistent]} mustthrow "*not found*";  / DON'T do this
+```
 
 ---
 
@@ -1048,21 +1152,46 @@ Generate and run all combinations of parameters (Cartesian product).
 | Dict | `` `a`b!(`int;`float) `` | Multiple params |
 
 **Examples:**
+
+Each `holds` call occupies its own `.tst.desc` block when its `vars` type differs from sibling
+`holds` calls (mixing a symbol var with a dict-var form in one block causes a `'type` error
+because q cannot build a uniform expectation table with incompatible column types).
+
 ```q
-/ Single integer parameter
-holds["positive"; `vars!`int]{[x] x+1 mustgt x};
+/ Single integer parameter — use `runs`vars!(N; `type) form
+.tst.desc["positive"]{
+  holds["positive"; `runs`vars!(100; `int)]{[x]
+    (x+1) mustgt x
+  };
+};
 
-/ Integer list
-holds["sorted"; `vars!(`int$())]{[xs] (asc xs) musteq asc asc xs};
+/ Integer list parameter
+.tst.desc["sorted"]{
+  holds["sorted is idempotent"; `runs`vars!(100; `int$())]{[xs]
+    (asc xs) musteq asc asc xs
+  };
+};
 
-/ Multiple parameters
-holds["commutative"; `vars!`a`b!(`int;`int)]{[a;b] (a+b) musteq (b+a)};
+/ Multiple named parameters — function receives ONE dict; access keys with x[`key]
+.tst.desc["commutative"]{
+  holds["commutative"; `runs`vars!(100; `a`b!(`int;`int))]{[x]
+    (x[`a]+x[`b]) musteq (x[`b]+x[`a])
+  };
+};
 
-/ Custom generator
-holds["even"; `vars!{2*1?1000}]{[x] 0 musteq x mod 2};
+/ Custom generator — must return a SCALAR (1?N returns a list; use `first`)
+.tst.desc["even"]{
+  holds["even number"; `runs`vars!(100; {first 2*1?1000})]{[x]
+    0 musteq x mod 2
+  };
+};
 
 / Choice from list
-holds["valid status"; `vars!`pending`active`done]{[s] s mustin `pending`active`done};
+.tst.desc["status"]{
+  holds["valid status"; `runs`vars!(100; `pending`active`done)]{[s]
+    s mustin `pending`active`done
+  };
+};
 ```
 
 ---
@@ -1254,27 +1383,24 @@ Clear all callback logs.
 
 ## 8. Snapshots
 
-### mustmatchSnap
+See `docs/SNAPSHOTS.md` for a full guide. Brief reference below.
+
+### mustmatchSnap (binary)
 
 ```q
 .tst.mustmatchSnap[actual; name]
 actual mustmatchs name
 ```
 
-Assert value matches stored binary snapshot.
+Assert value matches stored binary snapshot (q `set`/`get` serialisation).
 
-**Parameters:**
-| Name | Type | Description |
-|------|------|-------------|
-| `actual` | any | Value to compare |
-| `name` | string/symbol | Snapshot name |
+**Storage:** `tests/snapshots/<name>.snap` — override with `.tst.setSnapDir`
 
 **Behavior:**
-- If snapshot doesn't exist and `-strict` is not active: creates it and prints `NOTE: snapshot created: <path> - review and commit it`
-- If snapshot doesn't exist and `-strict` is active: fails with `Snapshot missing under -strict`
-- If `updateSnaps` is true: overwrites snapshot
-- Otherwise: compares and fails on mismatch
-- Existence is determined by **file presence**, not by whether the stored value is non-empty. Empty lists, dicts, and tables are valid snapshot values.
+- Missing snapshot + no `-strict`: creates file and prints `NOTE: snapshot created: <name> (<dir>) - review and commit it`
+- Missing snapshot + `-strict`: fails with `Snapshot missing under -strict`
+- `setUpdateSnaps[1b]`: overwrites and passes
+- Existence is determined by **file presence** — empty lists, dicts, and tables are valid.
 
 **Example:**
 ```q
@@ -1283,26 +1409,33 @@ result mustmatchs "query_output";
 
 ---
 
-### mustmatchTxtSnap
+### mustmatchTxtSnap (text)
 
 ```q
 .tst.mustmatchTxtSnap[actual; name]
 actual mustmatchst name
 ```
 
-Assert value matches stored text snapshot (uses `.Q.s1` serialization).
+Assert value matches stored text snapshot (serialised with `.Q.s1`). Produces
+human-readable `git diff` output.
+
+**Storage:** `tests/__snapshots__/<name>.snap.txt` — override with `.tst.setSnapTxtDir`
+
+**Behavior:** Same first-run and `-strict` semantics as binary snapshots.
+
+**Example:**
+```q
+report mustmatchst "monthly_report";
+```
 
 ---
 
-### setSnapDir
+### setSnapDir / setSnapTxtDir
 
 ```q
-.tst.setSnapDir[directory]
+.tst.setSnapDir[directory]     / binary snapshots (default: {cwd}/tests/snapshots)
+.tst.setSnapTxtDir[directory]  / text snapshots   (default: {cwd}/tests/__snapshots__)
 ```
-
-Set snapshot storage directory.
-
-**Default:** `{cwd}/tests/snapshots`
 
 ---
 
@@ -1459,7 +1592,7 @@ Convert any value to string safely.
 .tst.toString `symbol    / "symbol"
 .tst.toString "string"   / "string"
 .tst.toString 123        / "123"
-.tst.toString 1b         / "true"
+.tst.toString 1b         / ,"1"  (single-char string, not "true")
 ```
 
 ---
@@ -1507,20 +1640,45 @@ q resq.q [mode] [options] [paths...]
 | `-perf` | Include performance tests |
 | `-cov` / `-coverage` | Enable coverage |
 | `-strict` | Fail when no tests are found or executed |
-| `-ff` / `--fail-fast` | Stop on first failure |
-| `-fh` / `--fail-hard` | Hard stop (no cleanup) |
-| `-desc` / `--describe` | List tests without running |
-| `-only PATTERN` | Run only matching specs |
-| `-exclude PATTERN` | Skip matching specs |
-| `-tag TAGS` | Run tests with matching tags |
-| `-exclude-tag TAGS` | Exclude tests with matching tags |
-| `-maxTestTime SECONDS` | Mark a test as timed out after execution exceeds the limit |
+| `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
+| `-fh` / `--fail-hard` | Hard stop and skip cleanup on first failure |
+| `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
+| `-only PATTERN` | Run only suites whose title matches the `like` glob pattern |
+| `-exclude PATTERN` | Skip suites whose title matches the `like` glob pattern |
+| `-tag TAG` | Run only suites tagged with TAG (`#TAG` in the title) |
+| `-exclude-tag TAG` | Exclude suites tagged with TAG |
+| `-maxTestTime N` | Mark a test as timed out after N milliseconds |
 | `-fuzzLimit N` | Limit fuzz failure reporting |
-| `-outDir DIR` | Output directory |
-| `-noquit` | Don't exit after tests |
-| `-exit` | Exit with status code |
+| `-outDir DIR` | Output directory for reports and coverage files |
+| `-noquit` | Suppress exit call (process stays running; useful interactively) |
+| `-exit` | Force exit-on-completion (overrides `"exit": false` in `resq.json`) |
 | `-quiet` | Suppress `Loading Test:` lines, the RUN AUDIT block, and per-suite output for passing suites. Failures still print fully. |
 | `-v` / `-version` | Print version |
+
+**Filtering examples:**
+```bash
+# Run only matching suites (glob on title)
+q resq.q test tests/ -only "Order*"
+
+# Exclude slow suites
+q resq.q test tests/ -exclude "*slow*"
+
+# Run suites tagged #fast
+q resq.q test tests/ -tag fast
+
+# List all suites and tests without running
+q resq.q test tests/ -desc
+
+# Hard-stop on first failure
+q resq.q test tests/ -ff -exit
+```
+
+Tags are `#word` tokens in the suite title string:
+```q
+.tst.desc["Price validation suite #fast #unit"]{
+    ...
+};
+```
 
 **Examples:**
 ```bash
