@@ -1649,6 +1649,8 @@ q resq.q [mode] [options] [paths...]
 | `-exclude-tag TAG` | Exclude suites tagged with TAG |
 | `-maxTestTime N` | Mark a test as timed out after N milliseconds |
 | `-fuzzLimit N` | Limit fuzz failure reporting |
+| `-isolate` | Run each test FILE in its own `q` subprocess; the parent aggregates results, reporters, and exit codes (a test calling `exit`, an infinite loop, or a fatal error becomes a per-file failure instead of killing the whole run) |
+| `-isolateTimeout N` | Per-FILE wall-clock cap in seconds under `-isolate` (default 300; needs the `timeout` binary to preempt a hang) |
 | `-outDir DIR` | Output directory for reports and coverage files |
 | `-noquit` | Suppress exit call (process stays running; useful interactively) |
 | `-exit` | Force exit-on-completion (overrides `"exit": false` in `resq.json`) |

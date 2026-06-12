@@ -4,7 +4,12 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Process isolation mode: `resq test -isolate [-isolateTimeout N]`.** Each test file runs in its own q subprocess (sequentially); the parent aggregates results from per-file JSON reports and drives the normal reporting/exit pipeline. A test that calls `exit` is reported as an error ("process exited without producing results") instead of silently ending — or faking — the run; an infinite loop is killed after `isolateTimeout` seconds (default 300, requires the `timeout` binary) and the remaining files still run; a process-fatal error (`'wsfull`, stack) fails only its file.
+- **Generative differential loader testing** (`tests/test_loader_differential.q`): seeded random q scripts (comments, block comments, continuations, namespaces, terminators, CRLF) are loaded via native `\l` and via resQ's preprocessor in separate processes and the resulting definitions compared. Runs a fixed corpus of historical regressions plus deterministic seeds in-suite; swept clean to seed 400.
+
 ### Fixed
+- **Loader evaluation now matches q's line-buffered `\l` semantics.** Found by the differential harness: evaluating a file as one `value` blob diverged from native `\l` for bare continuation lines, standalone comment lines between a statement and its continuation, and trailing inline comments without `;`. Files are now evaluated statement-by-statement after comment-line removal; error reporting ("near line N") and partial-spec rollback are unchanged.
 - **`retry[n; "desc"]{...}` now actually retries.** Previously a silent no-op; now makes up to n+1 total attempts. `before`/`after` hooks re-run per attempt. The first passing attempt wins and records one result row. A late pass prints `NOTE: '<desc>' passed on attempt k of m` for flake visibility. Exhausted retries report "failed after m attempts".
 - **Block-comment parsing matches real q.** A line containing only `/` always opens a block comment closed by a lone `\`; a lone `\` outside a block terminates the script. The previous heuristic diverged on the common single-`/` banner idiom.
 - **Duplicate path spellings are deduped.** Passing the same file as `./x.q` and `x.q` now runs it once (canonical absolute-path dedup).

@@ -45,6 +45,7 @@ if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: "
 .utl.require .utl.PKGLOADING,"/dsl/fuzz.q"
 .utl.require .utl.PKGLOADING,"/loader.q"
 .utl.require .utl.PKGLOADING,"/test_finder.q"
+.utl.require .utl.PKGLOADING,"/isolate.q"
 
 / Alias .resq expansion functions to .tst for backward compatibility with example tests
 if[`resq in key `;

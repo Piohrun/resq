@@ -305,6 +305,7 @@ resq test tests/ -quiet                # failures + summary only
 resq test tests/ -junit -outDir reports/   # JUnit -> reports/test-results.xml
 resq test tests/ -strict               # 0 EXECUTED tests => failure
 resq test tests/ -desc                 # LIST tests, do not run them (exit 0)
+resq test tests/ -isolate              # each FILE in its own subprocess; -isolateTimeout N (s, default 300)
 resq cover src/ tests/                 # coverage: LCOV + HTML in outDir
 resq watch src/ tests/                 # re-run on change
 ```
@@ -316,6 +317,7 @@ Other true facts:
 - **Text snapshots**: first run prints `NOTE: text snapshot created …`
   (review & commit). Under `-strict`, a missing snapshot **fails**
   instead of being created.
+- **`-isolate`** runs each test FILE in its own `q` subprocess and aggregates: a test that calls `exit`, an infinite loop (killed at `-isolateTimeout`, needs the `timeout` binary), or a fatal error becomes a per-file failure instead of killing the whole run. Reporters and exit codes match the normal path.
 
 ### Exit codes (verified)
 
