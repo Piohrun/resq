@@ -98,4 +98,44 @@
         / A string of only ESC drops to empty without error.
         musteq[.tst.stripAnsi enlist esc; ""];
     };
+
+    / --- Fix 1: SLOWEST TESTS must not repeat rows on small suites (5 sublist) -
+    / q's take (#) WRAPS when fewer rows exist (5 # 2-row table -> 5 rows); the
+    / reporter uses `5 sublist` which caps without wrapping.
+    should["5 sublist caps a small table without repeating rows"]{
+        t: ([] description: `a`b);
+        musteq[5; count 5 # t];
+        musteq[2; count 5 sublist t];
+    };
+
+    / --- Fix 2/3: central color gate (.tst.useColor) drives fmt.color ----------
+    should["color gate globals are defined at load"]{
+        must[`useColor in key `.tst; ".tst.useColor must be defined at load"];
+        must[`diffColors in key `.tst; ".tst.diffColors must be defined at load"];
+    };
+
+    should["fmt.color emits SGR escapes when the gate is on"]{
+        `.tst.useColor mock 1b;
+        musteq[.tst.fmt.color[`red; "X"]; "\033[31mX\033[0m"];
+    };
+
+    should["fmt.color is plain text with no escapes when the gate is off"]{
+        `.tst.useColor mock 0b;
+        musteq[.tst.fmt.color[`red; "X"]; "X"];
+        must[not any "\033" in .resq.color[`green; "OK"]; "no ESC when color off"];
+    };
+
+    should["NO_COLOR env keeps the color gate off"]{
+        must[(0 = count getenv `NO_COLOR) or not .tst.useColor; "NO_COLOR set => color off"];
+    };
+
+    / --- Fix 4: a single failing assertion renders its message ONCE -----------
+    / When the joined failures equal the message, the reporter drops the
+    / redundant "Error:" line; this exercises the exact dup predicate it uses.
+    should["detects when the message duplicates the failures content"]{
+        spec: `title`expectations`result!("S"; enlist (`desc`result`time`message`failures!("t"; `fail; 0Nn; "G"; enlist "G")); `fail);
+        r: first .tst.sanitize spec;
+        flStr: "\n    " sv .resq.renderMsg each (),r`failures;
+        must[(.resq.renderMsg r`message) ~ flStr; "dup message must be detected so it prints once"];
+    };
  };
