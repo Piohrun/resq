@@ -160,6 +160,69 @@
     };
 };
 
+.tst.desc["Coverage: reload + re-instrument (bug-1 regression)"]{
+  before{
+    `.tst.origCovData mock .tst.coverageData;
+    `.tst.origCovEnabled mock .tst.coverageEnabled;
+    `.tst.origCovFiles mock .tst.trackedFiles;
+    `.tst.origCovOrig mock .tst.origFuncs;
+    `.tst.origCovWrap mock .tst.covWrappers;
+    .tst.coverageData: ()!();
+    .tst.trackedFiles: ();
+    .tst.origFuncs: ()!();
+    .tst.covWrappers: ()!();
+    .tst.coverageEnabled: 1b;
+
+    / A simple \d-namespaced source, loaded then instrumented.
+    .tst.relSrc: .tst.tempFile ".q";
+    (hsym `$.tst.relSrc) 0: (
+      "\\d .relscratch";
+      "add:{[x;y] x+y};";
+      "\\d .");
+    system "l ", .tst.relSrc;
+    .tst.instrumentFile .tst.relSrc;
+    .tst.relSym: `$.tst.resolvePath .tst.relSrc;
+  };
+  after{
+    .tst.coverageData: .tst.origCovData;
+    .tst.coverageEnabled: .tst.origCovEnabled;
+    .tst.trackedFiles: .tst.origCovFiles;
+    .tst.origFuncs: .tst.origCovOrig;
+    .tst.covWrappers: .tst.origCovWrap;
+    @[{delete relscratch from `.}; ::; {}];
+  };
+
+  should["record hits again after a file reload + re-instrument"]{
+    / First pass: a call records a hit under the source-file key.
+    .relscratch.add[1;2];
+    fData1: .tst.coverageData[.tst.relSym];
+    fData1[`.relscratch.add] musteq 1;
+
+    / Reload the file: this installs a FRESH, UNWRAPPED `add`. The old guard
+    / skipped re-wrapping (name still in origFuncs) so the live fn stayed
+    / unwrapped and subsequent hits were lost. Re-instrument must re-wrap.
+    system "l ", .tst.relSrc;
+    .tst.instrumentFile .tst.relSrc;
+
+    / The reloaded+re-wrapped fn must still compute correctly...
+    .relscratch.add[3;4] musteq 7;
+    / ...and the call must be counted (cumulative: 1 from before + 1 now).
+    fData2: .tst.coverageData[.tst.relSym];
+    must[fData2[`.relscratch.add] > 1; "hits must keep accruing after reload+re-instrument"];
+  };
+
+  should["not double-count a single call after re-instrument"]{
+    / Re-instrument WITHOUT a reload: the live value is still our wrapper, so
+    / wrapFunc must skip (no second layer of wrapping -> no double counting).
+    .tst.instrumentFile .tst.relSrc;
+    .tst.instrumentFile .tst.relSrc;
+    hitsBefore: $[`.relscratch.add in key .tst.coverageData[.tst.relSym]; .tst.coverageData[.tst.relSym;`.relscratch.add]; 0];
+    .relscratch.add[5;5];
+    hitsAfter: .tst.coverageData[.tst.relSym;`.relscratch.add];
+    (hitsAfter - hitsBefore) musteq 1;
+  };
+ };
+
 .tst.desc["Coverage: LCOV generation"]{
     before{
         `.tst.origCovData mock .tst.coverageData;

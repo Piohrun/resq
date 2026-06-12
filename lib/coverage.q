@@ -6,6 +6,7 @@
 .tst.coverageEnabled: 0b;
 .tst.trackedFiles: ();
 .tst.origFuncs: ()!();           / name -> original function
+.tst.covWrappers: ()!();         / name -> installed wrapper (live identity)
 .tst.loadingStack: ();
 .tst._covMissing: `resqCovMissing;
 
@@ -73,9 +74,22 @@
 / @param name (symbol) Function name (e.g. `.user.create`)
 / @param fileSym (symbol) Source file symbol
 .tst.wrapFunc:{[name;fileSym]
-    / Skip coverage internals and already-wrapped names
+    / Skip coverage internals.
     if[name in .tst.coverageSkipNames; :()];
-    if[name in key .tst.origFuncs; :()];
+
+    / Already-wrapped guard, RELOAD-AWARE. The old guard skipped on mere name
+    / membership in .tst.origFuncs, so after a file reload (which installs a
+    / fresh UNWRAPPED definition) re-instrumenting was a no-op: the name was
+    / still registered, the live function stayed unwrapped, and hits were zero.
+    / Instead compare the LIVE value to the wrapper we installed (kept in
+    / covWrappers). `~` on lambdas is structural and each wrapper embeds its own
+    / name, so wrappers for different names differ - a true identity test.
+    /   - live value IS our wrapper  -> already instrumented, skip.
+    /   - name registered but live value differs (reload) -> fall through,
+    /     re-capture the fresh live value as orig below, and re-wrap.
+    if[name in key .tst.covWrappers;
+        if[(.tst.safeValue name) ~ .tst.covWrappers name; :()];
+    ];
 
     orig: .tst.safeValue name;
     if[orig ~ .tst._covMissing; :()];
@@ -122,11 +136,17 @@
     / @[set;args;h]: `set` is dyadic, and @[f;x;e] applies it MONADICALLY to the
     / 2-list - a no-op that silently leaves the original in place (and so wrapped
     / nothing, the deepest cause of the empty-coverage bug). .[set;(name;val);h]
-    / applies both args.
-    .[set; (name; wrapFn); {[n;e]
+    / applies both args. On failure, drop the half-registered entries so a later
+    / re-instrument retries cleanly.
+    ok: .[{[n;w] set[n; w]; 1b}; (name; wrapFn); {[n;e]
         -1 "Coverage wrap failed for ", string n, ": ", .Q.s1 e;
-        :()
+        0b
     }[name]];
+    if[not ok; .tst.origFuncs _: name; :()];
+
+    / Record the installed wrapper's identity so the reload-aware guard above can
+    / tell "still our wrapper" from "reloaded behind our back".
+    .tst.covWrappers[name]: wrapFn;
  };
 
 / Instrument a loaded file (analyze and wrap functions)
@@ -210,6 +230,24 @@
     `$ns, ".", s
  };
 
+/ Load a .q file by absolute path, tolerating spaces in the path.
+/ q's `\l` (system "l ...") cannot parse a path containing spaces - it splits on
+/ whitespace and raises 'nyi. The portable workaround is to chdir into the file's
+/ directory (q's `system "cd <dir>"` IS the supported way to chdir the q process,
+/ and it does accept a spaced directory) and `\l` the bare basename, then restore
+/ the previous working directory. The cwd is restored on BOTH success and error.
+.tst.coverageLoadFile:{[pathStr]
+    slashes: where pathStr = "/";
+    dir: $[count slashes; (last slashes) # pathStr; "."];
+    base: $[count slashes; (1 + last slashes) _ pathStr; pathStr];
+    prevCd: system "cd";
+    / chdir, then load basename; any failure restores cwd before re-raising.
+    @[{[d;b] system "cd ", d; system "l ", b}[dir];
+      base;
+      {[pc;e] system "cd ", pc; 'e}[prevCd]];
+    system "cd ", prevCd;
+ };
+
 / Load and instrument a source file explicitly
 .tst.loadSource:{[file]
     pathStr: .tst.resolvePath file;
@@ -217,7 +255,7 @@
     if[pathStr in .tst.loadingStack; :()];
     .tst.loadingStack,: enlist pathStr;
 
-    @[system; "l ", pathStr; {[e]
+    @[.tst.coverageLoadFile; pathStr; {[e]
         .tst.loadingStack:: -1 _ .tst.loadingStack;
         'e
     }];
@@ -246,6 +284,7 @@
     .tst.trackedFiles:: fs;
     .tst.coverageData:: ()!();
     .tst.origFuncs:: ()!();
+    .tst.covWrappers:: ()!();
     .tst.loadingStack:: ();
     .tst.coverageEnabled:: 1b;
 
