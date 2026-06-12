@@ -225,6 +225,34 @@
     $[count bad; stmts[first bad; 0]; 0N]
  };
 
+/ Evaluate a preprocessed script the way q's own `\l` does: line by line, NOT as
+/ one `value "\n" sv lines` blob. q's loader is line-buffered - each PHYSICAL
+/ line is its own statement, except a leading-whitespace line continues the
+/ previous code line (concatenated). `value` of a newline-joined string does NOT
+/ honour that: it re-lexes the whole blob, so a complete statement followed by a
+/ newline + an operator-led line gets merged by the parser. Two concrete
+/ divergences this fixes (both invisible to `\l`, both broke the blob `value`):
+/   * Bare continuation:  `r:5` <newline> `  +6`  -> `\l` makes r=11; blob value
+/     parses `r:5` then a standalone `+6` and errors ('r / rank).
+/   * Bare line comment:   `x:5` <newline> `/ c`  -> `\l` ignores the comment;
+/     blob value sees `x:5\n/ c` and parses `5 /` as the over-adverb ('handle).
+/ Trailing inline comments (`x:5 / note`) have the same failure mode and are
+/ likewise fixed because each line is now value'd alone, exactly as `\l` lexes it.
+/ Algorithm (mirrors q): drop standalone comment lines FIRST so a following
+/ leading-whitespace line continues the previous CODE line across the comment
+/ (this is what `\l` does); regroup with .tst.groupStatements (continuation +
+/ blank-transparent); value each statement in source order. A standalone comment
+/ is a line whose lstrip begins with "/". Block comments and \-rewrites are
+/ already resolved by .tst.preprocessScript, so the only "/"-led lines left here
+/ are line comments. Signals on the first failing statement (the caller traps and
+/ then localizes with parse, exactly as before).
+.tst.evalPreprocessed:{[ppLines]
+    code: ppLines where not {lt: .tst.lstrip x; (0 < count lt) and "/" = first lt} each ppLines;
+    stmts: .tst.groupStatements code;
+    {[st] value "\n" sv st 1} each stmts;
+    (::)
+ };
+
 .tst.loadTests:{[paths]
     tests: .tst.findTests paths;
     .tst.app.discoveredFiles: tests;
@@ -295,15 +323,18 @@
 
         / Evaluate script content. Preprocess first so q system commands (\l, \d,
         / \t, ...) that `value` cannot execute become equivalent `system "..."`
-        / calls, and trailing `\` script terminators are honoured.
-        / Execution path is UNCHANGED: value the whole preprocessed file (a
-        / partial failure rolls back below). Only AFTER a failure do we localize,
-        / and we localize with `parse`, not `value`, so no successful statement is
-        / ever re-executed (re-running would fire side effects twice).
-        / Parse-localization pinpoints the common case (a SYNTAX error); a pure
-        / runtime error parses cleanly and keeps the original whole-file message.
-        code: "\n" sv .tst.preprocessScript content;
-        res: @[value; code; {(`err0x; x)}];
+        / calls, and trailing `\` script terminators are honoured. Then evaluate
+        / per-statement (.tst.evalPreprocessed) so q's line-buffered `\l`
+        / semantics are reproduced exactly - a blob `value "\n" sv ...` re-lexes
+        / the whole file and diverges from `\l` on bare continuations and bare/
+        / inline comments (see .tst.evalPreprocessed). Statements still run in
+        / source order, so a partial failure rolls back below just as before.
+        / Only AFTER a failure do we localize, and we localize with `parse`, not
+        / `value`, so no successful statement is ever re-executed (re-running
+        / would fire side effects twice). Parse-localization pinpoints the common
+        / case (a SYNTAX error); a pure runtime error parses cleanly and keeps the
+        / original message.
+        res: @[.tst.evalPreprocessed; .tst.preprocessScript content; {(`err0x; x)}];
         if[(2 = count res) and (first res) ~ `err0x;
             e: last res;
             lineNo: @[.tst.localizeSyntaxError; content; {0N}];
