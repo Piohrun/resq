@@ -13,7 +13,9 @@
 
 .tst.output.toSeconds:{[v]
     raw: $[0h = type v; 0N; 98h = type v; first v; v];
-    $[-16h = type raw; raw % 1e9; 0f]
+    / Null guard FIRST: a null timespan/float (e.g. 0Nn from a synthetic row)
+    / would otherwise become 0Nf -> string "" -> time="" (invalid xsd:decimal).
+    $[null raw; 0f; -16h = type raw; raw % 1e9; 0f]
  };
 
 .tst.output.normalizeRows:{[rows]
@@ -22,10 +24,21 @@
 
 .tst.output.buildXunitCase:{[rec]
     recStatus: .tst.normalizeResultStatus $[`status in key rec; rec`status; `pass];
-    recSuite:  $[`namespace in key rec; rec`namespace; ""];
+    / type/classname fallback chain: namespace -> suite name -> "resq". An empty
+    / namespace would otherwise emit type="" and group poorly in CI UIs.
+    recNs:     $[`namespace in key rec; .tst.toString rec`namespace; ""];
+    recSuiteName: $[`suite in key rec; .tst.toString rec`suite; ""];
+    recSuite:  $[0 < count recNs; recNs;
+                 0 < count recSuiteName; recSuiteName;
+                 "resq"];
     statusDesc: $[0<count rec`description; .tst.toString rec`description; "unspecified"];
     suite: .tst.output.escapeXml recSuite;
-    msg: .tst.output.escapeXml rec`message;
+    / The message column carries the raw failures LIST (a list of strings) built
+    / upstream. Render it to a single plain char vector (joined with "\n", capped
+    / at reportLimit) so escapeXml never emits the q literal form (`,"..."` ->
+    / `,&quot;...`). Fall back to escapeXml directly if the helper isn't loaded.
+    rawMsg: $[`renderReportMessage in key `.tst; .tst.renderReportMessage rec`message; rec`message];
+    msg: .tst.output.escapeXml rawMsg;
     t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
     attrs: " type=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", string[t], "\"";
     caseOpen: "    <test",attrs,">";

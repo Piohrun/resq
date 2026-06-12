@@ -77,3 +77,55 @@
         5 musteq count hist;
     };
 };
+
+.tst.desc["benchmark.measure timing precision"]{
+    should["report float-millisecond timings (not whole-ms floor)"]{
+        res: .tst.benchmark.measure[20; {sum til 100}];
+        / Timings must be FLOAT ms with ns precision, never `long$-floored.
+        (-9h) musteq type res[`time;`avg];
+    };
+
+    should["measure sub-millisecond code as non-zero average"]{
+        / A tiny op completes in microseconds. Before the float fix this floored
+        / to 0ms; now it must register a positive average.
+        res: .tst.benchmark.measure[50; {sum til 100}];
+        res[`time;`avg] mustgt 0;
+    };
+
+    should["honour the gc option via measureOpts"]{
+        / gc on (default) and gc off must both produce float, non-zero timings.
+        rOn: .tst.benchmark.measureOpts[20; {sum til 100}; enlist[`gc]!enlist 1b];
+        rOff: .tst.benchmark.measureOpts[20; {sum til 100}; enlist[`gc]!enlist 0b];
+        rOn[`time;`avg] mustgt 0;
+        rOff[`time;`avg] mustgt 0;
+        (-9h) musteq type rOff[`time;`avg];
+    };
+
+    should["keep measure as a backward-compatible wrapper (gc defaults on)"]{
+        / Bare measure must still return the time/space dict structure.
+        res: .tst.benchmark.measure[10; {1+1}];
+        `time`space mustmatch key res;
+        `min`med`max`avg`dev mustin key res`time;
+    };
+};
+
+.tst.desc["perf DSL runner"]{
+    should["pass a sub-ms perf expectation under a generous maxTime"]{
+        / Drive runners[`perf] directly. maxTime in ms; 1000ms is generous
+        / headroom so this never flakes in CI even on a loaded runner.
+        expec: .tst.internals.perfObj, (`desc`code`props!(
+            "sub-ms perf"; {sum til 100}; `runs`gc`maxTime!(20; 0b; 1000f)));
+        res: .tst.runners[`perf] expec;
+        res[`result] mustmatch `pass;
+        / Timing recorded as a float, non-zero average.
+        res[`perf;`time;`avg] mustgt 0;
+    };
+
+    should["fail a perf expectation that exceeds maxTime"]{
+        expec: .tst.internals.perfObj, (`desc`code`props!(
+            "too slow"; {do[200000; sum til 100]}; `runs`gc`maxTime!(5; 0b; 0.0001)));
+        res: .tst.runners[`perf] expec;
+        res[`result] mustmatch `testFail;
+        (any res[`failures] like "*Performance Failure: Avg Time*") mustmatch 1b;
+    };
+};

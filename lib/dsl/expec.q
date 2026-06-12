@@ -29,9 +29,15 @@ runners[`perf]:{[expec];
   opts: `runs`gc!10b;
   if[0<count expec`props; opts: opts, expec`props];
   runs: $[`runs in key opts; opts`runs; 100];
-  res: .tst.benchmark.measure[runs; expec`code];
+  / Pass the gc flag through so measure can skip per-iteration .Q.gc[] when off.
+  / NOTE: timings are wall-clock ms (float); maxTime asserts in CI need generous
+  / headroom - a loaded runner can be 10-100x slower than a quiet local machine.
+  res: .tst.benchmark.measureOpts[runs; expec`code; enlist[`gc]!enlist opts`gc];
   expec[`perf]: res;
   expec[`result]: `pass;
+  / perfObj carries no `failures key by default; seed an empty string list so the
+  / threshold branches below can `,:` onto it without a 'type error.
+  if[not `failures in key expec; expec[`failures]: ()];
   if[`maxTime in key opts;
       avgTime: res[`time;`avg];
       if[avgTime > opts`maxTime;
@@ -114,6 +120,62 @@ runExpec:{[spec;expec];
     :expec
  ];
  
+ / Retry support: an expectation with `retries:n` (n>0) gets up to n+1 total
+ / attempts. Each attempt re-runs the full before+test+after cycle (so flaky
+ / state is reset). The FIRST attempt whose result normalizes to `pass wins.
+ / Only the FINAL attempt is recorded (teardownExpec fires exactly once, below).
+ / retries=0 (every normal test) collapses to a single pass through the loop.
+ maxAttempts: 1 + $[`retries in key expec; 0 | `long$expec`retries; 0];
+ / Pristine snapshot of the post-setup expec. q dicts are values, so this copies
+ / semantically; restoring `expec:pristine` between attempts also resets the
+ / accumulated result/failures/errorText/assertsRun and leaves before/after/code
+ / keys untouched.
+ pristine: expec;
+ attempt: 0;
+ / `do`-style loop via while; `attempt`-guarded break on pass or halt.
+ done: 0b;
+ while[(attempt < maxAttempts) and not done;
+   attempt+: 1;
+   res: .tst.runExpecAttempt[spec; expec];
+   expec: res`expec;
+   beforeBad: res`beforeBad;
+   passed: `pass ~ .tst.normalizeResultStatus expec`result;
+   / Stop if passed, if halt fired, or if no attempts remain.
+   done: passed or .tst.halt or (attempt >= maxAttempts);
+   / Between attempts: replicate teardownExpec's per-attempt cleanup, then
+   / restore the pristine post-setup expec so the flaky test starts clean.
+   if[not done;
+      .tst.restore[];
+      @[.tst.runCleanupTasks; (); {}];
+      .tst.assertState: .tst.defaultAssertState;
+      expec: pristine;
+   ];
+ ];
+
+ / Annotate retry outcomes so flake debt is visible, not hidden.
+ if[maxAttempts > 1;
+    descStr: .tst.toString expec`desc;
+    $[`pass ~ .tst.normalizeResultStatus expec`result;
+      if[attempt > 1;
+         note: "passed on attempt ", string[attempt], " of ", string maxAttempts;
+         expec[`retryNote]: note;
+         -1 "NOTE: '", descStr, "' ", note, ".";
+      ];
+      / Failed every attempt: surface the attempt count on the failures list.
+      expec[`failures]: (enlist "failed after ", string[maxAttempts], " attempts"), (),expec`failures
+    ];
+ ];
+
+ expec[`time]:.z.p - time;
+ expec:.tst.teardownExpec[spec;expec];
+ if[.tst.halt; .tst.stageBadExpec[spec;startExpec;beforeBad]];
+ expec
+ }
+
+/ One retry attempt: the full before-block + main-test + after-block cycle.
+/ Returns `expec`beforeBad!(attemptedExpec; lastStageSym). Does NOT teardown or
+/ record - the caller (runExpec) owns the single teardownExpec / expecRan call.
+runExpecAttempt:{[spec;expec];
  / Before Block
  beforeBad:`before;
  if[`before in key expec;
@@ -125,7 +187,7 @@ runExpec:{[spec;expec];
         }[expec]];
     ];
  ];
- 
+
   / Main Test
   beforeBad:`test;
   if[not count expec[`result];
@@ -141,13 +203,13 @@ runExpec:{[spec;expec];
          elapsedSec: `long$(.z.p - testStart) % 1000000000;
          if[elapsedSec > timeout;
              / Mark as timeout failure but continue running
-             res: .tst.expecError[expec; "timeout"; 
+             res: .tst.expecError[expec; "timeout";
                  "Test exceeded timeout of ", string[timeout], "s (took ", string[elapsedSec], "s)"];
          ];
      ];
      $[99h=type res; expec:res; @[{[e;r] e[`result]:`error; e[`errorText]:r; e}; expec; res]];
   ];
- 
+
  / After Block
  beforeBad:`after;
  if[`after in key expec;
@@ -159,11 +221,8 @@ runExpec:{[spec;expec];
         }[expec]];
     ];
  ];
- 
- expec[`time]:.z.p - time;
- expec:.tst.teardownExpec[spec;expec];
- if[.tst.halt; .tst.stageBadExpec[spec;startExpec;beforeBad]];
- expec
+
+ `expec`beforeBad!(expec; beforeBad)
  }
 
 stageBadExpec:{[spec;expec;beforeBad]

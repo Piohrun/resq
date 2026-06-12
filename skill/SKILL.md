@@ -129,7 +129,7 @@ Key rules for a test file:
 2. **`should[<desc>; <body>]` inside the desc body** registers an expectation.
 3. **`before` / `after`** hooks run around *each* expectation.
 4. **`beforeAll` / `afterAll`** run once per desc block. If `beforeAll` throws, the block's tests are skipped and one error result is recorded; `afterAll` still runs. A throwing `afterAll` prints a warning but does not fail the suite.
-5. **`skip`, `pending`, `skipIf`, `retry`, `testOnly`** may be mixed freely with `should` in the same desc block. Note: `testOnly` registers and tags but focus-filtering is not yet implemented — it runs like a normal test.
+5. **`skip`, `pending`, `skipIf`, `retry`, `testOnly`** may be mixed freely with `should` in the same desc block. `retry[n; "desc"]{...}` retries up to n+1 total attempts; before/after hooks re-run per attempt; a late pass is noted for flake visibility. `testOnly["desc"]{...}` focuses its suite: if any test in a desc block is a `testOnly`, only the `testOnly` tests run; the rest are reported as **skipped** (not dropped), and a `NOTE: testOnly active in suite ...: running N of M tests` line is printed. Focus is **per-suite** — other suites run normally.
 6. **All `.tst.*` and DSL names** are available globally (assertion verbs are root-exported).
 7. **The test file's own variables** live in a private sandbox namespace
    (`.sandbox_S…`) — they auto-clean.
@@ -328,7 +328,7 @@ resq test tests/test_calculator.q
 # Junit XML for CI
 resq test tests/ -junit -outDir reports/
 
-# Coverage (LCOV + HTML in outDir)
+# Coverage: instruments functions loaded via \l / system "l"; emits LCOV + HTML in outDir
 resq cover src/ tests/
 
 # Quiet mode (only failures + summary)
@@ -426,7 +426,7 @@ Use this checklist when bootstrapping a new test suite.
 6. **Add a real test** loading one of your source files using the relative-to-test pattern in §4. Run again.
 7. **Wire CI.** Use `-junit -outDir reports/ -exit` so the JUnit XML lands in `reports/test-results.xml` and the process exits with the suite status.
 8. **(Optional)** Add `resq.json` for repo-level defaults.
-9. **(Optional)** Set up coverage: `resq cover src/ tests/` writes LCOV + HTML to `outDir`.
+9. **(Optional)** Set up coverage: `resq cover src/ tests/` instruments functions loaded via `\l` / `system "l "`, then writes LCOV + HTML to `outDir`. Coverage is function-level (hit counts per function), not line-level.
 
 ---
 
@@ -455,7 +455,7 @@ The repository's `docs/` directory has long-form references:
 | Coverage | `docs/COVERAGE.md` |
 | Discovery engine | `docs/DISCOVERY.md` |
 | Fixtures | `docs/FIXTURES.md` |
-| Parallel execution | `docs/PARALLEL.md` |
+| CI-level parallelism (in-process parallel removed) | `docs/PARALLEL.md` |
 | Property-based / fuzz | `docs/PBT.md` |
 | Performance | `docs/PERFORMANCE.md` |
 | Snapshots | `docs/SNAPSHOTS.md` |

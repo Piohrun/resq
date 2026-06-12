@@ -38,7 +38,6 @@ if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: "
 .utl.require .utl.PKGLOADING,"/dsl/assertions.q"
 .utl.require .utl.PKGLOADING,"/deps.q"
 .utl.require .utl.PKGLOADING,"/diff_assertions.q"
-.utl.require .utl.PKGLOADING,"/parallel_runner.q"
 .utl.require .utl.PKGLOADING,"/watch.q"
 .utl.require .utl.PKGLOADING,"/dsl/ui.q"
 .utl.require .utl.PKGLOADING,"/dsl/spec.q"
@@ -59,15 +58,26 @@ if[`resq in key `;
 if[not `strict in key .tst.app; .tst.app.strict: 0b];
 
 / Namespace Safety Guards
-/ Save original .q functions before overwriting
-.tst.saveOriginalQ:{[]
-    if[not `originalQ in key `.tst; .tst.originalQ:: ()!()];
+/ Snapshot the ORIGINAL .q value of a set of keys BEFORE resq overwrites them.
+/ The snapshot must run before any resq export is written, otherwise it would
+/ capture resq's own function as the "original" and a later restore would be a
+/ no-op (leaving resq's export live). Keys already in qExports are skipped --
+/ they are resq's own and have no genuine pre-resq original to capture.
+.tst.saveOriginalQ:{[ks]
+    if[not `originalQ in key `.tst; .tst.originalQ:: (`symbol$())!()];
     / Defensive: reset if corrupted by mocks or bad state
-    if[not 99h = type .tst.originalQ; .tst.originalQ:: ()!()];
+    if[not 99h = type .tst.originalQ; .tst.originalQ:: (`symbol$())!()];
 
-    / Capture all .q keys that aren't already saved
-    qKeys: key `.q;
-    qKeys: qKeys where not qKeys in key .tst.originalQ;
+    / Default to every current .q key when called without an explicit set.
+    qKeys: $[(::) ~ ks; key `.q; ks];
+    / Never (re)snapshot a key we've already captured or a key that is itself a
+    / resq export (capturing those would make the snapshot lie).
+    resqKeys: $[`qExports in key `.tst; key .tst.qExports; `symbol$()];
+    / Coerce skip set to a symbol vector so `in` never sees a general-empty
+    / list (key of an empty general dict is type 0h, which breaks `in`).
+    skipKeys: distinct (`symbol$()), ((),key .tst.originalQ), ((),resqKeys);
+    qKeys: (),qKeys;
+    qKeys: qKeys where not qKeys in skipKeys;
 
     if[0<count qKeys;
         vals: {@[get; ` sv `.q,x; {`NOTFOUND}]} each qKeys;
@@ -81,25 +91,30 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
     ];
  };
 
-/ Restore original .q functions
+/ Neutralize resq's .q exports. q cannot delete .q members, so resq-added keys
+/ that had no genuine pre-resq original are set to (::) ("neutralized"); keys
+/ that shadowed a real original are reset to that original value.
 .tst.restoreOriginalQ:{[]
     if[not `originalQ in key `.tst; :()];
     / Defensive: bail out if corrupted
     if[not 99h = type .tst.originalQ; delete originalQ from `.tst; :()];
-    if[0 = count .tst.originalQ; :()];
 
-    / Restore each saved function
-    {[k;v]
-        qName: ` sv `.q,k;
-        @[qName set; v; { [name; e] -1 "ERROR: Failed to restore ",string[name],": ",e }[qName]];
-    }'[key .tst.originalQ; value .tst.originalQ];
+    / Reset each genuinely-captured original back to its pre-resq value.
+    if[0 < count .tst.originalQ;
+        {[k;v]
+            qName: ` sv `.q,k;
+            @[qName set; v; { [name; e] -1 "ERROR: Failed to reset ",string[name],": ",e }[qName]];
+        }'[key .tst.originalQ; value .tst.originalQ];
+    ];
 
-    / Remove resQ .q exports that did not exist before exporting.
+    / Neutralize EVERY resq-added .q export that had no genuine original.
+    / Derived from the authoritative export table (.tst.qExports accumulates
+    / assertions + the manual mock/fixture batch + uiQExports), so the list is
+    / never a partial hardcode. q cannot remove .q members, so we set (::).
     if[`qExports in key `.tst;
         {[k]
             if[not k in key .tst.originalQ;
-                qName: ` sv `.q,k;
-                @[value; "delete ", string[k], " from `.q"; {[qn;e] qn set (::)}[qName]];
+                (` sv `.q,k) set (::);
             ];
         } each key .tst.qExports;
     ];
@@ -107,7 +122,7 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
     / Clean up
     delete originalQ from `.tst;
 
-    if[.utl.DEBUG; -1 "Restored original .q namespace"];
+    if[.utl.DEBUG; -1 "Neutralized resQ .q exports (q cannot remove .q members)"];
  };
 
 
@@ -120,13 +135,18 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
 / .q is reserved by kdb+; keep these enabled by default for existing suites,
 / but allow resq.json to disable them with qNamespaceExports:false.
 if[not `qNamespaceExports in key `.tst; .tst.qNamespaceExports: 1b];
-if[not `qExports in key `.tst; .tst.qExports: ()!()];
+if[not `qExports in key `.tst; .tst.qExports: (`symbol$())!()];
 
 .tst.registerQExports:{[exports]
     if[not 99h = type exports; '`type];
+    if[.tst.qNamespaceExports;
+        / Snapshot the genuine ORIGINAL .q value of each incoming key BEFORE
+        / it is added to qExports or overwritten. Doing this first is what keeps
+        / the snapshot honest (see saveOriginalQ).
+        .tst.saveOriginalQ[key exports];
+    ];
     .tst.qExports: .tst.qExports, exports;
     if[.tst.qNamespaceExports;
-        .tst.saveOriginalQ[];
         { (` sv `.q,x) set y }'[key exports; value exports];
     ];
     ::
@@ -138,7 +158,8 @@ if[not `qExports in key `.tst; .tst.qExports: ()!()];
     .tst.qNamespaceExports: enabled;
     if[enabled;
         if[0 < count .tst.qExports;
-            .tst.saveOriginalQ[];
+            / Re-enabling: capture originals of the export keys, then write.
+            .tst.saveOriginalQ[key .tst.qExports];
             { (` sv `.q,x) set y }'[key .tst.qExports; value .tst.qExports];
         ];
         :()

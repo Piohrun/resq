@@ -1,23 +1,29 @@
 / ============================================================================
 / Golden test harness for resQ.
-/
+/ .
 / Runs resQ ITSELF as a subprocess against tiny fixture suites (tests/golden/
 / fixtures/f_*.q) and asserts on exit codes, summary output, and report-file
 / content. This locks in end-to-end behavior - especially failure paths - that
 / unit tests miss.
-/
+/ .
 / Fixtures are named f_*.q on purpose: discovery patterns are test_*.q and
 / *_test.q, so f_*.q files are NEVER auto-discovered. The harness passes them as
 / explicit paths, which resQ honors regardless of pattern.
-/
+/ .
 / Subprocess pattern: q's `system "cmd"` THROWS 'os when the child exits
 / nonzero, so we never call the test command directly. We append `; echo $?`
 / (the shell then always exits 0) and read the real child exit code back off
-/ the last stdout line. `timeout 60` guards against hangs.
-/
-/ NOTE: resQ loads each test file via `value "\n" sv content`, where `\d`
-/ namespace directives are NOT honored. All helpers below are therefore
-/ fully-qualified (.tst.golden.*) with no \d blocks.
+/ the last stdout line. `timeout 60` guards against hangs when the `timeout`
+/ binary is present; on systems without it (e.g. macOS) the prefix is dropped
+/ and scenarios run unguarded rather than failing with exit 127. See
+/ .tst.golden.canTimeout / .tst.golden.timeoutPrefix below.
+/ .
+/ NOTE: a column-1 lone "/" line opens a q block comment (terminated by a lone
+/ "\"); this banner uses "/ ." separators on purpose so it stays a plain line-
+/ comment block that real q `\l` and the resQ preprocessor BOTH load identically.
+/ resQ loads each test file via `value "\n" sv content`, where `\d` namespace
+/ directives are NOT honored. All helpers below are fully-qualified
+/ (.tst.golden.*) with no \d blocks.
 / ============================================================================
 
 / --- harness helpers (self-contained; no new lib/ modules) -----------------
@@ -40,7 +46,21 @@
 .tst.golden.run:{[args]
     wd: .tst.golden.workDir[];
     cmd: "mkdir -p ", wd, " && cd ", wd,
-         " && timeout 60 q ", .resq.HOME, "/resq.q test ", args,
+         " && ", .tst.golden.timeoutPrefix, "q ", .resq.HOME, "/resq.q test ", args,
+         " > run_out.txt 2>&1; echo $?";
+    lines: @[system; cmd; {[e] enlist "-1"}];
+    code: "J"$ last lines;
+    out: @[read0; hsym `$wd, "/run_out.txt"; {()}];
+    `code`out`dir!(code; out; wd)
+ };
+
+/ Run resQ in `cover` mode against a single test file. The LCOV/state files are
+/ written into the run's own work dir (outDir == cwd default), so the caller can
+/ read coverage.lcov back from r`dir. `testF` is an absolute test path.
+.tst.golden.runCover:{[testF]
+    wd: .tst.golden.workDir[];
+    cmd: "mkdir -p ", wd, " && cd ", wd,
+         " && ", .tst.golden.timeoutPrefix, "q ", .resq.HOME, "/resq.q cover ", testF, " -quiet",
          " > run_out.txt 2>&1; echo $?";
     lines: @[system; cmd; {[e] enlist "-1"}];
     code: "J"$ last lines;
@@ -58,6 +78,13 @@
 
 / Probe q availability ONCE before the desc blocks; skipIf each scenario.
 .tst.golden.canQ: 0 < count @[system; "which q 2>/dev/null"; {()}];
+
+/ Graceful degradation: `timeout` guards against hung children but is not
+/ present everywhere (e.g. stock macOS has no `timeout`). Probe ONCE and build
+/ the command prefix conditionally - "timeout 60 " when available, "" otherwise -
+/ so scenarios run normally on systems without it instead of failing exit 127.
+.tst.golden.canTimeout: 0 < count @[system; "which timeout 2>/dev/null"; {()}];
+.tst.golden.timeoutPrefix: $[.tst.golden.canTimeout; "timeout 60 "; ""];
 
 / #slow: this harness spawns ~12 subprocesses at ~0.5s each.
 .tst.desc["Golden: exit codes and summaries #slow"]{
@@ -175,6 +202,56 @@
     must[not .tst.golden.anyLike[r`out; "nyi"]; "must NOT fail with 'nyi"];
   };
 
+  / Coverage end-to-end: `resq cover` must instrument source a test loads with
+  / `\l` and emit a real LCOV report. We generate a self-contained src file (a
+  / \d-namespaced module with TWO functions) and a test that \l's it and calls
+  / exactly ONE of them. The rewritten \l routes through .tst.sysl, which loads
+  / then instruments the module, so the LCOV must carry FN: records for BOTH
+  / functions, FNDA:>0 for the called one, and FNDA:0 for the uncalled one. This
+  / is the feature's definition of done; before the coverage fixes it produced
+  / an empty report (every FNDA:0, or no SF: record at all).
+  skipIf[not .tst.golden.canQ; "f_cover: \\l'd src instrumented, LCOV has FNDA>0 for called fn"]{
+    wd: .tst.golden.workDir[];
+    system "mkdir -p ", wd;
+    srcF:  wd, "/cov_src_gen.q";
+    testF: wd, "/test_cover_gen.q";
+    / Src: a \d-namespaced module with two functions. `called` is exercised by
+    / the test; `uncalled` is not, so its hit count must stay 0.
+    (hsym `$srcF) 0: (
+      "\\d .covmod";
+      "called:{[x;y] x+y};";
+      "uncalled:{[z] z*2};";
+      "\\d .");
+    / Test: \l the src by absolute path (rewritten to .tst.sysl + instrument),
+    / then call ONLY .covmod.called.
+    (hsym `$testF) 0: (
+      "\\l ", srcF;
+      ".tst.desc[\"cover\"]{ should[\"call one of two\"]{";
+      "  musteq[7; .covmod.called[3;4]];";
+      "}; };");
+    r: .tst.golden.runCover testF;
+    musteq[r`code; 0];
+    must[not .tst.golden.anyLike[r`out; "nyi"]; "cover run must NOT fail with 'nyi"];
+    lcov: .tst.golden.readFile[r`dir; "coverage.lcov"];
+    / NB: q's `like` signals 'nyi when a pattern has 3+ wildcards, so we match
+    / LCOV lines with leading-anchored, single-`*` patterns rather than the
+    / `*..*`-wrapping anyLike helper. Lines are exact, so anchoring is fine.
+    / Both functions appear as FN: records (the src was statically analyzed).
+    must[any lcov like "FN:*,.covmod.called"; "LCOV should list FN:...called"];
+    must[any lcov like "FN:*,.covmod.uncalled"; "LCOV should list FN:...uncalled"];
+    / The src file appears as an SF: record.
+    must[any lcov like "SF:*cov_src_gen.q"; "LCOV should reference the \\l'd src as SF:"];
+    / The called fn has a NON-ZERO hit count (proving instrumentation fired):
+    / isolate its FNDA line, then assert the count field is not 0.
+    calledFnda: lcov where lcov like "FNDA:*,.covmod.called";
+    must[0 < count calledFnda; "an FNDA line for .covmod.called should exist"];
+    must[not any calledFnda like "FNDA:0,*";
+         "FNDA for .covmod.called should be > 0"];
+    / The uncalled fn records exactly zero hits.
+    must[any lcov like "FNDA:0,.covmod.uncalled";
+         "FNDA for .covmod.uncalled should be 0"];
+  };
+
   / Symlink loop survival: a directory tree that cycles back on itself via a
   / symlink must not crash discovery AND must not rediscover the same test under
   / the loop. Discovery does not follow symlinked dirs, so the cycle branch is
@@ -229,6 +306,83 @@
     must[.tst.golden.anyLike[r`out; "NOTE: snapshot created"];
          "first-run snapshot creation should print a review NOTE"];
   };
+
+  / Banner-comment idiom: a file opening with `/ ...` line comments, then a lone
+  / `/` (block-comment open), some non-q garbage, a lone `\` (block close), then
+  / the real test. Real q `\l` loads this fine - the garbage is swallowed by the
+  / block comment. resQ's preprocessor must match: load OK, 1 passed, exit 0.
+  / (Regression: the old prevBlank gate refused to open the block after a `/`
+  / comment line, so the garbage hit `value` and threw CRITICAL LOAD ERROR.)
+  skipIf[not .tst.golden.canQ; "banner block comment: loads, 1 passed, exit 0"]{
+    wd: .tst.golden.workDir[];
+    system "mkdir -p ", wd;
+    testF: wd, "/test_banner_gen.q";
+    / NB: lone "/" and "\" are 1-char strings (char ATOMS); they must be enlisted
+    / so `0:` sees a uniform list of char vectors (a bare atom -> 'type).
+    (hsym `$testF) 0: (
+      "/ This is a banner comment";
+      "/ describing the file";
+      enlist "/";
+      "garbage line that is not valid q at all";
+      enlist "\\";
+      ".tst.desc[\"banner\"]{ should[\"loads past the banner block\"]{";
+      "  musteq[1;1];";
+      "}; };");
+    r: .tst.golden.run testF, " -quiet";
+    musteq[r`code; 0];
+    must[.tst.golden.anyLike[r`out; "1 passed, 0 failed, 0 error"];
+         "banner fixture should load and report 1 passed"];
+    must[not .tst.golden.anyLike[r`out; "CRITICAL LOAD ERROR"];
+         "banner fixture must NOT throw a load error"];
+  };
+
+  / Block comment in the MIDDLE of a file, after real code: a lone `/` opens a
+  / block that contains a fake `\l /nonexistent` and garbage, closed by a lone
+  / `\`; code before and after the block both run. The fake \l must NEVER be
+  / executed (it lives inside the dropped block), so no load failure - 1 passed.
+  skipIf[not .tst.golden.canQ; "mid-file block comment: fake \\l swallowed, 1 passed"]{
+    wd: .tst.golden.workDir[];
+    system "mkdir -p ", wd;
+    testF: wd, "/test_midblock_gen.q";
+    (hsym `$testF) 0: (
+      ".tst.midblock.before: 1;";
+      enlist "/";
+      "\\l /nonexistent/should/never/load.q";
+      "garbage that would not parse as q";
+      enlist "\\";
+      ".tst.desc[\"midblock\"]{ should[\"code around a mid-file block runs\"]{";
+      "  musteq[1; .tst.midblock.before];";
+      "}; };");
+    r: .tst.golden.run testF, " -quiet";
+    musteq[r`code; 0];
+    must[.tst.golden.anyLike[r`out; "1 passed, 0 failed, 0 error"];
+         "mid-file-block fixture should load and report 1 passed"];
+    must[not .tst.golden.anyLike[r`out; "nonexistent"];
+         "the fake \\l inside the block must never be executed"];
+  };
+
+  / Duplicate spelling: the SAME file passed under two spellings (./x.q and x.q)
+  / must register and run its tests exactly ONCE. Relative spellings require the
+  / subprocess CWD to be the fixture dir, which .tst.golden.run already cd's into,
+  / so we generate the file there and pass the bare relative names.
+  skipIf[not .tst.golden.canQ; "dup spelling ./x.q x.q: suite counted once"]{
+    wd: .tst.golden.workDir[];
+    system "mkdir -p ", wd;
+    (hsym `$wd, "/dup_gen.q") 0:
+      enlist ".tst.desc[\"dup\"]{ should[\"runs once\"]{ musteq[1;1]; }; };";
+    / Relative spellings resolve against the subprocess CWD, so we cd INTO the
+    / fixture dir and pass the bare relative names. (Built inline rather than via
+    / .tst.golden.run, which cds into its own fresh work dir.) mkdir -p mirrors
+    / the proven .tst.golden.run command shape and is idempotent.
+    cmd: "mkdir -p ", wd, " && cd ", wd, " && ", .tst.golden.timeoutPrefix, "q ", .resq.HOME,
+         "/resq.q test ./dup_gen.q dup_gen.q -quiet > run_out.txt 2>&1; echo $?";
+    lines: @[system; cmd; {[e] enlist "-1"}];
+    code: "J"$ last lines;
+    out: @[read0; hsym `$wd, "/run_out.txt"; {()}];
+    musteq[code; 0];
+    must[.tst.golden.anyLike[out; "1 total (1 passed, 0 failed, 0 error"];
+         "the same file under two spellings should run its test exactly once"];
+  };
  };
 
 .tst.desc["Golden: report files #slow"]{
@@ -248,12 +402,39 @@
     must[.tst.golden.anyLike[lines; "<failure"]; "XML should contain <failure"];
     must[.tst.golden.anyLike[lines; "Expected 1 to match 2"];
          "failure message should appear in XML"];
+    / Report-message rendering fix: the failure text must be the plain message,
+    / NOT the q literal form of a 1-element list (which escapes to `,&quot;` in
+    / XML once the leading `,"` is &quot;-escaped).
+    must[not .tst.golden.anyLike[lines; ",&quot;"];
+         "no q-literal `,\"` artifact (escaped as ,&quot;) in the XML message"];
     must[not .tst.golden.anyLike[lines; "Error: type"];
          "no type-error leakage into XML"];
     / No control bytes below 0x20 except tab/LF/CR.
     raw: .tst.golden.readRaw[r`dir; "test-results.xml"];
     ctrl: "x"$ 1 2 3 4 5 6 7 8 11 12 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31;
     musteq[count raw where raw in ctrl; 0];
+  };
+
+  / beforeAll-throwing fixture with -junit: the runner synthesizes a single
+  / error row whose time is a NULL timespan (0Nn). toSeconds must coerce that to
+  / 0f so the XML carries time="0" (valid xsd:decimal), never time="" (invalid).
+  / Generated at runtime per this file's existing fixture-generation pattern.
+  skipIf[not .tst.golden.canQ; "beforeAll-failure -junit: time=\"0\" not time=\"\""]{
+    wd: .tst.golden.workDir[];
+    system "mkdir -p ", wd;
+    testF: wd, "/test_beforeall_fail_gen.q";
+    (hsym `$testF) 0: (
+      ".tst.desc[\"beforeAll throws\"]{";
+      "  beforeAll{ '\"deliberate beforeAll failure\" };";
+      "  should[\"never runs\"]{ musteq[1;1]; };";
+      "};");
+    r: .tst.golden.run testF, " -junit -quiet";
+    lines: .tst.golden.readFile[r`dir; "test-results.xml"];
+    must[0 < count lines; "test-results.xml should be written"];
+    must[.tst.golden.anyLike[lines; "time=\"0\""];
+         "synthetic beforeAll-failure row should carry time=\"0\""];
+    must[not .tst.golden.anyLike[lines; "time=\"\""];
+         "no empty time=\"\" attribute (invalid xsd:decimal)"];
   };
 
   / f_nasty with -junit: XML specials in titles are escaped; the raw <&>

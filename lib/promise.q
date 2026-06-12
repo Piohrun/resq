@@ -185,7 +185,7 @@ await:{[id; timeoutMs]
     $[state[`state] ~ `resolved;
         state[`val];
         state[`state] ~ `rejected;
-        'string state[`err];
+        [err: state[`err]; '$[-11h = type err; string err; 10h = type err; err; .tst.toString err]];
         '"Promise in unexpected state"
     ]
  };

@@ -1,72 +1,48 @@
 # Watch Mode
 
-resQ includes a powerful **Smart Watch Mode** that accelerates your development loop by automatically re-running relevant tests whenever you modify code.
+resQ includes a **Watch Mode** that re-runs affected tests whenever source or test files change.
 
-## 🚀 Quick Start
-
-Start the watcher from your project root:
+## Quick Start
 
 ```bash
-q resq.q watch
+resq watch src/ tests/
 ```
 
-By default, this watches the current directory (`.`) recursively.
-
-### Watching Specific Directories
-
-To reduce noise or focus on specific modules, pass directories as arguments:
-
-```bash
-q resq.q watch src/analytics tests/analytics
-```
+Pass one or more directories to watch. On each detected change, resQ re-runs the relevant tests in-process and prints the result.
 
 ---
 
-## 🧠 How It Works
+## How It Works
 
-The watcher uses a "Smart Reloading" heuristic to decide what to run:
+### Change detection
 
-1.  **Test Changed (`tests/test_foo.q`)**:
-    *   The watcher identifies it as a test file.
-    *   **Action**: Runs *only* that test file.
-    *   *Benefit*: Instant feedback on the test you are writing.
+The watcher polls the watched directories on a fixed interval. Each `.q` file is fingerprinted by its size and mtime; a change to either triggers a test run. Hidden files (names starting with `.`) are ignored.
 
-2.  **Source Changed (`src/foo.q`)**:
-    *   The watcher parses the filename to find its "base" name (`foo`).
-    *   It scans for a corresponding test file (e.g., `tests/test_foo.q` or `tests/foo.q`).
-    *   **Action**:
-        *   If a match is found: Runs *only* that test file.
-        *   If no match is found: Runs the **Full Test Suite** (safety fallback).
+### What gets re-run
 
-3.  **Config/Core Changed**:
-    *   If a file doesn't match standard patterns or seems to be a core utility.
-    *   **Action**: Runs the **Full Test Suite**.
+1. **Test file changed**: runs only that file.
+2. **Source file changed**: looks for a matching test file by name convention (`src/foo.q` → `tests/test_foo.q`). If found, runs it. If not found, runs the full suite as a safety fallback.
+3. **Other file changed**: runs the full suite.
+
+### Poll interval
+
+Default is 1 second. Override by setting `.tst.watch.interval` (in seconds) before the watcher starts, or in a project bootstrap file.
 
 ---
 
-## 🛠️ Configuration
+## Configuration
 
-The watcher is designed to be zero-config, but it respects your project structure.
-
-- **File Detection**: Uses `lib/static_analysis.q` to find `.q` files, ignoring hidden files (starting with `.`).
-- **Execution**: Runs tests in-process via `lib/runner.q` on each change. This keeps the loop fast while still reloading the affected test files.
+Watch mode runs without a TTY — it works under redirected stdin and in CI environments. It uses a foreground poll loop (not `.z.ts`), so it does not interfere with any timer handler your code may define.
 
 ---
 
-## ⚡ Performance Tips
+## Troubleshooting
 
-- **Ignore Build Artifacts**: The watcher automatically ignores hidden directories like `.git`, `.idea`, etc. Ensure your build artifacts (if any) are in hidden folders or outside the watch target.
-- **Focused Watch**: If working on a massive monorepo, always specify the subdirectories you are working on (e.g., `q resq.q watch src/order tests/order`) to keep the scan loop fast.
+**Q: A new file isn't being picked up.**
+A: The watcher re-scans directory listings on each poll cycle, so new files are detected within one poll interval (default 1 second).
 
----
+**Q: It keeps running the full suite instead of just one file.**
+A: The heuristic couldn't match the changed source file to a test file. Ensure naming is consistent (`src/foo.q` → `tests/test_foo.q` or `tests/foo_test.q`).
 
-## ❓ Troubleshooting
-
-**Q: The watcher isn't picking up my new file.**
-A: The watcher scans for *existing* files on startup. It re-scans directory lists periodically (every 1s). If you just created a file, give it a second. If it's in a new directory, ensure that directory is under the watched root.
-
-**Q: It keeps running ALL tests.**
-A: This means the heuristic couldn't link your source file to a specific test file. Ensure your naming convention is consistent (e.g., `src/foo.q` -> `tests/test_foo.q`).
-
-**Q: I get "OS Error" or "find not found".**
-A: The legacy `tools/watch.q` used shell commands. `resq.q watch` uses `lib/watch.q`, which is pure Kdb+ and cross-platform.
+**Q: I need to watch more directories.**
+A: Pass all of them as arguments: `resq watch src/ lib/ tests/`.

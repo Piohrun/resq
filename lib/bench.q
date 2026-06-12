@@ -76,10 +76,6 @@ bench:{[func;opts]
   result[`p99_us]: (`float$result`p99_ns) % 1000;
   result[`histogram]: benchHistogram[times; 10];
   result[`raw_ns]: times;
-  
-  / Record metrics if runner is present
-  if[not ()~key `.tst.recordMetrics; .tst.recordMetrics[result]];
-  
   result
  };
 

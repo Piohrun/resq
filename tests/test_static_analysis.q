@@ -72,4 +72,23 @@
         (exec name from fns) mustmatch `add`id;
         (exec count each args from fns) mustmatch 2 1;
     };
+
+    should["exploreFile detect a space after the definition colon"]{
+        tf: .tst.tempFile ".q";
+        / `f: {` (space after colon) must be detected, same as `f:{`.
+        contents: ("f: {[x] x}"; "g:{[y] y}");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch `f`g;
+    };
+
+    should["exploreFile reset namespace on \\d ."]{
+        tf: .tst.tempFile ".q";
+        / `\d .a` enters namespace, `\d .` resets to root. The reset must
+        / produce a bare `g`, never a `..g` (invalid q).
+        contents: ("\\d .a"; "f:{[x] x+1}"; "\\d ."; "g:{[y] y}");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch `.a.f`g;
+    };
 };

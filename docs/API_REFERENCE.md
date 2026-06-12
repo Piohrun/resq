@@ -23,6 +23,38 @@ Complete reference documentation for the resQ testing framework.
 
 The test DSL provides a BDD-style syntax for writing tests.
 
+### retry
+
+```q
+retry[n; description; code]
+```
+
+Define a test that is allowed to fail up to `n` times before being recorded as failed. Total attempts: `n + 1`.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `n` | int | Maximum number of retries (total attempts = n+1) |
+| `description` | string | Test description |
+| `code` | function | Test implementation |
+
+**Behaviour:**
+- `before`/`after` hooks re-run around each attempt.
+- The first passing attempt wins: one `pass` result row is recorded and no further attempts are made.
+- A late pass (not on the first attempt) prints `NOTE: '<description>' passed on attempt k of m` so flakiness remains visible in the log.
+- If all attempts fail, the result is recorded as failed with the message "failed after m attempts".
+- Exactly one result row is recorded regardless of how many attempts were made.
+
+**Example:**
+```q
+retry[3; "flaky network call"]{
+    result: .api.fetch[];
+    result mustne `;
+};
+```
+
+---
+
 ### .tst.desc
 
 ```q
@@ -642,6 +674,9 @@ Merge partial values into an existing dictionary.
 / Result: config is now `host`port`debug!("localhost";8080;1b)
 ```
 
+**Notes:**
+- If `name` does not refer to an existing variable, `partialMock` signals a clear error: `"target not defined: <name>"`. Previously this surfaced as a raw q name error.
+
 ---
 
 ### spy
@@ -749,6 +784,9 @@ Mock a function to return different values on successive calls.
 .api.fetch[] / returns 3
 .api.fetch[] / throws "Mock sequence exhausted"
 ```
+
+**Notes:**
+- If `name` does not refer to an existing variable, `mockSequence` signals a clear error: `"target not defined: <name>"`. Previously this surfaced as a raw q name error.
 
 ---
 
@@ -958,6 +996,9 @@ testCases: ([] input: (1;2;3); expected: (2;4;6));
 }];
 ```
 
+**Notes:**
+- A precedence bug that caused the first row to spuriously fail when prior assertion state contained failures has been fixed. Each row now evaluates independently of prior assertion state.
+
 ---
 
 ### parametrize
@@ -1110,7 +1151,7 @@ Wait for a deferred to settle.
 
 **Returns:** Resolved value
 
-**Throws:** Error if rejected or timeout
+**Throws:** Error if rejected or timeout. When a promise is rejected with a string reason, `await` signals that string as the error (e.g. `'connection refused`). Previously, string rejection reasons raised `'stype` instead of the actual reason.
 
 **Example:**
 ```q
@@ -1233,6 +1274,7 @@ Assert value matches stored binary snapshot.
 - If snapshot doesn't exist and `-strict` is active: fails with `Snapshot missing under -strict`
 - If `updateSnaps` is true: overwrites snapshot
 - Otherwise: compares and fails on mismatch
+- Existence is determined by **file presence**, not by whether the stored value is non-empty. Empty lists, dicts, and tables are valid snapshot values.
 
 **Example:**
 ```q

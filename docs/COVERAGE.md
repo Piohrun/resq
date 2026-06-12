@@ -1,80 +1,77 @@
 # Runtime Code Coverage
 
-resQ provides powerful **Runtime Code Coverage** tracking. Unlike static scanners, this feature instruments your code at load time to measure exactly which functions are executed during your test suite.
+resQ provides **function-level code coverage** tracking via `resq cover`. It instruments your source functions at load time and records which ones are called during the test run.
 
-## 🚀 Key Features
-- **Auto-Instrumentation**: No manual `.recordExecution` calls needed.
-- **Dependency Aware**: Tracks execution across multiple files.
-- **Path Normalization**: Correctly handles absolute/relative paths and symlinks (via logical resolution).
-- **LCOV Reporting**: Generates industry-standard reports for CI/CD.
-
----
-
-## 🛠️ Usage
-
-### 1. Enable Coverage in Runner
-Pass the `-cov` or `-coverage` flag to the test runner.
+## Usage
 
 ```bash
-q resq.q test tests/ -cov
+resq cover src/ tests/
 ```
 
-### 2. Update Test Loading
-To enable instrumentation, your tests (or your runner) must load source code using `.tst.loadSource` instead of `system "l ..."`. 
-
-**Example Test File:**
-```q
-/ Old Way (No Coverage)
-/ system "l src/user.q"
-
-/ New Way (Supports Coverage)
-$[`loadSource in key .tst; .tst.loadSource; system "l "] "src/user.q"
-```
-
-### 3. Generate Reports
-The runner automatically generates `coverage.lcov` in the output directory if `-cov` is enabled.
+Pass source directories first, then test directories. resQ discovers and runs all test files and emits coverage reports when the run completes.
 
 ---
 
-## 🏢 Enterprise Integration
+## How It Works
 
-### Option A: The "Shim" (Recommended)
-If your organization uses a custom library loader, you can manually patch it.
+### Instrumentation
 
-```q
-/ bootstrap_test.q
-\l lib/coverage.q
-.tst.initCoverage[enlist `];
+When a test file loads a source file via `\l path` or `system "l ", path`, the coverage-aware loader intercepts the load, instruments every named function defined in that file (wrapping it to record a hit), then makes the function available as normal. The test file does not need to be modified.
 
-.core.origLoad: .core.load;
-.core.load: {[file]
-  .core.origLoad file;       / 1. Load normally
-  .tst.instrumentFile file;  / 2. Instrument post-load
-};
-```
+Files loaded by other mechanisms (e.g. `\l` inside a helper that is itself loaded outside the watched path, or `value` calls that eval source strings) are not instrumented.
 
-### Option B: Auto-Discovery & Hijacking (Advanced)
-For massive legacy codebases where you don't know the loader names, use the **Loader Discovery** tool.
+Compiled operators and derived functions (e.g. `+/`, `each`) are skipped — they cannot be wrapped.
 
-```q
-\l lib/loader_discovery.q
+### Granularity
 
-/ Scan core library for functions that look like loaders
-.tst.loader.autoHijack["/opt/kdb/core"];
-```
-
-This scans the directory, parses function bodies to find `system "l ..."` calls, and automatically applies a wrapper that injects instrumentation.
-
-### Complex Paths
-The library includes a logical `realpath` normalizer (`.tst.resolvePath`).
-- `/opt/kdb/core/utils.q`
-- `../../core/utils.q`
-Both resolve to the same canonical path in the coverage report, ensuring you don't get fragmented stats.
+Coverage is **function-level**: a function is marked as hit if it was called at least once during the run. Line-level coverage is not available.
 
 ---
 
-## 📊 CI/CD Visualization
-The generated `coverage.lcov` file works with:
+## Output
+
+Reports are written to `outDir` (default: `.`):
+
+| File | Contents |
+|------|----------|
+| `coverage.lcov` | Standard LCOV with SF/FN/FNDA/FNF/FNH records. Consumable by `genhtml`, Codecov, Coveralls, SonarQube. |
+| `coverage/index.html` | Per-function HTML report showing hit/miss status for each instrumented function. |
+| `coverage_state.txt` | Human-readable dump of the complete coverage state at run end. |
+
+### Generating HTML locally
+
+```bash
+genhtml coverage.lcov -o report/
+open report/index.html
+```
+
+---
+
+## CI/CD Integration
+
+The `coverage.lcov` file is industry-standard and works with:
+
 - **GenHTML**: `genhtml coverage.lcov -o report/`
 - **Codecov / Coveralls**: Upload directly.
 - **SonarQube**: Import as generic test coverage.
+
+---
+
+## Limitations
+
+- **Function-level only** — no line-level data.
+- **`\l` / `system "l "` only** — the loader intercepts these two forms. Custom loaders are not auto-detected unless loader hijacking is explicitly enabled (experimental, see below).
+- **Compiled operators skipped** — `+/`, `each`, `':'`, etc. cannot be wrapped.
+
+---
+
+## Loader Hijacking (Experimental)
+
+For codebases that load source via a custom loader function rather than `\l`, set `.tst.loaderHijackEnabled: 1b` to allow hijacking:
+
+```q
+.tst.loaderHijackEnabled: 1b;
+.tst.loader.autoHijack["/opt/kdb/core"];
+```
+
+This is **off by default** and **experimental**. `resq discover` does not require it. Only enable it if your codebase is confirmed to use a custom loader and the default `\l`-interception misses significant coverage.

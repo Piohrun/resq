@@ -6,6 +6,7 @@
 .tst.coverageEnabled: 0b;
 .tst.trackedFiles: ();
 .tst.origFuncs: ()!();           / name -> original function
+.tst.covWrappers: ()!();         / name -> installed wrapper (live identity)
 .tst.loadingStack: ();
 .tst._covMissing: `resqCovMissing;
 
@@ -30,27 +31,15 @@
 
 .tst._covNumStr:{[x] string `long$x };
 
-.tst.safeValue:{[sym]
-    s: string sym;
-    if[not s like ".*";
-        if[sym in key `.; :get sym];
-        :.tst._covMissing
-    ];
-
-    parts: "." vs s;
-    if[count parts < 3; :.tst._covMissing];
-
-    nsSym: `$"." sv -1 _ parts;
-    vnSym: `$last parts;
-
-    if[not nsSym in key `.; :.tst._covMissing];
-
-    nsKeys: key nsSym;
-    if[() ~ nsKeys; :.tst._covMissing];
-    if[not vnSym in nsKeys; :.tst._covMissing];
-
-    get ` sv nsSym, vnSym
- };
+/ Resolve a (possibly dotted, possibly namespaced) name to its value, returning
+/ the `.tst._covMissing` sentinel when the name is unbound. The previous walk
+/ gated on `nsSym in key \`.`, which is false for dotted CHILD namespaces
+/ (e.g. \`.user.create lives under \`.user, not \`.), so it rejected every
+/ \`.ns.func and wrapped nothing. A trapped `get` resolves any bound name -
+/ root, namespaced, or nested - and the lambda handler keeps the sentinel
+/ contract for unbound names. (\`get\` SIGNALS on an unknown name; the trap is
+/ mandatory and its handler MUST be a lambda - \`@[f;x;e]\` requires it.)
+.tst.safeValue:{[sym] @[get; sym; {[e] .tst._covMissing}] };
 
 .tst.ensureCoverageEntry:{[fileSym]
     if[not fileSym in key .tst.coverageData;
@@ -85,9 +74,22 @@
 / @param name (symbol) Function name (e.g. `.user.create`)
 / @param fileSym (symbol) Source file symbol
 .tst.wrapFunc:{[name;fileSym]
-    / Skip coverage internals and already-wrapped names
+    / Skip coverage internals.
     if[name in .tst.coverageSkipNames; :()];
-    if[name in key .tst.origFuncs; :()];
+
+    / Already-wrapped guard, RELOAD-AWARE. The old guard skipped on mere name
+    / membership in .tst.origFuncs, so after a file reload (which installs a
+    / fresh UNWRAPPED definition) re-instrumenting was a no-op: the name was
+    / still registered, the live function stayed unwrapped, and hits were zero.
+    / Instead compare the LIVE value to the wrapper we installed (kept in
+    / covWrappers). `~` on lambdas is structural and each wrapper embeds its own
+    / name, so wrappers for different names differ - a true identity test.
+    /   - live value IS our wrapper  -> already instrumented, skip.
+    /   - name registered but live value differs (reload) -> fall through,
+    /     re-capture the fresh live value as orig below, and re-wrap.
+    if[name in key .tst.covWrappers;
+        if[(.tst.safeValue name) ~ .tst.covWrappers name; :()];
+    ];
 
     orig: .tst.safeValue name;
     if[orig ~ .tst._covMissing; :()];
@@ -97,21 +99,54 @@
     
     if[not type[orig] within (100h;104h); :()];
 
+    / Introspect the original to recover its argument names so the wrapper can
+    / forward them positionally. `value[f] 1` resolves BOTH explicit ({[x;y]..})
+    / and implicit ({x+y} -> `x`y) lambdas to their canonical arg names, so the
+    / rebuilt {[x;y] ...} preserves the original rank and call semantics. But it
+    / SIGNALS 'type for compiled operators/derived functions (102h/103h), which
+    / pass the type guard above; trap it and skip rather than crash. The handler
+    / must be a lambda (q's @[f;x;e] requires it).
+    args: @[{value[x] 1}; orig; {(::)}];
+    if[args ~ (::); :()];
+
     .tst.origFuncs[name]: orig;
-    
-    args: value[orig] 1;
+
     argStr: $[0 < count args; ";" sv string args; ""];
     callArgs: "[", argStr, "]";
-    
+
+    / The recorded file key MUST equal the symbol ensureCoverageEntry / the LCOV
+    / writer use (\`$absPath, NO ":" prefix). recordExecution does `\`$file` for a
+    / string arg, so embed the path as an ESCAPED STRING LITERAL and let it
+    / symbol-ize - identical to \`$absPath. A backtick-symbol literal can't be
+    / used here: a path starts with "/", and `\`/tmp/x` does not parse as a
+    / symbol. (The previous code wrote `hsym "..."`, producing \`:absPath, so
+    / hits landed under a key the report never read - always-empty coverage.)
+    pathLit: ssr[ssr[string fileSym; "\\"; "\\\\"]; "\""; "\\\""];
     wrapperCode: raze ("{"; callArgs;
-        " .tst.recordExecution[hsym "; -3!string fileSym; ";`"; string name; " ];";
+        " .tst.recordExecution[\"", pathLit, "\";`"; string name; " ];";
         " .tst.origFuncs[`"; string name; " ]"; callArgs;
         " }");
-    
-    @[set; (name; value wrapperCode); {[n;e]
+
+    / Parse the wrapper text; a failure here (exotic arg names, etc.) must leave
+    / the original definition untouched, so trap it and bail.
+    wrapFn: @[value; wrapperCode; {(::)}];
+    if[wrapFn ~ (::); .tst.origFuncs _: name; :()];
+
+    / Install the wrapper. MUST use the .[set;args;h] (dot-apply) trap form, not
+    / @[set;args;h]: `set` is dyadic, and @[f;x;e] applies it MONADICALLY to the
+    / 2-list - a no-op that silently leaves the original in place (and so wrapped
+    / nothing, the deepest cause of the empty-coverage bug). .[set;(name;val);h]
+    / applies both args. On failure, drop the half-registered entries so a later
+    / re-instrument retries cleanly.
+    ok: .[{[n;w] set[n; w]; 1b}; (name; wrapFn); {[n;e]
         -1 "Coverage wrap failed for ", string n, ": ", .Q.s1 e;
-        :()
+        0b
     }[name]];
+    if[not ok; .tst.origFuncs _: name; :()];
+
+    / Record the installed wrapper's identity so the reload-aware guard above can
+    / tell "still our wrapper" from "reloaded behind our back".
+    .tst.covWrappers[name]: wrapFn;
  };
 
 / Instrument a loaded file (analyze and wrap functions)
@@ -141,7 +176,76 @@
     if[not 98h = type fns; :()];
     if[0 = count fns; :()];
 
-    {[fs;row] .tst.wrapFunc[row`name; fs]}[fileSym] each fns;
+    / exploreFile applies `\d <ns>` namespacing, but NOT the runtime
+    / `system "d <ns>"` form some sources use to open a namespace - those
+    / functions are returned BARE (e.g. `create` for a fn that actually loaded
+    / as `.user.create`), so wrapping the bare name finds nothing. Re-derive the
+    / runtime-`d` namespace active at each function's line and qualify any bare
+    / name accordingly, so the wrapped (and recorded) name matches the loaded
+    / definition and the LCOV report. Names exploreFile already qualified (`.*`)
+    / are left as-is.
+    lines: @[read0; fHandle; {()}];
+    nsAt: .tst.coverageSysDNamespaces lines;
+    {[fs;nsAt;row]
+        nm: row`name;
+        nm: .tst.coverageQualifyName[nsAt; row`line; nm];
+        .tst.wrapFunc[nm; fs]
+    }[fileSym; nsAt] each fns;
+ };
+
+/ Build a per-line active-namespace vector from a file's `system "d <ns>"`
+/ directives (the runtime equivalent of `\d <ns>`). Returns a list of strings,
+/ one per source line, giving the namespace string ("" at root, ".user", ...)
+/ in effect ON that line. `system "d ."` / `system "d \`."` resets to root.
+.tst.coverageSysDNamespaces:{[lines]
+    {[acc;ln]
+        cur: last acc;
+        t: trim ln;
+        / Match a `system "d <ns>"` directive and pull <ns> from between the two
+        / double-quotes. "d ." / "d `." reset to root.
+        if[t like "system \"d *";
+            q1: t ? "\"";
+            rest: (q1+1) _ t;
+            q2: rest ? "\"";
+            arg: trim q2 # rest;                / e.g. "d .user"
+            if[arg like "d *";
+                ns: trim 2 _ arg;
+                ns: $[ns like "`*"; 1 _ ns; ns]; / tolerate `.user spelling
+                cur: $[(ns ~ ".") or (0 = count ns); ""; ns];
+            ];
+        ];
+        acc, enlist cur
+    }/[enlist ""; lines]
+ };
+
+/ Qualify a bare function name with the runtime-`d` namespace active at `line`
+/ (1-based, as exploreFile reports). Already-dotted names pass through.
+.tst.coverageQualifyName:{[nsAt;line;name]
+    s: string name;
+    if[s like ".*"; :name];                 / already namespaced
+    idx: line - 1;                          / nsAt is 0-based per source line
+    if[(idx < 0) or idx >= count nsAt; :name];
+    ns: nsAt idx;
+    if[0 = count ns; :name];
+    `$ns, ".", s
+ };
+
+/ Load a .q file by absolute path, tolerating spaces in the path.
+/ q's `\l` (system "l ...") cannot parse a path containing spaces - it splits on
+/ whitespace and raises 'nyi. The portable workaround is to chdir into the file's
+/ directory (q's `system "cd <dir>"` IS the supported way to chdir the q process,
+/ and it does accept a spaced directory) and `\l` the bare basename, then restore
+/ the previous working directory. The cwd is restored on BOTH success and error.
+.tst.coverageLoadFile:{[pathStr]
+    slashes: where pathStr = "/";
+    dir: $[count slashes; (last slashes) # pathStr; "."];
+    base: $[count slashes; (1 + last slashes) _ pathStr; pathStr];
+    prevCd: system "cd";
+    / chdir, then load basename; any failure restores cwd before re-raising.
+    @[{[d;b] system "cd ", d; system "l ", b}[dir];
+      base;
+      {[pc;e] system "cd ", pc; 'e}[prevCd]];
+    system "cd ", prevCd;
  };
 
 / Load and instrument a source file explicitly
@@ -151,7 +255,7 @@
     if[pathStr in .tst.loadingStack; :()];
     .tst.loadingStack,: enlist pathStr;
 
-    @[system; "l ", pathStr; {[e]
+    @[.tst.coverageLoadFile; pathStr; {[e]
         .tst.loadingStack:: -1 _ .tst.loadingStack;
         'e
     }];
@@ -180,6 +284,7 @@
     .tst.trackedFiles:: fs;
     .tst.coverageData:: ()!();
     .tst.origFuncs:: ()!();
+    .tst.covWrappers:: ()!();
     .tst.loadingStack:: ();
     .tst.coverageEnabled:: 1b;
 
@@ -202,11 +307,16 @@
     fns: @[.tst.static.exploreFile; fHandle; {([] name:`$(); line:`int$())}];
     if[not 98h = type fns; fns: ([] name:`$(); line:`int$())];
 
+    / Qualify bare names from runtime `system "d <ns>"` modules so the lookup
+    / matches the recorded (loaded) names - same correction as generateLCOV.
+    srcLines: @[read0; fHandle; {()}];
+    nsAt: .tst.coverageSysDNamespaces srcLines;
+
     fnLines: ();
     i: 0;
     do[count fns;
         row: fns i;
-        nm: row`name;
+        nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
         ln: row`line;
         hit: $[nm in key fData; fData[nm]; 0];
         fnLines,: "FN:", string ln, ",", string nm;
@@ -254,6 +364,14 @@
         fns: @[.tst.static.exploreFile; fHandle; {([] name:`$(); line:`int$())}];
         if[not 98h = type fns; fns: ([] name:`$(); line:`int$())];
 
+        / exploreFile reports BARE names for functions opened with a runtime
+        / `system "d <ns>"` (it only honours `\d`); hits, however, were recorded
+        / under the QUALIFIED name (see instrumentFile). Re-derive the same
+        / namespace map so the FN:/FNDA: lines and the hit lookup use the loaded
+        / name, otherwise every FNDA stays 0 for system-`d` modules.
+        srcLines: @[read0; fHandle; {()}];
+        nsAt: .tst.coverageSysDNamespaces srcLines;
+
         sfLine: "SF:";
         sfLine,: pathStr;
         sfLine,: "\n";
@@ -264,7 +382,7 @@
         j: 0;
         do[fnCount;
             row: fns j;
-            nm: row`name;
+            nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
             ln: row`line;
 
             hit: 0;
@@ -313,7 +431,25 @@
     dir: $[idx=0; "."; idx # outPath];
     stateFile: dir, "/coverage_state.txt";
     stateH: hsym (`$":" , stateFile);
-    stateH 0: enlist -3! .tst.coverageData;
+    / Persist the FULL coverage dict, one "file func count" line per record.
+    / `-3!` of the whole dict was truncated by q's display width ("..."), losing
+    / data; an explicit per-entry dump is complete and grep-friendly.
+    stateLines: ();
+    sf: 0;
+    do[count files;
+        fsym: files sf;
+        fpath: string fsym;
+        if[fpath like ":*"; fpath: 1 _ fpath];
+        fd: .tst.coverageData[fsym];
+        fnames: key fd;
+        k: 0;
+        do[count fnames;
+            stateLines,: enlist fpath, " ", (.tst._covNameStr fnames k), " ", .tst._covNumStr fd fnames k;
+            k+: 1;
+        ];
+        sf+: 1;
+    ];
+    stateH 0: stateLines;
 
     outH 0: enlist txt;
     -1 "LCOV report written to: ", outPath;
@@ -329,6 +465,46 @@
 
     html: "<!DOCTYPE html><html><head><title>resQ Coverage</title></head><body>";
     html,: "<h1>resQ Coverage</h1>";
+
+    / Render a real per-file table of functions and their hit counts (covered =
+    / hits>0, otherwise uncovered) rather than a placeholder. Names and lookups
+    / use the same `system "d"`/`\d` qualification as the LCOV writer.
+    files: key .tst.coverageData;
+    f: 0;
+    do[count files;
+        fileSym: files f;
+        pathStr: string fileSym;
+        if[pathStr like ":*"; pathStr: 1 _ pathStr];
+        fData: .tst.coverageData[fileSym];
+        fHandle: hsym (`$":" , pathStr);
+        fns: @[.tst.static.exploreFile; fHandle; {([] name:`$(); line:`int$())}];
+        if[not 98h = type fns; fns: ([] name:`$(); line:`int$())];
+        srcLines: @[read0; fHandle; {()}];
+        nsAt: .tst.coverageSysDNamespaces srcLines;
+
+        covered: 0;
+        rowsHtml: "";
+        j: 0;
+        do[count fns;
+            row: fns j;
+            nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
+            hit: $[nm in key fData; fData[nm]; 0];
+            if[hit > 0; covered+: 1];
+            cls: $[hit > 0; "covered"; "uncovered"];
+            rowsHtml,: "<tr class=\"", cls, "\"><td>", (.tst._covNameStr nm),
+                "</td><td>", (.tst._covNumStr row`line),
+                "</td><td>", (.tst._covNumStr hit), "</td></tr>";
+            j+: 1;
+        ];
+
+        html,: "<h2>", pathStr, "</h2>";
+        html,: "<p>", (.tst._covNumStr covered), " / ", (.tst._covNumStr count fns), " functions covered</p>";
+        html,: "<table border=\"1\"><thead><tr><th>Function</th><th>Line</th><th>Hits</th></tr></thead><tbody>";
+        html,: rowsHtml;
+        html,: "</tbody></table>";
+        f+: 1;
+    ];
+
     html,: "<p>Raw coverage state written to coverage_state.txt</p>";
     html,: "</body></html>";
     outH 0: enlist html;

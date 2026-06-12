@@ -23,6 +23,13 @@ loadSnap:{[name]
     get p
  }
 
+/ Existence by FILE PRESENCE, not by value. loadSnap returns () for both a
+/ missing file and a stored empty list/dict/table, so callers must use this to
+/ decide "missing vs present" -- otherwise an empty-list snapshot re-creates
+/ every run and never validates. key hsym: () for a missing file, the path
+/ symbol (type -11h) for an existing file.
+snapExists:{[name] not () ~ key .tst.snapPath name }
+
 saveSnap:{[name;data]
     .tst.ensureDir[.tst.snapDir];
     p: .tst.snapPath name;
@@ -33,7 +40,11 @@ mustmatchSnap:{[actual;name]
     n: $[10h=type name; name; string name];
     snapName: `$n,".snap";
     stored: .tst.loadSnap[snapName];
-    missing: ()~stored;
+    / Decide existence by FILE PRESENCE, not by ()~stored: an empty-list,
+    / empty-dict or empty-table snapshot all load back as a value that may
+    / match (), so aliasing them to "missing" would re-create them every run
+    / and fail under -strict despite the file existing on disk.
+    missing: not .tst.snapExists snapName;
 
     / Explicit update intent always (re)writes and passes, with a NOTE.
     if[.tst.updateSnaps;

@@ -15,12 +15,15 @@ Parts of the codebase and documentation were created or reviewed with AI assista
 - **🚀 High-Resolution Benchmarking**: Professional stats (min, max, avg, percentiles) and ASCII histograms built-in.
 - **🔍 Automated Discovery**: Scans codebase for untested functions and generates boilerplate templates automatically.
 - **📊 CI/CD Integration**: Optimized JUnit XML with detailed performance metrics and build-tracking labels.
+- **🔁 Retry support**: `retry[n; "desc"]{...}` re-runs a flaky test up to n+1 total attempts; before/after hooks re-run per attempt; a late pass is noted with attempt number for visibility.
 - **🛠️ Advanced Utilities**:
   - **Fixtures**: Binary, text, and directory-based data injection.
   - **Mocking/Spies**: Clean function and variable mocking with auto-restoration.
   - **Parametrized Tests**: Run tests against a table of scenarios with `.tst.forall`.
   - **Async Testing**: Robust wait-for-condition and sleep utilities.
-  - **Snapshot Testing**: Binary state persistence for complex data structures.
+  - **Snapshot Testing**: Binary state persistence for complex data structures, including empty lists/dicts/tables.
+- **📈 Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV (SF/FN/FNDA/FNF/FNH records), a per-function HTML report, and `coverage_state.txt`. Coverage is function-level (hit counts per function), not line-level; compiled operators and derived functions are skipped.
+- **👁️ Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change. Uses file size+mtime fingerprints; works without a TTY; poll interval configurable via `.tst.watch.interval` (seconds, default 1).
 
 ---
 
@@ -104,9 +107,9 @@ Prevent false positives in CI pipelines.
 ```bash
 q resq.q test -strict my_tests/
 ```
-If no tests are found/executed, this flag forces a **non-zero exit code**, ensuring that an empty test suite is treated as a failure.
+If no tests are found **or executed**, this flag forces a **non-zero exit code**. A suite where every test was skipped counts as no executed tests under `-strict` ("skipped tests do not count under -strict"). Without `-strict`, an all-skipped suite still exits 0.
 
-Under `-strict`, a snapshot that does not yet exist on disk is treated as a **failure** rather than silently creating the file. Message: `Snapshot missing under -strict`. Outside strict mode, a missing snapshot is created on first run with a note to review and commit it.
+Under `-strict`, a snapshot that does not yet exist on disk is treated as a **failure** rather than silently creating the file. Message: `Snapshot missing under -strict`. Outside strict mode, a missing snapshot is created on first run with a note to review and commit it. An empty list, dict, or table is a valid snapshot value and is handled correctly — existence is determined by file presence, not by whether the stored value is non-empty.
 
 Strict mode can also be enabled in `resq.json`:
 ```json

@@ -113,6 +113,24 @@ validateConfig:{[cfg]
            "diffHugeTableThreshold must be an integer");
   warnings,: raze checkType[cfg;;(-7h;-6h;7h;6h);]'[intNames; intMsgs];
 
+  / Range check: numeric keys must be non-negative. A correctly-typed but
+  / negative value (e.g. fuzzLimit:-5, maxTestTime:-1) is nonsensical; warn and
+  / let invalidConfigKeys ignore it (default retained). Only checked when the
+  / value is an integer of the right type and not null.
+  checkNonNeg:{[cfg;name;msg]
+    if[not name in key cfg; :()];
+    v: cfg name;
+    if[not (type v) in -7 -6 7 6h; :()];
+    $[(not null v) and v < 0; enlist msg; ()]
+  };
+  rangeMsgs:("fuzzLimit must be >= 0";
+             "maxTestTime must be >= 0";
+             "reportLimit must be >= 0";
+             "reportListLimit must be >= 0";
+             "diffLargeTableThreshold must be >= 0";
+             "diffHugeTableThreshold must be >= 0");
+  warnings,: raze checkNonNeg[cfg;;]'[intNames; rangeMsgs];
+
   warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];
 
   specNames:`excludeSpecs`runSpecs;
@@ -123,6 +141,52 @@ validateConfig:{[cfg]
   warnings
  }
 
+/ Identify which config keys are INVALID and must not be applied. A key is
+/ invalid if it is unknown, fails its expected type, has an unsupported format
+/ value, or coerced to a null (e.g. "I"$"abc" -> 0N). Returned as a symbol
+/ list; applyConfig consults this so validation is authoritative -- a warned
+/ value is never written into .tst.app / .resq.config.
+invalidConfigKeys:{[cfg]
+  if[(type cfg) in -20 20h; cfg:(enlist key cfg)!enlist value cfg];
+  if[not 99h = type cfg; cfg:()!()];
+
+  invalid:`symbol$();
+  knownKeys:key .tst.defaultConfig;
+  invalid,: (key cfg) except knownKeys;
+
+  / fmt: invalid if it does not normalize to a supported format.
+  if[`fmt in key cfg;
+    cfgFmtRaw: .tst.normalizeFmtInput cfg`fmt;
+    if[not cfgFmtRaw in `text`console`xml`junit`xunit`json; invalid,: `fmt];
+  ];
+
+  / Boolean-typed keys: must be a single boolean.
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports;
+  invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
+
+  / Integer-typed keys: must be a single integer-like value, not null, AND
+  / non-negative. The null check catches loadConfig's "I"$"abc" -> 0N coercion
+  / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
+  / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
+  / with a warning, default retained (the warn-and-ignore contract).
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold;
+  invalid,: intNames where {[cfg;n]
+      if[not n in key cfg; :0b];
+      v: cfg n;
+      if[not (type v) in -7 -6 7 6h; :1b];
+      (null v) or v < 0
+    }[cfg] each intNames;
+
+  / outDir: string or symbol.
+  if[`outDir in key cfg; if[not (type cfg`outDir) in 10 -10 11h; invalid,: `outDir]];
+
+  / spec lists: symbol list or comma-separated string.
+  specNames:`excludeSpecs`runSpecs;
+  invalid,: specNames where {[cfg;n] (n in key cfg) and not (type cfg n) in 0 11 -11h}[cfg] each specNames;
+
+  distinct invalid
+ }
+
 / Print validation warnings (separated from validateConfig so unit tests can
 / inspect warnings without polluting the run output).
 printConfigWarnings:{[warnings]
@@ -131,37 +195,50 @@ printConfigWarnings:{[warnings]
 
 / Apply configuration to .tst.app and .resq.config
 / @param cfg (dict) Configuration dictionary
+/ Validation is authoritative: any key flagged by invalidConfigKeys is skipped
+/ (its current default is preserved) and a warning is printed. This stops a
+/ warned-but-wrong value -- e.g. the string "yes" for `exit -- from being
+/ written into .tst.app where if[] would treat it as truthy.
 applyConfig:{[cfg]
-    if[`describeOnly in key cfg; .tst.app.describeOnly: cfg`describeOnly];
-    if[`xmlOutput in key cfg; .tst.app.xmlOutput: cfg`xmlOutput];
-    if[`runPerformance in key cfg; .tst.app.runPerformance: cfg`runPerformance];
-    if[`excludeSpecs in key cfg; .tst.app.excludeSpecs: cfg`excludeSpecs];
-    if[`runSpecs in key cfg; .tst.app.runSpecs: cfg`runSpecs];
-    if[`passOnly in key cfg; .tst.app.passOnly: cfg`passOnly];
-    if[`exit in key cfg; .tst.app.exit: cfg`exit];
-    if[`strict in key cfg; .tst.app.strict: cfg`strict];
-    if[`failFast in key cfg; .tst.app.failFast: cfg`failFast];
-    if[`failHard in key cfg; .tst.app.failHard: cfg`failHard];
-    if[`pollutionGuard in key cfg; .tst.app.pollutionGuard: cfg`pollutionGuard];
+    if[(type cfg) in -20 20h; cfg:(enlist key cfg)!enlist value cfg];
 
-    if[`fuzzLimit in key cfg; .tst.output.fuzzLimit: cfg`fuzzLimit];
-    if[`maxTestTime in key cfg; .tst.app.maxTestTime: cfg`maxTestTime];
-    if[`reportLimit in key cfg; .tst.output.reportLimit: cfg`reportLimit];
-    if[`reportListLimit in key cfg; .tst.output.reportListLimit: cfg`reportListLimit];
+    invalid: .tst.invalidConfigKeys cfg;
+    if[0 < count invalid;
+        -1 "CONFIG WARNING: ignoring invalid value(s) for: ", ", " sv string invalid;
+    ];
+    / ok[k] is true when key k is present AND passed validation.
+    ok:{[cfg;invalid;k] (k in key cfg) and not k in invalid}[cfg;invalid];
 
-    if[`qNamespaceExports in key cfg;
+    if[ok`describeOnly; .tst.app.describeOnly: cfg`describeOnly];
+    if[ok`xmlOutput; .tst.app.xmlOutput: cfg`xmlOutput];
+    if[ok`runPerformance; .tst.app.runPerformance: cfg`runPerformance];
+    if[ok`excludeSpecs; .tst.app.excludeSpecs: cfg`excludeSpecs];
+    if[ok`runSpecs; .tst.app.runSpecs: cfg`runSpecs];
+    if[ok`passOnly; .tst.app.passOnly: cfg`passOnly];
+    if[ok`exit; .tst.app.exit: cfg`exit];
+    if[ok`strict; .tst.app.strict: cfg`strict];
+    if[ok`failFast; .tst.app.failFast: cfg`failFast];
+    if[ok`failHard; .tst.app.failHard: cfg`failHard];
+    if[ok`pollutionGuard; .tst.app.pollutionGuard: cfg`pollutionGuard];
+
+    if[ok`fuzzLimit; .tst.output.fuzzLimit: cfg`fuzzLimit];
+    if[ok`maxTestTime; .tst.app.maxTestTime: cfg`maxTestTime];
+    if[ok`reportLimit; .tst.output.reportLimit: cfg`reportLimit];
+    if[ok`reportListLimit; .tst.output.reportListLimit: cfg`reportListLimit];
+
+    if[ok`qNamespaceExports;
         if[`setQNamespaceExports in key `.tst;
             .tst.setQNamespaceExports cfg`qNamespaceExports;
             .tst.qNamespaceExports: cfg`qNamespaceExports
         ];
     ];
 
-    if[`fmt in key cfg; .resq.config.fmt: cfg`fmt];
-    if[`outDir in key cfg; .resq.config.outDir: cfg`outDir];
+    if[ok`fmt; .resq.config.fmt: cfg`fmt];
+    if[ok`outDir; .resq.config.outDir: cfg`outDir];
 
-    if[`diffLargeTableThreshold in key cfg; .resq.config.diffLargeTableThreshold: cfg`diffLargeTableThreshold];
-    if[`diffHugeTableThreshold in key cfg; .resq.config.diffHugeTableThreshold: cfg`diffHugeTableThreshold];
-    if[`testFilePatterns in key cfg; .resq.config.testFilePatterns: cfg`testFilePatterns];
+    if[ok`diffLargeTableThreshold; .resq.config.diffLargeTableThreshold: cfg`diffLargeTableThreshold];
+    if[ok`diffHugeTableThreshold; .resq.config.diffHugeTableThreshold: cfg`diffHugeTableThreshold];
+    if[ok`testFilePatterns; .resq.config.testFilePatterns: cfg`testFilePatterns];
  }
 
 / Merge CLI arguments into configuration (CLI takes precedence)

@@ -18,13 +18,27 @@
     mustgt[count key .tst.dependencies; 0];
   };
 
-  should["find dependents of a file"]{
+  should["find dependents of a file by real resolved path"]{
     .tst.rebuildGraph enlist .utl.PKGLOADING;
-    / parseLoadDirectives stores the literal string from quoted load calls.
-    / Framework modules use `.utl.PKGLOADING,"/<name>.q"`, so the parsed key
-    / is just "/<name>.q" -- look up by that form.
-    dependents: .tst.getDependents `$"/static_analysis.q";
+    / Require targets are now resolved to the same absolute path form used for
+    / graph keys, so the graph is traversable by real path. static_analysis.q
+    / is required by loader_discovery.q (among others).
+    saPath: `$.utl.PKGLOADING, "/static_analysis.q";
+    dependents: .tst.getDependents saPath;
     mustgt[count dependents; 0];
+    ldPath: `$.utl.PKGLOADING, "/loader_discovery.q";
+    must[ldPath in dependents; "loader_discovery.q must be a dependent of static_analysis.q"];
+  };
+
+  should["build a traversable, star-free graph"]{
+    .tst.rebuildGraph enlist .utl.PKGLOADING;
+    g: .tst.depGraph;
+    / Keys and dependency targets share a vocabulary -> non-empty overlap.
+    overlap: (key g) inter distinct raze value g;
+    mustgt[count overlap; 0];
+    / No "*"-patterned fake keys ingested from detection literals.
+    starKeys: (key g) where {"*" in x} each string each key g;
+    (count starKeys) musteq 0;
   };
 
   should["survive a circular dep graph without stack overflow"]{
