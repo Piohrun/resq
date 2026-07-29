@@ -55,44 +55,105 @@ runners[`perf]:{[expec];
   expec
  }
 
-runners[`test]:{[expec];
- args: ();
- if[100h = type func: expec`code;
-    params: (), (value func) 1;
-    isDefaultX: (params ~ enlist `x) and not `x in key .tst.fixtures;
-    params: params where not (null params) or params ~\: (::);
-    if[isDefaultX; params: `symbol$()];
-    
-    if[0<count params;
-        missing: params where not params in key .tst.fixtures;
-        if[0<count missing;
-            availFix: ", " sv string key .tst.fixtures;
-            err: "Fixture Injection Error:\n",
-                 "  Test: ", .Q.s1[expec`desc], "\n",
-                 "  Missing fixture(s): ", .Q.s1[missing], "\n",
-                 "  Available fixtures: [", availFix, "]\n",
-                 "  Hint: Register missing fixtures in a before{} block or .tst.registerFixture";
-            'err;
-        ];
-        args: {[p; d] @[.tst.getFixture; p; {[p;d;e] '"Failed to inject fixture '", string[p], "' for test '", string[d], "': ", e }[p;d]] }[;expec`desc] each params;
+/ Return the explicit fixture parameters for a test lambda.
+/ The implicit x on an argument-free lambda is not a fixture dependency.
+testFixtureParams:{[func]
+ params:`symbol$();
+ if[not 100h=type func; :params];
+ params:(),(value func) 1;
+ isDefaultX:(params~enlist `x) and not `x in key .tst.fixtures;
+ params:params where not (null params) or params~\:(::);
+ $[isDefaultX; `symbol$(); params]
+ }
+
+/ Fail before setup when one or more requested fixtures are unregistered.
+validateTestFixtures:{[params;description]
+ if[0=count params; :()];
+ missing:params where not params in key .tst.fixtures;
+ if[0=count missing; :()];
+ availFix:", " sv string key .tst.fixtures;
+ err:"Fixture Injection Error:\n",
+     "  Test: ",.Q.s1[description],"\n",
+     "  Missing fixture(s): ",.Q.s1[missing],"\n",
+     "  Available fixtures: [",availFix,"]\n",
+     "  Hint: Register missing fixtures in a before{} block or .tst.registerFixture";
+ 'err
+ }
+
+/ Tear down one captured test-scoped fixture. Capturing the fixture definition
+/ at setup time makes teardown resilient if the test mutates the registry.
+teardownInstalledFixture:{[entry]
+ fixtureDef:entry`fixture;
+ if[not 99h=type fixtureDef; :()];
+ if[not ((fixtureDef`scope)~`test); :()];
+ teardown:fixtureDef`teardown;
+ if[teardown~{}; :()];
+ @[teardown; entry`value; {[name;e]
+   -1 "ERROR cleaning fixture '",string[name],"': ",e;
+   :()
+  }[entry`name;]]
+ }
+
+/ Unwind successfully-installed fixtures exactly once, in LIFO order.
+teardownInstalledFixtures:{[installed]
+ if[0=count installed; :()];
+ .tst.teardownInstalledFixture each reverse installed;
+ }
+
+/ Install fixtures from left to right. A later setup failure first unwinds the
+/ successfully-installed prefix, then re-signals with fixture/test context.
+installTestFixtures:{[params;description]
+ installed:();
+ i:0;
+ while[i<count params;
+   name:params i;
+   fixtureDef:.tst.fixtures name;
+   got:@[{[n] (`ok;.tst.getFixture n)}; name; {[n;d;e]
+     (`error;"Failed to inject fixture '",string[n],"' for test '",string[d],"': ",e)
+    }[name;description;]];
+   if[`error~first got;
+     .tst.teardownInstalledFixtures installed;
+     'last got
     ];
- ];
- $[0<count args; func . args; func[]];
- if[0<count args;
-   teardown: { [p;a] f: .tst.fixtures p; if[f[`scope]~`test; .tst.teardownFixture[p;a]]; };
-   i:0; do[count params; teardown[params i; args i]; i+:1];
- ];
+   installed,:enlist `name`value`fixture!(name;last got;fixtureDef);
+   i+:1;
+  ];
+ installed
+ }
+
+/ Execute the body and extract assertion results as one protected region.
+/ The caller owns fixture teardown whether any statement here throws.
+finishFixtureTest:{[state]
+ args:{x`value} each state`installed;
+ func:state`func;
+ $[count args; func . args; func[]];
+ expec:state`expec;
  expec[`failures]:.tst.assertState.failures;
  expec[`assertsRun]:.tst.assertState.assertsRun;
- expec[`result]: $[0<count expec`failures;`testFail;`pass];
- expec
+ expec[`result]:$[count expec`failures;`testFail;`pass];
+ (`ok;expec)
+ }
+
+runners[`test]:{[expec]
+ func:expec`code;
+ params:.tst.testFixtureParams func;
+ .tst.validateTestFixtures[params;expec`desc];
+ installed:.tst.installTestFixtures[params;expec`desc];
+ state:`func`expec`installed!(func;expec;installed);
+ outcome:@[.tst.finishFixtureTest; state; {[e] (`error;e)}];
+ .tst.teardownInstalledFixtures installed;
+ if[`error~first outcome; 'last outcome];
+ last outcome
  }
 
 expecError:{[expec;errorType;errorText];
+ assertState:@[get; `.tst.assertState; .tst.defaultAssertState];
+ if[not 99h=type assertState; assertState:.tst.defaultAssertState];
+ assertState:.tst.defaultAssertState,assertState;
  expec[`result]: `$errorType,"Error";
  expec[`errorText]: (),errorText;
- expec[`failures]:.tst.assertState.failures;
- expec[`assertsRun]:.tst.assertState.assertsRun;
+ expec[`failures]:assertState`failures;
+ expec[`assertsRun]:assertState`assertsRun;
  expec
  }
 

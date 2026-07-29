@@ -10,6 +10,12 @@
   `getExpec mock {last .tst.fillExpecBA .tst.expecList};
   };
  after{
+  @[{[]
+    names:`lifecycleFirst`lifecycleSecond`lifecycleThird`lifecycleThrowing`lifecycleAssertState`lifecycleSelfRemoving`lifecycleFailHard;
+    ![`.tst.fixtures; (); 0b; names]
+    }; (); {}];
+  @[{[] if[`fixtureEvents in key `.tst.testState;
+    ![`.tst.testState; (); 0b; enlist `fixtureEvents]]}; (); {}];
   myRestore[];
   };
  should["call the main expectation function"]{
@@ -90,5 +96,109 @@
   .tst.runExpec[();e];
   beforeCounter musteq 2;
   restoreCounter musteq 1;
+  };
+ should["unwind installed fixtures in reverse when a later setup throws"]{
+  .tst.testState.fixtureEvents: `symbol$();
+  fixtureNames:`lifecycleFirst`lifecycleSecond`lifecycleThird;
+  .tst.registerFixtureWithOpts[`lifecycleFirst; 1;
+    `scope`setup`teardown!(`test;
+      {[x] .tst.testState.fixtureEvents,: enlist `setupFirst; x};
+      {[x] .tst.testState.fixtureEvents,: enlist `teardownFirst})];
+  .tst.registerFixtureWithOpts[`lifecycleSecond; 2;
+    `scope`setup`teardown!(`test;
+      {[x] .tst.testState.fixtureEvents,: enlist `setupSecond; x};
+      {[x] .tst.testState.fixtureEvents,: enlist `teardownSecond})];
+  .tst.registerFixtureWithOpts[`lifecycleThird; 3;
+    `scope`setup`teardown!(`test;
+      {[x] .tst.testState.fixtureEvents,: enlist `setupThird; '"fixture setup boom"};
+      {[x] .tst.testState.fixtureEvents,: enlist `teardownThird})];
+  should["partial fixture setup"]{[lifecycleFirst;lifecycleSecond;lifecycleThird] 1b};
+  e:getExpec[];
+  r:.tst.runExpec[();e];
+  ![`.tst.fixtures; (); 0b; fixtureNames];
+  .tst.contextHelper[];
+  .tst.testState.fixtureEvents musteq `setupFirst`setupSecond`setupThird`teardownSecond`teardownFirst;
+  (.tst.normalizeResultStatus r`result) musteq `error;
+  ![`.tst.testState; (); 0b; enlist `fixtureEvents];
+  };
+ should["teardown a fixture exactly once when the test body throws"]{
+  .tst.testState.fixtureEvents: `symbol$();
+  .tst.registerFixtureWithOpts[`lifecycleThrowing; 1;
+    `scope`setup`teardown!(`test;
+      {[x] .tst.testState.fixtureEvents,: enlist `setup; x};
+      {[x] .tst.testState.fixtureEvents,: enlist `teardown})];
+  should["throw with fixture"]{[lifecycleThrowing]
+    .tst.testState.fixtureEvents,: enlist `body;
+    '"test body boom"
+    };
+  e:getExpec[];
+  r:.tst.runExpec[();e];
+  ![`.tst.fixtures; (); 0b; enlist `lifecycleThrowing];
+  .tst.contextHelper[];
+  .tst.testState.fixtureEvents musteq `setup`body`teardown;
+  (.tst.normalizeResultStatus r`result) musteq `error;
+  ![`.tst.testState; (); 0b; enlist `fixtureEvents];
+  };
+ should["teardown fixtures when assertion result extraction throws"]{
+  .tst.testState.fixtureEvents: `symbol$();
+  savedAssertState:.tst.assertState;
+  .tst.registerFixtureWithOpts[`lifecycleAssertState; 1;
+    `scope`setup`teardown!(`test;
+      {[x] .tst.testState.fixtureEvents,: enlist `setup; x};
+      {[x] .tst.testState.fixtureEvents,: enlist `teardown})];
+  should["clobber assertion state"]{[lifecycleAssertState]
+    .tst.testState.fixtureEvents,: enlist `body;
+    .tst.assertState: `broken
+    };
+  e:getExpec[];
+  r:.tst.runExpec[();e];
+  .tst.assertState:savedAssertState;
+  ![`.tst.fixtures; (); 0b; enlist `lifecycleAssertState];
+  .tst.contextHelper[];
+  .tst.testState.fixtureEvents musteq `setup`body`teardown;
+  (.tst.normalizeResultStatus r`result) musteq `error;
+  ![`.tst.testState; (); 0b; enlist `fixtureEvents];
+  };
+ should["use the captured fixture definition when setup removes its registry entry"]{
+  .tst.testState.fixtureEvents: `symbol$();
+  .tst.registerFixtureWithOpts[`lifecycleSelfRemoving; 1;
+    `scope`setup`teardown!(`test;
+      {[x]
+        .tst.testState.fixtureEvents,: enlist `setup;
+        ![`.tst.fixtures; (); 0b; enlist `lifecycleSelfRemoving];
+        x
+        };
+      {[x] .tst.testState.fixtureEvents,: enlist `teardown})];
+  should["throw after self-removing fixture setup"]{[lifecycleSelfRemoving]
+    .tst.testState.fixtureEvents,: enlist `body;
+    '"test body boom"
+    };
+  e:getExpec[];
+  r:.tst.runExpec[();e];
+  .tst.contextHelper[];
+  .tst.testState.fixtureEvents musteq `setup`body`teardown;
+  (.tst.normalizeResultStatus r`result) musteq `error;
+  };
+ should["teardown fixtures before a failing expectation halts the run"]{
+  .tst.testState.fixtureEvents: `symbol$();
+  `.tst.halt mock 0b;
+  `.tst.app.failHard mock 1b;
+  `.tst.callbacks.expecRan mock {[s;e] .tst.halt:1b};
+  .tst.registerFixtureWithOpts[`lifecycleFailHard; 1;
+    `scope`setup`teardown!(`test;
+      {[x] .tst.testState.fixtureEvents,: enlist `setup; x};
+      {[x] .tst.testState.fixtureEvents,: enlist `teardown})];
+  should["fail hard with fixture"]{[lifecycleFailHard]
+    .tst.testState.fixtureEvents,: enlist `body;
+    '"fail hard boom"
+    };
+  e:getExpec[];
+  r:.tst.runExpec[();e];
+  ![`.tst.fixtures; (); 0b; enlist `lifecycleFailHard];
+  .tst.contextHelper[];
+  .tst.testState.fixtureEvents musteq `setup`body`teardown`setup`body`teardown;
+  .tst.halt musteq 1b;
+  (.tst.normalizeResultStatus r`result) musteq `error;
+  ![`.tst.testState; (); 0b; enlist `fixtureEvents];
   };
  };
