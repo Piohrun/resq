@@ -207,8 +207,14 @@ finishFixtureTest:{[state]
  func:state`func;
  $[count args; func . args; func[]];
  expec:state`expec;
- expec[`failures]:.tst.assertState.failures;
- expec[`assertsRun]:.tst.assertState.assertsRun;
+ stateValid:.tst.assertEnsureState[];
+ if[
+   (not 1b~stateValid) or
+   .tst.assertFailuresCorrupted .tst.assertState.failures;
+   '"assertion state corrupted during test execution"];
+ assertState:.tst.assertStateSnapshot[];
+ expec[`failures]:assertState`failures;
+ expec[`assertsRun]:assertState`assertsRun;
  expec[`result]:$[count expec`failures;`testFail;`pass];
  (`ok;expec)
  }
@@ -226,9 +232,13 @@ runners[`test]:{[expec]
  }
 
 expecError:{[expec;errorType;errorText];
- assertState:@[get; `.tst.assertState; .tst.defaultAssertState];
- if[not 99h=type assertState; assertState:.tst.defaultAssertState];
- assertState:.tst.defaultAssertState,assertState;
+ assertState:@[
+   {[ignored] .tst.assertStateSnapshot[]};
+   0;
+   {[err]
+     `failures`assertsRun!(
+       enlist "(assertion state corrupted; test treated as failed)";
+       1)}];
  expec[`result]: `$errorType,"Error";
  expec[`errorText]: (),errorText;
  expec[`failures]:assertState`failures;

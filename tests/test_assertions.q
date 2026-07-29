@@ -74,7 +74,10 @@
   };
  should["fail through camelCase aliases just like the targets"]{
   oldFailures: .tst.assertState.failures;
+  oldSuppress: .tst.suppressAssertionDiff;
+  .tst.suppressAssertionDiff:1b;
   mustEqual[1; 2];
+  .tst.suppressAssertionDiff:oldSuppress;
   testedFailures: .tst.assertState.failures;
   .tst.assertState.failures: oldFailures;
   count[testedFailures] musteq 1;
@@ -106,8 +109,11 @@
 .tst.desc["mustmatch rich diff"]{
  should["fail like musteq (same message), not a bare -3! render"]{
   oldFailures: .tst.assertState.failures;
+  oldSuppress: .tst.suppressAssertionDiff;
+  .tst.suppressAssertionDiff:1b;
   / mustmatch now routes through musteq, so a mismatch yields the musteq message.
   mustmatch[5; 7];
+  .tst.suppressAssertionDiff:oldSuppress;
   testedFailures: .tst.assertState.failures;
   .tst.assertState.failures: oldFailures;
   count[testedFailures] musteq 1;

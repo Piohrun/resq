@@ -140,7 +140,11 @@
 
     should["fmt.color emits SGR escapes when the gate is on"]{
         `.tst.useColor mock 1b;
-        musteq[.tst.fmt.color[`red; "X"]; "\033[31mX\033[0m"];
+        expected:$[
+            0=count getenv `NO_COLOR;
+            "\033[31mX\033[0m";
+            "X"];
+        musteq[.tst.fmt.color[`red; "X"]; expected];
     };
 
     should["fmt.color is plain text with no escapes when the gate is off"]{

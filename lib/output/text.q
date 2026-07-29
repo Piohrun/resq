@@ -10,11 +10,16 @@
     .tst.toString v
  };
 
-/ Colorize console text using the SAME central gate as diff.q (.tst.useColor,
-/ computed once at load from NO_COLOR + .tst.diffColors + TTY auto-detect). When
-/ color is off this is a no-op so CI logs / redirected files stay plain.
+/ Colorize console text using diff.q's shared dynamic gate. fmt.color performs
+/ the same check as a final guard, so no text path can bypass NO_COLOR,
+/ diffColors, or the compatibility useColor seam.
 .resq.color:{[c;txt]
-    if[not $[`useColor in key `.tst; .tst.useColor; 1b]; :txt];
+    if[
+        not $[
+            `colorEnabled in key `.tst;
+            .tst.colorEnabled[];
+            0b];
+        :txt];
     .tst.fmt.color[c; txt]
  };
 

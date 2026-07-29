@@ -41,14 +41,22 @@ if[not `fuzzLimit in key `.tst.output; .tst.output.fuzzLimit: 10];
 if[not `reportLimit in key `.tst.output; .tst.output.reportLimit: 50000];
 if[not `reportListLimit in key `.tst.output; .tst.output.reportListLimit: 1000];
 
+/ Private diagnostic budgets. These are deliberately independent of user
+/ configuration: a hostile reportLimit must not turn diagnostics into an
+/ unbounded allocation request.
+.tst.DIAGNOSTIC_MAX_CHARS:50000;
+.tst.VALUE_RENDER_MAX_DEPTH:4;
+.tst.VALUE_RENDER_MAX_NODES:64;
+.tst.VALUE_RENDER_MAX_CHILDREN:8;
+
 / Normalize a direct output cap defensively. Authoritative config validation
 / accepts the same finite, non-negative integer scalar contract.
 .tst.capLimit:{[limit]
-    if[not (type limit) in -5 -6 -7h; :0];
+    if[not ((type limit) in -5 -6 -7h); :0];
     if[null limit; :0];
     if[limit in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W); :0];
     if[0>limit; :0];
-    "j"$limit
+    50000 & "j"$limit
  };
 
 .tst.truncationMarker:{[removed]
@@ -76,9 +84,258 @@ if[not `reportListLimit in key `.tst.output; .tst.output.reportListLimit: 1000];
     (prefix#text),marker
  };
 
-/ Truncation utility for safely outputting large values.
+/ Read a mutable test seam without trusting it as an allocation authority.
+/ Invalid values fall back to the literal default; valid values may only lower
+/ the literal ceiling.
+.tst.safeDiagnosticBudget:{[name;default;hardMax]
+    raw:@[get;name;{[fallback;err] fallback}[default;]];
+    if[not ((type raw) in -5 -6 -7h);
+        :default & hardMax];
+    if[null raw; :default & hardMax];
+    if[raw in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W);
+        :default & hardMax];
+    if[0>raw; :default & hardMax];
+    hardMax & "j"$raw
+ };
+
+.tst.renderDepthLimit:{[]
+    .tst.safeDiagnosticBudget[
+        `.tst.VALUE_RENDER_MAX_DEPTH;
+        4;
+        4]
+ };
+
+.tst.renderNodeLimit:{[]
+    .tst.safeDiagnosticBudget[
+        `.tst.VALUE_RENDER_MAX_NODES;
+        64;
+        64]
+ };
+
+.tst.renderChildLimit:{[]
+    .tst.safeDiagnosticBudget[
+        `.tst.VALUE_RENDER_MAX_CHILDREN;
+        8;
+        8]
+ };
+
+/ Clamp a requested diagnostic cap to the private allocation ceiling.
+.tst.diagnosticCap:{[limit]
+    hardCap:.tst.safeDiagnosticBudget[
+        `.tst.DIAGNOSTIC_MAX_CHARS;
+        50000;
+        50000];
+    hardCap & .tst.capLimit limit
+ };
+
+.tst.renderOmitted:{[body;omitted;unit;cap]
+    if[0>=omitted; :.tst.capString[body;cap]];
+    .tst.capString[
+        body," ... [truncated; ",string[omitted]," ",unit," omitted]";
+        cap]
+ };
+
+/ Render a fixed-size atom. Symbols are irreducible in q: obtaining even their
+/ first character requires converting the complete interned name to a string.
+/ Use a bounded placeholder rather than allocating an attacker-sized copy.
+.tst.renderAtom:{[val;t;cap]
+    if[-11h=t; :.tst.capString["<symbol>";cap]];
+    if[101h=t;
+        genericNull:@[
+            {[box] (::)~first box};
+            enlist val;
+            {[err] 0b}];
+        :.tst.capString[
+            $[genericNull;"::";"<callable/opaque type=101>"];
+            cap]];
+    if[t>=100h;
+        :.tst.capString["<callable/opaque type=",string[t],">";cap]];
+    rendered:@[
+        { -3!x };
+        val;
+        {[err] "<atom render unavailable>"}];
+    $[10h=type rendered;
+        .tst.capString[rendered;cap];
+        .tst.capString["<atom type=",string[t],">";cap]]
+ };
+
+/ Render only a bounded prefix of a homogeneous vector. The prefix is serialized
+/ only after it has been cut to a fixed item count (or a cap-derived char count).
+.tst.renderSimple:{[val;t;cap]
+    n:count val;
+    if[11h=t;
+        :.tst.capString[
+            "<symbol vector count=",string[n],"; contents omitted>";
+            cap]];
+    takeN:$[
+        10h=t;
+        n & (1 | cap div 4);
+        n & .tst.renderChildLimit[]];
+    prefix:takeN sublist val;
+    rendered:@[
+        { -3!x };
+        prefix;
+        {[err] "<vector prefix render unavailable>"}];
+    if[not 10h=type rendered;
+        rendered:"<vector type=",string[t],">"];
+    .tst.renderOmitted[rendered;n-takeN;"items";cap]
+ };
+
+/ Render a mixed list with bounded fan-out. Node budgets are divided among
+/ children, keeping the total recursive work bounded without a whole-list walk.
+.tst.renderList:{[val;cap;depth;nodes]
+    n:count val;
+    if[0>=depth;
+        :.tst.capString[
+            "<list count=",string[n],"; depth limit>";
+            cap]];
+    takeN:n & .tst.renderChildLimit[] & (0 | nodes-1);
+    if[0=takeN;
+        :.tst.capString[
+            "<list count=",string[n],"; node limit>";
+            cap]];
+    childNodes:1 | (nodes-1) div takeN;
+    childCap:512 & (1 | cap div takeN);
+    parts:{
+        [source;childCap;childDepth;childNodes;i]
+        .tst.renderNode[source i;childCap;childDepth;childNodes]
+      }[val;childCap;depth-1;childNodes;] each til takeN;
+    .tst.renderOmitted[
+        "(",("; " sv parts),")";
+        n-takeN;
+        "items";
+        cap]
+ };
+
+/ Render an ordinary dictionary by bounded key/value positions. A keyed table is
+/ represented by its key and value tables, avoiding materializing whole rows.
+.tst.renderDict:{[val;cap;depth;nodes]
+    ks:key val;
+    vals:value val;
+    n:count ks;
+    if[98h=type ks;
+        if[0>=depth;
+            :.tst.capString[
+                "<keyed table rows=",string[count val],"; depth limit>";
+                cap]];
+        if[3>nodes;
+            :.tst.capString[
+                "<keyed table rows=",string[count val],"; node limit>";
+                cap]];
+        childCap:cap div 2;
+        keyNodes:(nodes-1) div 2;
+        valNodes:(nodes-1)-keyNodes;
+        keyText:.tst.renderNode[ks;childCap;depth-1;keyNodes];
+        valText:.tst.renderNode[vals;childCap;depth-1;valNodes];
+        :.tst.capString[
+            "keyed(",keyText,"; ",valText,")";
+            cap]
+    ];
+    if[0>=depth;
+        :.tst.capString[
+            "<dict count=",string[n],"; depth limit>";
+            cap]];
+    takeN:n & .tst.renderChildLimit[] & ((0 | nodes-1) div 2);
+    if[0=takeN;
+        :.tst.capString[
+            "<dict count=",string[n],"; node limit>";
+            cap]];
+    childNodes:(nodes-1) div (2*takeN);
+    childCap:256 & (1 | cap div (2*takeN));
+    parts:{
+        [keys;vals;childCap;childDepth;childNodes;i]
+        (.tst.renderNode[keys i;childCap;childDepth;childNodes]),
+        ": ",
+        .tst.renderNode[vals i;childCap;childDepth;childNodes]
+      }[ks;vals;childCap;depth-1;childNodes;] each til takeN;
+    .tst.renderOmitted[
+        "{",("; " sv parts),"}";
+        n-takeN;
+        "entries";
+        cap]
+ };
+
+/ Render a table column-wise. This touches only a bounded number of column
+/ prefixes and never constructs a row containing every column.
+.tst.renderTable:{[val;cap;depth;nodes]
+    rows:count val;
+    cs:cols val;
+    ncols:count cs;
+    if[0>=depth;
+        :.tst.capString[
+            "<table rows=",string[rows],"; cols=",string[ncols],
+            "; depth limit>";
+            cap]];
+    takeN:ncols & .tst.renderChildLimit[] & (0 | nodes-1);
+    if[0=takeN;
+        :.tst.capString[
+            "<table rows=",string[rows],"; cols=",string[ncols],
+            "; node limit>";
+            cap]];
+    childNodes:1 | (nodes-1) div takeN;
+    childCap:512 & (1 | cap div takeN);
+    parts:{
+        [table;columns;childCap;childDepth;childNodes;i]
+        "col[",string[i],"]=",
+        .tst.renderNode[
+            table[columns i];
+            childCap;
+            childDepth;
+            childNodes]
+      }[val;cs;childCap;depth-1;childNodes;] each til takeN;
+    .tst.renderOmitted[
+        "table[rows=",string[rows],"; cols=",string[ncols],"]{",
+        ("; " sv parts),"}";
+        ncols-takeN;
+        "columns";
+        cap]
+ };
+
+/ Recursive bounded renderer. Every dispatcher branch returns through capString;
+/ unsupported and dirty objects are described by type instead of inspected.
+.tst.renderNode:{[val;cap;depth;nodes]
+    if[0>=nodes; :.tst.capString["<node limit>";cap]];
+    t:type val;
+    if[98h=t; :.tst.capString[
+        .tst.renderTable[val;cap;depth;nodes];
+        cap]];
+    if[99h=t; :.tst.capString[
+        .tst.renderDict[val;cap;depth;nodes];
+        cap]];
+    if[0h=t; :.tst.capString[
+        .tst.renderList[val;cap;depth;nodes];
+        cap]];
+    if[t within 1 19h; :.tst.capString[
+        .tst.renderSimple[val;t;cap];
+        cap]];
+    if[(t>=20h) and t<98h;
+        n:@[count;val;{[err] 1}];
+        :.tst.capString[
+            "<enumerated/opaque type=",string[t],"; count=",string[n],">";
+            cap]];
+    .tst.capString[.tst.renderAtom[val;t;cap];cap]
+ };
+
+/ Public bounded value renderer. The outer trap is the final containment layer:
+/ malformed values and unexpected renderer bugs become a capped placeholder.
+.tst.renderValue:{[val;limit]
+    cap:.tst.diagnosticCap limit;
+    fallback:{[cap;err]
+        detail:.tst.capString[err;128];
+        .tst.capString["<render unavailable: ",detail,">";cap]
+      }[cap;];
+    rendered:.[
+        .tst.renderNode;
+        (val;cap;.tst.renderDepthLimit[];.tst.renderNodeLimit[]);
+        fallback];
+    if[not 10h=type rendered;
+        rendered:"<render unavailable>"];
+    .tst.capString[rendered;cap]
+ };
+
+/ Compatibility entry point, now allocation-bounded before serialization.
 .tst.truncate:{[val;maxLen]
-    .tst.capString[-3!val;maxLen]
+    .tst.renderValue[val;maxLen]
  };
 
 / Initialize .resq namespace if not exists
