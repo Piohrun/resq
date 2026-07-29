@@ -136,7 +136,18 @@
 
 .tst.specPollutionNamespaces:{[enabled]
     if[not enabled; :0#`];
-    (key `) except `q`Q`j`h`o`s`v`z`tst`resq`utl
+    namespaces:key `;
+    if[-11h=type namespaces;namespaces:enlist namespaces];
+    if[11h<>type namespaces;
+        '"pollution namespace list has invalid type"];
+    namespaces:namespaces where not null namespaces;
+    namespaces:
+        namespaces except `q`Q`j`h`o`s`v`z`tst`resq`utl;
+    if[count[namespaces]>.tst.pollutionNamespaceLimit[];
+        '"pollution namespace limit exceeded"];
+    if[not all .tst.pollutionMemberValid each namespaces;
+        '"pollution namespace name is invalid"];
+    namespaces
  };
 
 .tst.lifecycleValue:{[name]
@@ -253,8 +264,28 @@
 .tst.captureSpecPollution:{[]
     guard:$[`pollutionGuard in key `.tst.app;.tst.app.pollutionGuard;1b];
     namespaces:.tst.specPollutionNamespaces guard;
-    snapshot:$[guard;namespaces!.tst.snapshotNamespaceValues each namespaces;()!()];
-    `guard`namespaces`snapshot!(guard;namespaces;snapshot)
+    if[not guard;
+        :`guard`namespaces`snapshot!(guard;namespaces;()!())];
+    snapshots:()!();
+    totalMembers:0;
+    idx:0;
+    while[idx<count namespaces;
+      namespaceSnapshot:.tst.snapshotNamespaceValues namespaces idx;
+      if[not .tst.pollutionSnapshotValid[
+          namespaces idx;
+          namespaceSnapshot];
+        '"pollution snapshot schema is invalid"];
+      if[not `ok~namespaceSnapshot`state;
+        '"pollution snapshot acquisition failed for ",
+          (string namespaceSnapshot[`namespace]),
+          ": ",
+          namespaceSnapshot`detail];
+      totalMembers+:count namespaceSnapshot`entries;
+      if[totalMembers>.tst.pollutionTotalMemberLimit[];
+        '"pollution total member limit exceeded"];
+      snapshots[namespaces idx]:namespaceSnapshot;
+      idx+:1];
+    `guard`namespaces`snapshot!(guard;namespaces;snapshots)
  };
 
 .tst.captureSpecLifecycle:{[spec]
@@ -413,44 +444,226 @@
 / finalizer while later resource steps continue.
 .tst.clearNewSpecNamespaces:{[lifecycle;current]
     newNamespaces:current except lifecycle[`namespaces];
-    nonTrivial:newNamespaces where {[name] not (::)~@[get;name;::]} each newNamespaces;
-    if[0=count nonTrivial; :()];
-    -1 "WARNING: Test '",.tst.toString[lifecycle[`title]],
-      "' introduced top-level names: ",.tst.toString nonTrivial;
-    {@[set;(x;::);{}]} each nonTrivial;
-    -1 "  -> Cleared values (q retains the bare names).";
+    if[0=count newNamespaces; :0];
+    -1 "WARNING: Test introduced ",string[count newNamespaces],
+      " top-level namespace(s).";
+    failures:0;
+    idx:0;
+    while[idx<count newNamespaces;
+      outcome:.[
+        {[name]
+          name set (::);
+          `ok
+        };
+        enlist newNamespaces idx;
+        {[err] `error}];
+      if[not `ok~outcome;failures+:1];
+      idx+:1];
+    if[0=failures;
+      -1 "  -> Cleared new namespace values (q retains bare names)."];
+    failures
  };
 
-.tst.restoreSpecNamespace:{[title;namespace;original]
+.tst.captureCleanupPollutionNamespaces:{[]
+    outcome:@[
+      {[ignored]
+        (`ok;enlist .tst.specPollutionNamespaces 1b)
+      };
+      ();
+      {[err]
+        (`error;enlist `symbol$())}];
+    `state`namespaces!(first outcome;first outcome 1)
+ };
+
+.tst.pollutionDeleteMember:{[namespace;member]
+    .[
+      {[ns;name]
+        ![ns;();0b;enlist name];
+        `ok
+      };
+      (namespace;member);
+      {[err] `error}]
+ };
+
+.tst.pollutionSetMember:{[namespace;member;payload]
+    path:.Q.dd[namespace;member];
+    .[
+      {[name;boxed]
+        name set first boxed;
+        `ok
+      };
+      (path;payload);
+      {[err] `error}]
+ };
+
+.tst.pollutionResetNamespace:{[namespace]
+    .[
+      {[name]
+        name set (enlist `)!enlist(::);
+        `ok
+      };
+      enlist namespace;
+      {[err] `error}]
+ };
+
+.tst.pollutionRestoreState:{[remaining]
+    `remaining`failures`deleted`restored!(
+      remaining;
+      0;
+      0;
+      0)
+ };
+
+.tst.restoreOriginalEntriesState:{[original;state]
+    entries:original`entries;
+    idx:0;
+    while[idx<count entries;
+      row:entries idx;
+      outcome:.tst.pollutionSetMember[
+        original`namespace;
+        row`member;
+        row`payload];
+      if[`ok~outcome;state[`restored]+:1];
+      if[not `ok~outcome;state[`failures]+:1];
+      idx+:1];
+    state
+ };
+
+.tst.reconstructOriginalNamespaceState:{[original;state]
+    reset:.tst.pollutionResetNamespace original`namespace;
+    if[not `ok~reset;
+      state[`failures]+:1];
+    .tst.restoreOriginalEntriesState[original;state]
+ };
+
+/ Restore one namespace using caller-owned comparison work. Equal values are
+/ skipped; different, unknown, unreadable, and budget-exhausted values are
+/ conservatively reset from the boxed snapshot.
+.tst.restoreSpecNamespaceState:{[namespace;original;remaining]
+    state:.tst.pollutionRestoreState remaining;
+    if[not .tst.pollutionSnapshotValid[namespace;original];
+      state[`failures]+:1;
+      :state];
+    if[not `ok~original`state;
+      state[`failures]+:1;
+      :state];
     current:.tst.snapshotNamespaceValues namespace;
-    newKeys:(key current) except key original;
-    if[count newKeys;
-      -1 "WARNING: Test '",.tst.toString[title],"' leaked members in ",
-        string[namespace],": ",.tst.toString newKeys;
-      .tst.deleteVar each newKeys;
-      -1 "  -> Cleaned up leaked members in ",string[namespace],"."];
-    common:(key current) inter key original;
-    modified:common where not {x~y}'[original common;current common];
-    if[0=count modified; :()];
-    -1 "WARNING: Test '",.tst.toString[title],"' modified globals in ",
-      string[namespace],": ",.tst.toString modified;
-    {[name;value]
-      viewResult:@[{(1b;view x)};name;{(0b;x)}];
-      if[not first viewResult;name set value]
-    }'[modified;original modified];
-    -1 "  -> Restored modified globals in ",string[namespace],".";
+    if[not .tst.pollutionSnapshotValid[namespace;current];
+      :.tst.reconstructOriginalNamespaceState[original;state]];
+    currentEntries:current`entries;
+    if[
+      (`error~current`state) and
+      0=count currentEntries;
+      :.tst.reconstructOriginalNamespaceState[original;state]];
+    originalEntries:original`entries;
+    if[
+      (0=count currentEntries) and
+      0<count originalEntries;
+      :.tst.reconstructOriginalNamespaceState[original;state]];
+    originalMembers:originalEntries`member;
+    currentMembers:currentEntries`member;
+    newMembers:currentMembers except originalMembers;
+    if[count newMembers;
+      -1 "WARNING: Test leaked ",string[count newMembers],
+        " namespace member(s)."];
+    deleteFailuresBefore:state`failures;
+    idx:0;
+    while[idx<count newMembers;
+      outcome:.tst.pollutionDeleteMember[
+        original`namespace;
+        newMembers idx];
+      if[`ok~outcome;state[`deleted]+:1];
+      if[not `ok~outcome;state[`failures]+:1];
+      idx+:1];
+    originalIndex:originalMembers!til count originalMembers;
+    currentIndex:currentMembers!til count currentMembers;
+    idx:0;
+    while[idx<count originalMembers;
+      member:originalMembers idx;
+      originalRow:originalEntries originalIndex member;
+      restoreRequired:1b;
+      if[member in currentMembers;
+        currentRow:currentEntries currentIndex member;
+        if[
+          (`ok~currentRow`state) and
+          0<state`remaining;
+          probe:.tst.diffProbe[
+            first originalRow`payload;
+            first currentRow`payload;
+            .tst.diffDepthLimit[];
+            state`remaining];
+          used:state[`remaining] & (1 | probe`used);
+          state[`remaining]:0 | state[`remaining]-used;
+          restoreRequired:not `equal~probe`state]];
+      if[restoreRequired;
+        outcome:.tst.pollutionSetMember[
+          original`namespace;
+          member;
+          originalRow`payload];
+        if[`ok~outcome;state[`restored]+:1];
+        if[not `ok~outcome;state[`failures]+:1]];
+      idx+:1];
+    if[
+      (count newMembers) and
+      deleteFailuresBefore=state`failures;
+      -1 "  -> Removed leaked namespace members."];
+    if[state`restored;
+      -1 "WARNING: Restored ",string[state`restored],
+        " modified or unverified namespace member(s)."];
+    state
+ };
+
+/ Compatibility wrapper for the existing internal three-argument helper.
+.tst.restoreSpecNamespace:{[title;namespace;original]
+    state:.tst.restoreSpecNamespaceState[
+      namespace;
+      original;
+      .tst.diffProbeLimit[]];
+    if[state`failures;
+      '"pollution namespace cleanup incomplete"];
+    ::
+ };
+
+/ Thread one comparison budget across every namespace in this cleanup pass.
+.tst.restorePollutionNamespacesState:{[namespaces;snapshots;work]
+    state:.tst.pollutionRestoreState[
+      .tst.diffProbeLimit[] & .tst.capLimit work];
+    idx:0;
+    while[idx<count namespaces;
+      original:.[
+        {[store;name] store name};
+        (snapshots;namespaces idx);
+        {[err] ()!()}];
+      restored:.tst.restoreSpecNamespaceState[
+        namespaces idx;
+        original;
+        state`remaining];
+      state[`remaining]:restored`remaining;
+      state[`failures]+:restored`failures;
+      state[`deleted]+:restored`deleted;
+      state[`restored]+:restored`restored;
+      idx+:1];
+    state
  };
 
 .tst.cleanupSpecPollution:{[lifecycle]
     if[not lifecycle[`pollutionGuard]; :()];
-    current:.tst.specPollutionNamespaces 1b;
-    .tst.clearNewSpecNamespaces[lifecycle;current];
-    check:(lifecycle[`namespaces]) inter current;
-    if[0=count check; :()];
-    originals:(lifecycle[`pollutionSnapshot]) check;
-    {[title;names;values;idx]
-      .tst.restoreSpecNamespace[title;names idx;values idx]
-    }[lifecycle[`title];check;originals] each til count check;
+    currentState:.tst.captureCleanupPollutionNamespaces[];
+    current:currentState`namespaces;
+    failures:$[
+      `ok~currentState`state;
+      .tst.clearNewSpecNamespaces[lifecycle;current];
+      1];
+    restored:.tst.restorePollutionNamespacesState[
+      lifecycle`namespaces;
+      lifecycle`pollutionSnapshot;
+      .tst.diffProbeLimit[]];
+    failures+:restored`failures;
+    if[failures;
+      '"pollution cleanup incomplete: ",
+        string[failures],
+        " operation(s) failed"];
+    ::
  };
 
 .tst.finalizeSpecDir:{[lifecycle]

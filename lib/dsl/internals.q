@@ -446,16 +446,213 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
     -1 "Expectations executed: ", string executed;
  };
 
-.tst.snapshotNamespaceValues:{[ns]
-    rootNs: ` sv (`; ns);
-    ks: @[key; rootNs; {`symbol$()}];
-    if[-11h = type ks; ks: enlist ks];
-    if[not 11h = type ks; :()!()];
-    ks: ks where ks <> rootNs;
-    if[0=count ks; :()!()];
-    paths: .Q.dd[rootNs;] each ks;
-    vals: { @[get; x; { (`GENERIC_ERROR; x) }] } each paths;
-    paths!vals
+/ Pollution snapshots are internal lifecycle data, not diagnostic renderings.
+/ Literal ceilings keep acquisition bounded even if mutable framework state has
+/ been damaged by a test.
+.tst.pollutionNamespaceLimit:{[] 256};
+.tst.pollutionMemberLimit:{[] 4096};
+.tst.pollutionTotalMemberLimit:{[] 16384};
+.tst.pollutionNameLimit:{[] 256};
+.tst.pollutionErrorLimit:{[] 160};
+
+.tst.pollutionBoundedError:{[err]
+    if[not (type err) in -10 10h;
+        :"pollution operation failed"];
+    limit:.tst.pollutionErrorLimit[] & count err;
+    limit#(),err
+ };
+
+.tst.pollutionEmptyEntries:{[]
+    flip `member`state`payload`detail!(
+        `symbol$();
+        `symbol$();
+        ();
+        ())
+ };
+
+.tst.pollutionSnapshotRecord:{[namespace;state;entries;detail]
+    `schema`namespace`state`entries`detail!(
+        `pollutionSnapshotV1;
+        namespace;
+        state;
+        entries;
+        detail)
+ };
+
+/ Trap a unary lookup while boxing its payload. The explicit state tag cannot
+/ collide with any legitimate user value, including the old GENERIC_ERROR
+/ sentinel shape.
+.tst.pollutionCaptureValue:{[lookup;argument]
+    .[
+        {[fn;arg]
+            (`ok;enlist fn arg;"")
+          };
+        (lookup;argument);
+        {[err]
+            (`error;enlist(::);.tst.pollutionBoundedError err)
+          }]
+ };
+
+.tst.pollutionNamespaceRoot:{[namespace]
+    if[not .tst.pollutionMemberValid namespace;
+        '"pollution namespace name is invalid"];
+    ` sv (`;namespace)
+ };
+
+.tst.pollutionMemberValid:{[member]
+    if[-11h<>type member; :0b];
+    if[null member; :0b];
+    text:string member;
+    if[(0=count text) or
+       count[text]>.tst.pollutionNameLimit[];
+        :0b];
+    firstChars:
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    remainingChars:
+        firstChars,"0123456789_";
+    ((first text) in firstChars)
+        and all text in remainingChars
+ };
+
+/ Snapshot one namespace without matching, invoking, or rendering any member.
+/ Lookup failures remain tagged entries; callers decide whether an acquisition
+/ or restoration can proceed safely.
+.tst.snapshotNamespaceValues:{[namespace]
+    rootNs:.tst.pollutionNamespaceRoot namespace;
+    namespaceState:.tst.pollutionCaptureValue[get;rootNs];
+    if[`error~first namespaceState;
+        :.tst.pollutionSnapshotRecord[
+            rootNs;
+            `error;
+            .tst.pollutionEmptyEntries[];
+            "pollution namespace lookup failed"]];
+    bareState:.tst.diffSafeMatchState[
+        first namespaceState 1;
+        ::];
+    if[`equal~bareState`state;
+        :.tst.pollutionSnapshotRecord[
+            rootNs;
+            `ok;
+            .tst.pollutionEmptyEntries[];
+            ""]];
+    keyState:.tst.pollutionCaptureValue[key;rootNs];
+    if[`error~first keyState;
+        :.tst.pollutionSnapshotRecord[
+            rootNs;
+            `error;
+            .tst.pollutionEmptyEntries[];
+            "pollution namespace lookup failed"]];
+    members:first keyState 1;
+    if[-11h=type members;members:enlist members];
+    if[11h<>type members;
+        :.tst.pollutionSnapshotRecord[
+            rootNs;
+            `error;
+            .tst.pollutionEmptyEntries[];
+            "pollution namespace keys have invalid type"]];
+    / q exposes a namespace's fully-qualified root symbol as a metadata marker.
+    / It is not an addressable member and must not be fed back through .Q.dd.
+    members:members where (not null members) and members<>rootNs;
+    if[count[members]>.tst.pollutionMemberLimit[];
+        :.tst.pollutionSnapshotRecord[
+            rootNs;
+            `error;
+            .tst.pollutionEmptyEntries[];
+            "pollution namespace member limit exceeded"]];
+    if[not all .tst.pollutionMemberValid each members;
+        :.tst.pollutionSnapshotRecord[
+            rootNs;
+            `error;
+            .tst.pollutionEmptyEntries[];
+            "pollution namespace member name is invalid"]];
+    if[0=count members;
+        :.tst.pollutionSnapshotRecord[
+            rootNs;
+            `ok;
+            .tst.pollutionEmptyEntries[];
+            ""]];
+    paths:.Q.dd[rootNs;] each members;
+    captured:.tst.pollutionCaptureValue[get;] each paths;
+    states:first each captured;
+    payloads:{x 1} each captured;
+    details:last each captured;
+    entries:flip `member`state`payload`detail!(
+        members;
+        states;
+        payloads;
+        details);
+    snapshotState:$[all states=`ok;`ok;`error];
+    .tst.pollutionSnapshotRecord[
+        rootNs;
+        snapshotState;
+        entries;
+        $[`ok~snapshotState;
+          "";
+          "pollution member lookup failed"]]
+ };
+
+.tst.pollutionPayloadBoxValid:{[payload]
+    payloadType:type payload;
+    if[(0>payloadType) or 99h<payloadType; :0b];
+    1=@[count;payload;{[err] 0}]
+ };
+
+.tst.pollutionEntriesValidUnsafe:{[entries]
+    if[98h<>type entries; :0b];
+    if[not (cols entries)~`member`state`payload`detail;
+        :0b];
+    n:count entries;
+    if[n>.tst.pollutionMemberLimit[]; :0b];
+    if[11h<>type entries`member; :0b];
+    if[11h<>type entries`state; :0b];
+    if[not all entries[`state] in `ok`error; :0b];
+    if[not all .tst.pollutionMemberValid each entries`member;
+        :0b];
+    if[n<>count distinct entries`member; :0b];
+    if[not all .tst.pollutionPayloadBoxValid each entries`payload;
+        :0b];
+    details:entries`detail;
+    if[not all 10h=type each details; :0b];
+    all (count each details)<=.tst.pollutionErrorLimit[]
+ };
+
+.tst.pollutionEntriesValid:{[entries]
+    @[
+        .tst.pollutionEntriesValidUnsafe;
+        entries;
+        {[err] 0b}]
+ };
+
+/ Validate metadata and entry shape without inspecting any captured payload.
+.tst.pollutionSnapshotValidUnsafe:{[namespace;snapshot]
+    if[99h<>type snapshot; :0b];
+    fields:`schema`namespace`state`entries`detail;
+    if[not (key snapshot)~fields; :0b];
+    if[not `pollutionSnapshotV1~snapshot`schema; :0b];
+    expected:@[
+        .tst.pollutionNamespaceRoot;
+        namespace;
+        {[err] `}];
+    if[null expected; :0b];
+    if[not expected~snapshot`namespace; :0b];
+    if[not snapshot[`state] in `ok`error; :0b];
+    if[10h<>type snapshot`detail; :0b];
+    if[count[snapshot`detail]>.tst.pollutionErrorLimit[];
+        :0b];
+    if[not .tst.pollutionEntriesValid snapshot`entries;
+        :0b];
+    entryStates:snapshot[`entries;`state];
+    $[
+        `ok~snapshot`state;
+        all entryStates=`ok;
+        (0=count entryStates) or any entryStates=`error]
+ };
+
+.tst.pollutionSnapshotValid:{[namespace;snapshot]
+    .[
+        .tst.pollutionSnapshotValidUnsafe;
+        (namespace;snapshot);
+        {[err] 0b}]
  };
 
 halt:0b
