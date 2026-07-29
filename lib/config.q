@@ -6,16 +6,40 @@
 / Default configuration
 defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b;1000;10000;("test_*.q"; "*_test.q"))
 
+.tst.readConfigLines:{[handle] read0 handle};
+
+/ Inspect and read as one trapped operation. `key` distinguishes a regular file
+/ (hsym atom), directory (symbol list), and a missing path (empty general list).
+.tst.readConfigSource:{[handle]
+    info:key handle;
+    if[()~info; :`state`value!(`missing;())];
+    if[11h=type info;
+        :`state`value!(`error;"path is a directory, not a regular file")];
+    if[not -11h=type info;
+        :`state`value!(`error;"path is not a regular file")];
+    lines:.tst.readConfigLines handle;
+    if[not 0h=type lines;
+        :`state`value!(`error;"config reader returned a malformed value")];
+    if[not all 10h=type each lines;
+        :`state`value!(`error;"config reader returned non-text content")];
+    `state`value!(`ok;lines)
+ };
+
 / Load configuration from JSON file
 / @param path (string) Path to config file (default: "resq.json")
 / @return (dict) Configuration dictionary
 loadConfig:{[path]
     p:$[10h = type path; path; "resq.json"];
-    cfgText:"";
-
-    if[0 < count key hsym `$p;
-        cfgText: "\n" sv read0 hsym `$p;
+    source:@[.tst.readConfigSource;hsym `$p;{[e]
+        `state`value!(`error;e)
+    }];
+    if[`missing~source`state; :.tst.defaultConfig];
+    if[`error~source`state;
+        -1 "WARNING: Failed to read config '",p,"': ",
+            .tst.toString[source`value],"; using defaults";
+        :.tst.defaultConfig
     ];
+    cfgText:"\n" sv source`value;
 
     cfg:()!();
     if[0 < count cfgText;
@@ -23,6 +47,10 @@ loadConfig:{[path]
             -1 "WARNING: Failed to parse config JSON: ", e;
             ()!()
         }];
+    ];
+    if[not 99h=type cfg;
+        -1 "WARNING: Config JSON root must be an object; using defaults";
+        cfg:()!()
     ];
 
     merged:$[0 < count cfg; .tst.defaultConfig, cfg; .tst.defaultConfig];
@@ -48,6 +76,11 @@ loadConfig:{[path]
     if[10h = type merged`reportListLimit;
         merged[`reportListLimit]: "I"$merged`reportListLimit
     ];
+    if[`testFilePatterns in key merged;
+        if[.tst.validTestFilePatterns merged`testFilePatterns;
+            merged[`testFilePatterns]:.tst.normalizeTestFilePatterns merged`testFilePatterns
+        ];
+    ];
 
     merged
  }
@@ -67,6 +100,42 @@ loadConfig:{[path]
       rawFmt in (`text; `junit; `xunit; `json); rawFmt;
       `text]
  }
+
+/ A configured test pattern must be a basename-only glob that q `like` can
+/ evaluate safely. q signals 'nyi for patterns containing multiple stars.
+.tst.validTestFilePattern:{[pattern]
+    if[not 10h=type pattern; :0b];
+    if[0=count pattern; :0b];
+    if[any pattern in "/\\"; :0b];
+    codes:"i"$pattern;
+    if[(any 32>codes) or any 127=codes; :0b];
+    if[1<count where pattern="*"; :0b];
+    @[{[p] "" like p;1b};pattern;{[e] 0b}]
+ };
+
+.tst.validTestFilePatterns:{[patterns]
+    if[10h=type patterns; :.tst.validTestFilePattern patterns];
+    if[not 0h=type patterns; :0b];
+    if[0=count patterns; :0b];
+    all .tst.validTestFilePattern each patterns
+ };
+
+.tst.normalizeTestFilePatterns:{[patterns]
+    $[10h=type patterns;enlist patterns;patterns]
+ };
+
+/ True only for finite, non-null integer atoms accepted by config.
+.tst.validConfigInteger:{[v]
+    if[not (type v) in -5 -6 -7h; :0b];
+    if[null v; :0b];
+    if[v in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W); :0b];
+    1b
+ };
+
+.tst.validNonNegativeConfigInteger:{[v]
+    if[not .tst.validConfigInteger v; :0b];
+    0<=v
+ };
 
 / Validate a configuration dictionary. Returns a list of warning messages
 / (empty if the config is valid).
@@ -105,13 +174,13 @@ validateConfig:{[cfg]
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
   intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold;
-  intMsgs:("fuzzLimit must be an integer";
-           "maxTestTime must be an integer";
-           "reportLimit must be an integer";
-           "reportListLimit must be an integer";
-           "diffLargeTableThreshold must be an integer";
-           "diffHugeTableThreshold must be an integer");
-  warnings,: raze checkType[cfg;;(-7h;-6h;7h;6h);]'[intNames; intMsgs];
+  intMsgs:("fuzzLimit must be an integer scalar";
+           "maxTestTime must be an integer scalar";
+           "reportLimit must be an integer scalar";
+           "reportListLimit must be an integer scalar";
+           "diffLargeTableThreshold must be an integer scalar";
+           "diffHugeTableThreshold must be an integer scalar");
+  warnings,: raze checkType[cfg;;(-5h;-6h;-7h);]'[intNames; intMsgs];
 
   / Range check: numeric keys must be non-negative. A correctly-typed but
   / negative value (e.g. fuzzLimit:-5, maxTestTime:-1) is nonsensical; warn and
@@ -120,8 +189,10 @@ validateConfig:{[cfg]
   checkNonNeg:{[cfg;name;msg]
     if[not name in key cfg; :()];
     v: cfg name;
-    if[not (type v) in -7 -6 7 6h; :()];
-    $[(not null v) and v < 0; enlist msg; ()]
+    if[not (type v) in -5 -6 -7h; :()];
+    if[(null v) or v in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W);
+      :enlist string[name]," must be a finite non-null integer scalar"];
+    $[v < 0; enlist msg; ()]
   };
   rangeMsgs:("fuzzLimit must be >= 0";
              "maxTestTime must be >= 0";
@@ -137,6 +208,12 @@ validateConfig:{[cfg]
   specMsgs:("excludeSpecs should be a symbol list or comma-separated string";
             "runSpecs should be a symbol list or comma-separated string");
   warnings,: raze checkType[cfg;;(0h;11h;-11h);]'[specNames; specMsgs];
+
+  if[`testFilePatterns in key cfg;
+    if[not .tst.validTestFilePatterns cfg`testFilePatterns;
+      warnings,:enlist "testFilePatterns must be a nonempty string or list of safe basename glob strings"
+    ];
+  ];
 
   warnings
  }
@@ -173,8 +250,7 @@ invalidConfigKeys:{[cfg]
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
-      if[not (type v) in -7 -6 7 6h; :1b];
-      (null v) or v < 0
+      not .tst.validNonNegativeConfigInteger v
     }[cfg] each intNames;
 
   / outDir: string or symbol.
@@ -183,6 +259,9 @@ invalidConfigKeys:{[cfg]
   / spec lists: symbol list or comma-separated string.
   specNames:`excludeSpecs`runSpecs;
   invalid,: specNames where {[cfg;n] (n in key cfg) and not (type cfg n) in 0 11 -11h}[cfg] each specNames;
+
+  if[`testFilePatterns in key cfg;
+    if[not .tst.validTestFilePatterns cfg`testFilePatterns; invalid,:`testFilePatterns]];
 
   distinct invalid
  }
@@ -201,6 +280,10 @@ printConfigWarnings:{[warnings]
 / written into .tst.app where if[] would treat it as truthy.
 applyConfig:{[cfg]
     if[(type cfg) in -20 20h; cfg:(enlist key cfg)!enlist value cfg];
+    if[not 99h=type cfg;
+        -1 "CONFIG WARNING: ignoring malformed configuration (expected dictionary)";
+        :()
+    ];
 
     invalid: .tst.invalidConfigKeys cfg;
     if[0 < count invalid;
@@ -238,7 +321,8 @@ applyConfig:{[cfg]
 
     if[ok`diffLargeTableThreshold; .resq.config.diffLargeTableThreshold: cfg`diffLargeTableThreshold];
     if[ok`diffHugeTableThreshold; .resq.config.diffHugeTableThreshold: cfg`diffHugeTableThreshold];
-    if[ok`testFilePatterns; .resq.config.testFilePatterns: cfg`testFilePatterns];
+    if[ok`testFilePatterns;
+        .resq.config.testFilePatterns:.tst.normalizeTestFilePatterns cfg`testFilePatterns];
  }
 
 / Merge CLI arguments into configuration (CLI takes precedence)

@@ -75,6 +75,30 @@
         must[any marker ~/: windows; "truncation marker should be present"];
     };
 
+    should["caps report messages exactly at every small boundary"]{
+        previousLimit:.tst.output.reportLimit;
+        source:100000 # "x";
+        limits:0 1 5 10 29 30 31 50000;
+        marker:"... [truncated ";
+        {[source;marker;limit]
+            .tst.output.reportLimit:limit;
+            msg:.tst.renderReportMessage enlist source;
+            capped:.tst.capString[source;limit];
+            rendered:.tst.truncate[source;limit];
+            must[count[msg] <= limit; "renderReportMessage must never exceed reportLimit"];
+            must[count[capped] <= limit; "shared string cap must never exceed its limit"];
+            must[count[rendered] <= limit; "truncate must never exceed its limit"];
+            msg mustmatch capped;
+            if[0=limit; msg mustmatch ""];
+            if[limit < count marker;
+                must[not any marker[0] = msg; "short caps must use source text, never an oversized marker"]];
+            if[limit >= 29;
+                windows:{[s;n] s (til 1 + count[s] - n) +\: til n}[msg;count marker];
+                must[any marker ~/: windows; "informative truncation marker must be retained when it fits"]];
+        }[source;marker;] each limits;
+        .tst.output.reportLimit:previousLimit;
+    };
+
     / --- Fix 2: stripAnsi edge cases (sanitize.q .tst.stripAnsi) --------------
     should["stripAnsi keeps text after a lone ESC"]{
         esc: "\033";

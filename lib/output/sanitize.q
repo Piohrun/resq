@@ -51,21 +51,13 @@
 / is then length-capped at .tst.output.reportLimit. No q literal artifacts (no
 / leading `,"` from -3! on a 1-element list), no ~80-char show truncation.
 / Empty/`(::)` inputs collapse to "".
-/ NB: .tst.truncate unconditionally re-runs -3! on its val (re-quoting an
-/ already-final string), so we length-cap here directly, reusing truncate's
-/ "... [truncated N chars]" marker shape so the output contract is identical.
 .tst.renderReportMessage:{[val]
     limit: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
     s: $[10h = type val; val;                       / already a char vector
          0h = type val;                             / general list
             "\n" sv {[e] $[10h = type e; e; .tst.toString e]} each val;
          .tst.toString val];                        / atom / symbol / other
-    n: count s;
-    if[n > limit;
-        truncLen: limit - 30;
-        s: (truncLen # s), "... [truncated ", string[n - truncLen], " chars]"
-    ];
-    s
+    .tst.capString[s;limit]
  };
 
 .tst.sanitizeExpectation:{[suite; file; ns; tags; ex]
@@ -97,9 +89,7 @@
     / strings must join with "\n" (NOT .tst.toString, which emits the q literal
     / form: a 1-element list comes out as `,"..."`). Single strings pass through;
     / non-string elements go via .tst.toString each. The joined string is then
-    / length-capped at .tst.output.reportLimit through .tst.truncate, which only
-    / length-caps an already-string val (it calls -3! on non-strings, so we
-    / always hand it a string here).
+    / length-capped once by the shared string cap.
     exMsg: $[0 < count exFailures; .tst.renderReportMessage exFailures;
                   0 < count exErr; .tst.renderReportMessage exErr;
                   ""];

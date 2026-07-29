@@ -49,12 +49,26 @@
   (count .tst.findTests d) musteq 0;
 
   / Custom pattern picks up the spec file.
-  .resq.config.testFilePatterns: enlist "*_spec.q";
+  .tst.applyConfig[(enlist `testFilePatterns)!enlist "*_spec.q"];
   discovered: .tst.findTests d;
   (count discovered) musteq 1;
   must[any discovered like "*widget_spec.q"; "should discover *_spec.q"];
 
   / Restore.
   $[(::) ~ prevPatterns; ![`.resq.config; (); 0b; enlist `testFilePatterns]; .resq.config.testFilePatterns: prevPatterns];
+  };
+ should["never pass invalid configured patterns into findTests"]{
+  prevPatterns:@[get; `.resq.config.testFilePatterns; {()}];
+  expected:("test_*.q"; "*_test.q");
+  .resq.config.testFilePatterns:expected;
+
+  invalid:(42; (); enlist "test_*_*.q"; enlist "nested/test_*.q");
+  {[expected;paths;candidate]
+    .tst.applyConfig[(enlist `testFilePatterns)!enlist candidate];
+    .resq.config.testFilePatterns mustmatch expected;
+    mustnotthrow[(); (.tst.findTests; value paths)];
+    }[expected;pathList;] each invalid;
+
+  .resq.config.testFilePatterns:prevPatterns;
   };
  };

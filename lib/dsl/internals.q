@@ -41,18 +41,44 @@ if[not `fuzzLimit in key `.tst.output; .tst.output.fuzzLimit: 10];
 if[not `reportLimit in key `.tst.output; .tst.output.reportLimit: 50000];
 if[not `reportListLimit in key `.tst.output; .tst.output.reportListLimit: 1000];
 
-/ Truncation utility for safely outputting large values
-/ Prevents memory exhaustion from very large test outputs
-.tst.truncate:{[val;maxLen]
-    s: -3!val;
-    n: count s;
-    if[n > maxLen;
-        truncLen: maxLen - 30;
-        origLen: n;
-        s: truncLen # s;
-        s,: "... [truncated ", string[origLen - truncLen], " chars]"
+/ Normalize a direct output cap defensively. Authoritative config validation
+/ accepts the same finite, non-negative integer scalar contract.
+.tst.capLimit:{[limit]
+    if[not (type limit) in -5 -6 -7h; :0];
+    if[null limit; :0];
+    if[limit in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W); :0];
+    if[0>limit; :0];
+    "j"$limit
+ };
+
+.tst.truncationMarker:{[removed]
+    "... [truncated ",string[removed]," chars]"
+ };
+
+/ Cap an already-rendered string without ever exceeding limit. The informative
+/ marker is included only when its complete and accurate text fits.
+.tst.capString:{[text;limit]
+    cap:.tst.capLimit limit;
+    n:count text;
+    if[n<=cap; :text];
+    if[0=cap; :""];
+    marker:.tst.truncationMarker n;
+    if[cap<count marker; :cap#text];
+    prefix:cap-count marker;
+    done:0b;
+    while[not done;
+        marker:.tst.truncationMarker n-prefix;
+        nextPrefix:cap-count marker;
+        if[0>nextPrefix; :cap#text];
+        done:nextPrefix=prefix;
+        prefix:nextPrefix;
     ];
-    s
+    (prefix#text),marker
+ };
+
+/ Truncation utility for safely outputting large values.
+.tst.truncate:{[val;maxLen]
+    .tst.capString[-3!val;maxLen]
  };
 
 / Initialize .resq namespace if not exists

@@ -25,19 +25,98 @@ runners:()!()
     $[0 < count ctx; "\n", ctx; ""]
  };
 
-runners[`perf]:{[expec];
-  opts: `runs`gc!10b;
-  if[0<count expec`props; opts: opts, expec`props];
-  runs: $[`runs in key opts; opts`runs; 100];
+.tst.perfDefaults:`runs`gc!(100;1b);
+
+.tst.performanceEnabled:{[]
+  1b~@[get;`.tst.app.runPerformance;{[e] 0b}]
+ };
+
+.tst.skipPerformance:{[expec]
+  expec[`result]:`skip;
+  expec[`skipReason]:"Performance tests disabled; enable with -perf.";
+  expec[`failures]:();
+  expec[`assertsRun]:0i;
+  expec
+ };
+
+.tst.performancePropertyError:{[name;contract]
+  err:"Performance property '",string[name],"' must be ",contract;
+  'err
+ };
+
+.tst.validPerformanceRuns:{[runs]
+  if[not type[runs] in -5 -6 -7h; :0b];
+  if[null runs; :0b];
+  if[runs in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W); :0b];
+  0<runs
+ };
+
+.tst.validPerformanceLimit:{[limit]
+  / maxTime is milliseconds and maxSpace is bytes. Both accept numeric scalar
+  / types, but not booleans, temporal values, null/NaN, or infinities.
+  if[not type[limit] in -4 -5 -6 -7 -8 -9h; :0b];
+  if[null limit; :0b];
+  if[limit in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W;0We;-0We;0w;-0w); :0b];
+  0<=limit
+ };
+
+.tst.validatedPerformanceOptions:{[expec]
+  props:$[`props in key expec;expec`props;()!()];
+  if[not 99h=type props;
+    err:"Performance properties must be a dictionary";
+    'err
+  ];
+  propKeys:key props;
+  if[count propKeys;
+    if[not 11h=type propKeys;
+      err:"Performance properties must use symbol keys";
+      'err
+    ];
+    if[count[propKeys]<>count distinct propKeys;
+      err:"Performance properties must not contain duplicate keys";
+      'err
+    ];
+    unknown:propKeys except `runs`gc`maxTime`maxSpace;
+    if[count unknown;
+      .tst.performancePropertyError[first unknown;
+        "one of runs, gc, maxTime, or maxSpace"]
+    ]
+  ];
+  opts:.tst.perfDefaults,props;
+  if[not .tst.validPerformanceRuns opts`runs;
+    .tst.performancePropertyError[`runs;"a positive finite integer scalar"]
+  ];
+  if[not -1h=type opts`gc;
+    .tst.performancePropertyError[`gc;"a boolean scalar"]
+  ];
+  if[`maxTime in key opts;
+    if[not .tst.validPerformanceLimit opts`maxTime;
+      .tst.performancePropertyError[`maxTime;"a finite non-negative numeric scalar (milliseconds)"]
+    ]
+  ];
+  if[`maxSpace in key opts;
+    if[not .tst.validPerformanceLimit opts`maxSpace;
+      .tst.performancePropertyError[`maxSpace;"a finite non-negative numeric scalar (bytes)"]
+    ]
+  ];
+  opts
+ };
+
+runners[`perf]:{[expec]
+  if[not .tst.performanceEnabled[]; :.tst.skipPerformance expec];
+  opts:.tst.validatedPerformanceOptions expec;
+  runs:opts`runs;
   / Pass the gc flag through so measure can skip per-iteration .Q.gc[] when off.
   / NOTE: timings are wall-clock ms (float); maxTime asserts in CI need generous
   / headroom - a loaded runner can be 10-100x slower than a quiet local machine.
-  res: .tst.benchmark.measureOpts[runs; expec`code; enlist[`gc]!enlist opts`gc];
+  / measureOpts evaluates a q parse tree. Pair the lambda with generic null so
+  / each warmup/measurement invokes it instead of merely inspecting its value.
+  body:(expec`code;::);
+  res: .tst.benchmark.measureOpts[runs; body; enlist[`gc]!enlist opts`gc];
   expec[`perf]: res;
   expec[`result]: `pass;
-  / perfObj carries no `failures key by default; seed an empty string list so the
-  / threshold branches below can `,:` onto it without a 'type error.
-  if[not `failures in key expec; expec[`failures]: ()];
+  expec[`failures]:();
+  expec[`assertsRun]:0i;
   if[`maxTime in key opts;
       avgTime: res[`time;`avg];
       if[avgTime > opts`maxTime;
@@ -169,6 +248,14 @@ runExpec:{[spec;expec];
  / Record the current test name for stack-trace context.
  .tst.currentContext[`test]: $[`desc in key expec; .tst.toString expec`desc; ""];
  expec:.tst.setupExpec[spec;expec];
+
+ / Performance expectations are opt-in. Select the skip state before entering
+ / runExpecAttempt so neither hooks nor the benchmark body can execute.
+ if[`type in key expec;
+   if[`perf~expec`type;
+     if[not .tst.performanceEnabled[]; expec:.tst.skipPerformance expec]
+   ]
+ ];
 
  / Skip and pending expectations are terminal states. Do not run hooks or code.
  exStatus: .tst.normalizeResultStatus expec`result;
