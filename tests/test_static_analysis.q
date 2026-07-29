@@ -50,6 +50,18 @@
         deps: .tst.static.findDeps[body; ".my.helper"];
         must[not (`$".my.helper") in deps; "self-name should be excluded"];
     };
+
+    should["ignore comments, strings, and similarly prefixed user namespaces"]{
+        body: (
+            "{[x]";
+            "  / .fake.comment[x]";
+            "  txt:\".fake.string[x]\";";
+            "  .query.real[x];";
+            "  .q.system[x]";
+            " }");
+        deps: .tst.static.findDeps["\n" sv body; ""];
+        deps mustmatch enlist `$".query.real";
+    };
 };
 
 .tst.desc["Static analysis: file walking"]{
@@ -82,6 +94,27 @@
         (exec name from fns) mustmatch `f`g;
     };
 
+    should["exploreFile detect persistent definitions without accepting expressions"]{
+        tf: .tst.tempFile ".q";
+        contents: (
+            "persistent::{[x] .dep.root[x]}";
+            "\\d .live";
+            "local::{[x;y] .dep.local[x]+y}";
+            ".explicit.fn::{[] .dep.explicit[]}";
+            "notAFunction::1+{[z] .dep.fake[z]}";
+            "alsoNotAFunction:::{[] .dep.fake[]}";
+            "spacedNotAFunction: :{[] .dep.fake[]}");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch
+            `persistent`.live.local`.explicit.fn;
+        (exec line from fns) mustmatch 1 3 4i;
+        (exec dependencies from fns) mustmatch (
+            enlist `$".dep.root";
+            enlist `$".dep.local";
+            enlist `$".dep.explicit");
+    };
+
     should["exploreFile reset namespace on \\d ."]{
         tf: .tst.tempFile ".q";
         / `\d .a` enters namespace, `\d .` resets to root. The reset must
@@ -90,5 +123,69 @@
         (hsym `$tf) 0: contents;
         fns: .tst.static.exploreFile tf;
         (exec name from fns) mustmatch `.a.f`g;
+    };
+
+    should["honour comments, the script terminator, and runtime namespaces"]{
+        tf: .tst.tempFile ".q";
+        contents: (
+            enlist "/";
+            "fake:{[x] x}";
+            "system \"d .fake\"";
+            enlist "\\";
+            "system \"d .runtime\"";
+            "real:{[x]";
+            "  txt:\"a brace } and fake:{[y] y}\";";
+            "  / commented } and .fake.dep[x]";
+            "  .actual.dep[x]";
+            " }";
+            "system \"d `.\"";
+            "rootFn:{[] 1}";
+            enlist "\\";
+            "afterTerminator:{[] 0}");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch `.runtime.real`rootFn;
+        (exec line from fns) mustmatch 6 12i;
+        first[exec dependencies from fns] mustmatch enlist `$".actual.dep";
+    };
+
+    should["ignore namespace directives and definitions in strings and line comments"]{
+        tf: .tst.tempFile ".q";
+        contents: (
+            "banner:\"system \\\"d .fake\\\" and ghost:{[] 0}\";";
+            "/ \\d .commented";
+            "/ hidden:{[] 0}";
+            "\\d .live";
+            "shown:{[] 1}");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch enlist `.live.shown;
+        (exec line from fns) mustmatch enlist 5i;
+    };
+};
+
+.tst.desc["Static analysis: conservative reference coverage"]{
+    should["not count descriptions, comments, or strings as executable references"]{
+        srcFile: .tst.tempFile ".q";
+        testFile: .tst.tempFile ".q";
+        (hsym `$srcFile) 0: enlist ".demo.target:{[x] x}";
+        (hsym `$testFile) 0: (
+            ".tst.desc[\"mentions .demo.target\"]{";
+            "  should[\"also says .demo.target\"]{";
+            "    / .demo.target[1]";
+            "    note:\".demo.target[2]\";";
+            "    1 musteq 1";
+            "  };";
+            "};");
+        srcFns: .tst.static.exploreFile srcFile;
+        cvg: .tst.checkCoverage[srcFns; testFile];
+        (exec covered from cvg) mustmatch enlist 0b;
+
+        (hsym `$testFile) 0: (
+            ".tst.desc[\"real reference\"]{";
+            "  should[\"calls it\"]{ .demo.target[1] musteq 1 };";
+            "};");
+        cvg: .tst.checkCoverage[srcFns; testFile];
+        (exec covered from cvg) mustmatch enlist 1b;
     };
 };

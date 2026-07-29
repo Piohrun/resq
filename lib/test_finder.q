@@ -12,6 +12,15 @@
 .tst.normalizePath: .tst.static.normalizePath
 .tst.findSources: .tst.static.findSources
 
+.tst.static.htmlEscape:{[input]
+  s0: .tst.static.toStr input;
+  s1: ssr[s0; enlist "&"; "&amp;"];
+  s2: ssr[s1; enlist "<"; "&lt;"];
+  s3: ssr[s2; enlist ">"; "&gt;"];
+  s4: ssr[s3; enlist "\""; "&quot;"];
+  ssr[s4; enlist "'"; "&#39;"]
+ };
+
 / Generate a stylized HTML coverage report
 .tst.genHtmlReport:{[stats;outFile]
   h: enlist "<html><head><title>resQ Coverage Report</title>";
@@ -31,37 +40,51 @@
   h,: enlist "<h1>Project Coverage Report</h1>";
   h,: enlist "<table><thead><tr><th>Directory</th><th>Coverage (%)</th><th>Stats (Cov/Tot)</th></tr></thead><tbody>";
   
-  {[r] 
+  rows: {[r]
     dStr: $[(string r`dir)~""; "."; string r`dir];
+    dStr: .tst.static.htmlEscape dStr;
     pct: floor r`pct;
     cls: $[pct < 50; "low"; pct < 80; "med"; ""];
     row: "<tr><td>", dStr, "</td>";
     row,: "<td><div class='progress-bg'><div class='progress-fill ",cls,"' style='width: ",(string pct),"%'></div></div> ";
     row,: (string pct), "%</td>";
     row,: "<td>", (string r`covered), " / ", (string r`total), "</td></tr>";
-    h,: enlist row;
+    row
   } each stats;
+  h,: rows;
   
   h,: enlist "</tbody></table></div></body></html>";
-  hsym[`$outFile] 0: h;
-  -1 "HTML Report written to: ", outFile;
+  outPath: .tst.static.toStr outFile;
+  wrote: .[{[path;lines]
+      (hsym `$path) 0: lines;
+      1b
+    }; (outPath;h); {[path;e]
+      -2 "DISCOVERY ERROR: Unable to write HTML report ",path,": ",e;
+      0b
+    }[outPath]];
+  if[not wrote; '"Unable to write discovery HTML report: ",outPath];
+  -1 "HTML Report written to: ", outPath;
+ };
+
+.tst.static.readExecutableTokens:{[path]
+  p: .tst.static.toStr path;
+  result: @[{(1b;.tst.static.executableTokens read0 hsym `$x)}; p; {[p;e]
+      .tst.static.warn "Cannot read test source ",p,": ",e;
+      (0b;())
+    }[p]];
+  $[first result; last result; ()]
  };
 
 / Scan tests for coverage
 .tst.checkCoverage:{[srcFns;testDir]
   if[not count srcFns; :srcFns];
   testPaths: .tst.findSources[testDir];
-  tc: $[0<count testPaths; raze raze read0 each hsym each testPaths; ""];
   if[not 98h=type srcFns; srcFns: enlist srcFns];
   ns: exec name from srcFns;
-  res: `boolean$();
-  i: 0;
-  do[count ns;
-    nStr: .tst.toStr ns i;
-    match: tc like "*", nStr, "*";
-    res,: match;
-    i+: 1;
-  ];
+  refs:();
+  if[count testPaths;
+    refs: distinct raze .tst.static.readExecutableTokens each testPaths];
+  res: {.tst.static.toStr[x] in y}[;refs] each ns;
   ![srcFns; (); 0b; enlist[`covered]!enlist res]
  };
 
@@ -121,74 +144,184 @@
   } each stats;
  };
 
-/ Generate Mirrored Boilerplate with Dependency Mocks
+.tst.static.safeCommentText:{[input]
+  s:.tst.static.toStr input;
+  codes:"i"$s;
+  @[s; where (codes<32) or (codes=127); :; " "]
+ };
+
+.tst.static.qStringEscape:{[input]
+  s:.tst.static.safeCommentText input;
+  ssr[ssr[s; enlist "\\"; "\\\\"]; enlist "\""; "\\\""]
+ };
+
+/ A generated relative path must be a plain descendant path. Reject both POSIX
+/ and Windows separators/control forms before any directory or file operation.
+.tst.static.validateGeneratedRelative:{[relative]
+  rel:.tst.static.toStr relative;
+  if[not count rel; '"Unsafe generated relative path: empty"];
+  if["/"=first rel; '"Unsafe generated relative path: absolute path"];
+  if[any rel in "\\:";
+      '"Unsafe generated relative path: alternate separator or drive form"];
+  codes:"i"$rel;
+  if[any (codes<32) or (codes=127);
+      '"Unsafe generated relative path: control character"];
+  parts:"/" vs rel;
+  if[any parts in ("";".";"..");
+      '"Unsafe generated relative path: traversal component"];
+  rel
+ };
+
+.tst.static.absolutePath:{[path]
+  p:.tst.static.toStr path;
+  p:$[p like ":*";1_p;p];
+  if[not count p; p:"."];
+  p:ssr[p;enlist "\\";enlist "/"];
+  hasDrive:(1<count p) and ":"=p 1;
+  isDrive:hasDrive and ((2<count p) and "/"=p 2);
+  if[hasDrive and not isDrive;
+      '"Unsafe generated output root: drive-relative path"];
+  isUnc:p like "//*";
+  isAbsolute:("/"=first p) or isDrive;
+  normalized:.utl.normalizePath $[isAbsolute;p;(system "cd"),"/",p];
+  $[isUnc and not normalized like "//*";"/",normalized;normalized]
+ };
+
+.tst.static.containedGeneratedPath:{[root;relative]
+  rel:.tst.static.validateGeneratedRelative relative;
+  absoluteRoot:.tst.static.absolutePath root;
+  target:.tst.static.absolutePath absoluteRoot,"/",rel;
+  compareRoot:$[.utl.isWindows;lower absoluteRoot;absoluteRoot];
+  compareTarget:$[.utl.isWindows;lower target;target];
+  prefix:$["/"=last compareRoot;compareRoot;compareRoot,"/"];
+  contained:(count compareTarget)>=count prefix;
+  if[contained; contained:prefix~(count prefix)#compareTarget];
+  if[not contained; '"Unsafe generated relative path: escaped output root"];
+  target
+ };
+
+/ Refuse a pre-existing symlink in the generated directory chain. This keeps a
+/ lexical descendant from being redirected outside the requested output root.
+.tst.static.ensureGeneratedDir:{[root;relativeDir]
+  absoluteRoot:.tst.static.absolutePath root;
+  if[.tst.static.isSymlink absoluteRoot;
+      '"Unsafe generated output directory: root is a symlink"];
+  .utl.ensureDir absoluteRoot;
+  if[not .utl.isDir absoluteRoot;
+      '"Unable to create generated output directory: ",absoluteRoot];
+  if[not count relativeDir; :absoluteRoot];
+
+  rel:.tst.static.validateGeneratedRelative relativeDir;
+  parts:"/" vs rel;
+  current:absoluteRoot;
+  i:0;
+  while[i<count parts;
+    current:.tst.static.containedGeneratedPath[
+      absoluteRoot; "/" sv (i+1)#parts];
+    if[.utl.pathExists current;
+      if[.tst.static.isSymlink current;
+        '"Unsafe generated output directory: symlink component ",current]];
+    if[not .utl.pathExists current; .utl.ensureDir current];
+    if[not .utl.isDir current;
+      '"Unable to create generated output directory: ",current];
+    i+:1;
+  ];
+  current
+ };
+
+.tst.static.dependencyHint:{[dependencies]
+  deps:$[-11h=type dependencies; enlist dependencies;
+         11h=type dependencies; (),dependencies;
+         0h=type dependencies; raze dependencies;
+         `symbol$()];
+  deps:deps where not null deps;
+  $[count deps;
+      .tst.static.safeCommentText ", " sv string deps;
+      ""]
+ };
+
+.tst.static.argumentHint:{[arguments]
+  args:$[10h=type arguments; enlist arguments;
+         0h=type arguments; arguments;
+         ()];
+  args:args where 0<count each args;
+  $[count args;
+      ", " sv .tst.static.safeCommentText each args;
+      ""]
+ };
+
+.tst.static.generatedLines:{[sourceFile;functions]
+  lines:(
+    "/ Automated pending tests for statically unreferenced functions";
+    "/ Target: ",.tst.static.safeCommentText sourceFile;
+    "";
+    ".tst.desc[\"Generated discovery TODOs\"]{");
+  i:0;
+  while[i<count functions;
+    row:functions i;
+    functionName:.tst.static.toStr row`name;
+    lines,:enlist "  / Function: ",.tst.static.safeCommentText functionName;
+    args:.tst.static.argumentHint row`args;
+    if[count args; lines,:enlist "  / Arguments: ",args];
+    dependencies:.tst.static.dependencyHint row`dependencies;
+    if[count dependencies;
+      lines,:enlist "  / Dependencies detected: ",dependencies];
+    lines,:enlist "  .tst.pending[\"TODO: add coverage for ",
+      .tst.static.qStringEscape[functionName],"\"];";
+    lines,:enlist "";
+    i+:1;
+  ];
+  lines,:enlist "};";
+  lines
+ };
+
+/ Generate Mirrored Boilerplate with dependency/argument hints.
 .tst.genMirror:{[untested;baseDir;outDir]
   if[not count untested; :()];
-  od: .tst.toStr outDir;
+  od: .tst.static.absolutePath outDir;
   -1 "Mirroring structure to: ", od;
-  .utl.ensureDir od;
+  .tst.static.ensureGeneratedDir[od;""];
   b: .tst.toStr baseDir;
   if[(count b) and not "/"=last b; b,: "/"];
 
-  / Brace characters for template generation
-  LB: enlist "c"$123;  / "{"
-  RB: enlist "c"$125;  / "}"
-
   u: 0!untested;
-  / Grouping by srcFile name to get indices per file
-  idxMap: group exec srcFile from u;
-  k: key idxMap;
-
-  do[count k;
-    f: k 0;
-    fns: u @ idxMap f;
+  sourceFiles:asc distinct exec srcFile from u;
+  i:0;
+  while[i<count sourceFiles;
+    f:sourceFiles i;
+    fns:select from u where srcFile=f;
+    fns:`line`name xasc fns;
     rel: .tst.normalizePath[f;b];
+    rel:.tst.static.validateGeneratedRelative rel;
     dirP: .tst.getDir rel;
-
-    td: od, $[(count dirP) and not dirP~"/"; "/", dirP; ""];
-    .utl.ensureDir td;
-
     baseN: .tst.getBase rel;
-    if[baseN like "*.q"; baseN: ((-2 + count baseN) # baseN)];
-    target: td, $[("/"=last td) or "/"=first baseN; ""; "/"], "test_", baseN, ".q";
+    if[baseN like "*.q"; baseN:(-2+count baseN)#baseN];
+    targetRel:dirP,"test_",baseN,".q";
+    targetRel:.tst.static.validateGeneratedRelative targetRel;
+    target:.tst.static.containedGeneratedPath[od;targetRel];
+    .tst.static.ensureGeneratedDir[
+      od;
+      $[count dirP; -1_dirP; ""]];
 
-    if[not () ~ key hsym `$target;
+    if[.utl.pathExists target;
         -1 "  -> Skipped (Exists): ", target;
     ];
 
-    if[() ~ key hsym `$target;
-        xml: enlist "/ Automated Boilerplate for Untested Functions";
-        xml,: enlist "/ Target: ", .tst.toStr f;
-        xml,: enlist "";
-        j: 0;
-        do[count fns;
-          r: fns j;
-          xml,: enlist "should[\"work with ",( .tst.toStr r`name),"\"; ", LB, "[]";
-
-          / Add Mock Suggestions - deps is stored as enlist of symbol list
-          deps: r`dependencies;
-          / Unwrap the enlist and filter empty
-          deps: $[0h=type deps; raze deps; deps];
-          deps: deps where not null deps;
-          if[0<count deps;
-              xml,: enlist "  / Dependencies detected: ", ( ", " sv string deps);
-              / Build mock lines without lambda to avoid closure issues
-              mockLines: {[LB;RB;x] "  .tst.mock[`",string[x],"; ",LB,"[args] (::)",RB,"];"}[LB;RB] each deps;
-              xml,: mockLines;
-              xml,: enlist "";
-          ];
-
-          argsP: $[0<count r`args; ";" sv (count r`args)#enlist "fixture"; ""];
-          xml,: enlist "  res: ",( .tst.toStr r`name),"[",argsP,"];";
-          xml,: enlist "  res mustmatch expectedValue;";
-          xml,: enlist RB, "];\n";
-          j+: 1;
-        ];
-        hsym[`$target] 0: xml;
+    if[not .utl.pathExists target;
+        lines:.tst.static.generatedLines[f;fns];
+        wrote:.[{[path;content]
+            (hsym `$path) 0: content;
+            1b
+          };(target;lines);{[path;e]
+            -2 "DISCOVERY ERROR: Unable to write generated test ",path,": ",e;
+            0b
+          }[target]];
+        if[not wrote; '"Unable to write generated discovery test: ",target];
         -1 "  -> Created: ", target;
     ];
-    k: 1 _ k;
+    i+:1;
   ];
+  ()
  };
 
 / --- Interactive Flow ---
