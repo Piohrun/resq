@@ -43,11 +43,13 @@
   mustthrow["*connection refused*"; (.tst.await; id; 1000)];
   must[not id in key .tst.deferredStates; "rejected deferred state must be released after await"];
   };
- should["await a symbol-rejected promise raises the message and releases state"]{
+ should["await a symbol-rejected promise raises a bounded message and releases state"]{
   id: .tst.deferred[];
   .tst.reject[id; `boom];
-  mustthrow["*boom*"; (.tst.await; id; 1000)];
-  must[not id in key .tst.deferredStates; "symbol-rejected deferred state must be released after await"];
+  mustthrow["*rejected symbol value*"; (.tst.await; id; 1000)];
+  must[
+    not id in key .tst.deferredStates;
+    "symbol-rejected deferred state must be released after await"];
   };
  should["timeout if promise never settles and release its state"]{
   id: .tst.deferred[];
@@ -101,7 +103,7 @@
   must[elapsedNs < 50000000; "zero sleep must return without spawning a sleeper"];
   };
  should["reject invalid wait and sleep durations immediately"]{
-  invalid:(-1; 0N; 0W; 0n; 0w; "10"; enlist 10; `ten);
+  invalid:(-1; 1b; 0N; 0W; 0n; 0w; "10"; enlist 10; `ten);
   {mustthrow["*finite non-negative numeric scalar*"; (.tst.sleep; x)]} each invalid;
   {mustthrow["*timeout must be a finite non-negative numeric scalar*"; (.tst.wait; {1b}; x; 1)]} each invalid;
   {mustthrow["*interval must be a finite non-negative numeric scalar*"; (.tst.wait; {1b}; 1; x)]} each invalid;
@@ -115,7 +117,7 @@
   must[not .utl.pathExists sentinel; "invalid sleep input must never reach the shell"];
   };
  should["reject invalid await timeouts and release valid deferred IDs"]{
-  invalid:(-1; 0N; 0W; 0n; 0w; "10"; enlist 10; `ten);
+  invalid:(-1; 1b; 0N; 0W; 0n; 0w; "10"; enlist 10; `ten);
   {
     id:.tst.deferred[];
     mustthrow["*timeout must be a finite non-negative numeric scalar*"; (.tst.await; id; x)];

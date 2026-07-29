@@ -9,14 +9,147 @@
 .tst.benchmark.MAX_OPTION_KEYS:32;
 .tst.benchmark.MAX_OPTION_KEY_DISPLAY:64;
 .tst.benchmark.MEASURE_WARMUP:3;
+.tst.benchmark.MAX_PRINT_ROWS:256;
+.tst.benchmark.MAX_DISPLAY_WIDTH:256;
 
 .tst.benchmark.fail:{[detail]
-  '"Benchmark ",detail
+  if[not 10h=type detail; '"Benchmark operation failed"];
+  bounded:(4096&count detail)#detail;
+  '"Benchmark ",bounded
+ };
+
+.tst.benchmark.captureLimit:{[path]
+  (1b;enlist get path)
+ };
+
+.tst.benchmark.captureLimitError:{[err]
+  (0b;enlist err)
+ };
+
+/ Mutable caps are lowerable test seams only. Every accessor embeds the largest
+/ amount of work that its seam can authorize.
+.tst.benchmark.limit:{[path;label;minimum;literalCeiling]
+  allowed:(
+    `.tst.benchmark.MAX_ITERATIONS;
+    `.tst.benchmark.MAX_WARMUP;
+    `.tst.benchmark.MAX_BUCKETS;
+    `.tst.benchmark.MAX_DATA_POINTS;
+    `.tst.benchmark.MAX_OPTION_KEYS;
+    `.tst.benchmark.MAX_OPTION_KEY_DISPLAY;
+    `.tst.benchmark.MEASURE_WARMUP;
+    `.tst.benchmark.MAX_PRINT_ROWS;
+    `.tst.benchmark.MAX_DISPLAY_WIDTH;
+    `.tst.benchmark.MAX_NAME_LENGTH);
+  if[not path in allowed;
+    .tst.benchmark.fail["unknown safety-limit path"]];
+  outcome:@[
+    .tst.benchmark.captureLimit;
+    path;
+    .tst.benchmark.captureLimitError];
+  if[not first outcome;
+    .tst.benchmark.fail[label," safety limit is unavailable"]];
+  limitValue:first last outcome;
+  if[not type[limitValue] in -4 -5 -6 -7h;
+    .tst.benchmark.fail[
+      label," safety limit must be a finite integer scalar"]];
+  if[null limitValue;
+    .tst.benchmark.fail[
+      label," safety limit must be a finite integer scalar"]];
+  if[limitValue in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W);
+    .tst.benchmark.fail[label," safety limit must be finite"]];
+  if[limitValue<minimum;
+    .tst.benchmark.fail[label," safety limit is below its supported minimum"]];
+  if[limitValue>literalCeiling;
+    .tst.benchmark.fail[label," safety limit exceeds its literal ceiling"]];
+  "j"$limitValue
+ };
+
+.tst.benchmark.iterationLimit:{[]
+  .tst.benchmark.limit[
+    `.tst.benchmark.MAX_ITERATIONS;
+    "iteration";
+    1;
+    1000000]
+ };
+
+.tst.benchmark.warmupLimit:{[]
+  .tst.benchmark.limit[
+    `.tst.benchmark.MAX_WARMUP;
+    "warmup";
+    0;
+    100000]
+ };
+
+.tst.benchmark.bucketLimit:{[]
+  .tst.benchmark.limit[
+    `.tst.benchmark.MAX_BUCKETS;
+    "histogram bucket";
+    1;
+    10000]
+ };
+
+.tst.benchmark.dataPointLimit:{[]
+  .tst.benchmark.limit[
+    `.tst.benchmark.MAX_DATA_POINTS;
+    "data point";
+    1;
+    1000000]
+ };
+
+.tst.benchmark.optionKeyLimit:{[]
+  .tst.benchmark.limit[
+    `.tst.benchmark.MAX_OPTION_KEYS;
+    "option key count";
+    1;
+    32]
+ };
+
+.tst.benchmark.optionDisplayLimit:{[]
+  .tst.benchmark.limit[
+    `.tst.benchmark.MAX_OPTION_KEY_DISPLAY;
+    "option-key display";
+    1;
+    64]
+ };
+
+.tst.benchmark.measureWarmup:{[]
+  configured:.tst.benchmark.limit[
+    `.tst.benchmark.MEASURE_WARMUP;
+    "measurement warmup";
+    0;
+    100000];
+  maximum:.tst.benchmark.warmupLimit[];
+  if[configured>maximum;
+    .tst.benchmark.fail[
+      "measurement warmup exceeds the configured warmup safety limit"]];
+  configured
+ };
+
+.tst.benchmark.printRowLimit:{[]
+  .tst.benchmark.limit[
+    `.tst.benchmark.MAX_PRINT_ROWS;
+    "print row count";
+    1;
+    256]
+ };
+
+.tst.benchmark.displayWidthLimit:{[]
+  .tst.benchmark.limit[
+    `.tst.benchmark.MAX_DISPLAY_WIDTH;
+    "display width";
+    1;
+    256]
  };
 
 / Integer loop counts must be finite scalar integers inside the relevant
 / private safety budget. Returns a long for `do`/allocation consistency.
 .tst.benchmark.validateCount:{[x;label;minimum;cap]
+  if[not type[cap] in -4 -5 -6 -7h;
+    .tst.benchmark.fail[label," safety limit is invalid"]];
+  if[(null cap) or (cap in (0Wh;-0Wh;0Wi;-0Wi;0W;-0W));
+    .tst.benchmark.fail[label," safety limit is invalid"]];
+  if[(cap<minimum) or (cap>1000000);
+    .tst.benchmark.fail[label," safety limit is invalid"]];
   if[not type[x] in -4 -5 -6 -7h;
     .tst.benchmark.fail[label," must be a finite integer scalar"]];
   if[null x;
@@ -31,32 +164,43 @@
  };
 
 .tst.benchmark.validateOptions:{[opts;allowed;label]
+  keyLimit:.tst.benchmark.optionKeyLimit[];
+  if[not 11h=type allowed;
+    .tst.benchmark.fail[label," allowed option keys are corrupt"]];
+  if[count[allowed]>keyLimit;
+    .tst.benchmark.fail[
+      label," allowed option keys exceed their safety limit"]];
   if[not 99h=type opts;
     .tst.benchmark.fail[label," options must be a dictionary"]];
   ks:key opts;
   if[count ks;
-    if[count[ks]>.tst.benchmark.MAX_OPTION_KEYS;
+    if[count[ks]>keyLimit;
       .tst.benchmark.fail[
         label," options exceed key-count safety limit ",
-        string .tst.benchmark.MAX_OPTION_KEYS]];
+        string keyLimit]];
     if[not 11h=type ks;
       .tst.benchmark.fail[label," option keys must be symbols"]];
     if[count[ks]<>count distinct ks;
       .tst.benchmark.fail[label," options must not contain duplicate keys"]];
     unknown:ks except allowed;
     if[count unknown;
-      keyText:.tst.benchmark.boundedText[
-        string first unknown;
-        .tst.benchmark.MAX_OPTION_KEY_DISPLAY];
       .tst.benchmark.fail[
-        label," options contain unknown key '",keyText,"'"]]
+        label," options contain an unknown symbol key"]]
   ];
   opts
  };
 
 .tst.benchmark.boundedText:{[text;limit]
+  if[not 10h=type text;
+    .tst.benchmark.fail["bounded text must be a string"]];
+  limit:.tst.benchmark.validateCount[
+    limit;
+    "bounded text length";
+    1;
+    .tst.benchmark.optionDisplayLimit[]];
   if[count[text]<=limit; :text];
-  (limit#text),"..."
+  if[3>=limit; :limit#"..."];
+  ((limit-3)#text),"..."
  };
 
 .tst.benchmark.validateBool:{[x;label]
@@ -75,11 +219,12 @@
 .tst.benchmark.isInvocation:{[x]
   if[not 0h=type x; :0b];
   if[not 2=count x; :0b];
-  (.tst.benchmark.isCallable first x) and (::)~last x
+  (.tst.benchmark.isCallable first x) and ((::)~last x)
  };
 
 .tst.benchmark.validateCallable:{[x;label]
-  if[not (.tst.benchmark.isCallable[x] or .tst.benchmark.isInvocation x);
+  if[not (.tst.benchmark.isCallable[x] or
+      (.tst.benchmark.isInvocation x));
     .tst.benchmark.fail[label," must be a callable function"]];
   x
  };
@@ -92,8 +237,12 @@
 
 / Invoke user code with phase context while preserving its original error text.
 .tst.benchmark.call:{[code;phase]
+  if[not 10h=type phase; phase:"operation"];
+  phase:(128&count phase)#phase;
   @[.tst.benchmark.invoke;code;
-    {[p;e] .tst.benchmark.fail[p," failed: ",e]}[phase;]]
+    {[p;e]
+      errorText:$[10h=type e;(3960&count e)#e;"operation failed"];
+      .tst.benchmark.fail[p," failed: ",errorText]}[phase;]]
  };
 
 .tst.benchmark.isFiniteScalar:{[x]
@@ -135,15 +284,16 @@
 / Histograms and statistics require a non-empty, homogeneous numeric vector.
 / Timespans are accepted because `.tst.bench` exposes raw nanosecond spans.
 .tst.benchmark.validateSeries:{[data;label]
+  dataLimit:.tst.benchmark.dataPointLimit[];
   if[not count data;
     .tst.benchmark.fail[label," must not be empty"]];
   if[not type[data] in 4 5 6 7 8 9 16h;
     .tst.benchmark.fail[
       label," must be a homogeneous numeric or timespan vector"]];
-  if[count[data]>.tst.benchmark.MAX_DATA_POINTS;
+  if[count[data]>dataLimit;
     .tst.benchmark.fail[
       label," exceeds safety limit ",
-      string .tst.benchmark.MAX_DATA_POINTS]];
+      string dataLimit]];
   if[not all .tst.benchmark.isFiniteScalar each data;
     .tst.benchmark.fail[label," must contain only finite values"]];
   data
@@ -168,7 +318,10 @@
 / Index clamping absorbs floating-point rounding at the upper boundary.
 .tst.benchmark.histogram:{[data;buckets]
   buckets:.tst.benchmark.validateCount[
-    buckets;"histogram bucket count";1;.tst.benchmark.MAX_BUCKETS];
+    buckets;
+    "histogram bucket count";
+    1;
+    .tst.benchmark.bucketLimit[]];
   data:.tst.benchmark.validateSeries[data;"histogram data"];
   inputMin:min data;
   inputMax:max data;
@@ -190,7 +343,7 @@
   width:range%buckets;
   .tst.benchmark.validateComputed[width;"histogram bucket width"];
   if[(.tst.benchmark.isNegativeScalar width) or
-     .tst.benchmark.isZeroScalar width;
+     (.tst.benchmark.isZeroScalar width);
     .tst.benchmark.fail["histogram bucket width must be positive"]];
   relative:(values-minV)%width;
   if[not all .tst.benchmark.isFiniteScalar each relative;
@@ -216,14 +369,19 @@
 / Timings are FLOAT milliseconds with nanosecond precision.
 .tst.benchmark.measureOpts:{[n;code;opts]
   n:.tst.benchmark.validateCount[
-    n;"measurement iterations";1;.tst.benchmark.MAX_ITERATIONS];
+    n;
+    "measurement iterations";
+    1;
+    .tst.benchmark.iterationLimit[]];
+  dataLimit:.tst.benchmark.dataPointLimit[];
+  if[n>dataLimit;
+    .tst.benchmark.fail[
+      "measurement iterations exceed data-point safety limit"]];
   code:.tst.benchmark.validateCallable[code;"measurement code"];
   opts:.tst.benchmark.validateOptions[opts;enlist `gc;"measurement"];
   doGc:.tst.benchmark.validateBool[
     $[`gc in key opts;opts`gc;1b];"measurement gc"];
-  warmup:.tst.benchmark.validateCount[
-    .tst.benchmark.MEASURE_WARMUP;
-    "measurement warmup";0;.tst.benchmark.MAX_WARMUP];
+  warmup:.tst.benchmark.measureWarmup[];
   do[warmup;
     if[doGc;.Q.gc[]];
     .tst.benchmark.call[code;"measurement warmup"]];
@@ -253,9 +411,16 @@
 
 / Print a validated exact-once histogram. Returns generic null after output.
 .tst.benchmark.hist:{[data;buckets]
+  printLimit:.tst.benchmark.printRowLimit[];
+  barWidth:40&.tst.benchmark.displayWidthLimit[];
+  buckets:.tst.benchmark.validateCount[
+    buckets;
+    "histogram bucket count";
+    1;
+    printLimit&.tst.benchmark.bucketLimit[]];
   hist:.tst.benchmark.histogram[data;buckets];
   maxC:max hist`cnt;
-  scale:$[0=maxC;1f;40f%maxC];
+  scale:$[0=maxC;1f;("f"$barWidth)%maxC];
   -1 "Dist:";
   {[row;s]
     label:string row`range_start;

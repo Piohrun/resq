@@ -7,9 +7,9 @@
   code: { id: .tst.deferred[]; .tst.reject[id; "disk full"]; .tst.await[id; 1000] };
   mustthrow["*disk full*"; code];
   };
- should["await re-raises a symbol rejection reason"]{
+ should["await reports a fixed bounded symbol rejection reason"]{
   code: { id: .tst.deferred[]; .tst.reject[id; `kaboom]; .tst.await[id; 1000] };
-  mustthrow["*kaboom*"; code];
+  mustthrow["*rejected symbol value*"; code];
   };
  should["partialMock gives a friendly error for an undefined target"]{
   code: { .tst.partialMock[`.tst.noSuchTargetXyz; `a`b!1 2] };

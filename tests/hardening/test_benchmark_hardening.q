@@ -105,7 +105,7 @@
       (.tst.bench;
         {.tst.testState.benchmarkProbe+:1};
         manyOptions)];
-    .tst.benchmark.boundedText[100#"x";8] mustmatch "xxxxxxxx...";
+    .tst.benchmark.boundedText[100#"x";8] mustmatch "xxxxx...";
     .tst.testState.benchmarkProbe musteq 0;
   };
 
