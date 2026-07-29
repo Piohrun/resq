@@ -1,44 +1,114 @@
-/ lib/isolate.q - Opt-in process isolation mode.
+/ lib/isolate.q - Fail-safe process-per-file execution.
 / ============================================================================
-/ Each discovered test FILE runs in its OWN q subprocess; the parent process
-/ aggregates the per-file JSON reports back into .resq.state.results and drives
-/ the normal reporting + exit pipeline.
-/ .
-/ Why: three failure modes silently corrupt a normal in-process run -
-/   1. a test that calls `exit`        (kills the whole run; exit 0 fakes success)
-/   2. an infinite loop                (hangs forever; maxTestTime only checks
-/                                        AFTER a test returns)
-/   3. a process-fatal error (wsfull / stack)
-/ Isolation converts each into a per-FILE failure row instead of a run-killer.
-/ .
-/ Subprocess pattern (mirrors tests/golden/test_golden.q): q's `system "cmd"`
-/ THROWS 'os on a nonzero child exit, and INTERCEPTS a leading "cd" / rejects a
-/ leading "(". So every command LEADS with `mkdir -p`, appends `; echo $?` (the
-/ shell then always exits 0 and the real child code is the last stdout line),
-/ and feeds the nested q `< /dev/null` so it reaches EOF and exits.
+/ The parent discovers files once, launches each in a preemptively bounded q
+/ child, consumes a private JSON report, merges rows, reports once, and returns
+/ the normal granular exit code. The caller owns process exit policy.
 / ============================================================================
 
 \d .tst
 
-/ --- timeout probe (once) --------------------------------------------------
-/ `timeout` guards against hung children but is not present everywhere (stock
-/ macOS). Probe ONCE; without it there is no preemption (the hang scenario
-/ cannot be killed) so we warn a single time when isolation actually runs.
-.tst.isolate.canTimeout: 0 < count @[system; "which timeout 2>/dev/null"; {()}];
-.tst.isolate.timeoutWarned: 0b;
-
-/ Unique work-dir per file. .z.i (pid) is stable within this process; a
-/ per-call counter keeps each file's dir distinct (no .z.p randomness needed).
-.tst.isolate.base: "/tmp/resq_isolate";
-.tst.isolate.counter: 0;
-.tst.isolate.workDir:{[]
-    .tst.isolate.counter+: 1;
-    .tst.isolate.base, "/run_", string[.z.i], "_", string .tst.isolate.counter
+.tst.isolate.commandPath:{[name]
+    found: @[system; "command -v ", name, " 2>/dev/null"; {()}];
+    $[count found; first found; ""]
  };
 
-/ Normalize a JSON-decoded string-or-list-of-strings field into a list of
-/ strings. .j.k collapses a single-element JSON array to a bare char vector
-/ (type 10h) and leaves [] / multi-element arrays as a general list (0h).
+.tst.isolate.timeoutExe: .tst.isolate.commandPath "timeout";
+.tst.isolate.qExe: .tst.isolate.commandPath "q";
+.tst.isolate.mktempExe: .tst.isolate.commandPath "mktemp";
+.tst.isolate.chmodExe: .tst.isolate.commandPath "chmod";
+.tst.isolate.rmExe: .tst.isolate.commandPath "rm";
+.tst.isolate.shExe: .tst.isolate.commandPath "sh";
+
+/ Require timeout's kill-after form and prove it can preempt a busy process.
+.tst.isolate.probeTimeout:{[exe]
+    if[(0 = count exe) or 0 = count .tst.isolate.shExe; :0b];
+    busy: .utl.shellQuote "while :; do :; done";
+    cmd: .utl.shellQuote[exe], " -k 1 0.05 ",
+         .utl.shellQuote[.tst.isolate.shExe], " -c ", busy, "; echo $?";
+    out: @[system; cmd; {[e] enlist "-1"}];
+    if[0 = count out; :0b];
+    code: "J"$last out;
+    code in 124 137
+ };
+
+/ Scratch directories are tracked as strings; only paths returned by mktemp and
+/ present in this allocation list may be recursively removed.
+.tst.isolate.allocated: ();
+
+.tst.isolate.tempRoot:{[]
+    root: getenv `TMPDIR;
+    if[0 = count root; root: "/tmp"];
+    root: .utl.normalizePath root;
+    if[(0 = count root) or not "/" = first root;
+        '"TMPDIR must be an absolute directory: ", root];
+    if[not .utl.isDir root;
+        '"TMPDIR does not exist or is not a directory: ", root];
+    root
+ };
+
+.tst.isolate.scratchPrefix:{[root]
+    root, $["/" = last root; ""; "/"], "resq_isolate."
+ };
+
+.tst.isolate.validScratch:{[wd]
+    root: .tst.isolate.tempRoot[];
+    prefix: .tst.isolate.scratchPrefix root;
+    suffix: (count prefix) _ wd;
+    (wd like prefix, "*") and
+        (0 < count suffix) and
+        (not any "/" = suffix) and
+        any wd ~/: .tst.isolate.allocated
+ };
+
+.tst.isolate.createScratch:{[]
+    if[0 = count .tst.isolate.mktempExe; '"mktemp executable is required for isolation"];
+    if[0 = count .tst.isolate.chmodExe; '"chmod executable is required for isolation"];
+    root: .tst.isolate.tempRoot[];
+    template: (.tst.isolate.scratchPrefix root), "XXXXXXXX";
+    cmd: .utl.shellQuote[.tst.isolate.mktempExe], " -d ", .utl.shellQuote template;
+    made: @[system; cmd; {[e] '"mktemp failed: ", e}];
+    if[0 = count made; '"mktemp returned no scratch directory"];
+    wd: first made;
+    prefix: .tst.isolate.scratchPrefix root;
+    suffix: (count prefix) _ wd;
+    if[(not wd like prefix, "*") or (0 = count suffix) or any "/" = suffix;
+        '"mktemp returned an unsafe scratch path: ", wd];
+    if[not .utl.isDir wd; '"mktemp scratch directory does not exist: ", wd];
+    .tst.isolate.allocated,: enlist wd;
+    secured: @[
+        {system x; 1b};
+        .utl.shellQuote[.tst.isolate.chmodExe], " 700 -- ", .utl.shellQuote wd;
+        {[e] 0b}];
+    if[not secured;
+        .tst.isolate.cleanupScratch wd;
+        '"failed to restrict isolation scratch permissions: ", wd;
+    ];
+    wd
+ };
+
+.tst.isolate.cleanupScratch:{[wd]
+    if[not .tst.isolate.validScratch wd;
+        -1 "ERROR: refusing unsafe isolation scratch cleanup: ", wd;
+        :0b];
+    if[0 = count .tst.isolate.rmExe;
+        -1 "ERROR: rm executable unavailable; cannot clean isolation scratch: ", wd;
+        :0b];
+    cmd: .utl.shellQuote[.tst.isolate.rmExe], " -rf -- ", .utl.shellQuote wd;
+    ok: @[{system x; 1b}; cmd; {[e] 0b}];
+    inspected: @[
+        {[path] `ok`exists!(1b; .utl.pathExists path)};
+        wd;
+        {[e] `ok`exists!(0b; 1b)}];
+    if[not inspected`ok;
+        -1 "ERROR: unable to inspect isolation scratch after cleanup: ", wd;
+        :0b];
+    if[inspected`exists; ok: 0b];
+    if[ok;
+        .tst.isolate.allocated:
+            .tst.isolate.allocated where not wd ~/: .tst.isolate.allocated];
+    ok
+ };
+
 .tst.isolate.toStrList:{[v]
     $[10h = type v; enlist v;
       0h = type v; v;
@@ -46,8 +116,6 @@
       enlist .tst.toString v]
  };
 
-/ Build one .resq.state.results row (the flat 7-column schema) as a 1-row table
-/ suitable for upsert.
 .tst.isolate.row:{[suite; dsc; status; message; tm; failures; asserts]
     flip `suite`description`status`message`time`failures`assertsRun!(
         enlist suite;
@@ -59,167 +127,277 @@
         enlist `int$asserts)
  };
 
-/ Synthesize a single error row for a file (timeout / died / load-error).
 .tst.isolate.errorRow:{[suiteSym; file; msg]
     .tst.isolate.row[suiteSym; `$file; `error; msg; 0Nn; enlist msg; 0i]
  };
 
-/ Tail of the captured child stdout (last N lines), joined for a message.
+.tst.isolate.processExitRow:{[file; code; unexpected]
+    msg: $[unexpected;
+        "child produced a valid report but exited with unexpected code ",
+            string[code], "; process status and report disagree";
+        "child produced a valid report with no failing rows but exited with code ",
+            string[code], "; refusing inconsistent success"];
+    .tst.isolate.errorRow[`ISOLATED_PROCESS_EXIT; file; msg]
+ };
+
 .tst.isolate.tail:{[wd; n]
     lines: @[read0; hsym `$wd, "/out.txt"; {()}];
     lines: (neg n) sublist lines;
     $[count lines; "\n" sv lines; ""]
  };
 
-/ Convert the `tests` array of a parsed JSON report into flat result rows and
-/ return them as a list of 1-row tables. Each JSON row carries the sanitized
-/ superset schema (suite/description/status/message/time/failures/assertsRun +
-/ file/namespace/tags); we keep the 7 columns of .resq.state.results. Times come
-/ back as STRINGS ("0D00:00:00.00...") - parse with "N"$ or store 0Nn.
 .tst.isolate.rowsFromJson:{[tests]
-    / .j.k returns a TABLE (98h) when every JSON object shares the same keys, a
-    / single DICT (99h) for a 1-element array that decoded to a lone object, or a
-    / general list (0h) for ragged arrays. Normalize all three to a list of row
-    / dicts so `each` below sees one expectation per iteration.
     tests: $[98h = type tests; {[t;i] t i}[tests] each til count tests;
              99h = type tests; enlist tests;
-             0h  = type tests; tests;
+             0h = type tests; tests;
              enlist tests];
     {[t]
-        / NB: a local named `desc` collides with the DSL `desc` global (an
-        / 'assign error at parse time), so use `dsc`. Same hazard as fixture/prev.
-        suite:  `$ .tst.toString t`suite;
-        dsc:    `$ .tst.toString t`description;
+        suite: `$ .tst.toString t`suite;
+        dsc: `$ .tst.toString t`description;
         status: `$ .tst.toString t`status;
-        msg:    $[`message in key t; t`message; ""];
-        / message may be a single string (10h) or a list of strings (0h).
-        msg:    $[0h = type msg; .tst.isolate.toStrList msg; msg];
-        tmStr:  $[`time in key t; .tst.toString t`time; ""];
-        tm:     $[count tmStr; @["N"$; tmStr; 0Nn]; 0Nn];
-        fails:  .tst.isolate.toStrList $[`failures in key t; t`failures; ()];
+        msg: $[`message in key t; t`message; ""];
+        msg: $[0h = type msg; .tst.isolate.toStrList msg; msg];
+        tmText: $[`time in key t; .tst.toString t`time; ""];
+        tm: $[count tmText; @["N"$; tmText; 0Nn]; 0Nn];
+        fails: .tst.isolate.toStrList $[`failures in key t; t`failures; ()];
         asserts: $[`assertsRun in key t; t`assertsRun; 0];
         .tst.isolate.row[suite; dsc; status; msg; tm; fails; asserts]
     } each tests
  };
 
-/ Run one file in its own subprocess and return the rows it produced (or a
-/ synthesized error row). `k`/`n` drive the [k/N] progress line.
-.tst.isolate.runFile:{[file; timeoutSecs; k; n]
-    wd: .tst.isolate.workDir[];
-    qFile: .utl.shellQuote file;
-    qHome: .utl.shellQuote .resq.HOME, "/resq.q";
-    qWd:   .utl.shellQuote wd;
-    qOut:  .utl.shellQuote wd, "/out.txt";
-    / timeout only when the binary is present; otherwise run unguarded.
-    / `-k 5` (kill-after) escalates to SIGKILL 5s after the initial SIGTERM:
-    / a q child in a tight `while[1b;()]` loop never polls signals, so a plain
-    / `timeout N` SIGTERM is ignored and the child hangs forever. The KILL is
-    / unconditional, so an infinite-loop file is reliably reaped. timeout exits
-    / 124 on the SIGTERM path and 137 (128+SIGKILL) when it had to escalate.
-    timeoutPrefix: $[.tst.isolate.canTimeout; "timeout -k 5 ", string[timeoutSecs], " "; ""];
-    / CRITICAL: lead with mkdir (q's system rejects a leading cd / "("); nested
-    / q needs < /dev/null; `; echo $?` absorbs the child exit code onto stdout.
-    cmd: "mkdir -p ", qWd,
-         " && ", timeoutPrefix, "q ", qHome, " test ", qFile,
-         " -json -outDir ", qWd, " -quiet < /dev/null > ", qOut, " 2>&1; echo $?";
-    lines: @[system; cmd; {[e] enlist "-1"}];
-    code: "J"$ last lines;
+.tst.isolate.decodeReport:{[raw]
+    if[0 = count raw; :`valid`report`error!(0b; ()!(); "report missing")];
+    attempt: @[
+        {[text] `ok`value!(1b; .j.k text)};
+        "\n" sv raw;
+        {[e] `ok`value!(0b; ()!())}];
+    report: attempt`value;
+    valid: (1b ~ attempt`ok) and (99h = type report) and `tests in key report;
+    error: $[valid; ""; $[1b ~ attempt`ok; "JSON report missing tests"; "malformed JSON report"]];
+    `valid`report`error!(valid; report; error)
+ };
 
-    jsonFile: hsym `$wd, "/test-results.json";
-    rawJson: @[read0; jsonFile; {()}];
-    report: $[count rawJson; @[.j.k; "\n" sv rawJson; {()!()}]; ()!()];
-    tests: $[`tests in key report; report`tests; ()];
-    hasTests: 0 < count tests;
+.tst.isolate.appendValue:{[argv; flag; val]
+    $[0 < count val; argv, (flag; .tst.toString val); argv]
+ };
 
+.tst.isolate.appendFlag:{[argv; flag; enabled]
+    $[1b ~ enabled; argv, enlist flag; argv]
+ };
+
+/ Child argv derives from normalized CLI values plus effective parent settings.
+/ Parent reporter/lifecycle/isolation options are deliberately absent.
+.tst.isolate.childArgv:{[file; wd]
+    options: .resq.cli`options;
+    argv: (.tst.isolate.qExe; .resq.HOME, "/resq.q"; "test"; file);
+    argv: .tst.isolate.appendValue[argv; "-only"; options`only];
+    argv: .tst.isolate.appendValue[argv; "-exclude"; options`exclude];
+    argv: .tst.isolate.appendValue[argv; "-tag"; options`tag];
+    argv: .tst.isolate.appendValue[argv; "-exclude-tag"; options`excludeTag];
+    argv: .tst.isolate.appendFlag[argv; "-strict"; @[get; `.tst.app.strict; 0b]];
+    argv: .tst.isolate.appendFlag[argv; "-perf"; @[get; `.tst.app.runPerformance; 0b]];
+    argv: .tst.isolate.appendFlag[argv; "-fail-hard"; @[get; `.tst.app.failHard; 0b]];
+    argv: .tst.isolate.appendValue[argv; "-maxTestTime"; @[get; `.tst.app.maxTestTime; 0]];
+    argv: .tst.isolate.appendValue[argv; "-fuzzLimit"; @[get; `.tst.output.fuzzLimit; 0]];
+    argv: .tst.isolate.appendFlag[argv; "-quiet"; @[get; `.tst.app.quiet; 0b]];
+    argv, ("-json"; "-outDir"; wd)
+ };
+
+.tst.isolate.shellCommand:{[argv]
+    " " sv .utl.shellQuote each argv
+ };
+
+.tst.isolate.runFileBody:{[wd; file; timeoutSecs; k; n]
+    childArgv: .tst.isolate.childArgv[file; wd];
+    timedArgv: (.tst.isolate.timeoutExe; "-k"; .tst.toString 5; string timeoutSecs), childArgv;
+    outPath: wd, "/out.txt";
+    cmd: .tst.isolate.shellCommand[timedArgv],
+         " < /dev/null > ", .utl.shellQuote[outPath], " 2>&1; echo $?";
+    statusLines: @[system; cmd; {[e] enlist "-1"}];
+    code: "J"$last statusLines;
+    raw: @[read0; hsym `$wd, "/test-results.json"; {()}];
+    decoded: .tst.isolate.decodeReport raw;
+    valid: decoded`valid;
+    report: decoded`report;
+    tests: $[valid; report`tests; ()];
+    rows: $[valid; .tst.isolate.rowsFromJson tests; ()];
+    rowStatus: $[count rows;
+        .tst.normalizeResultStatus each {first x`status} each rows;
+        `symbol$()];
+    hasFailingRows: any rowStatus in `fail`error;
     progress: "[", string[k], "/", string[n], "] ", file, " ... ";
 
-    result: $[
-        / timeout kill: 124 (timeout) or 137 (SIGKILL after KILL-after).
-        code in 124 137;
-            [ msg: "file exceeded isolateTimeout (", string[timeoutSecs], "s); killed",
-                   $[count tl: .tst.isolate.tail[wd; 20]; "\n", tl; ""];
-              -1 progress, "TIMEOUT";
-              enlist .tst.isolate.errorRow[`ISOLATED_FILE_TIMEOUT; file; msg] ];
-        / load error: exit 4. JSON may carry FILE_LOAD_ERROR rows - use it if
-        / present, else synthesize a load-error row.
-        code = .resq.EXIT.LOAD_ERROR;
-            $[hasTests;
-                [ -1 progress, "LOAD ERROR (", string[count tests], " rows)";
-                  .tst.isolate.rowsFromJson tests ];
-                [ msg: "file failed to load (exit 4)",
-                       $[count tl: .tst.isolate.tail[wd; 20]; "\n", tl; ""];
-                  -1 progress, "LOAD ERROR";
-                  enlist .tst.isolate.errorRow[`FILE_LOAD_ERROR; file; msg] ] ];
-        / normal path: JSON present with tests -> round-trip the rows.
-        hasTests;
-            [ -1 progress, $[code = 0; "ok"; "FAILED"], " (", string[count tests], " tests)";
-              .tst.isolate.rowsFromJson tests ];
-        / exit 0 (or anything) but NO results: the exit-0-catching contract.
-        / A test that called `exit` lands here.
-            [ msg: "process exited (code ", string[code],
-                   ") without producing results - did a test call exit?",
-                   $[count tl: .tst.isolate.tail[wd; 20]; "\n", tl; ""];
-              -1 progress, "DIED (exit ", string[code], ", no results)";
-              enlist .tst.isolate.errorRow[`ISOLATED_FILE_DIED; file; msg] ]
-    ];
+    if[code in 124 137;
+        msg: "file exceeded isolateTimeout (", string[timeoutSecs], "s); killed",
+             $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
+        -1 progress, "TIMEOUT";
+        :enlist .tst.isolate.errorRow[`ISOLATED_FILE_TIMEOUT; file; msg]];
+
+    if[code = .resq.EXIT.LOAD_ERROR;
+        hasLoadRow: $[count rows;
+            any ({first x`suite} each rows) = `FILE_LOAD_ERROR;
+            0b];
+        if[hasLoadRow;
+            -1 progress, "LOAD ERROR (", string[count rows], " rows)";
+            :rows];
+        msg: "file failed to load (exit 4)",
+             $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
+        -1 progress, "LOAD ERROR";
+        :rows, enlist .tst.isolate.errorRow[`FILE_LOAD_ERROR; file; msg]];
+
+    if[valid;
+        if[code = .resq.EXIT.PASS;
+            -1 progress, "ok (", string[count rows], " tests)";
+            :rows];
+        if[(code = .resq.EXIT.FAIL) and hasFailingRows;
+            -1 progress, "FAILED (", string[count rows], " tests)";
+            :rows];
+        expectedCodes: (.resq.EXIT.PASS; .resq.EXIT.FAIL; .resq.EXIT.LOAD_ERROR);
+        unexpected: not code in expectedCodes;
+        processRow: .tst.isolate.processExitRow[file; code; unexpected];
+        -1 progress, "PROCESS ERROR (exit ", string[code], ")";
+        :rows, enlist processRow];
+
+    detail: .tst.isolate.tail[wd; 20];
+    if[0 = count raw;
+        msg: "process exited (code ", string[code],
+             ") without producing results - did a test call exit?",
+             $[count detail; "\n", detail; ""];
+        -1 progress, "DIED (exit ", string[code], ", no results)";
+        :enlist .tst.isolate.errorRow[`ISOLATED_FILE_DIED; file; msg]];
+
+    msg: decoded`error, " (exit ", string[code], ")",
+         $[count detail; "\n", detail; ""];
+    -1 progress, "INVALID REPORT";
+    enlist .tst.isolate.errorRow[`ISOLATED_REPORT_ERROR; file; msg]
+ };
+
+.tst.isolate.runFile:{[file; timeoutSecs; k; n]
+    scratchAttempt: @[
+        {[ignored] `ok`wd!(1b; .tst.isolate.createScratch[])};
+        ();
+        {[e] `ok`wd!(0b; e)}];
+    if[not scratchAttempt`ok;
+        msg: "unable to create private isolation scratch: ", .tst.toString scratchAttempt`wd;
+        :enlist .tst.isolate.errorRow[`ISOLATED_SETUP_ERROR; file; msg]];
+
+    wd: scratchAttempt`wd;
+    result: .[
+        .tst.isolate.runFileBody;
+        (wd; file; timeoutSecs; k; n);
+        {[file; e]
+            msg: "isolation helper failed: ", e;
+            enlist .tst.isolate.errorRow[`ISOLATED_HELPER_ERROR; file; msg]
+        }[file;]];
+    cleaned: @[
+        .tst.isolate.cleanupScratch;
+        wd;
+        {[file; e]
+            -1 "ERROR: isolation scratch cleanup failed for ", file, ": ", e;
+            0b
+        }[file;]];
+    if[not cleaned;
+        result,: enlist .tst.isolate.errorRow[
+            `ISOLATED_CLEANUP_ERROR; file; "failed to remove private isolation scratch"]];
     result
  };
 
-/ ----------------------------------------------------------------------------
-/ Public entry point: discover files, run each in its own subprocess, merge,
-/ report, and exit with the normal granular codes.
-/ ----------------------------------------------------------------------------
+.tst.isolate.parentLoadRows:{[]
+    errors: $[`loadErrors in key `.tst.app;
+        .tst.app.loadErrors;
+        flip `file`error`type!(`symbol$(); (); `symbol$())];
+    if[0 = count errors; :()];
+    records: {[table; i] table i}[errors] each til count errors;
+    {[record]
+        file: .tst.toString record`file;
+        msg: "Explicit test path failed discovery: ", file, " (", .tst.toString[record`error], ")";
+        .tst.isolate.errorRow[`FILE_LOAD_ERROR; file; msg]
+    } each records
+ };
+
+.tst.isolate.upsertRows:{[rows]
+    if[0 = count rows; :()];
+    {[row] .resq.state.results: .resq.state.results upsert row} each rows;
+ };
+
+.tst.isolate.dropChildStrict:{[]
+    if[0 = count .resq.state.results; :()];
+    .resq.state.results:
+        select from .resq.state.results where suite <> `STRICT_MODE_FAILURE;
+ };
+
+.tst.isolate.executedCount:{[]
+    if[0 = count .resq.state.results; :0];
+    status: .tst.normalizeResultStatus each .resq.state.results`status;
+    synthetic:`STRICT_MODE_FAILURE`FILE_LOAD_ERROR`ISOLATED_FILE_TIMEOUT`ISOLATED_FILE_DIED`ISOLATED_REPORT_ERROR`ISOLATED_PROCESS_EXIT`ISOLATED_SETUP_ERROR`ISOLATED_HELPER_ERROR`ISOLATED_CLEANUP_ERROR`ISOLATION_UNAVAILABLE;
+    executed: status in `pass`fail`error;
+    generated: (.resq.state.results`suite) in synthetic;
+    sum executed where not generated
+ };
+
+.tst.isolate.addGlobalStrict:{[]
+    if[not 1b ~ @[get; `.tst.app.strict; 0b]; :()];
+    if[0 < .tst.app.expectationsRan; :()];
+    .tst.isolate.upsertRows enlist .tst.isolate.errorRow[
+        `STRICT_MODE_FAILURE;
+        "NO_TESTS_FOUND";
+        "Strict mode enabled but no tests were executed (skipped tests do not count under -strict)."]
+ };
+
+/ Discover, execute, merge, report, and return one granular exit code.
 .tst.isolate.runAll:{[paths]
-    timeoutSecs: $[`isolateTimeout in key `.tst.app; .tst.app.isolateTimeout; 300];
+    timeoutSecs: @[get; `.tst.app.isolateTimeout; 300];
+    .resq.state.results: .resq.state.emptyResults[];
+    .tst.app.baseDir: system "cd";
+    .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
 
     files: .tst.findTests paths;
     n: count files;
+    .tst.app.discoveredFiles: files;
+    .tst.isolate.upsertRows .tst.isolate.parentLoadRows[];
 
-    if[(not .tst.isolate.canTimeout) and not .tst.isolate.timeoutWarned;
-        -1 "WARNING: `timeout` binary not found; isolated files run WITHOUT preemption (a hanging test will hang the run).";
-        .tst.isolate.timeoutWarned: 1b;
+    unavailable: 0b;
+    if[0 < n;
+        unavailable: (not .tst.isolate.probeTimeout .tst.isolate.timeoutExe) or
+            (0 = count .tst.isolate.qExe) or
+            (0 = count .tst.isolate.mktempExe) or
+            (0 = count .tst.isolate.chmodExe) or
+            (0 = count .tst.isolate.rmExe) or
+            (0 = count .tst.isolate.shExe);
+    ];
+    if[unavailable;
+        msg: "Process isolation requires a working timeout with -k support and q/mktemp/chmod/rm/sh executables.";
+        -1 "ERROR: ", msg;
+        .tst.isolate.upsertRows enlist .tst.isolate.errorRow[
+            `ISOLATION_UNAVAILABLE; "isolation"; msg];
     ];
 
-    -1 "Running ", string[n], " test file(s) in isolated subprocesses (timeout ", string[timeoutSecs], "s each)";
-
-    / Fresh results table.
-    .resq.state.results: .resq.state.emptyResults[];
-    .tst.app.baseDir: system "cd";
-
-    / Sequential spawns only (no parallelism) - merge each file's rows as we go.
-    if[0 < n;
+    if[(not unavailable) and 0 < n;
+        -1 "Running ", string[n], " test file(s) in isolated subprocesses (timeout ",
+            string[timeoutSecs], "s each)";
         {[files; timeoutSecs; n; i]
-            rows: .tst.isolate.runFile[files i; timeoutSecs; i + 1; n];
-            {[r] .resq.state.results: .resq.state.results upsert r} each rows;
+            .tst.isolate.upsertRows
+                .tst.isolate.runFile[files i; timeoutSecs; i + 1; n]
         }[files; timeoutSecs; n] each til n;
     ];
 
-    / Strict semantics: no executed tests -> a strict failure row. Mirrors
-    / runner.q applyStrictMode (which keys off .tst.app.expectationsRan); here
-    / the equivalent signal is an empty merged results table.
-    if[(1b ~ @[get; `.tst.app.strict; 0b]) and 0 = count .resq.state.results;
-        `.resq.state.results upsert .tst.isolate.errorRow[`STRICT_MODE_FAILURE; "NO_TESTS_FOUND";
-            "Strict mode enabled but no tests were executed."];
-    ];
+    .tst.isolate.dropChildStrict[];
+    .tst.app.expectationsRan: .tst.isolate.executedCount[];
+    .tst.isolate.addGlobalStrict[];
 
-    / Drive the EXISTING reporting pipeline. .resq.report is whatever
-    / initReporting installed (text / junit / xunit / json) and consumes the
-    / flat results table directly.
     .resq.report .resq.state.results;
 
-    / --- exit dispatch (reuse the normal constants / precedence) -------------
-    statusNorm: .tst.normalizeResultStatus each .resq.state.results`status;
-    hasLoadErr: any .resq.state.results[`suite] in `FILE_LOAD_ERROR;
-    anyFail: any statusNorm in `fail`error;
-
-    exitCode: $[hasLoadErr;          .resq.EXIT.LOAD_ERROR;
-                0 = n;               .resq.EXIT.NO_TESTS;
-                anyFail;             .resq.EXIT.FAIL;
+    status: .tst.normalizeResultStatus each .resq.state.results`status;
+    hasLoadError: any (.resq.state.results`suite) in `FILE_LOAD_ERROR;
+    anyFailure: any status in `fail`error;
+    noResults: 0 = count .resq.state.results;
+    exitCode: $[hasLoadError; .resq.EXIT.LOAD_ERROR;
+                0 = n; .resq.EXIT.NO_TESTS;
+                unavailable; .resq.EXIT.FAIL;
+                noResults; .resq.EXIT.FAIL;
+                anyFailure; .resq.EXIT.FAIL;
                 .resq.EXIT.PASS];
-
-    .tst.app.passed: not anyFail;
-
-    if[not any .z.x like "-noquit"; exit exitCode];
+    .tst.app.passed: exitCode = .resq.EXIT.PASS;
     exitCode
  };
 

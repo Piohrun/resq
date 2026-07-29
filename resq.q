@@ -75,13 +75,26 @@ if[.resq.mode ~ `test;
         .tst.app.args: enlist "tests";
         -1 "No path specified; defaulting to tests/";
     ];
+    / Isolation cannot compose truthfully with coverage instrumentation or
+    / describe-only discovery. Reject both before reporter initialization or
+    / test loading so no report/coverage artifact can be created.
+    if[(1b ~ @[get; `.tst.app.isolate; 0b]) and
+       (1b ~ @[get; `.tst.app.runCoverage; 0b]);
+        -2 "CLI ERROR: process isolation cannot be combined with coverage";
+        exit .resq.EXIT.FAIL];
+    if[(1b ~ @[get; `.tst.app.isolate; 0b]) and
+       (1b ~ @[get; `.tst.app.describeOnly; 0b]);
+        -2 "CLI ERROR: process isolation cannot be combined with describe mode";
+        exit .resq.EXIT.FAIL];
+
     .tst.initReporting[];
     / Process-isolation mode (-isolate): each discovered FILE runs in its own q
-    / subprocess and the parent aggregates. .tst.isolate.runAll drives reporting
-    / AND the exit itself (honoring -noquit, reusing the .resq.EXIT.* precedence),
-    / so the in-process runAll path below is bypassed entirely.
+    / subprocess and the parent aggregates. runAll reports once and returns the
+    / granular status; this entry point alone owns process exit policy.
     if[1b ~ @[get; `.tst.app.isolate; 0b];
-        .tst.isolate.runAll[.tst.app.args];
+        .resq.isolateExitCode: .tst.isolate.runAll .tst.app.args;
+        if[not .resq.cli[`options; `noquit];
+            exit .resq.isolateExitCode];
     ];
     if[not 1b ~ @[get; `.tst.app.isolate; 0b];
         / -desc/-describe: specs are discovered but NOT executed, so the normal text
