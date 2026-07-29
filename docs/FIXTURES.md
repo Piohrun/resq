@@ -36,7 +36,7 @@ Hooks allow you to execute logic before and after a fixture is used.
 .tst.registerFixtureWithOpts[`tempFile; "temp.txt";
     `setup`teardown!(
         {[f] hsym[`$f] 0: enlist "init"; f};
-        {[f] system "rm ",f}
+        {[f] @[hdel; hsym `$f; {}]}
     )
 ];
 
@@ -44,6 +44,11 @@ should["read from file"]{[tempFile]
   "init" mustmatch read0 hsym `$tempFile;
 };
 ```
+
+The teardown gives q's native `hdel` the exact fixture path instead of
+interpolating it into a shell command. For an expectation-local file, prefer
+`.tst.tempFile ".txt"`: it validates a leaf suffix, returns a contained path,
+and registers native cleanup automatically.
 
 ## Dependency Injection
 You don't need to manually call `getFixture`. Just add the fixture name as an argument to your `should` block, and the framework will automatically inject it.
@@ -57,4 +62,4 @@ should["test with injected fixture"]{[myFixture]
 ## Best Practices
 - **Isolation**: Use `test` scope whenever possible to ensure tests remain independent.
 - **Performance**: Use `session` scope for large data structures (>1GB) or slow external services to avoid redundant overhead.
-- **Cleanup**: Always provide a `teardown` hook for any fixture that creates files or opens ports.
+- **Cleanup**: Always provide a `teardown` hook for any fixture that creates files or opens ports. Delete files with native `hdel` against the exact handle; use `.tst.tempFile` for expectation-local files.

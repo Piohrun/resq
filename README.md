@@ -90,11 +90,14 @@ q resq.q discover src/ tests/
 / Simple benchmark
 .tst.benchmark.hist[.tst.benchmark.measure[100; {sma[20;1000?100f]}]`time; 10];
 
-/ Assert performance thresholds
-perf["Fast SMA"; `maxTime`runs!(10; 100)]{
+/ Assert average time/space thresholds over 100 runs, with GC enabled
+perf["Fast SMA"; `runs`gc`maxTime`maxSpace!(100; 1b; 10f; 1048576)]{
   sma[10;data];
 };
 ```
+
+`maxTime` is in milliseconds and `maxSpace` is in bytes. With `gc:1b`
+(the default), resQ runs `.Q.gc[]` before each warmup and timed execution.
 
 ---
 
@@ -144,7 +147,7 @@ perf["Fast SMA"; `maxTime`runs!(10; 100)]{
 `beforeAll` runs once before all expectations in the block. If it throws, the
 block's tests are skipped and one error result is recorded (the run fails), but
 other desc blocks still run. `afterAll` runs once after the block's tests even
-if `beforeAll` failed; a throwing `afterAll` prints a warning but does not fail
+if `beforeAll` failed; a throwing `afterAll` adds an error result row and fails
 the suite.
 
 ---

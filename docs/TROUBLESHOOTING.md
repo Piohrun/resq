@@ -219,12 +219,17 @@ should["test something"]{
 
 **Symptom:** Mock value persists after test, affecting other tests.
 
-**Cause:** Test may have failed before `.tst.restore[]` was called, or manual restore was forgotten.
+**Cause:** The replacement may have been installed manually rather than through
+resQ's `mock`/`spy` APIs, or the wrong fully-qualified target was mocked.
 
 **Solution:** resQ automatically restores mocks after each test. If you see this issue:
-1. Check if test is using `failHard` mode
-2. Manually call `.tst.restore[]` if needed
-3. Ensure mock names use correct namespace prefix
+1. Ensure the replacement was installed with `mock` or `.tst.spy`
+2. Ensure mock names use the correct fully-qualified namespace
+3. Remove direct global assignment, or restore it explicitly in `after`
+
+`-fh` / `--fail-hard` stops scheduling later work after a failure, but the
+current expectation's teardown, the suite's `afterAll`, and final cleanup still
+run.
 
 ---
 
@@ -330,13 +335,18 @@ fixture[`users];  / or
 
 **Solution:** Register fixture with teardown:
 ```q
-.tst.registerFixtureWithOpts[`tempFile; "/tmp/test.txt";
+.tst.registerFixtureWithOpts[`tempFile; "resq-fixture.tmp";
     `scope`teardown!(
         `test;  / Cleanup after each test
-        {[path] system "rm -f ",path}
+        {[path] @[hdel; hsym `$path; {}]}
     )
 ];
 ```
+
+This passes the exact path to q's native `hdel`; it does not construct a shell
+command. For a file used only by one expectation, prefer
+`.tst.tempFile ".txt"`, which validates a leaf suffix, returns a contained path,
+and registers native cleanup automatically.
 
 ---
 
@@ -441,7 +451,7 @@ timeout: $[`CI in key .z.e; 30000; 5000];
 
 **Symptom:**
 ```
-Over max failure rate. Shrunk: [minimal case]
+Over max failure rate. Shrunk: [reduced case]
 ```
 
 **Cause:** Too many generated inputs failed the property.
@@ -466,11 +476,13 @@ holds["occasionally fails"; `maxFailRate`vars!(0.05; `int)]{[x]
 
 ---
 
-### Shrinking produces unhelpful minimal case
+### Shrinking produces an unhelpful reduced case
 
-**Symptom:** Shrunk case is not actually minimal or is confusing.
+**Symptom:** The shrunk case is still larger than expected or is confusing.
 
-**Cause:** Current shrinking only does binary search on lists.
+**Cause:** Shrinking is deliberately bounded. It tries the prefix half and then
+the suffix half, stopping when neither still fails, after 64 candidate checks,
+or after one second. It does not search for a globally minimal counterexample.
 
 **Solution:** Manually investigate the failure:
 ```q
@@ -576,7 +588,7 @@ Skipped and pending tests do **not** cause a non-zero exit on their own; only ac
 
 **Symptom:** Every test in the suite is skipped, but the run exits 0 when `-strict` is expected to catch this.
 
-**Cause:** `-strict` counts only **executed** tests. A suite where every test was skipped has zero executed tests, which fails under `-strict` with "skipped tests do not count under -strict" (exit code 3). If your CI is still green, check that `-strict` is actually being passed.
+**Cause:** `-strict` counts only **executed** tests. A suite where every test was skipped has zero executed tests, which fails under `-strict` with "skipped tests do not count under -strict" (exit code 1). If your CI is still green, check that `-strict` is actually being passed.
 
 Without `-strict`, an all-skipped suite exits 0 — this is intentional.
 

@@ -104,7 +104,7 @@ discovery handles them; only the in-file loader line is affected.
 |---|---|---|
 | `should` / `it` | `should[desc; {body}]` | one expectation |
 | `before` / `after` | `before{body}` | run around EACH expectation; `after` runs even on failure |
-| `beforeAll` / `afterAll` | `beforeAll{body}` | once per desc block. Must be **inside** the block (outside → ignored, with a warning). `beforeAll` throw → block's tests skipped + one error row; `afterAll` still runs. A throwing `afterAll` warns only. |
+| `beforeAll` / `afterAll` | `beforeAll{body}` | once per desc block. Must be **inside** the block (outside → ignored, with a warning). `beforeAll` throw → block's tests skipped + one error row; `afterAll` still runs. A throwing `afterAll` adds an error row and fails the suite. |
 | `skip` | `skip[reason; {body}]` | not run; reported skipped |
 | `pending` | `pending[reason]` | placeholder — **NO code block** |
 | `skipIf` | `skipIf[cond; reason; {body}]` | runs body unless `cond` |
@@ -227,12 +227,23 @@ safe build form). Known keys:
   is a dict keyed by those names. A generator is a type-name symbol
   (`` `symbol``, `` `int``…), a value list to pick from, or a function:
 
+If `vars` is omitted, it defaults to the `` `int`` generator. A supported
+typed empty vector such as `` `int$() `` requests random-length vectors of
+that type. The untyped empty general list `()` is rejected because it provides
+neither a type nor a value to choose; an empty symbol vector is likewise an
+invalid choice list.
+
 ```q
 holds["typed inputs"; `runs`vars!(20; `a`b!(`symbol; 1 2 3))]{[x]
     / x`a is a random symbol, x`b is one of 1 2 3
     (type x`a) musteq -11h;
 };
 ```
+
+On a failing list-like input, resQ repeatedly tries its prefix half and then
+its suffix half. Shrinking stops after at most 64 candidate checks or one
+second (or when neither half still fails), so the reported case is a bounded
+reduction, not a globally minimal counterexample.
 
 ## 9. Mock vs spy — decide by what you assert
 
@@ -318,6 +329,7 @@ Other true facts:
   (review & commit). Under `-strict`, a missing snapshot **fails**
   instead of being created.
 - **`-isolate`** runs each test FILE in its own `q` subprocess and aggregates: a test that calls `exit`, an infinite loop (killed at `-isolateTimeout`, needs the `timeout` binary), or a fatal error becomes a per-file failure instead of killing the whole run. Reporters and exit codes match the normal path.
+- **`-fh` / `--fail-hard`** stops scheduling later expectations and suites after a failure; the current suite's `afterAll`/teardown and the run's final cleanup still execute.
 
 ### Exit codes (verified)
 
@@ -335,7 +347,8 @@ no-tests run inserts a synthetic error row and exits **1**, not 3.
 
 All keys optional; CLI flags win over the file. Common ones:
 `"testFilePatterns": ["*_spec.q"]`, `"strict": true`, `"failFast": true`,
-`"outDir": "reports"`, `"fmt": "text"|"junit"|"json"`,
+`"outDir": "reports"`, `"fmt": "text"|"junit"|"xunit"|"json"`
+(`"xml"` is accepted as an alias for `"junit"`),
 `"pollutionGuard": false` (skip namespace snapshotting),
 `"qNamespaceExports": false` (**caveat**: then unqualified DSL names like
 `should`/`musteq` no longer resolve — you must use `.tst.*` everywhere).

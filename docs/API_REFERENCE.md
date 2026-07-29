@@ -239,7 +239,7 @@ separate desc blocks.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `runs` | int | 100 | Number of test iterations |
-| `vars` | any | required | Type specification for generated values |
+| `vars` | any | `` `int `` | Type specification for generated values |
 | `maxFailRate` | float | 0.0 | Maximum allowed failure rate (0.0-1.0) |
 
 ---
@@ -261,10 +261,19 @@ Define a performance test.
 
 **Example:**
 ```q
-perf["sorting 10000 elements"; `iterations`warmup!(1000;100)]{
+perf["sorting 10000 elements";
+     `runs`gc`maxTime`maxSpace!(100;1b;10f;1048576)]{
     asc 10000?1000;
 };
 ```
+
+**Props Dictionary:**
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `runs` | int | 100 | Number of timed executions |
+| `gc` | bool | `1b` | Run `.Q.gc[]` before each warmup and timed execution |
+| `maxTime` | numeric | none | Maximum allowed average time in milliseconds |
+| `maxSpace` | numeric | none | Maximum allowed average allocation in bytes |
 
 ---
 
@@ -1028,14 +1037,19 @@ Register a fixture with lifecycle options.
 
 **Example:**
 ```q
-.tst.registerFixtureWithOpts[`tempFile; "/tmp/test.txt";
+.tst.registerFixtureWithOpts[`tempFile; "resq-fixture.tmp";
     `scope`setup`teardown!(
         `test;
-        {[path] path 0: enlist "init"; path};
-        {[path] system "rm ",path}
+        {[path] (hsym `$path) 0: enlist "init"; path};
+        {[path] @[hdel; hsym `$path; {}]}
     )
 ];
 ```
+
+The teardown passes the exact fixture path to q's native `hdel`; it does not
+construct a shell command. For files used by only one expectation, prefer
+`.tst.tempFile ".txt"`, which validates a leaf suffix, returns a contained
+path, and registers native cleanup automatically.
 
 ---
 
@@ -1146,7 +1160,8 @@ Generate and run all combinations of parameters (Cartesian product).
 | Float | `` `float `` | Random floats |
 | Char | `` `char `` | a-z characters |
 | Symbol | `` `symbol `` | `` `a`b`c`d`e`f`g `` |
-| List | `()` or typed empty list | Random length lists |
+| Typed vector | Supported typed empty vector such as `` `int$() `` | Random-length vectors of that type |
+| General-list choice | Non-empty general list such as `(1;`a;"x")` | Random selection |
 | Choice | `` `opt1`opt2`opt3 `` | Random selection |
 | Function | `{...}` | Custom generator |
 | Dict | `` `a`b!(`int;`float) `` | Multiple params |
@@ -1156,6 +1171,10 @@ Generate and run all combinations of parameters (Cartesian product).
 Each `holds` call occupies its own `.tst.desc` block when its `vars` type differs from sibling
 `holds` calls (mixing a symbol var with a dict-var form in one block causes a `'type` error
 because q cannot build a uniform expectation table with incompatible column types).
+If `vars` is omitted, the default generator is `` `int``. The empty general
+list `()` is rejected as ambiguous; use a supported typed empty vector such as
+`` `int$() `` for random-length lists. An empty symbol vector is also rejected
+because symbol vectors are choice lists.
 
 ```q
 / Single integer parameter — use `runs`vars!(N; `type) form
@@ -1214,12 +1233,15 @@ Generate random values according to specification.
 .tst.shrink[code; typeCode; value]
 ```
 
-Shrink a failing input to minimal reproducing case.
+Attempt a bounded reduction of a failing list-like input.
 
 **Notes:**
 - Automatically called when a fuzz test fails
-- Works by binary search on lists
-- Minimal case is printed to console
+- Repeatedly tests the prefix half, then the suffix half, keeping a half only
+  when it still fails
+- Stops when neither half fails, the candidate has at most one item, 64
+  candidate checks have run, or one second has elapsed
+- Prints the reduced failing case; global minimality is not guaranteed
 
 ---
 
@@ -1603,7 +1625,9 @@ Convert any value to string safely.
 .tst.sleep[ms]
 ```
 
-Busy-wait sleep for specified milliseconds.
+Pause for the specified milliseconds through a fixed OS sleep command. The
+duration must be a finite, non-negative numeric scalar; this does not
+busy-wait.
 
 ---
 
@@ -1634,14 +1658,16 @@ q resq.q [mode] [options] [paths...]
 **Options:**
 | Flag | Description |
 |------|-------------|
-| `-junit` | Output JUnit XML |
+| `-junit` / `-xml` | Output JUnit XML |
 | `-xunit` | Output XUnit XML |
 | `-json` | Output JSON report |
 | `-perf` | Include performance tests |
 | `-cov` / `-coverage` | Enable coverage |
+| `-cov-include PATTERN` / `--cov-include PATTERN` | Instrument only resolved source paths matching the comma-separated `like` glob(s) |
+| `-cov-exclude PATTERN` / `--cov-exclude PATTERN` | Do not instrument resolved source paths matching the comma-separated `like` glob(s) |
 | `-strict` | Fail when no tests are found or executed |
 | `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
-| `-fh` / `--fail-hard` | Hard stop and skip cleanup on first failure |
+| `-fh` / `--fail-hard` | Stop scheduling later expectations and suites after a failure; current teardown and final cleanup still run |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
 | `-only PATTERN` | Run only suites whose title matches the `like` glob pattern |
 | `-exclude PATTERN` | Skip suites whose title matches the `like` glob pattern |
@@ -1655,6 +1681,8 @@ q resq.q [mode] [options] [paths...]
 | `-noquit` | Suppress exit call (process stays running; useful interactively) |
 | `-exit` | Force exit-on-completion (overrides `"exit": false` in `resq.json`) |
 | `-quiet` | Suppress `Loading Test:` lines, the RUN AUDIT block, and per-suite output for passing suites. Failures still print fully. |
+| `-debug` / `--debug` | Enable resQ debug logging (`.utl.DEBUG:1b`) |
+| `-interactive` / `--interactive` | In `discover` mode, start the interactive discovery wizard |
 | `-v` / `-version` | Print version |
 
 **Filtering examples:**
@@ -1712,8 +1740,8 @@ Create `resq.json` in project root:
     "outDir": "./reports",
     "xmlOutput": false,
     "runPerformance": false,
-    "excludeSpecs": "",
-    "runSpecs": "",
+    "excludeSpecs": [],
+    "runSpecs": [],
     "strict": false,
     "failFast": false,
     "failHard": false,
@@ -1730,11 +1758,16 @@ Create `resq.json` in project root:
 }
 ```
 
-Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `console` is normalized to `text`.
+Supported `fmt` values are `text`, `console`, `xml`, `junit`, `xunit`, and
+`json`. `console` is normalized to `text`; `xml` is normalized to `junit`.
 
 `qNamespaceExports` controls compatibility exports into the reserved `.q` namespace. It defaults to `true` for existing suites. Set it to `false` to rely on root aliases and `.tst.*` APIs without writing resQ helpers into `.q`.
 
 `pollutionGuard` controls deep namespace snapshot/restore checks around each suite. It defaults to `true`. Set it to `false` for very large sessions where global namespace comparison overhead is too high.
+
+`runSpecs` and `excludeSpecs` are JSON arrays of suite-title `like` glob
+strings. `runSpecs` keeps matching suites, `excludeSpecs` removes matching
+suites, and an empty array disables that filter.
 
 `testFilePatterns` is the list of glob patterns the loader matches against base filenames when scanning a directory. Defaults to BSD-style `test_*.q` / `*_test.q`. Override for codebases that use other conventions (e.g. `["*_spec.q"]` for BDD, `["*Test.q"]` for xUnit). Explicit `.q` file paths passed on the command line are always honoured regardless of patterns.
 

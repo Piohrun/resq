@@ -9,14 +9,10 @@ Use `perf` blocks to define dedicated benchmark tests. These tests run your code
 ```q
 .tst.desc["Algo Performance"]{
 
-  / Run 500 times, ensure avg time < 10ms
-  perf["Fast Lookup"; `maxTime`runs!10 500]{
+  / 500 runs; GC before each invocation; enforce average time and space
+  perf["Fast and Lean Lookup";
+       `runs`gc`maxTime`maxSpace!(500;1b;10f;1048576)]{
     doMyLookup[]
-  };
-
-  / Ensure strict memory allocation limits
-  perf["Memory Efficient"; `maxSpace!1000]{
-    generateLargeList[]
   };
 
 };
@@ -26,7 +22,8 @@ Use `perf` blocks to define dedicated benchmark tests. These tests run your code
 - `runs`: Number of executions (warmup runs are excluded). Default: 100.
 - `maxTime`: Maximum allowed **average** execution time in milliseconds.
 - `maxSpace`: Maximum allowed **average** memory allocation in bytes.
-- `gc`: Not currently exposed in the `perf` block (garbage collection is handled internally by the benchmark runner).
+- `gc`: Whether to run `.Q.gc[]` before each warmup and timed execution.
+  Default: `1b`.
 
 **Note:** `perf` tests are **skipped by default**. Run with `-perf` to include them.
 ```bash
