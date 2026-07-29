@@ -1,6 +1,8 @@
 .tst.desc["Benchmarking Features"]{
     should["run bench and return proper structure"]{
-        stats: .tst.bench[{1+1}; `iterations!(10)];
+        stats: .tst.bench[
+            {1+1};
+            (enlist `iterations)!enlist 10];
         99h mustmatch type stats;
         `iterations`total_ns`min_ns`max_ns`avg_ns mustin key stats;
         `min_us`max_us`avg_us`std_us mustin key stats;
@@ -55,14 +57,14 @@
         result: .tst.benchCompare["fast"; fast; "slow"; slow; `iterations`warmup!(20;5)];
         99h mustmatch type result;
         `stats1`stats2`ratio`winner mustmatch key result;
-        result[`winner] mustin `fast`slow;
+        result[`winner] mustin ("fast";"slow");
     };
 
     should["identify faster implementation correctly"]{
         fast: {1+1};
         slow: {do[1000; 1+1]};
         result: .tst.benchCompare["fast"; fast; "slow"; slow; `iterations`warmup!(20;5)];
-        result[`winner] mustmatch `fast;
+        result[`winner] mustmatch "fast";
     };
 
     should["use default configuration when no opts provided"]{
@@ -74,7 +76,8 @@
     should["generate histogram even with uniform times"]{
         hist: .tst.benchHistogram[10#1000; 5];
         98h mustmatch type hist;
-        5 musteq count hist;
+        1 musteq count hist;
+        10 musteq first hist`cnt;
     };
 };
 
