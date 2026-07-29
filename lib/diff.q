@@ -12,6 +12,8 @@
 .tst.DIFF_CHUNK_SIZE:256;
 .tst.DIFF_MISMATCH_LIMIT:5;
 .tst.DIFF_PROBE_ITEMS:4096;
+.tst.DIFF_CALLABLE_MAX_DEPTH:12;
+.tst.DIFF_CALLABLE_VECTOR_ITEMS:65536;
 
 / Color formatting utility.
 if[not `fmt in key `.tst; .tst.fmt.init:1b];
@@ -82,6 +84,17 @@ fmt.color:{[c;txt]
     .tst.diffBudget[`.tst.DIFF_MAX_DEPTH;6;6]
  };
 
+.tst.diffCallableDepthLimit:{[]
+    .tst.diffBudget[`.tst.DIFF_CALLABLE_MAX_DEPTH;12;12]
+ };
+
+.tst.diffCallableVectorLimit:{[]
+    .tst.diffBudget[
+        `.tst.DIFF_CALLABLE_VECTOR_ITEMS;
+        65536;
+        65536]
+ };
+
 .tst.diffNodeLimit:{[]
     .tst.diffBudget[`.tst.DIFF_MAX_NODES;64;64]
  };
@@ -139,15 +152,288 @@ fmt.color:{[c;txt]
     `state`used!(state;used)
  };
 
+.tst.diffNativeMatchProbe:{[left;right]
+    matched:.tst.diffMatchState[left;right];
+    if[`error~first matched;
+        :.tst.diffProbeResult[`unknown;1]];
+    .tst.diffProbeResult[
+        $[1b~first last matched;`equal;`different];
+        1]
+ };
+
+.tst.diffBoxedMatchProbe:{[leftBox;rightBox]
+    matched:.[
+        {[xBox;yBox]
+            (`ok;enlist (first xBox)~first yBox)
+          };
+        (leftBox;rightBox);
+        {[err] (`error;enlist err)}];
+    if[`error~first matched;
+        :.tst.diffProbeResult[`unknown;1]];
+    .tst.diffProbeResult[
+        $[1b~first last matched;`equal;`different];
+        1]
+ };
+
+.tst.diffProbeBoxed:{[leftBox;rightBox;depth;work]
+    leftType:type first leftBox;
+    rightType:type first rightBox;
+    if[leftType<>rightType;
+        :.tst.diffProbeResult[`different;1]];
+    / A projection hole is represented by a type-101 value that turns a direct
+    / function call into another projection. Keep it boxed while matching.
+    if[101h=leftType;
+        :.tst.diffBoxedMatchProbe[leftBox;rightBox]];
+    .tst.diffProbe[
+        first leftBox;
+        first rightBox;
+        depth;
+        work]
+ };
+
+.tst.diffCallableLayoutState:{[callable]
+    .[
+        {[fn] (`ok;enlist value fn)};
+        enlist callable;
+        {[err] (`error;enlist err)}]
+ };
+
+.tst.diffShapeSeparate:{[leftBox;rightBox;depth;work]
+    if[2>work; :.tst.diffProbeResult[`unknown;1]];
+    leftWork:work div 2;
+    rightWork:work-leftWork;
+    leftShape:.tst.diffShapePair[
+        leftBox;
+        leftBox;
+        depth;
+        leftWork];
+    leftUsed:leftWork & (1 | leftShape`used);
+    if[not `safe~leftShape`state;
+        :.tst.diffProbeResult[`unknown;leftUsed]];
+    rightShape:.tst.diffShapePair[
+        rightBox;
+        rightBox;
+        depth;
+        rightWork];
+    rightUsed:rightWork & (1 | rightShape`used);
+    used:leftUsed+rightUsed;
+    if[not `safe~rightShape`state;
+        :.tst.diffProbeResult[`unknown;used]];
+    .tst.diffProbeResult[`safe;used]
+ };
+
+.tst.diffShapeVectorPair:{[leftBox;rightBox;depth;work]
+    left:first leftBox;
+    right:first rightBox;
+    counts:(count left;count right);
+    if[(counts 0)<>(counts 1);
+        :.tst.diffShapeSeparate[
+            leftBox;
+            rightBox;
+            depth;
+            work]];
+    n:counts 0;
+    if[n>.tst.diffCallableVectorLimit[];
+        :.tst.diffProbeResult[`unknown;1]];
+    chunkSize:.tst.diffChunkLimit[];
+    chunks:$[0=n;0;(n+chunkSize-1) div chunkSize];
+    needed:1+chunks;
+    if[needed>work;
+        :.tst.diffProbeResult[`unknown;work]];
+    .tst.diffProbeResult[`safe;needed]
+ };
+
+.tst.diffShapeListPair:{[leftBox;rightBox;depth;work]
+    left:first leftBox;
+    right:first rightBox;
+    counts:(count left;count right);
+    if[(counts 0)<>(counts 1);
+        :.tst.diffShapeSeparate[
+            leftBox;
+            rightBox;
+            depth;
+            work]];
+    n:counts 0;
+    used:1;
+    remaining:work-used;
+    if[(0<n) and 0>=depth;
+        :.tst.diffProbeResult[`unknown;used]];
+    i:0;
+    while[(i<n) and 0<remaining;
+        child:.tst.diffShapePair[
+            enlist left i;
+            enlist right i;
+            depth-1;
+            remaining];
+        childUsed:remaining & (1 | child`used);
+        used+:childUsed;
+        remaining-:childUsed;
+        if[not `safe~child`state;
+            :.tst.diffProbeResult[`unknown;used]];
+        i+:1;
+    ];
+    if[i<n; :.tst.diffProbeResult[`unknown;used]];
+    .tst.diffProbeResult[`safe;used]
+ };
+
+.tst.diffShapeDictPair:{[leftBox;rightBox;depth;work]
+    if[2>work; :.tst.diffProbeResult[`unknown;1]];
+    left:first leftBox;
+    right:first rightBox;
+    layouts:.[
+        {[x;y] ((key x;value x);(key y;value y))};
+        (left;right);
+        {[err] ()}];
+    if[2<>count layouts;
+        :.tst.diffProbeResult[`unknown;1]];
+    child:.tst.diffShapePair[
+        enlist layouts 0;
+        enlist layouts 1;
+        depth-1;
+        work-1];
+    used:1+(work-1) & (1 | child`used);
+    .tst.diffProbeResult[
+        $[`safe~child`state;`safe;`unknown];
+        used]
+ };
+
+.tst.diffShapeTablePair:{[leftBox;rightBox;depth;work]
+    if[2>work; :.tst.diffProbeResult[`unknown;1]];
+    layouts:.[
+        {[x;y] (flip x;flip y)};
+        (first leftBox;first rightBox);
+        {[err] ()}];
+    if[2<>count layouts;
+        :.tst.diffProbeResult[`unknown;1]];
+    child:.tst.diffShapePair[
+        enlist layouts 0;
+        enlist layouts 1;
+        depth-1;
+        work-1];
+    used:1+(work-1) & (1 | child`used);
+    .tst.diffProbeResult[
+        $[`safe~child`state;`safe;`unknown];
+        used]
+ };
+
+.tst.diffShapeCallablePair:{[leftBox;rightBox;depth;work]
+    if[2>work; :.tst.diffProbeResult[`unknown;1]];
+    if[0>=depth; :.tst.diffProbeResult[`unknown;1]];
+    leftLayout:.tst.diffCallableLayoutState first leftBox;
+    rightLayout:.tst.diffCallableLayoutState first rightBox;
+    if[
+        (`error~first leftLayout) or
+        `error~first rightLayout;
+        :.tst.diffProbeResult[`unknown;1]
+    ];
+    child:.tst.diffShapePair[
+        enlist first last leftLayout;
+        enlist first last rightLayout;
+        depth-1;
+        work-1];
+    used:1+(work-1) & (1 | child`used);
+    .tst.diffProbeResult[
+        $[`safe~child`state;`safe;`unknown];
+        used]
+ };
+
+.tst.diffShapePairUnsafe:{[leftBox;rightBox;depth;work]
+    if[0>=work; :.tst.diffProbeResult[`unknown;0]];
+    leftType:type first leftBox;
+    rightType:type first rightBox;
+    if[leftType<>rightType;
+        :.tst.diffShapeSeparate[
+            leftBox;
+            rightBox;
+            depth;
+            work]];
+    t:leftType;
+    if[t within -19 -1h;
+        :.tst.diffProbeResult[`safe;1]];
+    if[t within 101 103h;
+        :.tst.diffProbeResult[`safe;1]];
+    if[t within 1 19h;
+        :.tst.diffShapeVectorPair[
+            leftBox;
+            rightBox;
+            depth;
+            work]];
+    if[0h=t;
+        :.tst.diffShapeListPair[
+            leftBox;
+            rightBox;
+            depth;
+            work]];
+    if[99h=t;
+        :.tst.diffShapeDictPair[
+            leftBox;
+            rightBox;
+            depth;
+            work]];
+    if[98h=t;
+        :.tst.diffShapeTablePair[
+            leftBox;
+            rightBox;
+            depth;
+            work]];
+    if[t within 100 112h;
+        :.tst.diffShapeCallablePair[
+            leftBox;
+            rightBox;
+            depth;
+            work]];
+    .tst.diffProbeResult[`unknown;1]
+ };
+
+.tst.diffShapePair:{[leftBox;rightBox;depth;work]
+    safeWork:.tst.diffProbeLimit[] & .tst.capLimit work;
+    safeDepth:.tst.diffCallableDepthLimit[] &
+        .tst.capLimit depth;
+    .[
+        .tst.diffShapePairUnsafe;
+        (leftBox;rightBox;safeDepth;safeWork);
+        {[err] .tst.diffProbeResult[`unknown;1]}]
+ };
+
+.tst.diffProbeCallable:{[left;right;depth;work]
+    t:type left;
+    / Primitive operators have no captured user-state graph.
+    if[t within 101 103h;
+        :.tst.diffNativeMatchProbe[left;right]];
+    if[(0>=depth) or 2>work;
+        :.tst.diffProbeResult[`unknown;1]];
+
+    leftLayout:.tst.diffCallableLayoutState left;
+    rightLayout:.tst.diffCallableLayoutState right;
+    if[
+        (`error~first leftLayout) or
+        `error~first rightLayout;
+        :.tst.diffProbeResult[`unknown;1]
+    ];
+
+    shape:.tst.diffShapePair[
+        enlist first last leftLayout;
+        enlist first last rightLayout;
+        .tst.diffCallableDepthLimit[];
+        work-1];
+    shapeUsed:(work-1) & (1 | shape`used);
+    used:1+shapeUsed;
+    if[not `safe~shape`state;
+        :.tst.diffProbeResult[`unknown;used]];
+
+    matched:.tst.diffNativeMatchProbe[left;right];
+    .tst.diffProbeResult[matched`state;used]
+ };
+
 .tst.diffProbeList:{[left;right;depth;work]
     n:count left;
     used:1;
     remaining:work-used;
     i:0;
     while[(i<n) and (0<remaining);
-        child:.tst.diffProbe[
-            left i;
-            right i;
+        child:.tst.diffProbeBoxed[
+            enlist left i;
+            enlist right i;
             depth-1;
             remaining];
         childUsed:child`used;
@@ -162,13 +448,8 @@ fmt.color:{[c;txt]
         i+:1;
     ];
     if[i<n; :.tst.diffProbeResult[`unknown;used]];
-    attrs:.[
-        {[x;y] (attr x)~attr y};
-        (left;right);
-        {[err] 0b}];
-    .tst.diffProbeResult[
-        $[attrs;`equal;`different];
-        used]
+    / q list attributes are storage/performance metadata, not value.
+    .tst.diffProbeResult[`equal;used]
  };
 
 .tst.diffProbeDict:{[left;right;depth;work]
@@ -180,9 +461,9 @@ fmt.color:{[c;txt]
         :.tst.diffProbeResult[`unknown;1]];
     used:1;
     remaining:work-used;
-    keyProbe:.tst.diffProbe[
-        layout 0;
-        layout 2;
+    keyProbe:.tst.diffProbeBoxed[
+        enlist layout 0;
+        enlist layout 2;
         depth-1;
         remaining];
     keyUsed:remaining & (1 | keyProbe`used);
@@ -194,9 +475,9 @@ fmt.color:{[c;txt]
         :.tst.diffProbeResult[`unknown;used]];
     if[0>=remaining;
         :.tst.diffProbeResult[`unknown;used]];
-    valueProbe:.tst.diffProbe[
-        layout 1;
-        layout 3;
+    valueProbe:.tst.diffProbeBoxed[
+        enlist layout 1;
+        enlist layout 3;
         depth-1;
         remaining];
     valueUsed:remaining & (1 | valueProbe`used);
@@ -217,9 +498,9 @@ fmt.color:{[c;txt]
         :.tst.diffProbeResult[`unknown;1]];
     used:1;
     remaining:work-used;
-    columnProbe:.tst.diffProbe[
-        columns 0;
-        columns 1;
+    columnProbe:.tst.diffProbeBoxed[
+        enlist columns 0;
+        enlist columns 1;
         depth-1;
         remaining];
     columnUsed:remaining & (1 | columnProbe`used);
@@ -240,9 +521,9 @@ fmt.color:{[c;txt]
             {[table;name] table name};
             (right;(columns 1)i);
             {[err] ::}];
-        cellProbe:.tst.diffProbe[
-            leftColumn;
-            rightColumn;
+        cellProbe:.tst.diffProbeBoxed[
+            enlist leftColumn;
+            enlist rightColumn;
             depth-1;
             remaining];
         cellUsed:remaining & (1 | cellProbe`used);
@@ -260,8 +541,8 @@ fmt.color:{[c;txt]
 
 / Bounded tri-state comparator for nested diagnostic values. It returns
 / `equal, `different, or `unknown; unknown means the supplied structural work
-/ budget could not prove either answer. Only fixed-size atoms and bounded
-/ simple-vector prefixes use exact match.
+/ budget could not prove either answer. Fixed-size atoms, callable leaves, and
+/ bounded simple-vector prefixes use trapped native match.
 .tst.diffProbeUnsafe:{[left;right;depth;work]
     if[0>=work; :.tst.diffProbeResult[`unknown;0]];
     types:(type left;type right);
@@ -270,28 +551,13 @@ fmt.color:{[c;txt]
     t:types 0;
 
     if[t within -19 -1h;
-        matched:.tst.diffMatchState[left;right];
-        if[`error~first matched;
-            :.tst.diffProbeResult[`unknown;1]];
-        :.tst.diffProbeResult[
-            $[1b~first last matched;`equal;`different];
-            1]
+        :.tst.diffNativeMatchProbe[left;right]
     ];
 
-    if[101h=t;
-        leftNull:@[
-            {[box] (::)~first box};
-            enlist left;
-            {[err] 0b}];
-        rightNull:@[
-            {[box] (::)~first box};
-            enlist right;
-            {[err] 0b}];
-        if[leftNull and rightNull;
-            :.tst.diffProbeResult[`equal;1]];
-        if[leftNull<>rightNull;
-            :.tst.diffProbeResult[`different;1]];
-        :.tst.diffProbeResult[`unknown;1]
+    / Variable callables may capture attacker-sized state. Their non-invoking
+    / layouts must fit the shared depth/work budget before trapped native match.
+    if[t within 100 112h;
+        :.tst.diffProbeCallable[left;right;depth;work]
     ];
 
     counts:.[
@@ -329,8 +595,8 @@ fmt.color:{[c;txt]
     if[98h=t;
         :.tst.diffProbeTable[left;right;depth;work]];
 
-    / Enumerated vectors and callables can hide attacker-sized recursive state.
-    / Report unknown instead of invoking full match.
+    / Enumerated vectors can hide attacker-sized recursive state. Report
+    / unknown instead of invoking full match.
     .tst.diffProbeResult[`unknown;1]
  };
 
@@ -416,10 +682,7 @@ fmt.color:{[c;txt]
             .tst.diffScanLimit[]]];
     if[98h=t; :.tst.diffFlatTable input];
     if[99h=t; :.tst.diffFlatDict input];
-    if[101h=t;
-        :@[{
-            [box] (::)~first box
-          };enlist input;{[err] 0b}]];
+    if[t within 101 103h; :1b];
     0b
  };
 
@@ -487,9 +750,9 @@ fmt.color:{[c;txt]
                 comparisonExhausted:1b;
                 pos+:1];
             if[not comparisonExhausted;
-                probe:.tst.diffProbe[
-                    left pos;
-                    right pos;
+                probe:.tst.diffProbeBoxed[
+                    enlist left pos;
+                    enlist right pos;
                     .tst.diffDepthLimit[];
                     comparisonRemaining];
                 used:probe`used;
@@ -544,7 +807,7 @@ fmt.color:{[c;txt]
                 prefix,"List content mismatch";
                 "  Deterministic scan budget exhausted after ",
                 string[scanResult`scanned]," items")];
-        :enlist prefix,"List value mismatch (structural/attribute difference)"
+        :enlist prefix,"List value mismatch (structural difference)"
     ];
     available:0 | nodes-1;
     detailCount:(count bad) & available;
