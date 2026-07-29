@@ -10,7 +10,15 @@ snapTxtDir: (system "cd"),"/tests/__snapshots__"
 
 setSnapTxtDir:{[d] .tst.snapTxtDir: d}
 
-snapTxtPath:{[name] ` sv (hsym `$.tst.snapTxtDir; `$name,".snap.txt") }
+snapTxtPath:{[name]
+    .utl.pathToHsym .tst.containedLeafPath[
+        .tst.snapTxtDir;
+        name;
+        "";
+        ".snap.txt";
+        0b;
+        "snapshot name"]
+ }
 
 / Existence by FILE PRESENCE (mirrors snapshot.q's snapExists). A stored empty
 / value otherwise round-trips as "" and could be confused with "missing".
@@ -23,21 +31,23 @@ loadSnapTxt:{[name]
  }
 
 saveSnapTxt:{[name;data]
-    .tst.ensureDir[.tst.snapTxtDir];
     p: .tst.snapTxtPath name;
+    .tst.ensureDir[.tst.snapTxtDir];
     txt: .Q.s1 data;
     hsym[p] 0: enlist txt;
  }
 
 mustmatchTxtSnap:{[actual;name]
+    / Validate before converting the name or performing any filesystem lookup.
+    validatedPath: .tst.snapTxtPath name;
     n: $[10h=type name; name; string name];
     actTxt: .Q.s1 actual;
     / Decide existence by FILE PRESENCE, not by ()~stored.
-    missing: not .tst.snapTxtExists n;
+    missing: not .tst.snapTxtExists name;
 
     / Explicit update intent always (re)writes and passes, with a NOTE.
     if[@[get;`.tst.updateSnaps;{0b}];
-        .tst.saveSnapTxt[n;actual];
+        .tst.saveSnapTxt[name;actual];
         -1 "NOTE: text snapshot created: ", n, " (", .tst.snapTxtDir, ") - review and commit it";
         :1b;
     ];
@@ -49,12 +59,12 @@ mustmatchTxtSnap:{[actual;name]
         if[1b ~ @[get; `.tst.app.strict; 0b];
             ' "Snapshot missing under -strict: ", n, " (run without -strict once to create it)";
         ];
-        .tst.saveSnapTxt[n;actual];
+        .tst.saveSnapTxt[name;actual];
         -1 "NOTE: text snapshot created: ", n, " (", .tst.snapTxtDir, ") - review and commit it";
         :1b;
     ];
 
-    stored: .tst.loadSnapTxt[n];
+    stored: .tst.loadSnapTxt[name];
     if[not actTxt~stored;
         -1 "SNAPSHOT MISMATCH for '",n,"'";
         -1 "----------------------------------------------------------------";

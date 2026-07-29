@@ -237,12 +237,60 @@ runSpecCleanupTasks:{[]
     .tst.drainQueue tasks;
  }
 
+/ Build a filesystem path from one untrusted leaf fragment. The fragment is
+/ validated before it can reach key/get/set/hdel; the normalized absolute
+/ result is then checked against the normalized root as defense in depth.
+containedLeafPath:{[root;fragment;prefix;extension;allowEmpty;label]
+    fragmentType: type fragment;
+    if[not fragmentType in 10 -11h;
+        '"Invalid ", label, ": expected a string or symbol"];
+    leaf: $[10h = fragmentType; fragment; string fragment];
+    if[(not allowEmpty) and 0 = count leaf;
+        '"Invalid ", label, ": must not be empty"];
+    if[(leaf ~ ".") or leaf ~ "..";
+        '"Invalid ", label, ": '.' and '..' are not leaf names"];
+    if[any leaf in "/\\";
+        '"Invalid ", label, ": path separators are not allowed"];
+    if[any leaf = ":";
+        '"Invalid ", label, ": drive and colon forms are not allowed"];
+    charCodes: "i"$leaf;
+    if[any (32 > charCodes) | 127 = charCodes;
+        '"Invalid ", label, ": control characters are not allowed"];
+
+    rootPath: ssr[.utl.pathToString root; "\\"; "/"];
+    if[0 = count rootPath; rootPath: "."];
+    cwd: ssr[system "cd"; "\\"; "/"];
+    rootIsAbsolute: "/" = first rootPath;
+    if[.utl.isWindows;
+        if[2 < count rootPath;
+            if[":" = rootPath 1; rootIsAbsolute: 1b]]];
+    absoluteRoot: .utl.normalizePath $[rootIsAbsolute; rootPath; cwd, "/", rootPath];
+    trustedExtension: $[(0 < count extension) and leaf like "*", extension; ""; extension];
+    target: .utl.normalizePath absoluteRoot, "/", prefix, leaf, trustedExtension;
+
+    compareRoot: $[.utl.isWindows; lower absoluteRoot; absoluteRoot];
+    compareTarget: $[.utl.isWindows; lower target; target];
+    rootPrefix: $["/" = last compareRoot; compareRoot; compareRoot, "/"];
+    contained: $[count[compareTarget] < count rootPrefix;
+        0b;
+        rootPrefix ~ count[rootPrefix] # compareTarget];
+    if[not contained;
+        '"Invalid ", label, ": resolved path escapes configured root"];
+    target
+ }
+
 tempFile:{[suffix]
-    / Generate unique name
-    fn: "resq_", .tst.toString[.z.p], "_", string[first 1?1000], suffix;
-    path: .utl.normalizePath (system "cd"), "/", fn;
+    / Colons in q timestamps are not legal filename characters on Windows.
+    prefix: "resq_", ssr[.tst.toString[.z.p]; ":"; ""], "_", string[first 1?1000];
+    path: .tst.containedLeafPath[
+        system "cd";
+        suffix;
+        prefix;
+        "";
+        1b;
+        "temporary-file suffix"];
     
-    / Register for cleanup
+    / Register only the already-validated, contained final path.
     .tst.registerCleanup[{[p] @[hdel; hsym `$p; {}]}; enlist path];
     
     path

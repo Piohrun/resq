@@ -9,9 +9,13 @@ setSnapDir:{[d] .tst.snapDir: d}
 setUpdateSnaps:{[b] .tst.updateSnaps: b}
 
 snapPath:{[name]
-    n: $[10h = type name; name; string name];
-    n: $[n like "*.snap"; n; n, ".snap"];
-    .utl.pathToHsym .tst.snapDir, "/", n
+    .utl.pathToHsym .tst.containedLeafPath[
+        .tst.snapDir;
+        name;
+        "";
+        ".snap";
+        0b;
+        "snapshot name"]
  };
 
 ensureDir:{[path]
@@ -32,24 +36,25 @@ loadSnap:{[name]
 snapExists:{[name] not () ~ key .tst.snapPath name }
 
 saveSnap:{[name;data]
-    .tst.ensureDir[.tst.snapDir];
     p: .tst.snapPath name;
+    .tst.ensureDir[.tst.snapDir];
     p set data;
  }
 
 mustmatchSnap:{[actual;name]
+    / Validate before converting the name or performing any filesystem lookup.
+    validatedPath: .tst.snapPath name;
     n: $[10h=type name; name; string name];
-    snapName: `$n,".snap";
-    stored: .tst.loadSnap[snapName];
+    stored: .tst.loadSnap[name];
     / Decide existence by FILE PRESENCE, not by ()~stored: an empty-list,
     / empty-dict or empty-table snapshot all load back as a value that may
     / match (), so aliasing them to "missing" would re-create them every run
     / and fail under -strict despite the file existing on disk.
-    missing: not .tst.snapExists snapName;
+    missing: not .tst.snapExists name;
 
     / Explicit update intent always (re)writes and passes, with a NOTE.
     if[.tst.updateSnaps;
-        .tst.saveSnap[snapName;actual];
+        .tst.saveSnap[name;actual];
         -1 "NOTE: snapshot created: ", n, " (", .tst.snapDir, ") - review and commit it";
         :1b;
     ];
@@ -61,7 +66,7 @@ mustmatchSnap:{[actual;name]
         if[1b ~ @[get; `.tst.app.strict; 0b];
             ' "Snapshot missing under -strict: ", n, " (run without -strict once to create it)";
         ];
-        .tst.saveSnap[snapName;actual];
+        .tst.saveSnap[name;actual];
         -1 "NOTE: snapshot created: ", n, " (", .tst.snapDir, ") - review and commit it";
         :1b;
     ];
