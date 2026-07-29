@@ -239,15 +239,31 @@
     };
 
     should["produce an LCOV file with the expected sections"]{
+        / Derive a unique scratch directory from tempFile without creating the
+        / seed path. Register cleanup for every known child before creating the
+        / directory so partial setup and report failures remain hermetic.
+        scratchSeed: .tst.tempFile ".coverage_seed";
+        scratchRoot: scratchSeed, "_dir";
+        srcPath: scratchRoot, "/source.q";
+        outPath: scratchRoot, "/coverage.lcov";
+        statePath: scratchRoot, "/coverage_state.txt";
+        .tst.registerCleanup[{[paths]
+            {[p] @[hdel; .utl.pathToHsym p; {}]} each paths;
+          }; enlist (srcPath; outPath; statePath; scratchRoot)];
+        .utl.ensureDir scratchRoot;
+
         / Synthesize a tiny source file so exploreFile finds something.
-        srcPath: .tst.tempFile ".q";
         (hsym `$srcPath) 0: ("/ sample"; "add:{[x;y] x+y}"; "id:{[v] v}");
         srcSym: `$":", srcPath;
         .tst.ensureCoverageEntry srcSym;
         .tst.coverageData[srcSym; `add]: 5;
 
-        outPath: .tst.tempFile ".lcov";
         .tst.generateLCOV outPath;
+
+        must[.utl.pathExists statePath; "coverage state should be written beside the LCOV file"];
+        must[
+            .tst.resolvePath[statePath] like .tst.resolvePath[scratchRoot], "/*";
+            "coverage state should stay inside the per-test scratch directory"];
 
         lines: read0 hsym `$outPath;
         / Must include the LCOV preamble, an SF: header for our file, and the
