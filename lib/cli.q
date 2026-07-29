@@ -1,17 +1,169 @@
 \d .tst
 
-/ Helper for manual arg parsing
-getArg:{[name;def]
-    / Use simple list of strings
-    opts: (("-",string name); ("--",string name));
-    idx: where .z.x in opts;
-    if[not count idx; :def];
-    .z.x[(last idx)+1]
+/ Authoritative CLI option schema. Aliases are stored as strings so unknown
+/ user input is never interned as a symbol. Every alias accepts both -x and --x.
+.tst.cli.specNames:`perf`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`isolateTimeout`maxTestTime`fuzzLimit`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
+.tst.cli.specAliases:(enlist "perf";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";enlist "isolateTimeout";enlist "maxTestTime";enlist "fuzzLimit";enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
+.tst.cli.specKinds:(16 # `flag), 10 # `value;
+.tst.cli.numericNames: `isolateTimeout`maxTestTime`fuzzLimit;
+
+.tst.cli.expandAliases:{[aliases]
+    raze {("-",x; "--",x)} each aliases
  };
 
-getFlag:{[name]
-    opts: (("-",string name); ("--",string name));
-    any .z.x in opts
+.tst.cli.optionTokens:raze .tst.cli.expandAliases each .tst.cli.specAliases;
+.tst.cli.optionNames:raze {[name; aliases] (2 * count aliases) # enlist name}'[.tst.cli.specNames; .tst.cli.specAliases];
+.tst.cli.optionKinds:raze {[kind; aliases] (2 * count aliases) # enlist kind}'[.tst.cli.specKinds; .tst.cli.specAliases];
+
+.tst.cli.emptyOptions:{[]
+    .tst.cli.specNames!
+        {$[x ~ `flag; 0b; ""]} each .tst.cli.specKinds
+ };
+
+.tst.cli.error:{[message]
+    `ok`error`mode`args`options!(
+        0b;
+        message;
+        `test;
+        ();
+        .tst.cli.emptyOptions[])
+ };
+
+.tst.cli.startsDash:{[token]
+    (1 < count token) and "-" = first token
+ };
+
+.tst.cli.isIntegerText:{[text]
+    if[not 10h = abs type text; :0b];
+    if[0 = count text; :0b];
+    body: $[first[text] in "+-"; 1 _ text; text];
+    (0 < count body) and all body in "0123456789"
+ };
+
+/ Resolve one canonical option from its occurrences. Flags normalize to a
+/ boolean; value options use the last occurrence (last duplicate wins).
+.tst.cli.resolveOption:{[occNames; occPositions; valuePositions; values; numericPositions; numericValues; name]
+    matches: where occNames = name;
+    kind: .tst.cli.specKinds .tst.cli.specNames ? name;
+    if[kind ~ `flag; :0 < count matches];
+    if[0 = count matches; :""];
+    chosenPosition: occPositions last matches;
+    if[chosenPosition in numericPositions;
+        :numericValues numericPositions ? chosenPosition];
+    values valuePositions ? chosenPosition
+ };
+
+/ Parse command-line tokens once into normalized options, mode, and positionals.
+/ This is a bounded CLI state analysis: option/value positions are derived
+/ vectorially, so values can never leak into positional dispatch.
+.tst.parseCLI:{[args]
+    separatorPositions: where {"--" ~ x} each args;
+    separator: $[count separatorPositions; first separatorPositions; count args];
+    preTokens: separator # args;
+    postTokens: $[separator < count args; (separator + 1) _ args; ()];
+    / q's native `\l -name.q` treats the leading dash as syntax. Preserve the
+    / user's relative path semantics while making the downstream load safe.
+    cliCwd: system "cd";
+    postTokens: {[cwd; x]
+        $[.tst.cli.startsDash x; cwd, "/", x; x]
+    }[cliCwd;] each postTokens;
+
+    tokenIndexes: .tst.cli.optionTokens ? preTokens;
+    isOption: tokenIndexes < count .tst.cli.optionTokens;
+    optionPositions: where isOption;
+    occurrenceNames: .tst.cli.optionNames tokenIndexes optionPositions;
+    occurrenceKinds: .tst.cli.optionKinds tokenIndexes optionPositions;
+    valuePositions: optionPositions where occurrenceKinds = `value;
+
+    missingPositions: valuePositions where valuePositions >= -1 + count preTokens;
+    if[count missingPositions;
+        badPosition: first missingPositions;
+        :.tst.cli.error "Missing value for ", preTokens badPosition];
+
+    values: preTokens 1 + valuePositions;
+    emptyValues: where 0 = count each values;
+    if[count emptyValues;
+        badIndex: first emptyValues;
+        :.tst.cli.error "Empty value for ", preTokens valuePositions badIndex];
+
+    nextIndexes: .tst.cli.optionTokens ? values;
+    nextIsOption: nextIndexes < count .tst.cli.optionTokens;
+    if[any nextIsOption;
+        badIndex: first where nextIsOption;
+        :.tst.cli.error "Missing value for ", preTokens[valuePositions badIndex],
+            "; next token is option ", values badIndex];
+
+    valueNames: .tst.cli.optionNames tokenIndexes valuePositions;
+    dashValues: .tst.cli.startsDash each values;
+    signedNumeric: (valueNames in .tst.cli.numericNames) and
+        .tst.cli.isIntegerText each values;
+    invalidDash: where dashValues and not signedNumeric;
+    if[count invalidDash;
+        badIndex: first invalidDash;
+        :.tst.cli.error "Missing value for ", preTokens[valuePositions badIndex],
+            "; next token looks like option ", values badIndex];
+
+    consumedPositions: 1 + valuePositions;
+    allPositions: til count preTokens;
+    unknownPositions: where
+        (.tst.cli.startsDash each preTokens) and
+        (not isOption) and
+        not allPositions in consumedPositions;
+    if[count unknownPositions;
+        :.tst.cli.error "Unknown option: ", preTokens first unknownPositions];
+
+    numericMask: valueNames in .tst.cli.numericNames;
+    numericTexts: values where numericMask;
+    numericOptionNames: valueNames where numericMask;
+    invalidIntegers: where not .tst.cli.isIntegerText each numericTexts;
+    if[count invalidIntegers;
+        badIndex: first invalidIntegers;
+        numericValuePositions: valuePositions where numericMask;
+        :.tst.cli.error "Invalid integer for ",
+            preTokens[numericValuePositions badIndex], ": ", numericTexts badIndex];
+
+    numericValues: {"J"$x} each numericTexts;
+    nullIntegers: where null numericValues;
+    if[count nullIntegers;
+        badIndex: first nullIntegers;
+        numericValuePositions: valuePositions where numericMask;
+        :.tst.cli.error "Invalid integer for ",
+            preTokens[numericValuePositions badIndex], ": ", numericTexts badIndex];
+
+    invalidRanges: where
+        (numericValues < 0) or
+        (numericOptionNames = `isolateTimeout) and numericValues = 0;
+    if[count invalidRanges;
+        badIndex: first invalidRanges;
+        numericValuePositions: valuePositions where numericMask;
+        requirement: $[numericOptionNames[badIndex] ~ `isolateTimeout; "> 0"; ">= 0"];
+        :.tst.cli.error "Value must be ", requirement, " for ",
+            preTokens[numericValuePositions badIndex], ": ", numericTexts badIndex];
+
+    numericValuePositions: valuePositions where numericMask;
+    optionValues:
+        .tst.cli.resolveOption[
+            occurrenceNames;
+            optionPositions;
+            valuePositions;
+            values;
+            numericValuePositions;
+            numericValues;] each .tst.cli.specNames;
+    options: .tst.cli.specNames ! optionValues;
+
+    if[(1b ~ options`exit) and 1b ~ options`noquit;
+        :.tst.cli.error "Options -exit and -noquit cannot be used together"];
+
+    positionalPositions: allPositions where
+        (not isOption) and
+        not allPositions in consumedPositions;
+    parsedMode: .tst.parseModeArgs (preTokens positionalPositions), postTokens;
+    `ok`error`mode`args`options!(
+        1b;
+        "";
+        parsedMode`mode;
+        parsedMode`args;
+        options)
  };
 
 / Describe-only reporter. Installed as the `.resq.report` hook (replacing the
@@ -58,61 +210,59 @@ parseModeArgs:{[args]
     `mode`args!(mode; rest)
  };
     
-initCLI:{[]
-    / Manual Argument Parsing (CLI overrides config file)
-    if[any .z.x like "-perf"; .tst.app.runPerformance: 1b];
-    if[any .z.x in ("-junit";"-xml"); .resq.config.fmt: `junit; .tst.app.xmlOutput: 1b];
-    if[any .z.x like "-xunit"; .resq.config.fmt: `xunit; .resq.config.outDir: "test-results"; .tst.app.xmlOutput: 1b];
-    if[any .z.x like "-json"; .resq.config.fmt: `json; .tst.app.xmlOutput: 0b];
-    if[any .z.x like "-noquit"; .tst.app.exit: 0b];
-    if[any .z.x like "-exit"; .tst.app.exit: 1b];
-    if[getFlag[`strict]; .tst.app.strict: 1b];
-    if[getFlag[`quiet]; .tst.app.quiet: 1b];
+initCLI:{[parsed]
+    / Apply only normalized values from parseCLI; .z.x is never reparsed here.
+    options: parsed`options;
+    if[options`debug; .utl.DEBUG: 1b];
+    if[options`perf; .tst.app.runPerformance: 1b];
+    if[options`junit; .resq.config.fmt: `junit; .tst.app.xmlOutput: 1b];
+    if[options`xunit; .resq.config.fmt: `xunit; .resq.config.outDir: "test-results"; .tst.app.xmlOutput: 1b];
+    if[options`json; .resq.config.fmt: `json; .tst.app.xmlOutput: 0b];
+    if[options`noquit; .tst.app.exit: 0b];
+    if[options`exit; .tst.app.exit: 1b];
+    if[options`strict; .tst.app.strict: 1b];
+    if[options`quiet; .tst.app.quiet: 1b];
 
     / Process-isolation mode: each discovered test FILE runs in its own q
     / subprocess (see lib/isolate.q). -isolateTimeout sets the per-FILE wall
     / clock cap in seconds (default 300), enforced via the `timeout` binary.
-    if[getFlag[`isolate]; .tst.app.isolate: 1b];
-    isolateTimeout: getArg[`$"isolateTimeout"; ""];
-    if[0<count isolateTimeout; .tst.app.isolateTimeout: "I"$isolateTimeout];
-
-    maxTestTime: getArg[`$"maxTestTime"; ""];
-    if[0<count maxTestTime; .tst.app.maxTestTime: "I"$maxTestTime];
-
-    fuzzLimit: getArg[`$"fuzzLimit"; ""];
-    if[0<count fuzzLimit; .tst.output.fuzzLimit: "I"$fuzzLimit];
+    if[options`isolate; .tst.app.isolate: 1b];
+    if[0 < count options`isolateTimeout;
+        .tst.app.isolateTimeout: options`isolateTimeout];
+    if[0 < count options`maxTestTime;
+        .tst.app.maxTestTime: options`maxTestTime];
+    if[0 < count options`fuzzLimit;
+        .tst.output.fuzzLimit: options`fuzzLimit];
 
     / Coverage Support
     .tst.app.runCoverage: 0b;
-    if[any .z.x in ("-cov";"-coverage"); .tst.app.runCoverage: 1b];
+    if[options`coverage; .tst.app.runCoverage: 1b];
     
     / Coverage include/exclude filters.
-    covInclude: getArg[`$"cov-include"; ""];
-    if[0<count covInclude; .tst.app.coverageInclude: "," vs covInclude];
-    covExclude: getArg[`$"cov-exclude"; ""];
-    if[0<count covExclude; .tst.app.coverageExclude: "," vs covExclude];
+    if[0 < count options`coverageInclude;
+        .tst.app.coverageInclude: "," vs options`coverageInclude];
+    if[0 < count options`coverageExclude;
+        .tst.app.coverageExclude: "," vs options`coverageExclude];
 
     / Version check
-    if[getFlag[`v] or getFlag[`version]; -1 "resQ version ", .resq.VERSION; exit 0];
+    if[options`version; -1 "resQ version ", .resq.VERSION; exit 0];
 
-    / Enhanced Manual Parsing
-    .resq.config.outDir: getArg[`outDir; .resq.config.outDir];
+    if[0 < count options`outDir;
+        .resq.config.outDir: options`outDir];
     
-    if[getFlag[`desc] or getFlag[`describe]; .tst.app.describeOnly: 1b; .tst.output.mode: `describe];
+    if[options`describe; .tst.app.describeOnly: 1b; .tst.output.mode: `describe];
     
-    if[getFlag[`ff] or getFlag[`$"fail-fast"]; .tst.app.failFast: 1b];
-    if[getFlag[`fh] or getFlag[`$"fail-hard"]; .tst.app.failHard: 1b];
+    if[options`failFast; .tst.app.failFast: 1b];
+    if[options`failHard; .tst.app.failHard: 1b];
     
     / runSpecs / excludeSpecs are TITLE glob patterns matched with `like` in
     / runner.q's filterSpecs (`spec[`title] like pattern`). `like` requires a
     / STRING pattern -- a symbol pattern raises 'type -- so these must be lists
     / of strings, not symbols (cf. tests/test_runner.q which sets `enlist "a*"`).
-    exc: getArg[`exclude; ""];
-    / Handle string vs list of strings safely.
-    if[0<count exc; .tst.app.excludeSpecs: "," vs " " sv $[10h=abs type exc; enlist exc; exc]];
-
-    only: getArg[`only; ""];
-    if[0<count only; .tst.app.runSpecs: "," vs " " sv $[10h=abs type only; enlist only; only]];
+    if[0 < count options`exclude;
+        .tst.app.excludeSpecs: "," vs options`exclude];
+    if[0 < count options`only;
+        .tst.app.runSpecs: "," vs options`only];
 
     / Tag-based filtering. Tags are matched by `in` against spec[`tags] in
     / runner.q's filterSpecs. The DSL (ui.q) stores a title tag WITH its leading
@@ -121,10 +271,9 @@ initCLI:{[]
     / expand each entry to BOTH the bare and "#"-prefixed symbol; `in` then
     / matches whichever form the suite actually carries.
     tagExpand: {[s] raze {[t] s: string t; t, $["#" = first s; `$1 _ s; `$"#", s]} each `$"," vs s};
-    tagFilter: getArg[`tag; ""];
-    if[0<count tagFilter; .tst.app.tagFilter: tagExpand tagFilter];
-
-    excludeTag: getArg[`$"exclude-tag"; ""];
-    if[0<count excludeTag; .tst.app.excludeTagFilter: tagExpand excludeTag];
+    if[0 < count options`tag;
+        .tst.app.tagFilter: tagExpand options`tag];
+    if[0 < count options`excludeTag;
+        .tst.app.excludeTagFilter: tagExpand options`excludeTag];
  };
 \d .

@@ -1,6 +1,10 @@
-/ Unit tests for the CLI mode dispatcher. We only cover the pure helper
-/ (parseModeArgs) and the validModes contract; getArg / getFlag read .z.x
-/ which is set by the q startup line and not safely mutable here.
+/ ============================================================================
+/ tests/test_cli.q - Pure CLI parser and subprocess contract tests.
+/ .
+/ The parser is exercised directly for precise normalization/validation checks,
+/ then end-to-end in fresh q processes to pin exit status, side-effect safety,
+/ reporter behavior, and CWD independence.
+/ ============================================================================
 
 .tst.desc["CLI mode parsing"]{
     should["default to test mode when no args supplied"]{
@@ -10,7 +14,7 @@
     };
 
     should["recognise each documented mode"]{
-        { [m]
+        {[m]
             r: .tst.parseModeArgs enlist string m;
             r[`mode] musteq m;
             r[`args] mustmatch ();
@@ -24,7 +28,6 @@
     };
 
     should["treat an unrecognised first token as a path under default mode"]{
-        / `mything` is not a mode, so the whole arglist is preserved.
         r: .tst.parseModeArgs ("mything"; "tests/");
         r[`mode] musteq `test;
         r[`args] mustmatch ("mything"; "tests/");
@@ -35,120 +38,219 @@
     };
 };
 
-/ Subprocess scenarios for the unrecognized-flag WARNING in resq.q. The warning
-/ is emitted from the entry script (reads .z.x), so it can only be exercised by
-/ spawning a fresh resq process. q's `system` intercepts a leading "cd" and
-/ rejects a leading "(", so each pipeline LEADS WITH mkdir.
-/ Resolve the install root and a runnable q invocation for the subprocesses.
-.tst.cliResqHome: {$[count h:getenv `RESQ_HOME; h; "/home/greg/Code/resq"]};
-/ Prefer `q` on PATH (the suite is launched via it); fall back to $QHOME/l64/q.
-.tst.cliQBin: {$[0 = "J"$ first @[system; "command -v q >/dev/null 2>&1; echo $?"; {enlist "1"}];
-                "q "; (getenv[`QHOME]), "/l64/q "]};
-
-.tst.desc["CLI unrecognized-flag warning"]{
-    / NOTE: each nested q reads `< /dev/null`; without it the child contends for
-    / the parent's stdin and q's `system` capture comes back empty.
-    should["WARN on an unrecognized -flag and not on a path-like one"]{
-        cmd: "mkdir -p /tmp/p4c/cli_a && ", .tst.cliQBin[], .tst.cliResqHome[], "/resq.q -bogusflag123 /tmp/p4c/cli_a -noquit -e 1 < /dev/null 2>&1 | grep -i unrecognized";
-        out: @[system; cmd; {[e] enlist ""}];
-        / `system` returns a list of lines (a general list when 1 row); join to one
-        / string so `like` sees a flat char vector. Use ONE contiguous wildcard
-        / region: q's `like` is nyi on patterns with two *...*-separated literals.
-        text: "\n" sv $[10h = type out; enlist out; out];
-        (text like "*unrecognized flag(s): -bogusflag123*") mustmatch 1b;
+.tst.desc["CLI normalized parser"]{
+    should["consume options and dispatch mode from one parse result"]{
+        r: .tst.parseCLI ("--strict"; "test"; "suite.q"; "--only"; "single*"; "--quiet");
+        r[`ok] musteq 1b;
+        r[`mode] musteq `test;
+        r[`args] mustmatch enlist "suite.q";
+        r[`options; `strict] musteq 1b;
+        r[`options; `quiet] musteq 1b;
+        r[`options; `only] mustmatch "single*";
     };
 
-    should["emit the path hint for a path-like dropped token"]{
-        cmd: "mkdir -p /tmp/p4c/cli_b && ", .tst.cliQBin[], .tst.cliResqHome[], "/resq.q -tdir/test_x.q -noquit -e 1 < /dev/null 2>&1 | grep -i 'prefix it with'";
-        out: @[system; cmd; {[e] enlist ""}];
-        text: "\n" sv $[10h = type out; enlist out; out];
-        (text like "*prefix it with ./*") mustmatch 1b;
+    should["give the last duplicate value precedence across dash spellings"]{
+        r: .tst.parseCLI ("test"; "-only"; "first*"; "--only"; "last*"; "suite.q");
+        r[`ok] musteq 1b;
+        r[`options; `only] mustmatch "last*";
+        r[`args] mustmatch enlist "suite.q";
     };
 
-    should["NOT warn when only recognized flags are passed"]{
-        cmd: "mkdir -p /tmp/p4c/cli_c && ", .tst.cliQBin[], .tst.cliResqHome[], "/resq.q /tmp/p4c/cli_c -junit -strict -noquit -e 1 < /dev/null 2>&1 | grep -ci 'unrecognized flag'";
-        out: @[system; cmd; {[e] enlist "0"}];
-        cnt: "J"$ $[count out; first out; "0"];
-        cnt musteq 0;
-    };
-};
-
-/ End-to-end CLI flag plumbing. Each test writes a 2-suite fixture and spawns a
-/ fresh resq process (the arg handling lives in resq.q, which reads .z.x), then
-/ greps the run output. The fixture has a "single suite alpha" (tag #fast) and an
-/ "other suite beta" (no tag) so -only/-exclude/-tag selection is observable.
-.tst.cliFixture: {[dir]
-    / Build the fixture from a shell heredoc; returns the leading shell command
-    / (mkdir + write) the caller prepends to its resq invocation.
-    f: dir, "/cli_flags.q";
-    "mkdir -p ", dir, " && printf '%s\\n' ",
-      "'.tst.desc[\"single suite alpha #fast\"]{ should[\"one\"]{ 1 musteq 1; }; };' ",
-      "'.tst.desc[\"other suite beta\"]{ should[\"two\"]{ 2 musteq 2; }; };' > ", f, " && "
- };
-
-.tst.desc["CLI value-flag plumbing"]{
-    should["-only filters suites by title pattern (1 of 2 runs)"]{
-        d: "/tmp/p4c/cli_only";
-        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -only \"single*\" -noquit -e 1 < /dev/null 2>&1 | grep -i 'Tests:'";
-        out: @[system; cmd; {[e] enlist ""}];
-        text: "\n" sv $[10h = type out; enlist out; out];
-        (text like "*1 total*") mustmatch 1b;
+    should["support both spellings for flags and aliases"]{
+        single: .tst.parseCLI ("test"; "-perf"; "-xml"; "-noquit"; "-strict";
+            "-quiet"; "-isolate"; "-cov"; "-desc"; "-ff"; "-fh"; "-debug";
+            "-interactive"; "suite.q");
+        longForm: .tst.parseCLI ("test"; "--perf"; "--xml"; "--noquit"; "--strict";
+            "--quiet"; "--isolate"; "--coverage"; "--describe"; "--fail-fast";
+            "--fail-hard"; "--debug"; "--interactive"; "suite.q");
+        single[`ok] musteq 1b;
+        longForm[`ok] musteq 1b;
+        single[`args] mustmatch longForm`args;
+        single[`mode] musteq longForm`mode;
+        {[leftResult; rightResult; optionName]
+            leftResult[`options; optionName] musteq rightResult[`options; optionName]
+        }[single; longForm;] each
+            `perf`junit`noquit`strict`quiet`isolate`coverage`describe`failFast`failHard`debug`interactive;
     };
 
-    should["-exclude drops matching suites"]{
-        d: "/tmp/p4c/cli_excl";
-        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -exclude \"single*\" -noquit -e 1 < /dev/null 2>&1 | grep -i 'Tests:'";
-        out: @[system; cmd; {[e] enlist ""}];
-        text: "\n" sv $[10h = type out; enlist out; out];
-        (text like "*1 total*") mustmatch 1b;
+    should["support both spellings for every value option"]{
+        single: .tst.parseCLI ("test"; "-maxTestTime"; "0"; "-fuzzLimit"; "4";
+            "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";
+            "-outDir"; "reports"; "-exclude"; "slow*"; "-only"; "fast*";
+            "-tag"; "smoke"; "-exclude-tag"; "flaky"; "suite.q");
+        longForm: .tst.parseCLI ("test"; "--maxTestTime"; "0"; "--fuzzLimit"; "4";
+            "--isolateTimeout"; "5"; "--cov-include"; "lib/*"; "--cov-exclude"; "tests/*";
+            "--outDir"; "reports"; "--exclude"; "slow*"; "--only"; "fast*";
+            "--tag"; "smoke"; "--exclude-tag"; "flaky"; "suite.q");
+        single[`ok] musteq 1b;
+        longForm[`ok] musteq 1b;
+        single[`options] mustmatch longForm`options;
+        single[`args] mustmatch longForm`args;
     };
 
-    should["-tag filters by suite tag (1 of 2 runs)"]{
-        d: "/tmp/p4c/cli_tag";
-        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -tag fast -noquit -e 1 < /dev/null 2>&1 | grep -i 'Tests:'";
-        out: @[system; cmd; {[e] enlist ""}];
-        text: "\n" sv $[10h = type out; enlist out; out];
-        (text like "*1 total*") mustmatch 1b;
-    };
-
-    should["a value-flag value does NOT become a positional test path"]{
-        / -only's value "single*" must not be treated as a path (old bug reported
-        / 'Explicit test path not found: single*').
-        d: "/tmp/p4c/cli_noleak";
-        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -only \"single*\" -noquit -e 1 < /dev/null 2>&1 | grep -ci 'Explicit test path not found'";
-        out: @[system; cmd; {[e] enlist "0"}];
-        cnt: "J"$ $[count out; first out; "0"];
-        cnt musteq 0;
-    };
-
-    should["a boolean flag does NOT swallow the following path"]{
-        / -strict (boolean) before the path must leave the path as a positional.
-        d: "/tmp/p4c/cli_bool";
-        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test -strict ", d, "/cli_flags.q -noquit -e 1 < /dev/null 2>&1 | grep -i 'Tests:'";
-        out: @[system; cmd; {[e] enlist ""}];
-        text: "\n" sv $[10h = type out; enlist out; out];
-        (text like "*2 total*") mustmatch 1b;
+    should["treat every token after -- as positional, including dash-prefixed paths"]{
+        r: .tst.parseCLI ("test"; "-quiet"; "--"; "-suite.q"; "--not-an-option");
+        r[`ok] musteq 1b;
+        r[`mode] musteq `test;
+        r[`args] mustmatch ((system "cd"), "/-suite.q"; (system "cd"), "/--not-an-option");
+        r[`options; `quiet] musteq 1b;
     };
 };
 
-.tst.desc["CLI describe-only listing"]{
-    should["-desc lists both suites with test names and no malformed summary"]{
-        d: "/tmp/p4c/cli_desc";
-        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -desc -noquit -e 1 < /dev/null 2>&1";
-        out: @[system; cmd; {[e] enlist ""}];
-        text: "\n" sv $[10h = type out; enlist out; out];
-        (text like "*single suite alpha*") mustmatch 1b;
-        (text like "*other suite beta*") mustmatch 1b;
-        / The malformed "( passed,  failed," summary must NOT be emitted.
-        (text like "*( passed,*") mustmatch 0b;
+.tst.cliParseFails:{[args; pattern]
+    r: .tst.parseCLI args;
+    (not r`ok) and (r`error) like pattern
+};
+
+.tst.desc["CLI fail-closed validation"]{
+    should["reject unknown options"]{
+        .tst.cliParseFails[("test"; "--bogus"); "Unknown option:*"] musteq 1b;
+        .tst.cliParseFails[("test"; "--e"); "Unknown option:*"] musteq 1b;
     };
 
-    should["-desc exits 0 when files load cleanly"]{
-        d: "/tmp/p4c/cli_desc_exit";
-        / No -noquit: let resq emit its real exit code, captured via echo $?.
-        cmd: .tst.cliFixture[d], .tst.cliQBin[], .tst.cliResqHome[], "/resq.q test ", d, "/cli_flags.q -desc -e 1 < /dev/null > /dev/null 2>&1; echo $?";
-        out: @[system; cmd; {[e] enlist "99"}];
-        code: "J"$ $[count out; last out; "99"];
-        code musteq 0;
+    should["reject missing, empty, and option-shaped required values"]{
+        .tst.cliParseFails[("test"; "-only"); "Missing value for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-only"; ""); "Empty value for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-only"; "--quiet"); "Missing value for -*"] musteq 1b;
+    };
+
+    should["reject non-integer and null numeric values"]{
+        .tst.cliParseFails[("test"; "-maxTestTime"; "nope"); "Invalid integer for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-maxTestTime"; "1.5"); "Invalid integer for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-fuzzLimit"; "0N"); "Invalid integer for -*"] musteq 1b;
+    };
+
+    should["enforce numeric ranges"]{
+        .tst.cliParseFails[("test"; "-maxTestTime"; "-1"); "Value must be >= 0 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-fuzzLimit"; "-2"); "Value must be >= 0 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-isolateTimeout"; "0"); "Value must be > 0 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-isolateTimeout"; "-1"); "Value must be > 0 for -*"] musteq 1b;
+    };
+
+    should["reject contradictory process-lifecycle flags"]{
+        .tst.cliParseFails[("test"; "-exit"; "--noquit"); "Options -exit and -noquit cannot be used together*"] musteq 1b;
+    };
+};
+
+/ --- bounded subprocess harness --------------------------------------------
+
+.tst.cliResqHome: .resq.HOME;
+.tst.cliQExe: {$[
+    count q: @[system; "command -v q 2>/dev/null"; {()}];
+        first q;
+    (getenv[`QHOME]), "/l64/q"
+]};
+.tst.cliCanQ: 0 < count .tst.cliQExe[];
+.tst.cliCanTimeout: 0 < count @[system; "command -v timeout 2>/dev/null"; {()}];
+.tst.cliBase: "/tmp/resq_cli_test_", string .z.i;
+.tst.cliCounter: 0;
+
+.tst.cliWorkDir:{[]
+    .tst.cliCounter+: 1;
+    .tst.cliBase, "/run_", string[.z.i], "_", string .tst.cliCounter
+};
+
+.tst.cliCleanup:{[wd]
+    expectedPrefix: .tst.cliBase, "/run_";
+    if[not wd like expectedPrefix, "*";
+        '"refusing unsafe CLI test cleanup path"];
+    system "rm -rf -- ", .utl.shellQuote wd;
+};
+
+.tst.cliCleanupBase:{[]
+    expectedBase: "/tmp/resq_cli_test_", string .z.i;
+    if[not .tst.cliBase ~ expectedBase;
+        '"refusing unsafe CLI test base cleanup path"];
+    if[.utl.pathExists .tst.cliBase;
+        system "rm -rf -- ", .utl.shellQuote .tst.cliBase];
+};
+
+.tst.cliWriteFixture:{[wd; name]
+    .utl.ensureDir wd;
+    marker: wd, "/executed.marker";
+    file: wd, "/", name;
+    lines: (
+        "(hsym `$\"", marker, "\") 0: enlist \"loaded\";";
+        ".tst.desc[\"single suite alpha #fast\"]{ should[\"one\"]{ 1 musteq 1; }; };";
+        ".tst.desc[\"other suite beta\"]{ should[\"two\"]{ 2 musteq 2; }; };"
+    );
+    (hsym `$file) 0: lines;
+    file
+};
+
+/ Run resQ in a fresh directory under GNU timeout with SIGKILL escalation.
+/ args may contain @FIXTURE@, @REPORT@, and @WD@ placeholders.
+/ repoCwd selects a natural invocation from the repository root.
+.tst.cliRun:{[args; fixtureName; repoCwd]
+    wd: .tst.cliWorkDir[];
+    fixturePath: .tst.cliWriteFixture[wd; fixtureName];
+    reportDir: wd, "/reports";
+    argLine: ssr[args; "@FIXTURE@"; .utl.shellQuote fixturePath];
+    argLine: ssr[argLine; "@REPORT@"; .utl.shellQuote reportDir];
+    argLine: ssr[argLine; "@WD@"; .utl.shellQuote wd];
+    childCwd: $[repoCwd; .tst.cliResqHome; wd];
+    qWd: .utl.shellQuote wd;
+    qCwd: .utl.shellQuote childCwd;
+    qOut: .utl.shellQuote wd, "/out.txt";
+    qExe: .utl.shellQuote .tst.cliQExe[];
+    qHome: .utl.shellQuote .tst.cliResqHome, "/resq.q";
+    cmd: "mkdir -p ", qWd, " && cd ", qCwd,
+         " && timeout -k 5 20 ", qExe, " ", qHome, " ", argLine,
+         " < /dev/null > ", qOut, " 2>&1; echo $?";
+    statusLines: @[system; cmd; {[e] enlist "-1"}];
+    code: "J"$last statusLines;
+    out: @[read0; hsym `$wd, "/out.txt"; {()}];
+    loaded: .utl.pathExists wd, "/executed.marker";
+    reported: .utl.pathExists reportDir, "/test-results.xml";
+    result: `code`out`loaded`reported!(code; out; loaded; reported);
+    .tst.cliCleanup wd;
+    result
+};
+
+.tst.cliAnyLike:{[lines; pattern] any lines like pattern};
+
+.tst.desc["CLI subprocess safety #slow"]{
+    after{.tst.cliCleanupBase[]};
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "unknown option exits 1 before loading tests"]{
+        r: .tst.cliRun["test @FIXTURE@ --bogus"; "cli_flags.q"; 0b];
+        r[`code] musteq 1;
+        .tst.cliAnyLike[r`out; "CLI ERROR: Unknown option:*"] musteq 1b;
+        r[`loaded] musteq 0b;
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "invalid value creates no reporter artifact"]{
+        r: .tst.cliRun["test @FIXTURE@ -junit -outDir @REPORT@ -only"; "cli_flags.q"; 0b];
+        r[`code] musteq 1;
+        .tst.cliAnyLike[r`out; "CLI ERROR: Missing value for -*"] musteq 1b;
+        r[`loaded] musteq 0b;
+        r[`reported] musteq 0b;
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "double-hyphen options match single-hyphen behavior"]{
+        r: .tst.cliRun["test @FIXTURE@ --only \"single*\" --noquit --quiet"; "cli_flags.q"; 0b];
+        r[`code] musteq 0;
+        .tst.cliAnyLike[r`out; "*1 total*"] musteq 1b;
+        r[`loaded] musteq 1b;
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "contradictory exit flags fail before test loading"]{
+        r: .tst.cliRun["test @FIXTURE@ -exit --noquit"; "cli_flags.q"; 0b];
+        r[`code] musteq 1;
+        .tst.cliAnyLike[r`out; "CLI ERROR: Options -exit and -noquit cannot be used together*"] musteq 1b;
+        r[`loaded] musteq 0b;
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "repo-root malformed path fails once without recursive discovery"]{
+        r: .tst.cliRun["test -tdir/test_x.q"; "cli_flags.q"; 1b];
+        r[`code] musteq 1;
+        must[1 = sum (r`out) like "CLI ERROR:*"; "must emit exactly one CLI error"];
+        .tst.cliAnyLike[r`out; "*SUMMARY*"] musteq 0b;
+        r[`loaded] musteq 0b;
     };
 };
