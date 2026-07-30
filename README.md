@@ -284,6 +284,11 @@ passing suites — failures still print fully:
 q resq.q test tests/ -quiet
 ```
 
+### Report Size Controls
+`reportLimit` bounds each rendered diagnostic field; `reportListLimit` bounds
+retained items such as failures and tags. Lower values produce smaller reports.
+Values above the defaults do not raise resQ's private safety ceilings.
+
 ### Custom Test-File Discovery
 Default discovery matches `test_*.q` and `*_test.q`. Override via `resq.json`:
 ```json

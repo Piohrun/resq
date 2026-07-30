@@ -25,38 +25,42 @@
 
 .resq.reportText:{[results]
     results: .tst.resultTable results;
-    suites: distinct results`suite;
+    suiteGroups:group results`suite;
+    suites:key suiteGroups;
+    suiteRows:value suiteGroups;
     quiet: $[`quiet in key `.tst.app; .tst.app.quiet; 0b];
 
-    { [s; res; quiet]
-        sRes: res where (res`suite) = s;
+    suiteIndex:0;
+    while[suiteIndex<count suites;
+        s:suites suiteIndex;
+        rowIndices:(),suiteRows suiteIndex;
+        sRes:results rowIndices;
         sStatus: .tst.normalizeResultStatus each sRes`status;
         fails: sRes where sStatus in `fail`error;
         / In quiet mode, only show suites that have failures.
-        if[quiet and 0 = count fails; :()];
-        -1 "\n",string[s],"::";
-        { [f]
-            -1 "- ",string[f`description],": [",string[f`status],"]";
-            msg: .resq.renderMsg f`message;
-            fl: (),f`failures;
-            / Avoid double-printing: the per-test "Error:" line and the
-            / "Failures:" block frequently carry the SAME verbatim text (a
-            / single failing assertion populates both). When the joined
-            / failures equal the message, print it once as Failures and drop
-            / the redundant Error line.
-            flStr: "\n    " sv .resq.renderMsg each fl;
-            dup: (0 < count fl) and (0 < count msg) and msg ~ flStr;
-            if[(0<count msg) and not dup; -1 "  Error: ",msg];
-            if[0<count fl;
-                -1 "  Failures: ";
-                { -1 "    ", .resq.renderMsg x } each fl
+        if[not (quiet and 0=count fails);
+            -1 "\n",.tst.toString[s],"::";
+            { [f]
+                -1 "- ",.tst.toString[f`description],": [",
+                  string[f`status],"]";
+                msg: .resq.renderMsg f`message;
+                fl: (),f`failures;
+                / Avoid double-printing: the per-test "Error:" line and the
+                / "Failures:" block frequently carry the SAME verbatim text.
+                flStr: "\n    " sv .resq.renderMsg each fl;
+                dup: (0 < count fl) and (0 < count msg) and msg ~ flStr;
+                if[(0<count msg) and not dup; -1 "  Error: ",msg];
+                if[0<count fl;
+                    -1 "  Failures: ";
+                    { -1 "    ", .resq.renderMsg x } each fl
+                ];
+            } each fails;
+            -1 "  (",string[count sRes]," tests, ",
+              string[count fails]," failed)";
             ];
-        } each fails;
+        suiteIndex+:1];
 
-        -1 "  (",string[count sRes]," tests, ",string[count fails]," failed)";
-    }[;results;quiet] each suites;
-
-    summary: .tst.resultSummary results;
+    summary: .tst.resultSummaryFromTable results;
     totalTests: summary`testCount;
     passed: summary`passCount;
     failed: summary`failCount;
@@ -116,7 +120,11 @@
         / q's take (#) WRAPS when fewer rows exist, repeating entries on small
         / suites; `5 sublist` caps without wrapping.
         slow: 5 sublist xdesc[ `time; 0!select last time by suite, description from results ];
-        { [r] -1 "  ", .Q.s1[r`time], " - ", string[r`suite], ": ", string[r`description] } each slow;
+        { [r]
+          -1 "  ",.Q.s1[r`time]," - ",
+            .tst.toString[r`suite],": ",
+            .tst.toString[r`description]
+        } each slow;
     ];
  };
 

@@ -57,18 +57,25 @@
 
 .tst.output.xunitTop:{[results]
     rows: .tst.output.normalizeRows results;
-    if[0=count rows; :"<assemblies></assemblies>"];
-    / normalizeRows may hand back either a list of row dicts or an already
-    / assembled table; .tst.resultTable canonicalises both to a 98h table.
-    t: .tst.resultTable results;
-    if[not 98h = type t; :"<assemblies/>"];
+    state:.tst.reportLineState[];
+    if[0=count rows;
+        state:.tst.appendReportLine[
+          state;
+          "<assemblies></assemblies>"];
+        :.tst.finalizeReportLines state];
+    / Rows have already crossed the reporter boundary; assembling them directly
+    / avoids repeating normalization and its allocation cost.
+    t: .tst.resultTableFromRows rows;
 
-    suites: distinct t`suite;
-    / q lambdas do not close over outer locals, so the per-suite table t is
-    / passed in explicitly as the first projected argument.
-    suiteBlocks: raze {[t; x]
-        suiteName: .tst.output.escapeXml x;
-        suiteRows: t where (t`suite) = x;
+    groups:group t`suite;
+    suites:key groups;
+    groupRows:value groups;
+    state:.tst.appendReportLine[state;"<assemblies>"];
+    suiteIndex:0;
+    while[suiteIndex<count suites;
+        suiteName:.tst.output.escapeXml suites suiteIndex;
+        rowIndices:(),groupRows suiteIndex;
+        suiteRows:t rowIndices;
         testCount: count suiteRows;
         suiteStatus: .tst.normalizeResultStatus each suiteRows`status;
         errMask: suiteStatus = `error;
@@ -79,13 +86,17 @@
         skipCount: sum skipMask;
         suiteTime: .tst.output.toSeconds sum suiteRows`time;
         header: "<assembly name=\"",suiteName,"\" total=\"",string[testCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",string[suiteTime],"\">";
-        bodyLines: .tst.output.buildXunitCase each suiteRows;
-        body: "\n" sv bodyLines;
-        footer: "</assembly>";
-        $[0<count body; header,"\n",body,"\n",footer; header,"\n",footer]
-    }[t;] each suites;
-
-    "<assemblies>\n",suiteBlocks,"\n</assemblies>"
+        state:.tst.appendReportLine[state;header];
+        rowIndex:0;
+        while[rowIndex<testCount;
+          state:.tst.appendReportLine[
+            state;
+            .tst.output.buildXunitCase suiteRows rowIndex];
+          rowIndex+:1];
+        state:.tst.appendReportLine[state;"</assembly>"];
+        suiteIndex+:1];
+    state:.tst.appendReportLine[state;"</assemblies>"];
+    .tst.finalizeReportLines state
  };
 
 / Compatibility alias. loadOutputModule re-selects this named builder even

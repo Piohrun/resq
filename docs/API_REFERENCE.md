@@ -1769,6 +1769,10 @@ Supported `fmt` values are `text`, `console`, `xml`, `junit`, `xunit`, and
 strings. `runSpecs` keeps matching suites, `excludeSpecs` removes matching
 suites, and an empty array disables that filter.
 
+`reportLimit` bounds each rendered diagnostic field; `reportListLimit` bounds
+retained items such as failures and tags. Lower values produce smaller reports.
+Values above the defaults do not raise resQ's private safety ceilings.
+
 `testFilePatterns` is the list of glob patterns the loader matches against base filenames when scanning a directory. Defaults to BSD-style `test_*.q` / `*_test.q`. Override for codebases that use other conventions (e.g. `["*_spec.q"]` for BDD, `["*Test.q"]` for xUnit). Explicit `.q` file paths passed on the command line are always honoured regardless of patterns.
 
 `diffLargeTableThreshold` / `diffHugeTableThreshold` control adaptive sampling in `lib/diff.q`. Tables larger than the *large* threshold trigger head/middle/tail sampling instead of a full row scan; tables larger than the *huge* threshold add a random sample on top. Increase both for systems with very large reference tables; decrease for stricter (but slower) diff coverage.
