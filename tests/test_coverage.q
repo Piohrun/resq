@@ -62,8 +62,9 @@
         .tst.recordExecution[`sample.q; `add];
         .tst.recordExecution[`sample.q; `add];
         .tst.recordExecution[`sample.q; `sub];
-        .tst.coverageData[`sample.q; `add] musteq 2;
-        .tst.coverageData[`sample.q; `sub] musteq 1;
+        fData:.tst.coverageFunctionData `sample.q;
+        fData[`add] musteq 2j;
+        fData[`sub] musteq 1j;
     };
 
     should["recordExecution be a no-op when coverage is disabled"]{
@@ -156,9 +157,9 @@
         .covscratch.expl[2;2];
         .covscratch.impl[2;3];
         / .covscratch.zero NOT called.
-        fData: .tst.coverageData[.tst.covSym];
-        fData[`.covscratch.expl] musteq 2;
-        fData[`.covscratch.impl] musteq 1;
+        fData:.tst.coverageFunctionData .tst.covSym;
+        fData[`.covscratch.expl] musteq 2j;
+        fData[`.covscratch.impl] musteq 1j;
         must[not `.covscratch.zero in key fData; "an uncalled fn records no hit"];
     };
 };
@@ -198,8 +199,8 @@
   should["record hits again after a file reload + re-instrument"]{
     / First pass: a call records a hit under the source-file key.
     .relscratch.add[1;2];
-    fData1: .tst.coverageData[.tst.relSym];
-    fData1[`.relscratch.add] musteq 1;
+    fData1:.tst.coverageFunctionData .tst.relSym;
+    fData1[`.relscratch.add] musteq 1j;
 
     / Reload the file: this installs a FRESH, UNWRAPPED `add`. The old guard
     / skipped re-wrapping (name still in origFuncs) so the live fn stayed
@@ -210,7 +211,7 @@
     / The reloaded+re-wrapped fn must still compute correctly...
     .relscratch.add[3;4] musteq 7;
     / ...and the call must be counted (cumulative: 1 from before + 1 now).
-    fData2: .tst.coverageData[.tst.relSym];
+    fData2:.tst.coverageFunctionData .tst.relSym;
     must[fData2[`.relscratch.add] > 1; "hits must keep accruing after reload+re-instrument"];
   };
 
@@ -219,10 +220,15 @@
     / wrapFunc must skip (no second layer of wrapping -> no double counting).
     .tst.instrumentFile .tst.relSrc;
     .tst.instrumentFile .tst.relSrc;
-    hitsBefore: $[`.relscratch.add in key .tst.coverageData[.tst.relSym]; .tst.coverageData[.tst.relSym;`.relscratch.add]; 0];
+    fData:.tst.coverageFunctionData .tst.relSym;
+    hitsBefore:$[
+      `.relscratch.add in key fData;
+      fData`.relscratch.add;
+      0j];
     .relscratch.add[5;5];
-    hitsAfter: .tst.coverageData[.tst.relSym;`.relscratch.add];
-    (hitsAfter - hitsBefore) musteq 1;
+    hitsAfter:
+      (.tst.coverageFunctionData .tst.relSym)`.relscratch.add;
+    (hitsAfter - hitsBefore) musteq 1j;
   };
  };
 
@@ -340,7 +346,9 @@
         (hsym `$srcPath) 0: ("/ sample"; "add:{[x;y] x+y}"; "id:{[v] v}");
         srcSym: `$":", srcPath;
         .tst.ensureCoverageEntry srcSym;
-        .tst.coverageData[srcSym; `add]: 5;
+        fData:.tst.coverageFunctionData srcSym;
+        fData[`add]:5j;
+        .tst.coverageData[srcSym]:enlist fData;
 
         .tst.generateLCOV outPath;
 

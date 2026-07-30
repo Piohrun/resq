@@ -1085,7 +1085,8 @@
     .tst.testState.restoreRequireV2 saved;
     must[not (::)~outcome;"nested load failure must signal"];
     .tst.testState.requireV2FailureTouched musteq 1;
-    loadedAfter musteq saved`loaded;
+    must[loadedAfter~saved`loaded;
+      "nested require failure must not change the loaded-file registry"];
     idsAfter musteq saved`loadedIds;
     depsAfter musteq saved`dependencyText;
     fileAfter musteq .utl.pathToHsym caller;
@@ -1431,7 +1432,8 @@
     .tst.testState.loadV2EvaluateCalls musteq 0;
     .tst.testState.loadV2CaptureCalls musteq 0;
     must[specsAfter~saved`specs;"dense source must not change specs"];
-    loadedAfter musteq saved`loaded;
+    must[loadedAfter~saved`loaded;
+      "dense source must not change the loaded-file registry"];
     emptyAfter musteq saved`empty;
     runtimeAfter musteq saved`runtime;
     errorRows musteq 1;
@@ -1465,7 +1467,8 @@
     .tst.testState.loadV2PreprocessCalls musteq 0;
     .tst.testState.loadV2EvaluateCalls musteq 0;
     must[specsAfter~saved`specs;"capture failure must not change specs"];
-    loadedAfter musteq saved`loaded;
+    must[loadedAfter~saved`loaded;
+      "capture failure must not change the loaded-file registry"];
     emptyAfter musteq saved`empty;
     runtimeAfter musteq saved`runtime;
     errorRows musteq 1;
@@ -1535,7 +1538,8 @@
     outcome musteq ();
     must[specsAfter~saved`specs;
       "restore failure must roll back appended specs"];
-    loadedAfter musteq saved`loaded;
+    must[loadedAfter~saved`loaded;
+      "restore failure must roll back the loaded-file registry"];
     emptyAfter musteq saved`empty;
     .tst.testState.loadV2Clears musteq 1;
     errorRows musteq 1;
