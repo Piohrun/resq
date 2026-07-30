@@ -14,61 +14,159 @@
     names:`lifecycleFirst`lifecycleSecond`lifecycleThird`lifecycleThrowing`lifecycleAssertState`lifecycleSelfRemoving`lifecycleFailHard;
     ![`.tst.fixtures; (); 0b; names]
     }; (); {}];
-  @[{[] if[`fixtureEvents in key `.tst.testState;
-    ![`.tst.testState; (); 0b; enlist `fixtureEvents]]}; (); {}];
   myRestore[];
-  };
+  @[{[]
+    names:`expecRan`expecBeforeRan`expecBodyRan`expecAfterRan`expecNoError,
+      `expecContext`expecRestoreTarget`expecCallerMock`expecCleanupEvents,
+      `expecCleanupAttempts`invalidRetryBodies`expecBeforeCounter,
+      `expecRestoreCounter`fixtureEvents;
+    present:names inter key `.tst.testState;
+    if[count present;![`.tst.testState;();0b;present]]
+    }; (); {}];
+ };
  should["call the main expectation function"]{
-  `ran mock 0b;
-  should["run this"]{`ran mock 1b};
+  .tst.testState.expecRan:0b;
+  should["run this"]{.tst.testState.expecRan:1b};
   e:getExpec[];
   .tst.runExpec[();e];
   .tst.contextHelper[];
-  must[ran;"Expected the expectation to have run."];
+  must[.tst.testState.expecRan;"Expected the expectation to have run."];
   };
  should["call the before function before calling the main expectation function"]{
-  `beforeRan`ran mock' 0b;
-  should["run this"]{`ran mock 1b and beforeRan};
-  before {`beforeRan mock 1b};
+  .tst.testState.expecBeforeRan:0b;
+  .tst.testState.expecBodyRan:0b;
+  should["run this"]{
+    .tst.testState.expecBodyRan:.tst.testState.expecBeforeRan};
+  before {.tst.testState.expecBeforeRan:1b};
   e:getExpec[];
   .tst.runExpec[();e];
   .tst.contextHelper[];
-  must[beforeRan;"Expected the before expectation to run"];
-  must[ran;"Expected the main expectation to run after the before function"];
+  must[.tst.testState.expecBeforeRan;
+    "Expected the before expectation to run"];
+  must[.tst.testState.expecBodyRan;
+    "Expected the main expectation to run after the before function"];
   };
  should["call the after function after calling the main expectation function"]{
-  `afterRan`ran mock' 0b;
-  should["run this"]{`ran mock 1b};
-  after {`afterRan mock 1b and ran};
+  .tst.testState.expecAfterRan:0b;
+  .tst.testState.expecBodyRan:0b;
+  should["run this"]{.tst.testState.expecBodyRan:1b};
+  after {
+    .tst.testState.expecAfterRan:.tst.testState.expecBodyRan};
   e:getExpec[];
   .tst.runExpec[();e];
   .tst.contextHelper[];
-  must[ran;"Expected the main expectation to run"];
-  must[afterRan;"Expected the after function to run after the main expectation"];
-  };
+  must[.tst.testState.expecBodyRan;"Expected the main expectation to run"];
+  must[.tst.testState.expecAfterRan;
+    "Expected the after function to run after the main expectation"];
+ };
  should["make assertions available to be used within the expectation"]{
-  `.q.must mock {[x;y];'"fail"};
-  should["run this"]{`noError mock @[{must[1b;"silent pass"];1b};(::);0b]};
+  .tst.testState.expecNoError:0b;
+  should["run this"]{
+    .tst.testState.expecNoError:
+      @[{must[1b;"silent pass"];1b};(::);0b]};
   e:getExpec[];
   .tst.runExpec[();e];
   .tst.contextHelper[];
-  must[noError;"Expected the assertion method to not throw an error"];
+  must[.tst.testState.expecNoError;
+    "Expected the assertion method to not throw an error"];
   };
  should["execute the expectation in the correct context"]{
-  should["change context"]{`..context mock system "d";};
+  .tst.testState.expecContext:`;
+  should["change context"]{
+    .tst.testState.expecContext:system "d"};
   e:getExpec[];
   `.tst.context mock `.foo;
   .tst.runExpec[();e];
-  `.[`context] mustmatch `.foo;
+  .tst.testState.expecContext mustmatch `.foo;
   };
  should["restore mocked values after all expectation functions have executed"]{
-  `ran mock 0b;
-  `.tst.restore mock {`ran mock 1b};
-  should["run this"]{};
+  .tst.testState.expecRestoreTarget:0;
+  should["run this"]{
+    `.tst.testState.expecRestoreTarget mock 1};
   e:getExpec[];
   .tst.runExpec[();e];
   .tst.contextHelper[];
-  must[ran;"Expected the mocking restore function to have been called"];
+ .tst.testState.expecRestoreTarget musteq 0;
+  };
+ should["preserve caller mocks when expectation setup fails"]{
+  target:`.tst.testState.expecCallerMock;
+  target set {[x]x};
+  .tst.mock[target;{[x]x+10}];
+  savedSetup:.tst.setupExpec;
+  .tst.setupExpec:{[spec;expec]'"setup boom"};
+  should["setup failure"]{};
+  e:getExpec[];
+  outcome:.[
+    .tst.runExpec;
+    (();e);
+    {[err] (`escaped;err)}];
+  .tst.setupExpec:savedSetup;
+  .tst.asserts[`must][
+    99h=type outcome;
+    "setup failure escaped runExpec"];
+  (.tst.normalizeResultStatus outcome`result) musteq `error;
+  ((get target)5) musteq 15;
+  target mustin .tst.mockRegistryNames[];
+  };
+ should["retain finalizer authority and fail after attempting throwing cleanups"]{
+  .tst.testState.expecCleanupEvents:`symbol$();
+  .tst.testState.expecCleanupAttempts:0;
+  .tst.deleteVar `.tst.testState.expecCleanupLeak;
+  should["mutate cleanup authority"]{
+    .tst.registerCleanup[{[]
+      .tst.testState.expecCleanupEvents,:enlist `throwing;
+      .tst.testState.expecCleanupAttempts+:1;
+      .tst.mock[`.tst.restoreRuntimeContext;{[ctx]'"late runtime replacement"}];
+      if[1=.tst.testState.expecCleanupAttempts;'"cleanup boom"]
+      };enlist(::)];
+    .tst.registerCleanup[{[]
+      .tst.testState.expecCleanupEvents,:enlist `afterThrow
+      };enlist(::)];
+    .tst.mock[`.tst.teardownExpec;{[s;e]e}];
+    .tst.mock[`.tst.finalizeExpecWith;{[a;s;e]'"mocked finalizer"}];
+    .tst.mock[`.tst.makeExpectationCleanup;{[]{[]::}}];
+    .tst.mock[`.tst.runCleanupTasks;{[]::}];
+    .tst.mock[`.tst.testState.expecCleanupLeak;42];
+  };
+  e:getExpec[];
+  r:.tst.runExpec[();e];
+  .tst.contextHelper[];
+  .tst.testState.expecCleanupEvents musteq `throwing`afterThrow;
+  (count .tst.cleanupTasks) musteq 1;
+  (.tst.normalizeResultStatus r`result) musteq `error;
+  mustthrow["*expecCleanupLeak*";{
+    get `.tst.testState.expecCleanupLeak
+  }];
+  .tst.asserts[`must][
+    not `.tst.finalizeExpecWith in .tst.mockRegistryNames[];
+    "finalizer replacement survived"];
+  .tst.asserts[`must][
+    not `.tst.restoreRuntimeContext in .tst.mockRegistryNames[];
+    "cleanup callback replacement survived"];
+  .tst.runCleanupTasks[];
+  .tst.testState.expecCleanupEvents musteq
+    `throwing`afterThrow`throwing;
+  (count .tst.cleanupTasks) musteq 0;
+  ![`.tst.testState;();0b;
+    `expecCleanupEvents`expecCleanupAttempts];
+  };
+ should["reject malformed retry counts before executing the body"]{
+  .tst.testState.invalidRetryBodies:0;
+  should["invalid retry body"]{.tst.testState.invalidRetryBodies+:1};
+  e:getExpec[];
+  invalid:("bad";0Nj;0Wj;1000000j;enlist 1;1f);
+  results:{[template;bad]
+    candidate:template;
+    candidate[`retries]:bad;
+    .tst.runExpec[();candidate]}[e;] each invalid;
+  .tst.contextHelper[];
+  .tst.testState.invalidRetryBodies musteq 0;
+  (.tst.normalizeResultStatus each results[;`result]) musteq
+    count[invalid]#`error;
+  results[;`errorText] musteq
+    count[invalid]#enlist
+      "Invalid retries: expected an integer from 0 to 64";
+  ![`.tst.testState;();0b;enlist `invalidRetryBodies];
   };
  should["prevent errors from escaping when running the expectation"]{
   should["run this"]{'foo};
@@ -84,18 +182,18 @@
   .tst.runExpec[();e];
   .tst.contextHelper[];
    must[.tst.callbackCalled;"Expected the descLoaded callback to have been called"];
-  };
+ };
  should["restage an expectation if the test run is to immediately halt"]{
-  `beforeCounter mock 0;;
-  `restoreCounter mock 0;
-  `.tst.restore mock {restoreCounter+:1};
+  .tst.testState.expecBeforeCounter:0;
+  .tst.testState.expecRestoreCounter:0;
+  `.tst.restore mock {.tst.testState.expecRestoreCounter+:1};
   `.tst.halt mock 1b;
-  before{beforeCounter+:1};
+  before{.tst.testState.expecBeforeCounter+:1};
   should["restage"]{'"foo"};
   e:getExpec[];
   .tst.runExpec[();e];
-  beforeCounter musteq 2;
-  restoreCounter musteq 1;
+  .tst.testState.expecBeforeCounter musteq 2;
+  .tst.testState.expecRestoreCounter musteq 0;
   };
  should["unwind installed fixtures in reverse when a later setup throws"]{
   .tst.testState.fixtureEvents: `symbol$();

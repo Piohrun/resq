@@ -11,7 +11,7 @@
 .tst._covMissing: `resqCovMissing;
 
 / Functions that must never be wrapped (avoid recursion/self-instrumentation)
-.tst.coverageSkipNames: `$(".tst.initCoverage";".tst.recordExecution";".tst.resolvePath";".tst.wrapFunc";".tst.instrumentFile";".tst.loadSource";".tst.generateLCOV";".tst.generateHTML");
+.tst.coverageSkipNames: `$(".tst.initCoverage";".tst.recordExecution";".tst.resolvePath";".tst.wrapFunc";".tst.instrumentFile";".tst.loadSource";".tst.generateLCOV";".tst.generateHTML";".tst.restoreCoverageInstrumentation";".tst.restoreCoverageInstrumentationWith");
 
 / Helpers
 .tst.resolvePath:{[path]
@@ -286,6 +286,76 @@
 
     -1 "Coverage tracking initialized.";
  };
+
+/ Restore only wrappers still owned by the coverage runtime. Caller replacements
+/ are preserved, successful entries are retired, and failed entries remain
+/ registered so cleanup can be retried.
+.tst.restoreCoverageInstrumentationWith:{[setter;reader;missing;tag]
+    if[not `coverageRestoreV1~tag;
+        '"Coverage restore capsule is invalid"];
+    .tst.coverageEnabled:0b;
+    originals:.tst.origFuncs;
+    wrappers:.tst.covWrappers;
+    if[(99h<>type originals) or 99h<>type wrappers;
+        '"Coverage instrumentation state is invalid"];
+    names:key originals;
+    wrapperNames:key wrappers;
+    if[count names;
+        if[11h<>type names;
+            '"Coverage instrumentation names are invalid"]];
+    if[count wrapperNames;
+        if[11h<>type wrapperNames;
+            '"Coverage wrapper names are invalid"]];
+    if[not (asc names)~asc wrapperNames;
+        '"Coverage instrumentation state is incoherent"];
+    restored:count[names]#0b;
+    failures:0;
+    idx:0;
+    while[idx<count names;
+        name:names idx;
+        current:reader name;
+        success:0b;
+        if[current~missing;success:1b];
+        if[not current~missing;
+            compared:.[
+                {[left;right] (`ok;left~right)};
+                (current;wrappers name);
+                {[err] (`error;err)}];
+            if[`ok~first compared;
+                if[not first last compared;success:1b];
+                if[first last compared;
+                    installed:.[
+                        {[setValue;target;original]
+                            setValue[target;original];
+                            `ok};
+                        (setter;name;originals name);
+                        {[err] (`error;err)}];
+                    if[`ok~first installed;
+                        observed:reader name;
+                        verified:.[
+                            {[left;right]left~right};
+                            (observed;originals name);
+                            {[err]0b}];
+                        if[verified;success:1b]]]]];
+        restored[idx]:success;
+        if[not success;failures+:1];
+        idx+:1];
+    completed:names where restored;
+    if[count completed;
+        .tst.origFuncs:![originals;();0b;completed];
+        .tst.covWrappers:![wrappers;();0b;completed]];
+    if[failures;
+        '"Coverage instrumentation restore failed for ",
+            string[failures]," function(s)"];
+    1b
+ };
+
+.tst.restoreCoverageInstrumentation:('[
+    .tst.restoreCoverageInstrumentationWith[
+        .tst.mockPrimitives`set;
+        .tst.safeValue;
+        .tst._covMissing;];
+    {[]`coverageRestoreV1}]);
 
 / Generate LCOV Report
 .tst.generateLCOV:{[outFile]

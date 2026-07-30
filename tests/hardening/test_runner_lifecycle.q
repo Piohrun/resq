@@ -64,6 +64,124 @@
   .tst.captureNamedLifecycle .tst.runnerLifecycle.runStateNames
  };
 
+.tst.runnerLifecycle.coverageNames:
+  (`.tst.runAllPhase.initRun`.tst.loadTests`.tst.runAllPhase.filterSpecs),
+  (`.tst.runAllPhase.runDiscoveredSpecs`.tst.runAllPhase.injectLoadErrors),
+  (`.tst.runAllPhase.applyStrictMode`.tst.runAllPhase.computePassed),
+  (`.tst.runAllPhase.generateCoverage),
+  (`.tst.finalCleanupHandles`.tst.printRunAudit`.resq.report),
+  (`.tst.restoreCoverageInstrumentation),
+  (`.tst.testState.runnerCoverageBusiness);
+
+.tst.runnerLifecycle.setupCoverageTest:{[]
+  .tst.testState.runnerCoverageHarness:
+    `names`runState`fixtures!(
+      .tst.captureNamedLifecycle .tst.runnerLifecycle.coverageNames;
+      .tst.runnerLifecycle.captureRunState[];
+      .tst.fixtures);
+  .tst.runAllPhase.initRun:{[] .tst.app.exit:0b};
+  .tst.runAllPhase.filterSpecs:{[]};
+  .tst.runAllPhase.runDiscoveredSpecs:{[]};
+  .tst.runAllPhase.injectLoadErrors:{[]};
+  .tst.runAllPhase.applyStrictMode:{[]};
+  .tst.runAllPhase.computePassed:{[] .tst.app.passed:1b};
+  .tst.finalCleanupHandles:{[]
+    .tst.testState.runnerCoverageEvents,:enlist `framework;
+    if[.tst.testState.runnerCoverageAuthority~`valid;
+      if[5<>(get `.tst.testState.runnerCoverageBusiness)4;
+        '"business function remained instrumented"]]};
+  .tst.printRunAudit:{[]};
+  .tst.app.exit:0b;
+  .tst.app.runCoverage:1b;
+ };
+
+.tst.runnerLifecycle.teardownCoverageTest:{[]
+  @[.tst.runCleanupTasks;();{}];
+  @[.tst.runSpecCleanupTasks;();{}];
+  .tst.installQExports[];
+  state:.tst.testState.runnerCoverageHarness;
+  .tst.restoreNamedLifecycle state`names;
+  .tst.restoreNamedLifecycle state`runState;
+  .tst.fixtures:state`fixtures;
+  ![`.tst.testState;();0b;
+    `runnerCoverageHarness`runnerCoverageEvents`runnerCoverageOriginal,
+    `runnerCoverageReplacement`runnerCoverageCoverageThrows,
+    `runnerCoverageReportThrows`runnerCoverageRestoreThrows,
+    `runnerCoverageAuthority];
+ };
+
+.tst.runnerLifecycle.coverageRun:{[replacement;coverageThrows;reportThrows;restoreThrows;authority]
+  .tst.cleanupTasks:();
+  .tst.specCleanupTasks:();
+  .tst.testState.runnerCoverageEvents:`symbol$();
+  .tst.testState.runnerCoverageOriginal:{[x]x+1};
+  .tst.testState.runnerCoverageReplacement:replacement;
+  .tst.testState.runnerCoverageCoverageThrows:coverageThrows;
+  .tst.testState.runnerCoverageReportThrows:reportThrows;
+  .tst.testState.runnerCoverageRestoreThrows:restoreThrows;
+  .tst.testState.runnerCoverageAuthority:authority;
+  `.tst.testState.runnerCoverageBusiness set {[x]
+    .tst.testState.runnerCoverageEvents,:enlist `wrapped;
+    x+100};
+  fixtureName:`runnerCoverageFixture;
+  ![`.tst.fixtures;();0b;enlist fixtureName];
+  .tst.registerFixtureWithOpts[
+    fixtureName;
+    1;
+    `scope`teardown!(`session;{[fixtureValue]
+      .tst.testState.runnerCoverageEvents,:enlist `fixture
+    })];
+  .tst.fixtures[fixtureName;`instance]:1;
+  if[authority~`valid;
+    `.tst.restoreCoverageInstrumentation set {[]
+      .tst.testState.runnerCoverageEvents,:enlist `restore;
+      `.tst.testState.runnerCoverageBusiness set
+        .tst.testState.runnerCoverageOriginal;
+      if[.tst.testState.runnerCoverageRestoreThrows;'"restore boom"];
+      1b}];
+  if[authority~`missing;
+    .tst.deleteVar `.tst.restoreCoverageInstrumentation];
+  if[authority~`malformed;
+    `.tst.restoreCoverageInstrumentation set 42];
+  if[authority~`wrongRank;
+    `.tst.restoreCoverageInstrumentation set {[x]x}];
+  .tst.loadTests:{[args]
+    .tst.testState.runnerCoverageEvents,:enlist `body;
+    (get `.tst.testState.runnerCoverageBusiness)4;
+    replacement:.tst.testState.runnerCoverageReplacement;
+    if[replacement~`noop;
+      `.tst.restoreCoverageInstrumentation set {[]1b}];
+    if[replacement~`throw;
+      `.tst.restoreCoverageInstrumentation set {[]'"replacement boom"}];
+    if[replacement~`mock;
+      .tst.mock[`.tst.restoreCoverageInstrumentation;
+        {[]'"mocked replacement boom"}]];
+    .tst.registerCleanup[{[]
+      .tst.testState.runnerCoverageEvents,:enlist `expectation};
+      enlist(::)];
+    .tst.registerSpecCleanup[{[]
+      .tst.testState.runnerCoverageEvents,:enlist `spec};
+      enlist(::)]};
+  .tst.runAllPhase.generateCoverage:{[]
+    .tst.testState.runnerCoverageEvents,:enlist `coverage;
+    if[104<>(get `.tst.testState.runnerCoverageBusiness)4;
+      '"coverage lost instrumented function"];
+    if[.tst.testState.runnerCoverageCoverageThrows;'"coverage boom"]};
+  .resq.report:{[rows]
+    .tst.testState.runnerCoverageEvents,:enlist `report;
+    if[.tst.testState.runnerCoverageReportThrows;'"report boom"]};
+  outcome:@[{[] .tst.runAll[];`ok};();{[err](`escaped;err)}];
+  escaped:not outcome~`ok;
+  events:.tst.testState.runnerCoverageEvents;
+  businessValue:(get `.tst.testState.runnerCoverageBusiness)4;
+  `events`escaped`passed`cleanupFailures`businessValue!(
+    events;
+    escaped;
+    .tst.app.passed;
+    .tst.app.cleanupFailures;
+    businessValue)
+ };
+
 .tst.runnerLifecycle.setupSpecTest:{[]
     names:(`.tst.runExpec`.tst.callbacks.expecRan`.tst.snapshotNamespaceValues),
       `.tst.captureMockLifecycle;
@@ -204,11 +322,78 @@
     (count result[`expectations]) musteq 2;
     (.tst.normalizeResultStatus (last result[`expectations])[`result]) musteq `error;
   };
+
+  should["retain spec finalizer authority across helper and cleanup mutations"]{
+    .tst.deleteVar `.tst.testState.runnerLifecycleSpecLeak;
+    afterHook:{[]
+      .tst.mock[`.tst.finalizeSpec;{[state]()}];
+      .tst.mock[`.tst.finalizeSpecWith;{[authority;state]
+        '"mocked spec finalizer"}];
+      .tst.mock[`.tst.restoreMockLifecycle;{[state]::}];
+      .tst.mock[`.tst.runFinalizationPipeline;{[plan;state]
+        '"mocked spec cleanup pipeline"}];
+      .tst.mock[`.tst.makeExpectationCleanup;{[]{[]::}}];
+      .tst.mock[`.tst.makeSpecCleanup;{[]{[]::}}];
+      .tst.mock[`.tst.testState.runnerLifecycleSpecLeak;42];
+      .tst.registerSpecCleanup[{[]
+        .tst.testState.runnerLifecycle.events,:enlist `cleanupThrow;
+        .tst.mock[`.tst.restoreRuntimeContext;{[ctx]::}];
+        '"spec cleanup boom"
+        };enlist(::)];
+      .tst.registerSpecCleanup[{[]
+        .tst.testState.runnerLifecycle.events,:enlist `cleanupAfterThrow
+        };enlist(::)]
+    };
+    outcome:@[
+      .tst.runSpec;
+      .tst.runnerLifecycle.spec[();{};afterHook];
+      {[err] (`escaped;err)}];
+    .tst.asserts[`must][99h=type outcome;"spec finalizer error escaped"];
+    outcome[`result] musteq `fail;
+    .tst.testState.runnerLifecycle.events musteq
+      `cleanupThrow`cleanupAfterThrow;
+    (count .tst.specCleanupTasks) musteq 1;
+    mustthrow["*runnerLifecycleSpecLeak*";{
+      get `.tst.testState.runnerLifecycleSpecLeak
+    }];
+    .tst.asserts[`must][
+      not `.tst.finalizeSpecWith in .tst.mockRegistryNames[];
+      "spec finalizer replacement survived"];
+    .tst.asserts[`must][
+      not `.tst.restoreRuntimeContext in .tst.mockRegistryNames[];
+      "spec cleanup callback replacement survived"];
+    .tst.asserts[`must][
+      not any `.tst.makeExpectationCleanup`.tst.makeSpecCleanup in
+        .tst.mockRegistryNames[];
+      "spec cleanup capsule builder replacement survived"];
+  };
 };
 
 .tst.desc["runSpec finalization: acquisition"]{
   before{.tst.runnerLifecycle.setupSpecTest[]};
   after{.tst.runnerLifecycle.teardownSpecTest[]};
+
+  should["preserve caller mock ownership when an earlier spec acquisition fails"]{
+    target:`.tst.testState.runnerLifecycleSpecCallerMock;
+    target set {[x]x};
+    .tst.mock[target;{[x]x+10}];
+    expected:.tst.captureMockLifecycle[];
+    savedCapture:.tst.captureRuntimeContext;
+    .tst.captureRuntimeContext:{[]'"early spec capture boom"};
+    outcome:@[
+      .tst.runSpec;
+      .tst.runnerLifecycle.spec[();{};{}];
+      {[err] (`escaped;err)}];
+    .tst.captureRuntimeContext:savedCapture;
+    afterCapture:.tst.captureMockLifecycle[];
+    .tst.asserts[`must][
+      99h=type outcome;
+      "early spec acquisition failure escaped"];
+    comparable:
+      `store`removeList`trackedState`spyCalls`spyImpls`seqs;
+    (comparable#afterCapture) mustmatch comparable#expected;
+    ((get target)5) musteq 15;
+  };
 
   should["fail closed when lifecycle capture and callback both throw"]{
     baselineRuntime:.tst.captureRuntimeContext[];
@@ -442,7 +627,7 @@
     names:(`.tst.runAllPhase.initRun`.tst.loadTests`.tst.runAllPhase.filterSpecs),
       (`.tst.runAllPhase.runDiscoveredSpecs`.tst.runAllPhase.injectLoadErrors),
       (`.tst.runAllPhase.applyStrictMode`.tst.runAllPhase.computePassed),
-      (`.tst.runAllPhase.generateCoverage`.tst.runAllPhase.finalCleanup),
+      (`.tst.runAllPhase.generateCoverage),
       `.tst.printRunAudit`.resq.report;
     savedNamed:.tst.runnerLifecycle.namedValues names;
     savedRunState:.tst.captureNamedLifecycle
@@ -462,8 +647,9 @@
     .tst.runAllPhase.applyStrictMode:{[]};
     .tst.runAllPhase.computePassed:{[] .tst.app.passed:1b};
     .tst.runAllPhase.generateCoverage:{[]};
-    .tst.runAllPhase.finalCleanup:{[]
+    .tst.registerCleanup[{[]
       .tst.testState.runnerLifecycleEvents,:enlist `cleanup};
+      enlist(::)];
     .tst.printRunAudit:{[]};
     .resq.report:{[x]
       .tst.testState.runnerLifecycleEvents,:enlist `report;
@@ -492,7 +678,7 @@
     names:(`.tst.runAllPhase.initRun`.tst.loadTests`.tst.runAllPhase.filterSpecs),
       (`.tst.runAllPhase.runDiscoveredSpecs`.tst.runAllPhase.injectLoadErrors),
       (`.tst.runAllPhase.applyStrictMode`.tst.runAllPhase.computePassed),
-      `.tst.runAllPhase.finalCleanup`.tst.printRunAudit`.resq.report;
+      `.tst.printRunAudit`.resq.report;
     savedNamed:.tst.runnerLifecycle.namedValues names;
     oldLCOV:@[get;`.tst.generateLCOV;{`missing}];
     oldHTML:@[get;`.tst.generateHTML;{`missing}];
@@ -513,8 +699,9 @@
     .tst.runAllPhase.injectLoadErrors:{[]};
     .tst.runAllPhase.applyStrictMode:{[]};
     .tst.runAllPhase.computePassed:{[] .tst.app.passed:1b};
-    .tst.runAllPhase.finalCleanup:{[]
+    .tst.registerCleanup[{[]
       .tst.testState.runnerLifecycleEvents,:enlist `cleanup};
+      enlist(::)];
     .tst.printRunAudit:{[]};
     .resq.report:{[x]
       .tst.testState.runnerLifecycleEvents,:enlist `report;
@@ -558,9 +745,105 @@
   };
 };
 
+.tst.desc["run lifecycle coverage restoration"]{
+  before{.tst.runnerLifecycle.setupCoverageTest[]};
+  after{.tst.runnerLifecycle.teardownCoverageTest[]};
+
+  should["capture one restorer across repeated noquit runs and hostile replacements"]{
+    expected:
+      `body`wrapped`coverage`wrapped`fixture`expectation`spec,
+      `restore`framework`report;
+    plain:.tst.runnerLifecycle.coverageRun[`none;0b;0b;0b;`valid];
+    noop:.tst.runnerLifecycle.coverageRun[`noop;0b;0b;0b;`valid];
+    throwing:.tst.runnerLifecycle.coverageRun[`throw;0b;0b;0b;`valid];
+    mocked:.tst.runnerLifecycle.coverageRun[`mock;0b;0b;0b;`valid];
+    plain[`events] musteq expected;
+    noop[`events] musteq expected;
+    throwing[`events] musteq expected;
+    mocked[`events] musteq expected;
+    .tst.asserts[`must][
+      all not (plain;noop;throwing;mocked)[;`escaped];
+      "a noquit run escaped"];
+    .tst.asserts[`must][
+      all (plain;noop;throwing;mocked)[;`passed];
+      "a successful coverage restoration left the run failed"];
+    (plain;noop;throwing;mocked)[;`businessValue] musteq 4#5;
+    (count each (plain;noop;throwing;mocked)[;`cleanupFailures]) musteq 4#0;
+  };
+
+  should["invoke a present restorer but tolerate an absent one on noncoverage reruns"]{
+    .tst.app.runCoverage:0b;
+    stale:.tst.runnerLifecycle.coverageRun[`none;0b;0b;0b;`valid];
+    absent:.tst.runnerLifecycle.coverageRun[`none;0b;0b;0b;`missing];
+    malformed:.tst.runnerLifecycle.coverageRun[`none;0b;0b;0b;`malformed];
+    wrongRank:.tst.runnerLifecycle.coverageRun[`none;0b;0b;0b;`wrongRank];
+    stale[`businessValue] musteq 5;
+    (sum stale[`events]=`restore) musteq 1i;
+    absent[`businessValue] musteq 104;
+    (sum absent[`events]=`restore) musteq 0i;
+    (malformed;wrongRank)[;`businessValue] musteq 2#104;
+    (sum each (malformed;wrongRank)[;`events]=`restore) musteq 2#0i;
+    .tst.asserts[`must][all (stale;absent;malformed;wrongRank)[;`passed];
+      "a noncoverage rerun failed solely because of restorer availability"];
+    (count each (stale;absent;malformed;wrongRank)[;`cleanupFailures]) musteq
+      4#0;
+  };
+
+  should["restore after coverage data on artifact and report failures"]{
+    expected:
+      `body`wrapped`coverage`wrapped`fixture`expectation`spec,
+      `restore`framework`report;
+    artifact:.tst.runnerLifecycle.coverageRun[`none;1b;0b;0b;`valid];
+    report:.tst.runnerLifecycle.coverageRun[`none;0b;1b;0b;`valid];
+    artifact[`events] musteq expected;
+    report[`events] musteq expected;
+    .tst.asserts[`must][not any artifact[`escaped],report[`escaped];
+      "run failure escaped"];
+    .tst.asserts[`must][not any artifact[`passed],report[`passed];
+      "artifact or report failure left a run green"];
+    artifact[`businessValue] musteq 5;
+    report[`businessValue] musteq 5;
+    (sum artifact[`events]=`restore) musteq 1i;
+    (sum report[`events]=`restore) musteq 1i;
+  };
+
+  should["retain restore failure and continue every later finalizer"]{
+    result:.tst.runnerLifecycle.coverageRun[`none;0b;0b;1b;`valid];
+    result[`events] musteq
+      `body`wrapped`coverage`wrapped`fixture`expectation`spec,
+      `restore`framework`report;
+    .tst.asserts[`must][not result[`escaped];"restore failure escaped"];
+    .tst.asserts[`must][not result[`passed];"restore failure left run green"];
+    result[`businessValue] musteq 5;
+    (sum result[`events]=`restore) musteq 1i;
+    (count result[`cleanupFailures]) musteq 1;
+    failure:first result[`cleanupFailures];
+    failure musteq "coverageInstrumentation: restore boom";
+  };
+
+  should["fail closed on a missing or malformed restorer only under coverage"]{
+    expected:
+      `body`wrapped`coverage`wrapped`fixture`expectation`spec`framework`report;
+    missing:.tst.runnerLifecycle.coverageRun[`none;0b;0b;0b;`missing];
+    malformed:.tst.runnerLifecycle.coverageRun[`none;0b;0b;0b;`malformed];
+    wrongRank:.tst.runnerLifecycle.coverageRun[`none;0b;0b;0b;`wrongRank];
+    missing[`events] musteq expected;
+    malformed[`events] musteq expected;
+    wrongRank[`events] musteq expected;
+    .tst.asserts[`must][not any (missing;malformed;wrongRank)[;`passed];
+      "invalid coverage restorer left a run green"];
+    (count each (missing;malformed;wrongRank)[;`cleanupFailures]) musteq 3#1;
+    failures:first each (missing;malformed;wrongRank)[;`cleanupFailures];
+    .tst.asserts[`must][
+      all {x like "*coverage instrumentation restore is missing or malformed*"}
+        each failures;
+      "invalid restorer failure was not retained"];
+  };
+};
+
 .tst.desc["run lifecycle cleanup idempotence"]{
   should["make finalCleanup idempotent and retain cleanup failure state"]{
-    savedCleanupAll:.tst.cleanupAllFixtures;
+    savedFixtures:.tst.fixtures;
     savedState:`passed`executionState`cleanupComplete`cleanupFailures`cleanupFailed`runRuntimeContext`runTimer`runHandles!(
       .tst.app.passed;
       .tst.app.executionState;
@@ -574,9 +857,16 @@
     savedCleanupTasks:.tst.cleanupTasks;
     savedSpecCleanupTasks:.tst.specCleanupTasks;
     .tst.testState.runnerLifecycleEvents:`symbol$();
-    .tst.cleanupAllFixtures:{[]
-      .tst.testState.runnerLifecycleEvents,:enlist `fixtureAttempt;
-      '"fixture cleanup boom"};
+    fixtureName:`runnerLifecycleIdempotenceFixture;
+    ![`.tst.fixtures;();0b;enlist fixtureName];
+    .tst.registerFixtureWithOpts[
+      fixtureName;
+      1;
+      `scope`teardown!(`session;{[fixtureValue]
+        .tst.testState.runnerLifecycleEvents,:enlist `fixtureAttempt;
+        '"fixture cleanup boom"
+      })];
+    .tst.fixtures[fixtureName;`instance]:1;
     .tst.cleanupTasks:(),enlist (`func`args!({[]
       .tst.testState.runnerLifecycleEvents,:enlist `cleanup};enlist(::)));
     .tst.specCleanupTasks:(),enlist (`func`args!({[]
@@ -595,7 +885,7 @@
     events:.tst.testState.runnerLifecycleEvents;
     failed:.tst.app.cleanupFailed and not .tst.app.passed;
     restoredTimer:savedTimer~@[get;`.z.ts;{::}];
-    .tst.cleanupAllFixtures:savedCleanupAll;
+    .tst.fixtures:savedFixtures;
     .tst.cleanupTasks:savedCleanupTasks;
     .tst.specCleanupTasks:savedSpecCleanupTasks;
     .tst.app.passed:savedState[`passed];
@@ -663,6 +953,45 @@
       reported[0;`message] like "*handles acquisition failed*";
       "acquisition detail missing from final rows"];
   };
+
+  should["contain bookkeeping failure, finalize, and report once"]{
+    functionNames:
+      `.tst.prepareRunBookkeeping`.tst.runAllPhase.initRun,
+      `.tst.printRunAudit`.resq.report;
+    savedFunctions:.tst.runnerLifecycle.namedValues functionNames;
+    savedRunState:.tst.runnerLifecycle.captureRunState[];
+    .tst.testState.runnerLifecycleEvents:`symbol$();
+    .tst.prepareRunBookkeeping:{[]'"bookkeeping boom"};
+    .tst.runAllPhase.initRun:{[]
+      .tst.testState.runnerLifecycleEvents,:enlist `init};
+    .tst.printRunAudit:{[]};
+    .resq.report:{[rows]
+      .tst.testState.runnerLifecycleEvents,:enlist `report;
+      .tst.testState.runnerLifecycleReported:rows};
+    .tst.app.exit:0b;
+    outcome:@[{[].tst.runAll[];`ok};();{[err](`escaped;err)}];
+    escaped:not outcome~`ok;
+    failed:not .tst.app.passed;
+    cleanupComplete:.tst.app.cleanupComplete;
+    events:.tst.testState.runnerLifecycleEvents;
+    reported:.tst.testState.runnerLifecycleReported;
+    bookkeepingIndices:where
+      (reported[`suite]=`RUN_LIFECYCLE_ERROR) and
+      reported[`description]=`bookkeeping;
+    .tst.installQExports[];
+    .tst.runnerLifecycle.restoreNamed savedFunctions;
+    .tst.restoreNamedLifecycle savedRunState;
+    ![`.tst.testState;();0b;
+      `runnerLifecycleEvents`runnerLifecycleReported];
+    .tst.asserts[`must][not escaped;"bookkeeping failure escaped runAll"];
+    .tst.asserts[`must][failed;"bookkeeping failure left run green"];
+    .tst.asserts[`must][cleanupComplete;"bookkeeping failure skipped cleanup"];
+    events musteq enlist `report;
+    (count bookkeepingIndices) musteq 1;
+    .tst.asserts[`must][
+      reported[first bookkeepingIndices;`message] like "*bookkeeping boom*";
+      "bookkeeping detail missing from final rows"];
+  };
 };
 
 .tst.desc["run lifecycle cleanup reporting"]{
@@ -671,7 +1000,7 @@
       (`.tst.runAllPhase.filterSpecs`.tst.runAllPhase.runDiscoveredSpecs),
       (`.tst.runAllPhase.injectLoadErrors`.tst.runAllPhase.applyStrictMode),
       (`.tst.runAllPhase.computePassed`.tst.runAllPhase.generateCoverage),
-      (`.tst.runAllPhase.finalCleanup`.tst.printRunAudit`.resq.report);
+      (`.tst.finalCleanupDirectory`.tst.printRunAudit`.resq.report);
     savedFunctions:.tst.runnerLifecycle.namedValues functionNames;
     savedRunState:.tst.runnerLifecycle.captureRunState[];
     .tst.testState.runnerLifecycleEvents:`symbol$();
@@ -683,12 +1012,9 @@
     .tst.runAllPhase.applyStrictMode:{[]};
     .tst.runAllPhase.computePassed:{[] .tst.app.passed:1b};
     .tst.runAllPhase.generateCoverage:{[]};
-    .tst.runAllPhase.finalCleanup:{[]
+    .tst.finalCleanupDirectory:{[]
       .tst.testState.runnerLifecycleEvents,:enlist `cleanup;
-      .tst.app.cleanupFailures:enlist "forced cleanup boom";
-      .tst.app.cleanupFailed:1b;
-      .tst.app.passed:0b;
-      .tst.app.cleanupFailures};
+      '"forced cleanup boom"};
     .tst.printRunAudit:{[] '"audit boom"};
     .resq.report:{[rows]
       .tst.testState.runnerLifecycleEvents,:enlist `report;
@@ -719,7 +1045,131 @@
   };
 };
 
+.tst.desc["run lifecycle immutable finalizer"]{
+  should["restore mocked cleanup authority and attempt every user cleanup"]{
+    phaseNames:(`.tst.loadTests`.tst.runAllPhase.filterSpecs),
+      (`.tst.runAllPhase.runDiscoveredSpecs`.tst.runAllPhase.injectLoadErrors),
+      (`.tst.runAllPhase.applyStrictMode`.tst.runAllPhase.computePassed),
+      (`.tst.runAllPhase.generateCoverage`.tst.printRunAudit`.resq.report);
+    savedPhases:.tst.runnerLifecycle.namedValues phaseNames;
+    savedRunState:.tst.runnerLifecycle.captureRunState[];
+    fixtureName:`runnerLifecycleAuthorityFixture;
+    ![`.tst.fixtures;();0b;enlist fixtureName];
+    .tst.testState.runnerLifecycleAuthorityEvents:`symbol$();
+    .tst.testState.runnerLifecycleAuthorityFixtureRan:0b;
+    .tst.registerFixtureWithOpts[
+      fixtureName;
+      7;
+      `scope`teardown!(`session;{[fixtureValue]
+        .tst.testState.runnerLifecycleAuthorityFixtureRan:1b
+      })];
+    .tst.fixtures[fixtureName;`instance]:7;
+    .tst.loadTests:{[args]
+      .tst.testState.runnerLifecycleAuthorityEvents,:enlist `body;
+      .tst.mock[`.tst.runAllPhase.finalCleanup;{[]()}];
+      .tst.mock[`.tst.runFinalCleanupWith;{[authority;state;guard]
+        '"mocked run finalizer"}];
+      .tst.mock[`.tst.cleanupAllFixtures;{[]::}];
+      .tst.mock[`.tst.makeFixtureCleanup;{[]{[]::}}];
+      .tst.mock[`.tst.makeExpectationCleanup;{[]{[]::}}];
+      .tst.mock[`.tst.makeSpecCleanup;{[]{[]::}}];
+      .tst.mock[`.tst.teardownFixture;{[name;fixtureValue]
+        '"mocked nested fixture cleanup"}];
+      .tst.mock[`.tst.runFinalizationPipeline;
+        {[plan;state]()}];
+      .tst.registerCleanup[{[]
+        .tst.testState.runnerLifecycleAuthorityEvents,:enlist `expecThrow;
+        .tst.mock[`.tst.restoreDir;{[]'"late directory replacement"}];
+        '"run cleanup boom"
+        };enlist(::)];
+      .tst.registerCleanup[{[]
+        .tst.testState.runnerLifecycleAuthorityEvents,:enlist `expecAfter
+        };enlist(::)];
+      .tst.registerSpecCleanup[{[]
+        .tst.testState.runnerLifecycleAuthorityEvents,:enlist `specCleanup;
+        .tst.mock[`.tst.restoreRuntimeContext;{[ctx]::}]
+        };enlist(::)]
+    };
+    .tst.runAllPhase.filterSpecs:{[]};
+    .tst.runAllPhase.runDiscoveredSpecs:{[]};
+    .tst.runAllPhase.injectLoadErrors:{[]};
+    .tst.runAllPhase.applyStrictMode:{[]};
+    .tst.runAllPhase.computePassed:{[] .tst.app.passed:1b};
+    .tst.runAllPhase.generateCoverage:{[]};
+    .tst.printRunAudit:{[]};
+    .resq.report:{[rows]};
+    .tst.app.exit:0b;
+    .tst.testState.runnerLifecycleAuthorityEscaped:0b;
+    @[.tst.runAll;();{[err]
+      .tst.testState.runnerLifecycleAuthorityEscaped:1b;
+      :()}];
+    escaped:.tst.testState.runnerLifecycleAuthorityEscaped;
+    failed:not .tst.app.passed;
+    cleanupComplete:.tst.app.cleanupComplete;
+    fixtureReleased:(::)~.tst.fixtures[fixtureName;`instance];
+    fixtureRan:.tst.testState.runnerLifecycleAuthorityFixtureRan;
+    events:.tst.testState.runnerLifecycleAuthorityEvents;
+    retainedCleanup:count .tst.cleanupTasks;
+    tracked:.tst.mockRegistryNames[];
+    .tst.installQExports[];
+    .tst.runnerLifecycle.restoreNamed savedPhases;
+    .tst.restoreNamedLifecycle savedRunState;
+    ![`.tst.fixtures;();0b;enlist fixtureName];
+    ![`.tst.testState;();0b;
+      `runnerLifecycleAuthorityEvents`runnerLifecycleAuthorityFixtureRan,
+      `runnerLifecycleAuthorityEscaped];
+    .tst.asserts[`must][not escaped;"immutable run finalizer escaped"];
+    .tst.asserts[`must][failed;"throwing cleanup left run green"];
+    .tst.asserts[`must][cleanupComplete;"run cleanup was not completed"];
+    .tst.asserts[`must][fixtureRan;"captured fixture cleanup did not run"];
+    .tst.asserts[`must][fixtureReleased;"session fixture was not released"];
+    retainedCleanup musteq 1;
+    events musteq `body`expecThrow`expecAfter`specCleanup;
+    .tst.asserts[`must][
+      not `.tst.runAllPhase.finalCleanup in tracked;
+      "top-level run finalizer replacement survived"];
+    .tst.asserts[`must][
+      not `.tst.teardownFixture in tracked;
+      "nested fixture helper replacement survived"];
+    .tst.asserts[`must][
+      not any
+        `.tst.makeFixtureCleanup`.tst.makeExpectationCleanup`.tst.makeSpecCleanup
+          in tracked;
+      "cleanup capsule builder replacement survived"];
+    .tst.asserts[`must][
+      not `.tst.restoreRuntimeContext in tracked;
+      "cleanup callback helper replacement survived"];
+  };
+};
+
 .tst.desc["run lifecycle caller isolation"]{
+  should["preserve an active caller mock when pre-mock run acquisition fails"]{
+    phaseNames:
+      `.tst.captureRunQExports`.tst.printRunAudit`.resq.report;
+    savedPhases:.tst.runnerLifecycle.namedValues phaseNames;
+    savedRunState:.tst.runnerLifecycle.captureRunState[];
+    target:`.tst.testState.runnerLifecycleAcquisitionCallerMock;
+    target set {[x]x};
+    .tst.mock[target;{[x]x+10}];
+    expected:.tst.captureMockLifecycle[];
+    .tst.captureRunQExports:{[]'"run q export capture boom"};
+    .tst.printRunAudit:{[]};
+    .resq.report:{[rows]};
+    .tst.app.exit:0b;
+    outcome:@[{[] .tst.runAll[];`ok};();{[err](`escaped;err)}];
+    afterCapture:.tst.captureMockLifecycle[];
+    targetValue:(get target)5;
+    comparable:
+      `store`removeList`trackedState`spyCalls`spyImpls`seqs;
+    .tst.runnerLifecycle.restoreNamed savedPhases;
+    .tst.restoreNamedLifecycle savedRunState;
+    .tst.asserts[`must][
+      `ok~outcome;
+      "run acquisition failure escaped"];
+    (comparable#afterCapture) mustmatch comparable#expected;
+    targetValue musteq 15;
+  };
+
   should["restore caller mocks, spies, sequences, and pre-existing sandboxes"]{
     phaseNames:(`.tst.loadTests`.tst.runAllPhase.filterSpecs),
       (`.tst.runAllPhase.runDiscoveredSpecs`.tst.runAllPhase.injectLoadErrors),
@@ -811,7 +1261,10 @@
     .tst.restoreNamedLifecycle savedRunState;
     ![`.tst.testState;();0b;enlist `runnerLifecycleEscaped];
     .tst.asserts[`must][not escaped;"caller-isolation run escaped"];
-    afterMocks mustmatch expectedMocks;
+    comparableMockFields:
+      `store`removeList`trackedState`spyCalls`spyImpls`seqs;
+    (comparableMockFields#afterMocks) mustmatch
+      comparableMockFields#expectedMocks;
     afterSandbox mustmatch expectedSandbox;
     .tst.asserts[`must][not createdExists;"run-owned sandbox survived cleanup"];
     callerMockValue musteq 15;

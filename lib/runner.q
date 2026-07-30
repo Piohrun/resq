@@ -167,31 +167,64 @@
       $[count captured;last each captured;()])
  };
 
-.tst.restoreNamedLifecycle:{[state]
-    if[not 99h=type state; :()];
+.tst.restoreNamedLifecycleWith:{[state;setValue;deleteValue;matches;resolver;ignored]
+    if[not 99h=type state; '"Named mock lifecycle state is invalid"];
     names:$[`names in key state;state[`names];`symbol$()];
     exists:$[`exists in key state;state[`exists];count[names]#0b];
     values:$[`values in key state;state[`values];count[names]#enlist(::)];
-    if[count names;
-      {[name;didExist;original]
-        $[didExist;
-          .tst.setMockLifecycleValue[name;original];
-          .tst.deleteVar name]
-      }'[names;exists;values]];
- };
+    if[(11h<>type names) or 1024<count names;'"Named mock lifecycle names are invalid"];
+    if[(any null names) or count[names]<>count distinct names;
+      '"Named mock lifecycle names are invalid"];
+    if[(1h<>type exists) or count[exists]<>count names;
+      '"Named mock lifecycle existence state is invalid"];
+    if[count[values]<>count names;'"Named mock lifecycle values are invalid"];
+    i:0;
+    while[i<count names;
+      valid:.[
+        {[targetResolver;name]targetResolver[name;0b];1b};
+        (resolver;names i);
+        {[err]0b}];
+      if[not valid;'"Named mock lifecycle names are invalid"];
+      i+:1];
+    failures:0;i:0;
+    while[i<count names;
+      restored:.[
+        {[setter;deleter;targetMatches;name;didExist;original]
+          if[didExist;
+            setter[name;original];
+            :targetMatches[name;1b;original]];
+          result:deleter name;
+          if[not (0h=type result) and (2=count result) and 1b~first result;
+            :0b];
+          targetMatches[name;0b;::]};
+        (setValue;deleteValue;matches;names i;exists i;values i);
+        {[err] 0b}];
+      if[not restored;failures+:1];i+:1];
+    if[failures;
+      '"Named mock lifecycle restore failed for ",
+        string[failures]," target(s)"];
+    ::};
+
+.tst.makeNamedLifecycleRestoreCapsule:{[state]
+    workValue:.tst.restoreNamedLifecycleWith;
+    ('[workValue[state;.tst.mockPrimitives`set;.tst.mockPrimitives`delete;
+        .tst.mockTargetMatches;.tst.mockTarget;];
+      {[] ::}])};
+
+.tst.restoreNamedLifecycle:{[state]capsule:.tst.makeNamedLifecycleRestoreCapsule state;
+    capsule[]};
 
 .tst.captureMockLifecycle:{[]
-    store:.tst.mockState.store;
-    removeList:.tst.mockState.removeList;
+    restoreCapsule:.tst.makeMockRestoreCapsule[];
+    store:.tst.mockState.store;removeList:.tst.mockState.removeList;
     tracked:(key[store] where not null key store) union removeList;
-    `store`removeList`trackedState`spyCalls`spyImpls`seqs!(
-      store;
-      removeList;
-      .tst.captureNamedLifecycle tracked;
-      .tst.spyLog.calls;
-      .tst.spyLog.impls;
-      .tst.seqs)
- };
+    trackedState:.tst.captureNamedLifecycle tracked;
+    namedRestoreCapsule:.tst.makeNamedLifecycleRestoreCapsule trackedState;
+    `store`removeList`trackedState`spyCalls`spyImpls`spyCallCounts`spyRetainedItems`spyTotalCalls`spyTotalRetainedItems`seqs`restoreCapsule`namedRestoreCapsule!(
+      store;removeList;trackedState;.tst.spyLog.calls;.tst.spyLog.impls;
+      .tst.spyLog.callCounts;.tst.spyLog.retainedItems;
+      .tst.spyLog.totalCalls;.tst.spyLog.totalRetainedItems;
+      .tst.seqs;restoreCapsule;namedRestoreCapsule)};
 
 .tst.setMockLifecycleValue:{[name;mockValue]
     $[not (string name) like ".*";
@@ -200,14 +233,26 @@
  };
 
 .tst.restoreMockLifecycle:{[state]
-    .tst.restore[];
-    .tst.restoreNamedLifecycle state[`trackedState];
-    .tst.mockState.store:state[`store];
-    .tst.mockState.removeList:state[`removeList];
-    .tst.spyLog.calls:state[`spyCalls];
-    .tst.spyLog.impls:state[`spyImpls];
-    .tst.seqs:state[`seqs];
- };
+    capsule:$[`restoreCapsule in key state;
+      state[`restoreCapsule];
+      .tst.makeMockRestoreCapsule[]];
+    namedCapsule:$[`namedRestoreCapsule in key state;
+      state[`namedRestoreCapsule];
+      .tst.makeNamedLifecycleRestoreCapsule state[`trackedState]];
+    restored:@[{[fn] fn[];`ok};capsule;{[err] (`error;enlist err)}];
+    named:@[{[fn] fn[];`ok};namedCapsule;{[err] (`error;enlist err)}];
+    if[(`ok~restored) and `ok~named;
+      .tst.mockState.store:state[`store];
+      .tst.mockState.removeList:state[`removeList];
+      .tst.spyLog.calls:state[`spyCalls];
+      .tst.spyLog.impls:state[`spyImpls];
+      .tst.spyLog.callCounts:state[`spyCallCounts];
+      .tst.spyLog.retainedItems:state[`spyRetainedItems];
+      .tst.spyLog.totalCalls:state[`spyTotalCalls];
+      .tst.spyLog.totalRetainedItems:state[`spyTotalRetainedItems];
+      .tst.seqs:state[`seqs]];
+    if[`error~first restored; 'first last restored];
+    if[`error~first named; 'first last named]};
 
 .tst.specLifecycleTitle:{[spec]
     @[{$[(99h=type x) and `title in key x;x[`title];`SPEC_LIFECYCLE]};
@@ -251,13 +296,14 @@
     while[idx<count phases;
       outcome:.tst.captureLifecycleValue functions idx;
       if[`error~first outcome;
-        state[`errorPhase]:phases idx;
-        state[`error]:last outcome;
-        :state];
-      state[valueKeys idx]:last outcome;
-      state[flagKeys idx]:1b;
+        if[null state`errorPhase;
+          state[`errorPhase]:phases idx;
+          state[`error]:last outcome]];
+      if[`ok~first outcome;
+        state[valueKeys idx]:last outcome;
+        state[flagKeys idx]:1b];
       idx+:1];
-    state[`acquired]:1b;
+    state[`acquired]:null state`errorPhase;
     state
  };
 
@@ -290,18 +336,18 @@
 
 .tst.captureSpecLifecycle:{[spec]
     state:.tst.emptySpecLifecycle spec;
-    phases:`runtime`diagnostics`assertState`timer`handles`mocks`pollution;
-    valueKeys:`runContext`diagnosticContext`assertState`timer`handles,
-      `mockLifecycle`pollutionSnapshot;
-    flagKeys:`runContextSet`diagnosticContextSet`assertStateSet`timerSet,
-      `handlesSet`mockLifecycleSet`pollutionSet;
+    phases:`timer`handles`mocks`runtime`diagnostics`assertState`pollution;
+    valueKeys:`timer`handles`mockLifecycle`runContext`diagnosticContext,
+      `assertState`pollutionSnapshot;
+    flagKeys:`timerSet`handlesSet`mockLifecycleSet`runContextSet,
+      `diagnosticContextSet`assertStateSet`pollutionSet;
     functions:(
-      .tst.captureRuntimeContext;
-      {[] .tst.currentContext};
-      {[] .tst.assertState};
       {[] @[get;`.z.ts;{::}]};
       .tst.openHandles;
       .tst.captureMockLifecycle;
+      .tst.captureRuntimeContext;
+      {[] .tst.currentContext};
+      {[] .tst.assertState};
       .tst.captureSpecPollution);
     state:.tst.captureLifecycleSteps[state;phases;valueKeys;flagKeys;functions];
     if[state[`pollutionSet];
@@ -672,12 +718,6 @@
 .tst.finalizeSpecRuntime:{[lifecycle]
     if[lifecycle[`runContextSet];.tst.restoreRuntimeContext lifecycle[`runContext]]
  };
-.tst.finalizeSpecMocks:{[lifecycle]
-    if[lifecycle[`mockLifecycleSet];.tst.restoreMockLifecycle lifecycle[`mockLifecycle]]
- };
-.tst.finalizeSpecExpecCleanup:{[lifecycle]
-    if[lifecycle[`acquired];.tst.runCleanupTasks[]]
- };
 .tst.finalizeSpecAssertState:{[lifecycle]
     if[lifecycle[`assertStateSet];.tst.assertState:lifecycle[`assertState]]
  };
@@ -690,7 +730,14 @@
     if[0=count leaked; :()];
     -1 "WARNING: Test Suite '",.tst.toString[lifecycle[`title]],
       "' leaked handles: ",.tst.toString leaked;
-    {@[hclose;x;{}]} each leaked;
+    failures:0;
+    i:0;
+    while[i<count leaked;
+      closed:@[{[handle]hclose handle;1b};leaked i;{[err]0b}];
+      if[not closed;failures+:1];
+      i+:1];
+    if[failures;
+      '"handle cleanup failed for ",string[failures]," handle(s)"];
     -1 "  -> Closed leaked handles.";
  };
 .tst.finalizeSpecTimer:{[lifecycle]
@@ -700,9 +747,6 @@
     -1 "WARNING: Test Suite '",.tst.toString[lifecycle[`title]],
       "' modified .z.ts. Restoring.";
     .z.ts:lifecycle[`timer];
- };
-.tst.finalizeSpecCleanupQueue:{[lifecycle]
-    if[lifecycle[`acquired];.tst.runSpecCleanupTasks[]]
  };
 .tst.finalizeSpecDiagnostics:{[lifecycle]
     if[lifecycle[`diagnosticContextSet];
@@ -718,55 +762,67 @@
     }[phase;]]
  };
 
-/ Single idempotent spec finalizer. Queue drains clear before execution, handle
-/ closure is diff-based, and state restoration is safe to repeat.
-.tst.finalizeSpec:{[lifecycle]
-    phases:(`mocks`directory`runtime`expectationCleanup`assertState`pollution),
-      `handles`timer`specCleanup`diagnostics;
-    functions:(.tst.finalizeSpecMocks;.tst.finalizeSpecDir;
-      .tst.finalizeSpecRuntime;.tst.finalizeSpecExpecCleanup;.tst.finalizeSpecAssertState;
-      .tst.finalizeSpecPollution;.tst.finalizeSpecHandles;.tst.finalizeSpecTimer;
-      .tst.finalizeSpecCleanupQueue;.tst.finalizeSpecDiagnostics);
-    raze {[state;ps;fs;idx]
-      .tst.runSpecFinalizeStep[ps idx;fs idx;state]
-    }[lifecycle;phases;functions] each til count phases
- };
-
-/ Public spec runner: one protected body followed by exactly one finalizer call.
-.tst.failedSpecFromOutcome:{[spec;phase;err]
-    spec[`expectations]:();
-    .tst.appendSpecError[spec;phase;err]
- };
+.tst.captureSpecFinalizer:{[]
+    expecCleanup:.tst.makeExpectationCleanup[];specCleanup:.tst.makeSpecCleanup[];
+    restoreMocks:.tst.restoreMockLifecycle;
+    mockPhase:{[restore;state]
+      if[state[`mockLifecycleSet];restore state[`mockLifecycle]]}[restoreMocks;];
+    expecQueuePhase:{[cleanup;state]
+      if[state[`acquired];cleanup[]]}[expecCleanup;];
+    specQueuePhase:{[cleanup;state]
+      if[state[`acquired];cleanup[]]}[specCleanup;];
+    phases:(`mocks`runtime`expectationCleanup`mocksAfterExpectation`assertState),
+      (`pollution`handles`timer`specCleanup`mocksAfterCallbacks),
+      `directory`diagnostics;
+    functions:(mockPhase;.tst.finalizeSpecRuntime;expecQueuePhase;mockPhase;
+      .tst.finalizeSpecAssertState;.tst.finalizeSpecPollution;
+      .tst.finalizeSpecHandles;.tst.finalizeSpecTimer;specQueuePhase;mockPhase;
+      .tst.finalizeSpecDir;.tst.finalizeSpecDiagnostics);
+    failed:{[stringify;state;phase;err]
+      detail:stringify err;
+      -1 "WARNING: Spec ",string[phase]," cleanup failed: ",detail;
+      message:string[phase],": ",detail;
+      state[`cleanupFailures],:enlist message;state}[.tst.toString;];
+    .tst.finalizationPlan[phases;functions;0b;failed;{[state]state}]};
 
 .tst.runSpec:{[spec]
+    appendSpecErrorValue:.tst.appendSpecError;
+    toStringValue:.tst.toString;
+    finalizerAuthority:.tst.captureSpecFinalizer[];
     empty:.tst.emptySpecLifecycle spec;
     captured:@[{[s] (`ok;.tst.captureSpecLifecycle s)};spec;{[err] (`error;err)}];
     lifecycle:$[`ok~first captured;
       last captured;
       empty[`errorPhase`error]:(`capture;last captured)];
+    finalizeSpecValue:{[authority;lifecycle]
+      lifecycle[`cleanupFailures]:();
+      lifecycle:(authority`pipeline)[authority;lifecycle];
+      lifecycle`cleanupFailures}[finalizerAuthority;];
     if[not null lifecycle[`errorPhase];
       acquisitionError:string[lifecycle[`errorPhase]],
-        " acquisition failed: ",.tst.toString lifecycle[`error];
-      result:.tst.failedSpecFromOutcome[spec;`acquisition;acquisitionError];
-      cleanupErrors:.tst.finalizeSpec lifecycle;
+        " acquisition failed: ",toStringValue lifecycle[`error];
+      spec[`expectations]:();
+      result:appendSpecErrorValue[spec;`acquisition;acquisitionError];
+      cleanupErrors:finalizeSpecValue lifecycle;
       if[count cleanupErrors;
-        result:.tst.appendSpecError[result;`cleanup;"; " sv cleanupErrors]];
+        result:appendSpecErrorValue[result;`cleanup;"; " sv cleanupErrors]];
       :result];
     if[.tst.halt;
       if[not `result in key spec;spec[`result]:`didNotRun];
-      cleanupErrors:.tst.finalizeSpec lifecycle;
+      cleanupErrors:finalizeSpecValue lifecycle;
       if[count cleanupErrors;
-        spec:.tst.appendSpecError[spec;`cleanup;"; " sv cleanupErrors]];
+        spec:appendSpecErrorValue[spec;`cleanup;"; " sv cleanupErrors]];
       :spec];
     lifecycle[`bodyEntered]:1b;
     payload:`spec`lifecycle!(spec;lifecycle);
     outcome:@[{[p] (`ok;.tst.runSpecBody p)};payload;{[err] (`error;err)}];
-    result:$[`ok~first outcome;
-      last outcome;
-      .tst.failedSpecFromOutcome[spec;`spec;last outcome]];
-    cleanupErrors:.tst.finalizeSpec lifecycle;
+    if[`ok~first outcome;result:last outcome];
+    if[not `ok~first outcome;
+      spec[`expectations]:();
+      result:appendSpecErrorValue[spec;`spec;last outcome]];
+    cleanupErrors:finalizeSpecValue lifecycle;
     if[count cleanupErrors;
-      result:.tst.appendSpecError[result;`cleanup;"; " sv cleanupErrors]];
+      result:appendSpecErrorValue[result;`cleanup;"; " sv cleanupErrors]];
     result
  };
 
@@ -886,14 +942,15 @@
 
 .tst.captureRunLifecycle:{[]
     state:.tst.emptyRunLifecycle[];
-    phases:`runtime`timer`qOriginal`qExports`diagnostics`assertState`halt,
-      `callbacks`handles`mocks`sandboxes;
-    valueKeys:`runtime`timer`qOriginal`qExports`diagnosticContext`assertState,
-      `halt`callbacks`handles`mockLifecycle`sandboxes;
-    flagKeys:`runtimeSet`timerSet`qOriginalSet`qExportsSet,
+    phases:`mocks`runtime`timer`qOriginal`qExports`diagnostics`assertState,
+      `halt`callbacks`handles`sandboxes;
+    valueKeys:`mockLifecycle`runtime`timer`qOriginal`qExports,
+      `diagnosticContext`assertState`halt`callbacks`handles`sandboxes;
+    flagKeys:`mockLifecycleSet`runtimeSet`timerSet`qOriginalSet`qExportsSet,
       `diagnosticContextSet`assertStateSet`haltSet`callbacksSet,
-      `handlesSet`mockLifecycleSet`sandboxesSet;
+      `handlesSet`sandboxesSet;
     functions:(
+      .tst.captureMockLifecycle;
       .tst.captureRuntimeContext;
       {[] @[get;`.z.ts;{::}]};
       {[] .tst.captureNamedLifecycle enlist `.tst.originalQ};
@@ -903,7 +960,6 @@
       {[] .tst.halt};
       {[] .tst.captureNamedLifecycle enlist `.tst.callbacks.descLoaded};
       .tst.openHandles;
-      .tst.captureMockLifecycle;
       .tst.captureRunSandboxes);
     .tst.captureLifecycleSteps[state;phases;valueKeys;flagKeys;functions]
  };
@@ -1164,18 +1220,6 @@
     $[0=count lifecycle;1b;1b~lifecycle[`initStarted]]
  };
 
-.tst.finalCleanupFixtures:{[]
-    if[.tst.runLifecycleInitialized[];.tst.cleanupAllFixtures[]]
- };
-.tst.finalCleanupMocks:{[]
-    lifecycle:.tst.currentRunLifecycle[];
-    $[(count lifecycle) and lifecycle[`mockLifecycleSet];
-      .tst.restoreMockLifecycle lifecycle[`mockLifecycle];
-      if[0=count lifecycle;.tst.restore[]]]
- };
-.tst.finalCleanupExpecQueue:{[]
-    if[.tst.runLifecycleInitialized[];.tst.runCleanupTasks[]]
- };
 .tst.finalCleanupHandles:{[]
     lifecycle:.tst.currentRunLifecycle[];
     if[(count lifecycle) and not lifecycle[`handlesSet]; :()];
@@ -1183,10 +1227,14 @@
       lifecycle[`handles];
       @[get;`.tst.app.runHandles;{.tst.openHandles[]}]];
     leaked:(.tst.openHandles[]) except original;
-    {@[hclose;x;{}]} each leaked;
- };
-.tst.finalCleanupSpecQueue:{[]
-    if[.tst.runLifecycleInitialized[];.tst.runSpecCleanupTasks[]]
+    failures:0;
+    i:0;
+    while[i<count leaked;
+      closed:@[{[handle]hclose handle;1b};leaked i;{[err]0b}];
+      if[not closed;failures+:1];
+      i+:1];
+    if[failures;
+      '"handle cleanup failed for ",string[failures]," handle(s)"];
  };
 .tst.finalCleanupDirectory:{[]
     if[.tst.runLifecycleInitialized[];.tst.restoreDir[]]
@@ -1246,37 +1294,64 @@
     if[count sandboxKeys;.tst.deleteVar each sandboxKeys];
  };
 
-.tst.runFinalCleanupStep:{[phase;fn]
-    .[{[cleanup] cleanup[];()};enlist fn;{[p;err]
-      -1 "WARNING: ",string[p]," cleanup failed: ",.tst.toString err;
-      enlist string[p],": ",.tst.toString err
-    }[phase;]]
- };
+.tst.captureRunCleanupAuthority:{[]
+    coverageValue:@[get;`.tst.restoreCoverageInstrumentation;{[err]`missing}];coverageRequested:1b~@[get;`.tst.app.runCoverage;{[err]0b}];
+    fixtureCleanup:.tst.makeFixtureCleanup[];expecCleanup:.tst.makeExpectationCleanup[];specCleanup:.tst.makeSpecCleanup[];
+    coveragePhase:$[(type[coverageValue] within 100 112h) and (0=.tst.mockCallableArity coverageValue);
+      {[fn;state]fn[]}[coverageValue;];
+      coverageRequested;
+      {[state]'"coverage instrumentation restore is missing or malformed"};
+      {[state]state}];
+    restoreMocks:.tst.restoreMockLifecycle;
+    mockPhase:{[restore;state]
+      if[(99h=type state) and 1b~state[`mockLifecycleSet];
+        restore state[`mockLifecycle]]}[restoreMocks;];
+    initialized:{[state](0=count state) or 1b~state[`initStarted]};
+    fixturePhase:{[isReady;cleanup;state]
+      if[isReady state;cleanup[]]}[initialized;fixtureCleanup;];
+    expecQueuePhase:{[isReady;cleanup;state]
+      if[isReady state;cleanup[]]}[initialized;expecCleanup;];
+    specQueuePhase:{[isReady;cleanup;state]
+      if[isReady state;cleanup[]]}[initialized;specCleanup;];
+    phaseAdapter:{[fn;state]fn[]};
+    phases:(`mocks`fixtures`mocksAfterFixtures`expectationCleanup),
+      (`mocksAfterExpectation`specCleanup`mocksAfterSpec),
+      (`coverageInstrumentation`handles),
+      (`mocksAfterHandles`directory`timer`runtime`callerState),
+      `qExports`sandboxes`mocksFinal;
+    functions:(mockPhase;fixturePhase;mockPhase;expecQueuePhase;
+      mockPhase;specQueuePhase;mockPhase;coveragePhase;
+      phaseAdapter[.tst.finalCleanupHandles;];mockPhase;
+      phaseAdapter[.tst.finalCleanupDirectory;];phaseAdapter[.tst.finalCleanupTimer;];
+      phaseAdapter[.tst.finalCleanupRuntime;];phaseAdapter[.tst.finalCleanupCallerState;];
+      phaseAdapter[.tst.finalCleanupQExports;];phaseAdapter[.tst.finalCleanupSandboxes;];
+      mockPhase);
+    failed:{[stringify;state;phase;err]
+      detail:stringify err;
+      -1 "WARNING: ",string[phase]," cleanup failed: ",detail;
+      message:string[phase],": ",detail;
+      state[`cleanupFailures],:enlist message;state}[.tst.toString;];
+    afterStep:{[state]
+      .tst.app.runLifecycle:state;
+      .tst.app.cleanupComplete:1b;
+      .tst.app.executionState:`completed;state};
+    .tst.finalizationPlan[phases;functions;0b;failed;afterStep]};
 
-/ Idempotent end-of-run cleanup. The completion guard is set before the first
-/ step, making recursive or repeated calls no-ops while preserving failures.
-.tst.runAllPhase.finalCleanup:{[]
-    if[1b~@[get;`.tst.app.cleanupComplete;0b];
+.tst.runFinalCleanupWith:{[authority;lifecycle;trustGuard]
+    if[trustGuard and 1b~@[get;`.tst.app.cleanupComplete;0b];
       .tst.app.executionState:`completed;
       :@[get;`.tst.app.cleanupFailures;()]];
-    .tst.app.cleanupComplete:1b;
-    .tst.app.executionState:`completed;
-    phases:(`fixtures`mocks`expectationCleanup`handles`specCleanup`directory),
-      `timer`runtime`callerState`qExports`sandboxes;
-    functions:(.tst.finalCleanupFixtures;.tst.finalCleanupMocks;
-      .tst.finalCleanupExpecQueue;.tst.finalCleanupHandles;
-      .tst.finalCleanupSpecQueue;.tst.finalCleanupDirectory;
-      .tst.finalCleanupTimer;.tst.finalCleanupRuntime;
-      .tst.finalCleanupCallerState;.tst.finalCleanupQExports;
-      .tst.finalCleanupSandboxes);
-    failures:raze {[ps;fs;idx]
-      .tst.runFinalCleanupStep[ps idx;fs idx]
-    }[phases;functions] each til count phases;
-    .tst.app.cleanupFailures:failures;
-    .tst.app.cleanupFailed:0<count failures;
+    .tst.app.cleanupComplete:1b;.tst.app.executionState:`completed;
+    lifecycle[`cleanupFailures]:();.tst.app.runLifecycle:lifecycle;
+    lifecycle:(authority`pipeline)[authority;lifecycle];
+    failures:lifecycle`cleanupFailures;
+    .tst.app.cleanupFailures:failures;.tst.app.cleanupFailed:0<count failures;
     if[.tst.app.cleanupFailed;.tst.app.passed:0b];
-    failures
- };
+    failures};
+
+.tst.runAllPhase.finalCleanup:{[]
+    authority:.tst.captureRunCleanupAuthority[];lifecycle:.tst.currentRunLifecycle[];
+    .tst.runFinalCleanupWith[authority;lifecycle;1b]};
 
 / Phase-runner helper. Records the current phase name as a symbol
 / (overwriting earlier string-literal style) and optionally emits a trace
@@ -1304,48 +1379,61 @@
 / final report over the complete result set.
 / ----------------------------------------------------------------------------
 .tst.runAll:{[]
+    recordRunFailureValue:.tst.recordRunFailure;
+    finalizerAuthority:.tst.captureRunCleanupAuthority[];
     empty:.tst.emptyRunLifecycle[];
     captured:@[{[] (`ok;.tst.captureRunLifecycle[])};();{[err] (`error;err)}];
     lifecycle:$[`ok~first captured;
       last captured;
       empty[`errorPhase`error]:(`capture;last captured)];
+    finalizerCore:.tst.runFinalCleanupWith;
+    if[lifecycle[`acquired];lifecycle[`initStarted]:1b];
     .tst.app.runLifecycle:lifecycle;
+    finalCleanupValue:('[
+      finalizerCore[finalizerAuthority;lifecycle;];
+      {[]0b}]);
     if[lifecycle[`runtimeSet];.tst.app.runRuntimeContext:lifecycle[`runtime]];
     if[lifecycle[`timerSet];.tst.app.runTimer:lifecycle[`timer]];
     if[lifecycle[`handlesSet];.tst.app.runHandles:lifecycle[`handles]];
-    .tst.prepareRunBookkeeping[];
-    if[lifecycle[`acquired];
-      lifecycle[`initStarted]:1b;
-      .tst.app.runLifecycle:lifecycle;
-      outcome:@[{[]
+    .tst.app.runLifecycle:lifecycle;
+    outcome:@[
+      {[acquired]
+        .tst._runAllStep:`bookkeeping;
+        .tst.prepareRunBookkeeping[];
+        if[not acquired;:`ready];
         .tst._runAllStep:`init;
         .tst.runAllPhase.initRun[];
         .tst.runAllPhase.execute[];
-        `ok};();{[err] (`failed;err)}];
-      if[not outcome~`ok;
-        phase:@[get;`.tst._runAllStep;{`init}];
-        .tst.recordRunFailure[phase;outcome 1]]];
+        `ok};
+      lifecycle[`acquired];
+      {[err] (`failed;err)}];
+    if[not any outcome~/:`ok`ready;
+      phase:@[get;`.tst._runAllStep;{`bookkeeping}];
+      recordRunFailureValue[phase;outcome 1]];
     if[not lifecycle[`acquired];
       acquisitionError:string[lifecycle[`errorPhase]],
         " acquisition failed: ",.tst.toString lifecycle[`error];
-      .tst.recordRunFailure[`acquisition;acquisitionError]];
+      recordRunFailureValue[`acquisition;acquisitionError]];
     .tst._runAllStep:`cleanup;
-    cleanupOutcome:@[{[] .tst.runAllPhase.finalCleanup[];`ok};();{[err] (`failed;err)}];
+    cleanupOutcome:@[
+      {[fn] fn[];`ok};
+      finalCleanupValue;
+      {[err] (`failed;err)}];
     if[cleanupOutcome~`ok;
-      {.tst.recordRunFailure[`cleanup;x]} each
+      {[record;x] record[`cleanup;x]}[recordRunFailureValue;] each
         @[get;`.tst.app.cleanupFailures;{()}]];
     if[not cleanupOutcome~`ok;
-      .tst.recordRunFailure[`cleanup;last cleanupOutcome]];
+      recordRunFailureValue[`cleanup;last cleanupOutcome]];
     .tst._runAllStep:`audit;
     auditOutcome:@[{[] .tst.printRunAudit[];`ok};();{[err] (`failed;err)}];
     if[not auditOutcome~`ok;
-      .tst.recordRunFailure[`audit;last auditOutcome]];
+      recordRunFailureValue[`audit;last auditOutcome]];
     .tst._runAllStep:`report;
     reportOutcome:@[{[] .resq.report .resq.state.results;`ok};
       ();
       {[err] (`failed;err)}];
     if[not reportOutcome~`ok;
-      .tst.recordRunFailure[`report;last reportOutcome]];
+      recordRunFailureValue[`report;last reportOutcome]];
     if[count @[get;`.tst.app.runFailures;{()}];.tst.app.passed:0b];
     if[1b ~ .tst.app.exit; .tst.die `int$not .tst.app.passed];
  };

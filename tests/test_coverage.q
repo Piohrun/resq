@@ -104,9 +104,11 @@
         `.tst.origCovEnabled mock .tst.coverageEnabled;
         `.tst.origCovFiles mock .tst.trackedFiles;
         `.tst.origCovOrig mock .tst.origFuncs;
+        `.tst.origCovWrap mock .tst.covWrappers;
         .tst.coverageData: ()!();
         .tst.trackedFiles: ();
         .tst.origFuncs: ()!();
+        .tst.covWrappers: ()!();
         .tst.coverageEnabled: 1b;
 
         / Scratch source: a \d-namespaced module mixing an explicit-arg fn, an
@@ -129,6 +131,7 @@
         .tst.coverageEnabled: .tst.origCovEnabled;
         .tst.trackedFiles: .tst.origCovFiles;
         .tst.origFuncs: .tst.origCovOrig;
+        .tst.covWrappers: .tst.origCovWrap;
         @[{delete covscratch from `.}; ::; {}];
     };
 
@@ -222,6 +225,87 @@
     (hitsAfter - hitsBefore) musteq 1;
   };
  };
+
+.tst.desc["Coverage: instrumentation restoration"]{
+  before{
+    `.tst.restoreCovEnabled mock .tst.coverageEnabled;
+    `.tst.restoreCovOrigFuncs mock .tst.origFuncs;
+    `.tst.restoreCovWrappers mock .tst.covWrappers;
+    .tst.coverageEnabled:1b;
+    .tst.origFuncs:()!();
+    .tst.covWrappers:()!();
+    .covrestore.target:{[x]x+1};
+  };
+  after{
+    @[.tst.restoreCoverageInstrumentation;();{}];
+    .tst.coverageEnabled:.tst.restoreCovEnabled;
+    .tst.origFuncs:.tst.restoreCovOrigFuncs;
+    .tst.covWrappers:.tst.restoreCovWrappers;
+    @[{delete covrestore from `.};::;{}];
+  };
+
+  should["restore an owned wrapper and retire its tracking state"]{
+    name:`.covrestore.target;
+    original:get name;
+    wrapper:{[x]x+10};
+    name set wrapper;
+    .tst.origFuncs[name]:original;
+    .tst.covWrappers[name]:wrapper;
+
+    .tst.restoreCoverageInstrumentation[];
+
+    ((get name)5) musteq 6;
+    must[not name in key .tst.origFuncs;
+      "restored original remained registered"];
+    must[not name in key .tst.covWrappers;
+      "restored wrapper remained registered"];
+    .tst.coverageEnabled musteq 0b;
+  };
+
+  should["preserve a caller replacement installed after instrumentation"]{
+    name:`.covrestore.target;
+    original:get name;
+    wrapper:{[x]x+10};
+    replacement:{[x]x*3};
+    name set wrapper;
+    .tst.origFuncs[name]:original;
+    .tst.covWrappers[name]:wrapper;
+    name set replacement;
+
+    .tst.restoreCoverageInstrumentation[];
+
+    ((get name)5) musteq 15;
+    must[not name in key .tst.origFuncs;
+      "caller-owned target remained registered"];
+    must[not name in key .tst.covWrappers;
+      "caller-owned wrapper remained registered"];
+  };
+
+  should["retain a failed owned restoration so cleanup can be retried"]{
+    name:`.covrestore.target;
+    original:get name;
+    wrapper:{[x]x+10};
+    name set wrapper;
+    .tst.origFuncs[name]:original;
+    .tst.covWrappers[name]:wrapper;
+    outcome:.tst.mockTry[
+      .tst.restoreCoverageInstrumentationWith;
+      ({[target;originalValue]::};
+       .tst.safeValue;
+       .tst._covMissing;
+       `coverageRestoreV1)];
+
+    (first outcome) musteq `error;
+    name mustin key .tst.origFuncs;
+    name mustin key .tst.covWrappers;
+    ((get name)5) musteq 15;
+
+    .tst.restoreCoverageInstrumentation[];
+    ((get name)5) musteq 6;
+    must[not name in key .tst.origFuncs;
+      "successful retry left original tracking behind"];
+  };
+};
 
 .tst.desc["Coverage: LCOV generation"]{
     before{

@@ -252,12 +252,77 @@ callExpec:{[expec];
  '`badExpecType]
  }
 
+.tst.markExpecCleanupFailure:{[expec;phase;err]
+ detail:$[10h=type err;err;-3!err];message:string[phase]," cleanup failed";
+ if[count detail;message,:": ",(512&count detail)#detail];
+ expec[`result]:`error;expec[`errorText]:message;failures:$[
+   `failures in key expec;(),expec`failures;()];
+ expec[`failures]:failures,enlist message;expec};
+applyExpecMockCleanup:{[mark;expec;capsule]
+ outcome:@[{[fn]fn[];`ok};capsule;{[err](`error;enlist err)}];failed:not `ok~outcome;
+ expec[`mockCleanupFailed]:failed;
+ $[failed;mark[expec;`mock;first last outcome];expec]}[
+   .tst.markExpecCleanupFailure;;];
+.tst.runFinalizationPipeline:{[plan;state]
+ phases:plan`phases;functions:plan`functions;i:0;
+ while[i<count phases;
+   outcome:(plan`attempt)[functions i;enlist state];
+   if[`ok~first outcome;if[(plan`replace)i;state:first last outcome]];
+   if[`error~first outcome;
+     state:(plan`failed)[state;phases i;first last outcome]];
+   state:(plan`after)state;i+:1];
+ state};
+.tst.finalizationPlan:{[phases;functions;replace;failed;after]
+ `phases`functions`replace`attempt`failed`after`pipeline!(
+   phases;functions;count[phases]#replace;.tst.mockTry;failed;after;
+   .tst.runFinalizationPipeline)};
+.tst.captureExpecFinalizer:{[]
+ cleanupCapsule:.tst.makeExpectationCleanup[];
+ fallbackLifecycle:.tst.captureMockLifecycle[];
+ fallbackWork:({[restore;snapshot;ignored]restore snapshot})[
+   .tst.restoreMockLifecycle;fallbackLifecycle;];
+ fallbackCapsule:('[fallbackWork;{[] ::}]);
+ fallback:.tst.applyExpecMockCleanup[;fallbackCapsule];
+ contextPhase:{[state]system "d .tst";state};
+ mockPhase:{[fallbackValue;state]
+   state[`expec]:fallbackValue state`expec;
+   state[`failed]:state[`failed] or state[`expec;`mockCleanupFailed];
+   state}[fallback;];
+ drainPhase:{[cleanup;state]cleanup[];state}[cleanupCapsule;];
+ assertPhase:{[defaultValue;state].tst.assertState:defaultValue;state}[.tst.defaultAssertState;];
+ callbackPhase:{[callback;state]callback[state`spec;state`expec];state}[.tst.callbacks.expecRan;];
+ runtimePhase:{[restoreValue;context;state]
+   restoreValue context;state}[.tst.restoreRuntimeContext;.tst.captureRuntimeContext[];];
+ failed:{[mark;state;phase;err]
+   state[`expec]:mark[state`expec;phase;err];state[`failed]:1b;state}[
+     .tst.markExpecCleanupFailure;];
+ phases:`context`mock`expectation`mockRetry`assertState`callback`runtime;
+ functions:(contextPhase;mockPhase;drainPhase;mockPhase;assertPhase;
+   callbackPhase;runtimePhase);
+ plan:.tst.finalizationPlan[phases;functions;1b;failed;{[state]state}];
+ retry:plan;retry[`phases]:`mock`retry`mockRetry`assertState;
+ retry[`functions]:(mockPhase;drainPhase;mockPhase;assertPhase);
+ retry[`replace]:4#1b;
+ plan[`retry]:retry;plan};
 runExpec:{[spec;expec];
+ finalizerAuthority:.tst.captureExpecFinalizer[];
+ finalizeExpec:{[plan;s;e]
+   state:`spec`expec`failed!(s;e;0b);
+   ((plan`pipeline)[plan;state])`expec}[finalizerAuthority;;];
+ expecErrorValue:.tst.expecError;
  time:.z.p;
  startExpec:expec;
  / Record the current test name for stack-trace context.
  .tst.currentContext[`test]: $[`desc in key expec; .tst.toString expec`desc; ""];
- expec:.tst.setupExpec[spec;expec];
+ setupOutcome:.[
+   {[fn;s;e] (`ok;fn[s;e])};
+   (.tst.setupExpec;spec;expec);
+   {[err] (`error;enlist err)}];
+ if[`error~first setupOutcome;
+   expec:expecErrorValue[expec;"setup";first last setupOutcome];
+   expec[`time]:.z.p-time;
+   :finalizeExpec[spec;expec]];
+ expec:last setupOutcome;
 
  / Performance expectations are opt-in. Select the skip state before entering
  / runExpecAttempt so neither hooks nor the benchmark body can execute.
@@ -274,16 +339,21 @@ runExpec:{[spec;expec];
     expec[`failures]: ();
     expec[`assertsRun]: 0i;
     expec[`time]: .z.p - time;
-    expec:.tst.teardownExpec[spec;expec];
+    expec:finalizeExpec[spec;expec];
     :expec
  ];
  
  / Retry support: an expectation with `retries:n` (n>0) gets up to n+1 total
  / attempts. Each attempt re-runs the full before+test+after cycle (so flaky
  / state is reset). The FIRST attempt whose result normalizes to `pass wins.
- / Only the FINAL attempt is recorded (teardownExpec fires exactly once, below).
- / retries=0 (every normal test) collapses to a single pass through the loop.
- maxAttempts: 1 + $[`retries in key expec; 0 | `long$expec`retries; 0];
+ / Only the FINAL attempt is recorded (the captured finalizer fires once below).
+/ retries=0 (every normal test) collapses to a single pass through the loop.
+ retryValue:$[`retries in key expec;expec`retries;0i];retryValid:(type retryValue) in -4 -5 -6 -7h;
+ if[retryValid;retryValid:(not null retryValue) and retryValue within 0 64];
+ if[not retryValid;
+   expec:expecErrorValue[expec;"retries";"Invalid retries: expected an integer from 0 to 64"];
+   expec[`time]:.z.p-time;:finalizeExpec[spec;expec]];
+ maxAttempts:1+`long$retryValue;
  / Pristine snapshot of the post-setup expec. q dicts are values, so this copies
  / semantically; restoring `expec:pristine` between attempts also resets the
  / accumulated result/failures/errorText/assertsRun and leaves before/after/code
@@ -300,13 +370,16 @@ runExpec:{[spec;expec];
    passed: `pass ~ .tst.normalizeResultStatus expec`result;
    / Stop if passed, if halt fired, or if no attempts remain.
    done: passed or .tst.halt or (attempt >= maxAttempts);
-   / Between attempts: replicate teardownExpec's per-attempt cleanup, then
+    / Between attempts: run the captured per-attempt cleanup, then
    / restore the pristine post-setup expec so the flaky test starts clean.
    if[not done;
-      .tst.restore[];
-      @[.tst.runCleanupTasks; (); {}];
-      .tst.assertState: .tst.defaultAssertState;
-      expec: pristine;
+      retryState:`spec`expec`failed!(spec;expec;0b);
+      retryState:(finalizerAuthority`pipeline)[
+        finalizerAuthority`retry;
+        retryState];
+      expec:retryState`expec;
+      if[retryState`failed;done:1b];
+      if[not done;expec: pristine];
    ];
  ];
 
@@ -320,19 +393,19 @@ runExpec:{[spec;expec];
          -1 "NOTE: '", descStr, "' ", note, ".";
       ];
       / Failed every attempt: surface the attempt count on the failures list.
-      expec[`failures]: (enlist "failed after ", string[maxAttempts], " attempts"), (),expec`failures
+     expec[`failures]: (enlist "failed after ", string[attempt], " attempts"), (),expec`failures
     ];
  ];
 
  expec[`time]:.z.p - time;
- expec:.tst.teardownExpec[spec;expec];
+ expec:finalizeExpec[spec;expec];
  if[.tst.halt; .tst.stageBadExpec[spec;startExpec;beforeBad]];
  expec
  }
 
 / One retry attempt: the full before-block + main-test + after-block cycle.
 / Returns `expec`beforeBad!(attemptedExpec; lastStageSym). Does NOT teardown or
-/ record - the caller (runExpec) owns the single teardownExpec / expecRan call.
+ / record - the caller (runExpec) owns the single finalization/callback pass.
 runExpecAttempt:{[spec;expec];
  / Before Block
  beforeBad:`before;
@@ -399,21 +472,11 @@ setupExpec:{[spec;expec];
   / .q fallback inside sandbox namespaces. Gated by qNamespaceExports (default
   / on); when off, tests must use the fully-qualified .tst.mock etc.
   if[1b ~ @[get; `.tst.qNamespaceExports; 1b];
-    ((` sv `.q,) each .tst.uiRuntimeNames) .tst.mock' .tst.uiRuntimeCode];
+    ((` sv `.q,) each .tst.uiRuntimeNames)
+      .tst.mockFrameworkQExport' .tst.uiRuntimeCode];
   
   / Safe context switch - if no context defined (e.g. unit tests), stay in current
   if[`context in key .tst; system "d ", string .tst.context];
   
   expec
- }
-
-teardownExpec:{[spec;expec];
- ctx: $[`runtimeContext in key expec; expec`runtimeContext; ()!()];
- system "d .tst";
-  .tst.restore[];
-  @[.tst.runCleanupTasks; (); {}];
-  .tst.assertState:.tst.defaultAssertState;
- .tst.callbacks.expecRan[spec;expec];
- if[99h = type ctx; .tst.restoreRuntimeContext ctx];
- expec
  }
