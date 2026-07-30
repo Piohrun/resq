@@ -428,6 +428,116 @@ if[not `pathSymbolBytes in key `.utl;.utl.pathSymbolBytes:0j];
     inspected:(.utl.fsSnapshot[]`inspect) path; inspected[`kind]~`file};
 .utl.ensureDir:{[path]
     adapter:.utl.fsSnapshot[]; (adapter`makeDir) path};
+/ Validate and normalize line-oriented text before a bounded write. q's `0:`
+/ appends one newline per row, so the byte budget includes those separators.
+.utl.textWriteContent:{[content;maximum;label]
+    if[not 10h=type label;
+        '"Invalid text publication label"];
+    labelCodes:"i"$label;
+    if[(not count label) or 64<count label or
+       any (labelCodes<32) or labelCodes=127;
+        '"Invalid text publication label"];
+    limit:.utl.hardLimit[
+        maximum;33554432;label," byte"];
+    contentType:type content;
+    if[not contentType in 0 10h;
+        'label," content is invalid"];
+    lines:$[10h=contentType;enlist content;content];
+    if[not all 10h=type each lines;
+        'label," content is invalid"];
+    size:$[
+        count lines;
+          (sum "j"$count each lines)+count lines;
+        0j];
+    if[size>limit;
+        'label," byte limit exceeded"];
+    `lines`size`limit!(lines;size;limit)
+ };
+/ Atomic same-directory publication. The final pathname is replaced only after
+/ the complete bounded body exists as a regular temporary file. Existing
+/ symlinks/directories are rejected, and failed moves clean the temporary file.
+/ The capability form keeps failure paths deterministic and directly testable.
+.utl.atomicTextWriteWith:{[capabilities;path;content;maximum;label]
+    required:
+      `attempt`command`quoteForHost`windows`snapshot`toHsym`diagnostic;
+    if[(not 99h=type capabilities) or
+       not required~key capabilities;
+        '"Invalid text publication capabilities"];
+    callable:required except `windows;
+    callableValues:capabilities callable;
+    if[(not all (type each callableValues) within 100 112h) or
+       any (::)~/:callableValues;
+        '"Invalid text publication capabilities"];
+    if[not -1h=type capabilities`windows;
+        '"Invalid text publication capabilities"];
+    prepared:.utl.textWriteContent[content;maximum;label];
+    attemptFn:capabilities`attempt;
+    commandFn:capabilities`command;
+    quoteFn:capabilities`quoteForHost;
+    windows:capabilities`windows;
+    snapshotFn:capabilities`snapshot;
+    toHsymFn:capabilities`toHsym;
+    diagnosticFn:capabilities`diagnostic;
+    adapter:.utl.fsFactory snapshotFn[];
+    target:(adapter`inspect) path;
+    if[target`exists;
+        if[not target[`kind]~`file;
+            'label," target is not a regular file"]];
+    outputPath:target`path;
+    / Stable per-process names prevent unbounded symbol interning while still
+    / separating independent q processes publishing the same report.
+    seed:outputPath,string .z.i;
+    suffix:raze string md5 "c"$seed;
+    tempPath:outputPath,".resq-publish-",suffix;
+    tempState:(adapter`inspect) tempPath;
+    if[tempState`exists;
+        'label," temporary path collision"];
+    written:attemptFn[
+        {[writer;temporary;body]
+          (writer temporary)0:body;
+          ::};
+        (toHsymFn;tempPath;prepared`lines)];
+    if[not first written;
+        @[(adapter`delete);tempPath;{}];
+        'last written];
+    observed:(adapter`inspect) tempPath;
+    if[not observed[`kind]~`file;
+        @[(adapter`delete);tempPath;{}];
+        'label," temporary file postcondition failed"];
+    sourceArg:quoteFn[tempPath;windows];
+    targetArg:quoteFn[outputPath;windows];
+    moveCommand:$[
+        windows;
+          "move /Y ",sourceArg," ",targetArg;
+        "mv -f ",sourceArg," ",targetArg];
+    moved:attemptFn[commandFn;enlist moveCommand];
+    if[not first moved;
+        @[(adapter`delete);tempPath;{}];
+        'label," publication failed: ",
+          diagnosticFn[last moved;512]];
+    published:(adapter`inspect) outputPath;
+    if[not published[`kind]~`file;
+        'label," publication postcondition failed"];
+    outputPath
+ };
+.utl.atomicTextCapabilities:{[]
+    `attempt`command`quoteForHost`windows`snapshot`toHsym`diagnostic!(
+      .utl.attempt;
+      system;
+      .utl.shellQuoteForHost;
+      .utl.isWindows;
+      .utl.fsSnapshot;
+      .utl.pathToHsym;
+      .utl.boundedDiagnostic)
+ };
+.utl.atomicTextWrite:{[path;content;maximum;label]
+    .utl.atomicTextWriteWith[
+      .utl.atomicTextCapabilities[];
+      path;
+      content;
+      maximum;
+      label]
+ };
 / Character truth internally; compatibility symbols publish only on success.
 .utl.MAX_LOADED_FILES:4096;
 .utl.MAX_LOADED_BYTES:16777216;

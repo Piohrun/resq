@@ -7,6 +7,48 @@
 / chars; otherwise it drops ONLY the ESC byte and keeps the rest of the string
 / (a lone ESC or a non-SGR sequence like ESC[2J must never swallow the tail).
 / Non-string args pass through untouched.
+if[not `MAX_REPORT_BYTES in key `.tst;
+    .tst.MAX_REPORT_BYTES:33554432];
+
+.tst.reportByteLimit:{[]
+    .utl.hardLimit[
+      .tst.MAX_REPORT_BYTES;
+      33554432;
+      "test report byte"]
+ };
+
+/ Resolve report paths from the run's captured base directory, not the mutable
+/ process CWD. Only strings/symbols are accepted at this filesystem boundary.
+.tst.reportOutputPath:{[leaf]
+    if[not 10h=type leaf;
+        '"Test report filename is invalid"];
+    leafCodes:"i"$leaf;
+    if[(not count leaf) or (leaf~".") or (leaf~"..") or
+       (any leaf in "/\\") or
+       (any (leafCodes<32) or leafCodes=127);
+        '"Test report filename is invalid"];
+    outDirRaw:@[get;`.resq.config.outDir;{"."}];
+    outDirStr:.utl.pathToString outDirRaw;
+    if[0=count outDirStr;outDirStr:"."];
+    baseDirRaw:@[get;`.tst.app.baseDir;{""}];
+    baseDirStr:.utl.pathToString baseDirRaw;
+    if[0=count baseDirStr;baseDirStr:system "cd"];
+    outDirStr:.utl.absolutePathForHost[
+      outDirStr;
+      .utl.isWindows;
+      baseDirStr];
+    .utl.ensureDir outDirStr;
+    outDirStr,"/",leaf
+ };
+
+.tst.publishReportText:{[path;content]
+    .utl.atomicTextWrite[
+      path;
+      content;
+      .tst.reportByteLimit[];
+      "Test report"]
+ };
+
 .tst.stripAnsi:{[s]
     if[not 10h = type s; :s];
     if[not any s = "\033"; :s];

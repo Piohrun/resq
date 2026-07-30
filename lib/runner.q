@@ -4,52 +4,50 @@
     if[not `xmlOutput in key `.tst.app; .tst.app.xmlOutput: 0b];
     if[not `runCoverage in key `.tst.app; .tst.app.runCoverage: 0b];
     reportFmt: .tst.normalizeFmt .resq.config.fmt;
+    if[not `reportText in key `.resq;
+      if[not .tst.loadOutputModule["text"];
+        '"Text reporter is unavailable"]];
+    / Every initialization starts from a known reporter. Format-specific
+    / branches below replace it only after their module export is verified.
+    .resq.report:.resq.reportText;
 
-    / Respect config format even when explicit xml flag was not set.
-    if[not .tst.app.xmlOutput;
-        .tst.app.xmlOutput: reportFmt in `junit`xunit;
-    ];
+    / Treat format selection as run-local truth. Do not persist a derived XML
+    / flag: doing so made a later text initialization silently remain JUnit.
+    / The legacy explicit xmlOutput flag still requests JUnit for text format;
+    / an explicit JSON format remains authoritative.
+    useXml:
+      (reportFmt in `junit`xunit) or
+      ((1b~.tst.app.xmlOutput) and not reportFmt~`json);
 
-    / Define XML reporter function
-    .resq.reportXml:{[results]
-      / JUnit/XUnit output expects flat result rows (the results argument),
-      / which .tst.resultRows (called inside the reporter) sanitizes itself.
-      / Defensive serialization to avoid reporter crashes
-      xmlReport: $[`top in key `.tst.output;
-        @[.tst.output.top; results; {[e]
-            -1 "ERROR: XML reporter failed: ", .tst.toString e;
-            "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"reporter_failed\"/></testsuite></testsuites>"
-          }];
-        "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"xml_generator_unavailable\"/></testsuite></testsuites>"
-      ];
-      outDirStr: .tst.toString .resq.config.outDir;
-      if[0 = count outDirStr; outDirStr: "."];
-      baseDirStr: .tst.toString .tst.app.baseDir;
-      if[0 = count baseDirStr; baseDirStr: system "cd"];
-      if[not outDirStr like "/*"; outDirStr: baseDirStr, "/", outDirStr];
-      outDirStr: .utl.normalizePath outDirStr;
-      outFile: outDirStr, "/test-results.xml";
-      .utl.ensureDir outDirStr;
-      (hsym `$outFile) 0: enlist xmlReport;
-      -1 "XML Report written to ", outFile;
+    / The selected builder is projected into the reporter so a later module
+    / load cannot silently change the format of an in-flight run.
+    .tst.reportXmlWith:{[builder;results]
+      if[not type[builder] in 100 104h;
+        '"XML report builder is unavailable"];
+      xmlReport:builder results;
+      outFile:.tst.reportOutputPath "test-results.xml";
+      .tst.publishReportText[outFile;xmlReport];
+      -1 "XML Report written to ",outFile;
+      ::
      };
 
     / Apply XML reporter if enabled
-    if[.tst.app.xmlOutput;
+    if[useXml;
       reportModule: $[reportFmt=`xunit; "xunit"; "junit"];
-      if[.tst.loadOutputModule[reportModule];
-          if[`top in key `.tst.output;
-              .resq.report: .resq.reportXml;
-          ];
-     ];
+      if[not .tst.loadOutputModule[reportModule];
+        '"Requested XML reporter is unavailable"];
+      if[not `top in key `.tst.output;
+        '"Requested XML reporter is unavailable"];
+      .resq.reportXml:.tst.reportXmlWith[.tst.output.top;];
+      .resq.report: .resq.reportXml;
     ];
 
     / Apply JSON reporter when explicitly requested (non-XML path)
-    if[not .tst.app.xmlOutput;
+    if[not useXml;
         if[reportFmt ~ `json;
-            if[.tst.loadOutputModule["json"];
-                if[`reportJson in key `.resq; .resq.report: .resq.reportJson];
-            ];
+            if[not .tst.loadOutputModule["json"];
+              '"Requested JSON reporter is unavailable"];
+            .resq.report: .resq.reportJson;
         ];
     ];
      

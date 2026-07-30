@@ -56,7 +56,7 @@
     :caseOpen,"    <failure message=\"",msg,"\">",msg,"</failure>",caseClose
  };
 
-.tst.output.top:{[results]
+.tst.output.junitTop:{[results]
     rows: .tst.output.normalizeRows results;
     if[0=count rows; :"<testsuites></testsuites>"];
     / normalizeRows may hand back either a list of row dicts or an already
@@ -89,3 +89,7 @@
 
     "<testsuites>\n",suiteBlocks,"\n</testsuites>"
  };
+
+/ Compatibility alias. loadOutputModule re-selects this named builder even
+/ when the module is already present in the require registry.
+.tst.output.top:.tst.output.junitTop;

@@ -196,47 +196,21 @@ if[not `MAX_COVERAGE_REPORT_BYTES in key `.tst;
 .tst.coveragePublishTextWith:{
     [attempt;command;quoteForHost;windows;snapshot;toHsym;path;content]
     .tst.validateCoverageReportSize content;
-    adapter:snapshot[];
-    target:(adapter`inspect) path;
-    if[target`exists;
-        if[not target[`kind]~`file;
-            '"Coverage report target is not a regular file"]];
-    outputPath:target`path;
-    / Stable per-process target names avoid unbounded symbol growth across
-    / repeated coverage runs while still separating concurrent q processes.
-    seed:outputPath,string .z.i;
-    suffix:raze string md5 "c"$seed;
-    tempPath:outputPath,".resq-publish-",suffix;
-    tempState:(adapter`inspect) tempPath;
-    if[tempState`exists;
-        '"Coverage report temporary path collision"];
-    written:attempt[
-        {[writer;temporary;body]
-          (writer temporary)0:body;
-          ::};
-        (toHsym;tempPath;content)];
-    if[not first written;
-        @[(adapter`delete);tempPath;{}];
-        'last written];
-    observed:(adapter`inspect) tempPath;
-    if[not observed[`kind]~`file;
-        @[(adapter`delete);tempPath;{}];
-        '"Coverage report temporary file postcondition failed"];
-    sourceArg:quoteForHost[tempPath;windows];
-    targetArg:quoteForHost[outputPath;windows];
-    moveCommand:$[
+    capabilities:
+      `attempt`command`quoteForHost`windows`snapshot`toHsym`diagnostic!(
+        attempt;
+        command;
+        quoteForHost;
         windows;
-          "move /Y ",sourceArg," ",targetArg;
-        "mv -f ",sourceArg," ",targetArg];
-    moved:attempt[command;enlist moveCommand];
-    if[not first moved;
-        @[(adapter`delete);tempPath;{}];
-        '"Coverage report publication failed: ",
-          .utl.boundedDiagnostic[last moved;512]];
-    published:(adapter`inspect) outputPath;
-    if[not published[`kind]~`file;
-        '"Coverage report publication postcondition failed"];
-    outputPath
+        snapshot;
+        toHsym;
+        .utl.boundedDiagnostic);
+    .utl.atomicTextWriteWith[
+      capabilities;
+      path;
+      content;
+      .tst.coverageReportLimit[];
+      "Coverage report"]
  };
 
 .tst.publishCoverageText:{[path;content]

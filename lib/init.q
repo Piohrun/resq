@@ -202,5 +202,26 @@ if[`uiQExports in key `.tst; .tst.registerQExports .tst.uiQExports];
   .utl.require[modulePath];
   outputLoaded: any modulePath ~/: .utl.loaded;
   if[not outputLoaded; -1 "WARNING: Output module not available: ", string outputModule];
-  outputLoaded
+  if[not outputLoaded; :0b];
+
+  exportValue:$[
+    outputModule~`text;
+      @[get;`.resq.reportText;{[err]0b}];
+    outputModule~`json;
+      @[get;`.resq.reportJson;{[err]0b}];
+    outputModule~`junit;
+      @[get;`.tst.output.junitTop;{[err]0b}];
+    outputModule~`xunit;
+      @[get;`.tst.output.xunitTop;{[err]0b}];
+    0b];
+  exportReady:type[exportValue] in 100 104h;
+  if[not exportReady;
+    -1 "WARNING: Output module export unavailable: ",string outputModule;
+    :0b
+  ];
+  if[outputModule~`junit;
+    .tst.output.top:.tst.output.junitTop];
+  if[outputModule~`xunit;
+    .tst.output.top:.tst.output.xunitTop];
+  1b
  }

@@ -22,7 +22,9 @@
         prevReport: .resq.report;
         .resq.config.fmt: `xml;
         .tst.initReporting[];
-        result: .tst.app.xmlOutput and (`top in key `.tst.output);
+        result:
+          (`top in key `.tst.output) and
+          .resq.report~.resq.reportXml;
         .resq.config.fmt: prevFmt;
         .tst.app.xmlOutput: prevXmlOutput;
         .resq.report: prevReport;
