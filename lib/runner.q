@@ -510,7 +510,34 @@
 / correctly reports 0 here and fails loudly instead of green-washing. Insert
 / a synthetic row so the failure is visible in the results table and
 / propagates through computePassed.
+/ Under -strict, a test that PASSED while running zero assertions is a failure.
+/ A `should` block's return value is ignored, so a bare expression
+/ (`0 < count warnings;`) is a value the block discards rather than a check, and
+/ the test passes however broken the code beneath it is. -strict already means
+/ "a run that verified nothing must not pass"; this applies the same rule per
+/ test instead of only to the run as a whole. Without -strict these are reported
+/ by the text reporter but do not fail the run.
+.tst.runAllPhase.applyStrictAssertions:{[]
+    if[not .tst.app.strict; :()];
+    if[0 = count .resq.state.results; :()];
+    r: .resq.state.results;
+    silent: where (r[`status] = `pass) and 0 = r`assertsRun;
+    if[0 = count silent; :()];
+    msg: "Test passed without running any assertion (-strict). A bare expression is not a check: wrap it as must[cond; \"message\"].";
+    / Rewrite the offending rows in place so each keeps its own suite and
+    / description rather than collapsing into one synthetic failure. Columns are
+    / rebuilt explicitly: a table amend over several row indices needs the
+    / replacement to conform per row, so each value is repeated count[silent] times.
+    n: count silent;
+    st: r`status;   st[silent]: `fail;
+    ms: r`message;  ms[silent]: n # enlist msg;
+    fl: r`failures; fl[silent]: n # enlist enlist msg;
+    r[`status]: st; r[`message]: ms; r[`failures]: fl;
+    .resq.state.results: r;
+ };
+
 .tst.runAllPhase.applyStrictMode:{[]
+    .tst.runAllPhase.applyStrictAssertions[];
     if[not (.tst.app.strict and 0 = .tst.app.expectationsRan); :()];
     toInsert: flip `suite`description`status`message`time`failures`assertsRun!(
         enlist `STRICT_MODE_FAILURE;

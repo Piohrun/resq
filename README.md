@@ -190,7 +190,7 @@ resQ exits with a meaningful code by default — no extra flag is needed:
 | Code | Meaning |
 |------|---------|
 | 0 | All tests passed |
-| 1 | One or more tests failed or errored; also `-strict` with no executed tests |
+| 1 | One or more tests failed or errored; also `-strict` with no executed tests, or `-strict` with a test that ran no assertions |
 | 3 | No test files found (empty/missing directory) |
 | 4 | File load error or explicitly-passed path not found |
 
@@ -216,6 +216,11 @@ q resq.q test -strict my_tests/
 ```
 If no tests are found **or executed**, this flag forces a **non-zero exit code**.
 A suite where every test was skipped counts as no executed tests under `-strict`.
+Under `-strict`, a test that passes without running a single assertion is also a
+failure: a `should` block's return value is ignored, so a bare expression such as
+`0 < count warnings;` is discarded rather than checked. Wrap it as
+`must[0 < count warnings; "..."]`. Without `-strict` these are listed after the
+summary but do not fail the run.
 Without `-strict`, an all-skipped suite still exits 0.
 
 Under `-strict`, a snapshot that does not yet exist on disk is treated as a

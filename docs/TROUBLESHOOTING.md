@@ -560,7 +560,7 @@ chmod 755 tests/snapshots
 | Code | Constant | Meaning |
 |------|----------|---------|
 | 0 | `EXIT.PASS` | All tests passed |
-| 1 | `EXIT.FAIL` | One or more tests failed or errored; also `-strict` with no executed tests |
+| 1 | `EXIT.FAIL` | One or more tests failed or errored; also `-strict` with no executed tests, or `-strict` with a test that ran no assertions |
 | 3 | `EXIT.NO_TESTS` | No test files found (no `-strict`); with `-strict`, injects a FAIL and exits 1 |
 | 4 | `EXIT.LOAD_ERROR` | A test file failed to load, or an explicitly-passed path was not found |
 

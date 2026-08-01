@@ -68,3 +68,50 @@
     musteq[r`code; 0];
   };
  };
+
+/ ---------------------------------------------------------------------------
+/ A `should` block's return value is IGNORED, so a bare expression is a value
+/ the block discards, not a check — the test passes however broken the code is.
+/ Under -strict a test that ran zero assertions is now a failure; without
+/ -strict it is reported but does not fail the run.
+/ ---------------------------------------------------------------------------
+.tst.testState.strictchk.vacuous: (
+  ".tst.desc[\"vacuous\"]{";
+  "  should[\"asserts nothing\"]{ 0 < 1 };";
+  "  should[\"asserts properly\"]{ 1 musteq 1 };";
+  " };");
+
+.tst.desc["strict: tests that assert nothing #slow"]{
+
+  skipIf[not .tst.testState.strictchk.canQ;
+         "a zero-assertion test fails under -strict"]{
+    r: .tst.testState.strictchk.run[.tst.testState.strictchk.vacuous; "-strict"];
+    must[0 <> r`code; "a test that asserted nothing must fail under -strict"];
+    must[.tst.testState.strictchk.anyLike[r`out; "without running any assertion"];
+         "the failure must explain that nothing was asserted"];
+    / Attributed to the offending test, not collapsed into a synthetic row.
+    must[.tst.testState.strictchk.anyLike[r`out; "asserts nothing"];
+         "the failing row must name the offending test"];
+    must[.tst.testState.strictchk.anyLike[r`out; "1 passed"];
+         "the properly-asserting test must still pass"];
+  };
+
+  skipIf[not .tst.testState.strictchk.canQ;
+         "the same suite passes WITHOUT -strict, but is reported"]{
+    r: .tst.testState.strictchk.run[.tst.testState.strictchk.vacuous; ""];
+    musteq[r`code; 0];
+    must[.tst.testState.strictchk.anyLike[r`out; "TESTS THAT ASSERTED NOTHING"];
+         "a zero-assertion test must still be reported without -strict"];
+  };
+
+  skipIf[not .tst.testState.strictchk.canQ;
+         "a skipped test does not trip the zero-assertion rule"]{
+    src: (
+      ".tst.desc[\"skips\"]{";
+      "  skip[\"deliberately skipped\"]{ 1 musteq 1 };";
+      "  should[\"real check\"]{ 1 musteq 1 };";
+      " };");
+    r: .tst.testState.strictchk.run[src; "-strict"];
+    musteq[r`code; 0];
+  };
+ };

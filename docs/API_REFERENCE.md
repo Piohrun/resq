@@ -1648,7 +1648,7 @@ q resq.q [mode] [options] [paths...]
 | `-json` | Output JSON report to `outDir/test-results.json` |
 | `-perf` | Include performance tests |
 | `-cov` / `-coverage` | Enable coverage |
-| `-strict` | Fail when no tests are found or executed |
+| `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
 | `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
 | `-fh` / `--fail-hard` | Hard stop and skip cleanup on first failure |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |

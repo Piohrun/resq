@@ -72,7 +72,11 @@
 / under -strict FAIL loudly on a missing snapshot instead of green-washing.
 .tst.desc["Text Snapshot Verification"]{
 
-    should["create on first run and validate on the next (no -strict)"]{
+    / Inherently incompatible with -strict: it creates a snapshot on first run,
+    / which is exactly what -strict forbids. Skip rather than fail so the whole
+    / suite can be run under -strict in CI.
+    skipIf[1b ~ @[get; `.tst.app.strict; 0b];
+           "create on first run and validate on the next (no -strict)"]{
         data: `a`b`c!1 2 3;
         snapName: "tmp_resq_txtsnap_test";
         snapFile: .utl.pathToHsym .tst.snapTxtDir, "/", snapName, ".snap.txt";
