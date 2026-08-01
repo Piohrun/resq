@@ -4,11 +4,67 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`mustne` compares whole values.** It used `<>`, which is elementwise in q, so
+  any non-atom produced a boolean vector rather than an atom: `must` then applied
+  `all`, giving it the meaning "every element differs" (`1 2 3` vs `9 2 3`
+  reported a failure), and tables/ragged operands signalled `'type`/`'length`.
+  It now uses `not l~r`, making it the exact inverse of `musteq` — including
+  type strictness, so `1 mustne 1.0` passes where `1 musteq 1.0` fails.
+  Previously both failed at once.
+- **`must` requires a boolean condition.** `all` maps `5`, `0N` and any non-empty
+  string to true, so `must[0N; …]` and a swapped `must["message"; cond]` passed
+  silently. A non-boolean is now a failure naming the offending type. Boolean
+  vectors are unchanged; an empty one still passes ("all of zero items hold").
+- **`-xunit` writes to `outDir`**, like `-junit` and `-json`. It previously forced
+  `outDir` to `test-results`, so it alone wrote into a subdirectory. An explicit
+  `-outDir` was already honoured and still is.
+- **`skipIf` keeps one stable test name.** It registered `"SKIP: <reason>"` when it
+  skipped but `"<reason>"` when it ran, so an environment-gated test appeared under
+  a different name in different environments, breaking CI test history and
+  flaky-test tracking. Both branches now use the plain reason. Explicit
+  `skip[]`/`pending[]` keep their `SKIP:`/`PENDING:` prefix.
+
 ### Added
+
+- **Zero-assertion tests are reported.** A `should` block's return value is ignored,
+  so a bare expression (`0 < count warnings;`) is discarded rather than checked and
+  the test passes however broken the code is. The text reporter now lists any test
+  that passed while running zero assertions (shown under `-quiet` too; silent when
+  there are none). 17 such tests in this suite were found and given real assertions.
+- **`resq cover` warns when it instruments nothing.** An empty LCOV looks like
+  success while measuring nothing; the usual cause is loading the code under test
+  with a loader the hook does not see (only `\l` and `system "l "` are intercepted).
+- **Reporter XML is covered by tests** — per-test results, distinct failure/error/
+  skipped elements, suite-level counts, escaping, and output locations. None of it
+  was pinned before.
 - **Process isolation mode: `resq test -isolate [-isolateTimeout N]`.** Each test file runs in its own q subprocess (sequentially); the parent aggregates results from per-file JSON reports and drives the normal reporting/exit pipeline. A test that calls `exit` is reported as an error ("process exited without producing results") instead of silently ending — or faking — the run; an infinite loop is killed after `isolateTimeout` seconds (default 300, requires the `timeout` binary) and the remaining files still run; a process-fatal error (`'wsfull`, stack) fails only its file.
 - **Generative differential loader testing** (`tests/test_loader_differential.q`): seeded random q scripts (comments, block comments, continuations, namespaces, terminators, CRLF) are loaded via native `\l` and via resQ's preprocessor in separate processes and the resulting definitions compared. Runs a fixed corpus of historical regressions plus deterministic seeds in-suite; swept clean to seed 400.
 
 ### Fixed
+
+- **xUnit tests carry a `result` attribute.** `<test>` elements had none, which is
+  how an xUnit v2 consumer determines per-test status — so every test was
+  indeterminate and a red run could be read as green. Tests now report
+  `result="Pass"/"Fail"/"Skip"` and the assembly reports `passed`/`failed`.
+- **A throwing `before[]`/`after[]` reaches the report.** The per-spec error trap
+  recorded no expectation, so the run summarised as "0 total tests" and the JUnit
+  document was an empty `<testsuites></testsuites>`: a pipeline reading the report
+  saw no tests and no failures. A spec that fails to run now produces an error
+  testcase, as the `beforeAll` failure path already did.
+- **`parametrize` streams the Cartesian product** instead of materializing it via
+  `cross over`, which could exhaust the heap on a handful of parameters. Ordering
+  is unchanged and the cardinality is overflow-checked. Verified on an 8,000,000-case product.
+- **Snapshot names are contained.** A name went straight into a path, so `"../x"`
+  escaped the snapshot root. Both binary and text paths now validate the name as a
+  bare leaf before any filesystem access.
+- **Load directives are located in masked source.** The scanner matched `like`
+  patterns against raw lines, so a require named in a comment or string became a
+  real graph edge; it compensated with a heuristic that skipped any line containing
+  `"like"`, which also dropped genuine requires. Comments, strings, block comments
+  and post-terminator text are now masked before detection, and a concatenated
+  tail stays distinguishable from a standalone absolute target.
 - **Loader evaluation now matches q's line-buffered `\l` semantics.** Found by the differential harness: evaluating a file as one `value` blob diverged from native `\l` for bare continuation lines, standalone comment lines between a statement and its continuation, and trailing inline comments without `;`. Files are now evaluated statement-by-statement after comment-line removal; error reporting ("near line N") and partial-spec rollback are unchanged.
 - **`retry[n; "desc"]{...}` now actually retries.** Previously a silent no-op; now makes up to n+1 total attempts. `before`/`after` hooks re-run per attempt. The first passing attempt wins and records one result row. A late pass prints `NOTE: '<desc>' passed on attempt k of m` for flake visibility. Exhausted retries report "failed after m attempts".
 - **Block-comment parsing matches real q.** A line containing only `/` always opens a block comment closed by a lone `\`; a lone `\` outside a block terminates the script. The previous heuristic diverged on the common single-`/` banner idiom.
