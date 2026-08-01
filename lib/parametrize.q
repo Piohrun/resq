@@ -1,32 +1,41 @@
 \d .tst
 
+/ Run one parametrized case: apply func to args (named by pNames), converting
+/ an assertion failure or signal into an error tagged with the parameter values.
+runParamCase:{[pNames;args;func]
+    params: ", " sv {(.tst.toString x),"=",(-3!y)} ./: flip (pNames; args);
+    errHandler: {[params;err] 'err, " (Params: ", params, ")"}[params];
+    oldFailList: .tst.assertState.failures;
+    @[func .; args; errHandler];
+    if[(count .tst.assertState.failures) > count oldFailList;
+        .tst.assertState.failures: oldFailList;
+        '"Assertion failed (Params: ", params, ")"
+    ];
+ };
+
 / Parametrized Test Runner
 / @param data (table) The scenarios to test. Columns must match function arguments.
 / @param func (function) The test logic to execute for each row.
 forall:{[data;func]
     if[not 98h=type data; '"forall expects a table as first argument"];
-    
+    pNames: cols data;
     i:0;
-    cnt: count data;
-    
-    do[cnt;
-        row: data[i];
-        
-        / Precompute params for error handler
-        params: ", " sv {(.tst.toString x),"=",(-3!y)} ./: flip (key row; value row);
-        errHandler: {[params;err] 'err, " (Params: ", params, ")"}[params];
-
-        oldFailList: .tst.assertState.failures;
-        @[func .; value row; errHandler];
-        if[(count .tst.assertState.failures) > count oldFailList;
-            .tst.assertState.failures: oldFailList;
-            '"Assertion failed (Params: ", params, ")"
-        ];
-        
+    do[count data;
+        .tst.runParamCase[pNames; value data i; func];
         i+:1;
     ];
-    
     1b
+ };
+
+/ Overflow-checked total case count. Empty value sets yield zero cases
+/ (matching the historical cross-product behavior).
+paramCaseTotal:{[counts]
+    if[any 0 = counts; :0j];
+    {[total;n]
+        if[total > 9223372036854775806 div n;
+            '"parametrize Cartesian product cardinality overflows long"];
+        total * n
+    } over 1j, counts
  };
 
 / Parametrize: Auto-generate test cases from value lists (Cartesian product)
@@ -45,7 +54,7 @@ parametrize:{[paramDict;func]
     if[not 99h = type pd;
         '"parametrize expects a dictionary (e.g., `a`b!(1 2 3; 10 20 30)) or table as first argument"
     ];
-    
+
     pNames: key pd;
     pValues: value pd;
     / Ensure single-key dicts are treated as lists
@@ -53,26 +62,24 @@ parametrize:{[paramDict;func]
         pNames: enlist pNames;
         pValues: enlist pValues;
     ];
-    
+
     / Ensure all values are lists
     pValues: {$[0 > type x; enlist x; x]} each pValues;
-    
-    / Compute Cartesian product
-    allCombos: $[1 = count pValues;
-        first pValues;
-        {x cross y} over pValues
+
+    counts: "j"$count each pValues;
+    total: .tst.paramCaseTotal counts;
+    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: parametrize data count ", string total];
+
+    / Stream each combination by mixed-radix decode of the case index (the
+    / final parameter varies fastest, matching the old cross-product order).
+    / Nothing is materialized: the old `cross over` built every intermediate
+    / product in memory and could exhaust the heap on a handful of parameters.
+    i: 0;
+    while[i < total;
+        .tst.runParamCase[pNames; pValues @' counts vs i; func];
+        i+:1;
     ];
-    
-    / allCombos is now a list of lists, each of length count pNames
-    / Convert to table
-    data: $[1 = count pNames;
-        flip pNames ! enlist allCombos;
-        flip pNames ! flip allCombos
-    ];
-    
-    / Pass to existing forall
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: parametrize data count ", string count data];
-    forall[data; func]
+    1b
  };
 
 \d .

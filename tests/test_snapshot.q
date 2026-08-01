@@ -111,3 +111,74 @@
         must[not .tst.snapTxtExists[snapName]; "missing text snapshot must not be auto-created under -strict"];
     };
 };
+
+.tst.desc["Snapshot Name Containment"]{
+    should["reject hostile snapshot names before resolving a path"]{
+        badNames:(
+            "";
+            ".";
+            "..";
+            "../outside";
+            "nested/name";
+            "nested\\name";
+            "/tmp/resq_snapshot_outside";
+            "C:resq_snapshot_outside";
+            "C:\\resq_snapshot_outside";
+            "control\001name");
+
+        {mustthrow["*Invalid snapshot name*"; (.tst.snapPath;x)]} each badNames;
+        {mustthrow["*Invalid snapshot name*"; (.tst.snapTxtPath;x)]} each badNames;
+    };
+
+    should["keep valid string and symbol leaf names with automatic extensions"]{
+        binString: .utl.pathToString .tst.snapPath "orders-v1.2_final (eu)!";
+        binSymbol: .utl.pathToString .tst.snapPath `$"orders-v1.2 final";
+        txtString: .utl.pathToString .tst.snapTxtPath "...";
+        txtSymbol: .utl.pathToString .tst.snapTxtPath `$".orders-v1.2 final";
+
+        (last "/" vs binString) musteq "orders-v1.2_final (eu)!.snap";
+        (last "/" vs binSymbol) musteq "orders-v1.2 final.snap";
+        (last "/" vs txtString) musteq "....snap.txt";
+        (last "/" vs txtSymbol) musteq ".orders-v1.2 final.snap.txt";
+    };
+
+    should["never read or overwrite a file outside the binary snapshot root"]{
+        cwd: system "cd";
+        oldDir: .tst.snapDir;
+        root: cwd, "/tests/snapshots/tmp_resq_boundary_root";
+        sentinel: cwd, "/tests/snapshots/tmp_resq_boundary_sentinel.snap";
+        sentinelHandle: .utl.pathToHsym sentinel;
+
+        .utl.ensureDir root;
+        sentinelHandle set `untouched;
+        .tst.registerCleanup[{[d] .tst.setSnapDir d}; enlist oldDir];
+        .tst.registerCleanup[{[p] @[hdel; .utl.pathToHsym p; {}]}; enlist sentinel];
+        .tst.registerCleanup[{[p] @[hdel; .utl.pathToHsym p; {}]}; enlist root];
+        .tst.setSnapDir root;
+
+        mustthrow["*Invalid snapshot name*"]{.tst.saveSnap["../tmp_resq_boundary_sentinel"; `overwritten]};
+        mustthrow["*Invalid snapshot name*"]{.tst.loadSnap "../tmp_resq_boundary_sentinel"};
+        mustthrow["*Invalid snapshot name*"]{.tst.snapExists "../tmp_resq_boundary_sentinel"};
+        (get sentinelHandle) musteq `untouched;
+    };
+
+    should["never read or overwrite a file outside the text snapshot root"]{
+        cwd: system "cd";
+        oldDir: .tst.snapTxtDir;
+        root: cwd, "/tests/__snapshots__/tmp_resq_boundary_root";
+        sentinel: cwd, "/tests/__snapshots__/tmp_resq_boundary_sentinel.snap.txt";
+        sentinelHandle: .utl.pathToHsym sentinel;
+
+        .utl.ensureDir root;
+        sentinelHandle 0: enlist "untouched";
+        .tst.registerCleanup[{[d] .tst.setSnapTxtDir d}; enlist oldDir];
+        .tst.registerCleanup[{[p] @[hdel; .utl.pathToHsym p; {}]}; enlist sentinel];
+        .tst.registerCleanup[{[p] @[hdel; .utl.pathToHsym p; {}]}; enlist root];
+        .tst.setSnapTxtDir root;
+
+        mustthrow["*Invalid snapshot name*"]{.tst.saveSnapTxt["../tmp_resq_boundary_sentinel"; `overwritten]};
+        mustthrow["*Invalid snapshot name*"]{.tst.loadSnapTxt "../tmp_resq_boundary_sentinel"};
+        mustthrow["*Invalid snapshot name*"]{.tst.snapTxtExists "../tmp_resq_boundary_sentinel"};
+        (first read0 sentinelHandle) musteq "untouched";
+    };
+ };

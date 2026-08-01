@@ -10,7 +10,16 @@ snapTxtDir: (system "cd"),"/tests/__snapshots__"
 
 setSnapTxtDir:{[d] .tst.snapTxtDir: d}
 
-snapTxtPath:{[name] ` sv (hsym `$.tst.snapTxtDir; `$name,".snap.txt") }
+/ Same leaf containment as snapshot.q's snapPath: a snapshot name must be a
+/ bare file name, so it can never resolve outside snapTxtDir.
+snapTxtPath:{[name]
+    n: $[10h = type name; name;
+         -11h = type name; string name;
+         '"Invalid snapshot name: expected a string or symbol"];
+    if[not .tst.validSnapLeaf n;
+        '"Invalid snapshot name '", n, "': must be a bare file name (no path separators, no leading dot)"];
+    ` sv (hsym `$.tst.snapTxtDir; `$n,".snap.txt")
+ }
 
 / Existence by FILE PRESENCE (mirrors snapshot.q's snapExists). A stored empty
 / value otherwise round-trips as "" and could be confused with "missing".
@@ -30,6 +39,8 @@ saveSnapTxt:{[name;data]
  }
 
 mustmatchTxtSnap:{[actual;name]
+    / Validate before any filesystem access or snapshot creation.
+    validatedPath: .tst.snapTxtPath name;
     n: $[10h=type name; name; string name];
     actTxt: .Q.s1 actual;
     / Decide existence by FILE PRESENCE, not by ()~stored.
