@@ -90,11 +90,15 @@ perf:{[des;props;code]
   .tst.expecList,: enlist d
  }
 
+/ Register a skipped expectation under an explicit description.
+skipNamed:{[desStr;reason;code]
+  d: .tst.internals.testObj, (`desc`code`result`skipReason!(.tst.toString desStr; {}; `skip; reason));
+  .tst.expecList,: enlist d
+ }
+
 / Skip a test with a reason
 skip:{[reason;code]
-  desStr: "SKIP: ", .tst.toString reason;
-  d: .tst.internals.testObj, (`desc`code`result`skipReason!(desStr; {}; `skip; reason));
-  .tst.expecList,: enlist d
+  .tst.skipNamed["SKIP: ", .tst.toString reason; reason; code]
  }
 
 / Mark a test as pending (placeholder)
@@ -104,9 +108,15 @@ pending:{[reason]
   .tst.expecList,: enlist d
  }
 
-/ Conditionally skip based on a condition
+/ Conditionally skip based on a condition.
+/ The description stays the SAME whether or not it skips. Reporters key test
+/ identity on the description, and this test previously reported as "reason"
+/ where it ran and "SKIP: reason" where it did not — so every environment-gated
+/ test (a platform check, a `which q` probe) looked like a different test
+/ between environments, breaking CI history and flaky-test tracking. An
+/ explicit skip[] keeps its prefix: it is always skipped, so its name is stable.
 skipIf:{[condition;reason;code]
-  $[condition; skip[reason; code]; should[reason; code]]
+  $[condition; .tst.skipNamed[reason; reason; code]; should[reason; code]]
  }
 
 / Retry a flaky test up to N times before failing the suite.

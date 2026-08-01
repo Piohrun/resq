@@ -165,3 +165,41 @@
          "the suite still passes despite the ignored hooks"];
   };
  };
+
+/ ---------------------------------------------------------------------------
+/ skipIf must report under the SAME description whether or not it skips.
+/ Reporters key test identity on the description; this test used to appear as
+/ "reason" where it ran and "SKIP: reason" where it did not, so every
+/ environment-gated test looked like a different test between environments and
+/ broke CI history / flaky tracking. Explicit skip[] keeps its prefix (always
+/ skipped, so its name never changes).
+/ ---------------------------------------------------------------------------
+.tst.desc["skipIf keeps a stable test identity"]{
+  should["register the plain reason when it skips"]{
+    n0: count .tst.expecList;
+    skipIf[1b; "gated test name"]{ 1 musteq 1 };
+    added: last .tst.expecList;
+    .tst.expecList: n0 # .tst.expecList;   / do not leak into the real run
+    (added`desc) musteq "gated test name";
+    (added`result) musteq `skip;
+  };
+
+  should["register the same reason when it does NOT skip"]{
+    n0: count .tst.expecList;
+    skipIf[0b; "gated test name"]{ 1 musteq 1 };
+    added: last .tst.expecList;
+    .tst.expecList: n0 # .tst.expecList;
+    (added`desc) musteq "gated test name";
+  };
+
+  should["keep the SKIP:/PENDING: marker on an explicit skip and pending"]{
+    n0: count .tst.expecList;
+    skip["explicitly skipped"]{ 1 musteq 1 };
+    pending["explicitly pending"];
+    addedSkip: .tst.expecList n0;
+    addedPending: .tst.expecList n0 + 1;
+    .tst.expecList: n0 # .tst.expecList;
+    (addedSkip`desc) musteq "SKIP: explicitly skipped";
+    (addedPending`desc) musteq "PENDING: explicitly pending";
+  };
+ };
