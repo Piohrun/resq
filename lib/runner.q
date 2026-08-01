@@ -448,6 +448,25 @@
         {[spec]
             @[.tst.runSpec; spec; {[s; err]
                 -1 "ERROR running spec: ", .tst.toString s[`title], ": ", .tst.toString err;
+                / Record a result row, the same way the beforeAll failure path
+                / does. Without one the spec contributes nothing: a throwing
+                / before[]/after[] produced "0 total tests" and an EMPTY
+                / <testsuites></testsuites>, so a pipeline reading the report saw
+                / no tests and no failures. The exit code was the only signal.
+                errText: .tst.toString err;
+                syntheticExpec: `desc`type`time`result`errorText`failures`code`before`after`assertsRun!(
+                    "spec failed to run";
+                    `test;
+                    0Nn;
+                    `error;
+                    errText;
+                    enlist errText;
+                    {}; {}; {};
+                    0i
+                );
+                .tst.callbacks.expecRan[s; syntheticExpec];
+                s[`expectations]: enlist syntheticExpec;
+                s[`result]: `fail;
                 s
             }[spec;]]
         } each specsList
