@@ -835,4 +835,4 @@ q resq.q test tests/ -debug
 
 ---
 
-*Generated for resQ v0.1.0-alpha*
+*Generated for resQ v0.3.0*

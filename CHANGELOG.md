@@ -4,6 +4,8 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-01 - Isolation & Reporting Integrity
+
 ### Changed
 
 - **`mustne` compares whole values.** It used `<>`, which is elementwise in q, so

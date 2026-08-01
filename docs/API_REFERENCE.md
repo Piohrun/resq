@@ -1753,4 +1753,4 @@ CLI arguments override configuration file values.
 
 ---
 
-*Generated for resQ v0.1.0-alpha*
+*Generated for resQ v0.3.0*
