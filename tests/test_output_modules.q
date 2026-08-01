@@ -139,3 +139,74 @@
         must[(.resq.renderMsg r`message) ~ flStr; "dup message must be detected so it prints once"];
     };
  };
+
+/ Nothing pinned the emitted XML, so a reporter could publish structurally
+/ meaningless output and stay green. These build a mixed result set and assert
+/ on the generated document directly.
+.tst.desc["Reporter XML structure"]{
+    should["mark every xunit test with a result CI can read"]{
+        rows: (
+            `suite`description`status`message`time`failures`assertsRun!("S";"passes";  `pass;  ""; 0Nn; (); 1i);
+            `suite`description`status`message`time`failures`assertsRun!("S";"fails";   `fail;  "bad"; 0Nn; enlist "bad"; 1i);
+            `suite`description`status`message`time`failures`assertsRun!("S";"errors";  `error; "boom"; 0Nn; enlist "boom"; 0i);
+            `suite`description`status`message`time`failures`assertsRun!("S";"skipped"; `skip;  ""; 0Nn; (); 0i));
+        / Only one output module is resident at a time; load xunit, then put
+        / the previous reporter back so later tests are unaffected.
+        prevTop: @[get; `.tst.output.top; {::}];
+        prevReport: .resq.report;
+        .tst.loadOutputModule["xunit"];
+        xml: .tst.output.top rows;
+        .tst.output.top: prevTop; .resq.report: prevReport;
+
+        / Without result= every test is indeterminate to an xUnit consumer.
+        must[xml like "*result=\"Pass\"*";  "a passing test must be result=Pass"];
+        must[xml like "*result=\"Skip\"*";  "a skipped test must be result=Skip"];
+        must[xml like "*result=\"Fail\"*";  "a failing test must be result=Fail"];
+        / 2 Fail: the failure AND the error (xUnit v2 has no third outcome).
+        (count xml ss "result=\"Fail\"") musteq 2;
+        must[xml like "*passed=\"1\"*"; "the assembly must report its passed count"];
+        must[xml like "*failed=\"1\"*"; "the assembly must report its failed count"];
+    };
+
+    should["mark junit failures, errors and skips with distinct elements"]{
+        rows: (
+            `suite`description`status`message`time`failures`assertsRun!("S";"passes";  `pass;  ""; 0Nn; (); 1i);
+            `suite`description`status`message`time`failures`assertsRun!("S";"fails";   `fail;  "bad"; 0Nn; enlist "bad"; 1i);
+            `suite`description`status`message`time`failures`assertsRun!("S";"errors";  `error; "boom"; 0Nn; enlist "boom"; 0i);
+            `suite`description`status`message`time`failures`assertsRun!("S";"skipped"; `skip;  ""; 0Nn; (); 0i));
+        prevTop: @[get; `.tst.output.top; {::}];
+        prevReport: .resq.report;
+        .tst.loadOutputModule["junit"];
+        xml: .tst.output.top rows;
+        .tst.output.top: prevTop; .resq.report: prevReport;
+
+        must[xml like "*<failure*";  "a failing test must emit <failure>"];
+        must[xml like "*<error*";    "an errored test must emit <error>"];
+        must[xml like "*<skipped*";  "a skipped test must emit <skipped>"];
+        must[xml like "*failures=\"1\"*"; "the testsuite must report its failure count"];
+        must[xml like "*errors=\"1\"*";   "the testsuite must report its error count"];
+    };
+
+    should["escape XML-hostile characters in both reporters"]{
+        rows: enlist `suite`description`status`message`time`failures`assertsRun!(
+            "S"; "name <tag> & \"q\""; `fail; "msg <b> & \"q\""; 0Nn; enlist "msg <b> & \"q\""; 1i);
+
+        prevTop: @[get; `.tst.output.top; {::}];
+        prevReport: .resq.report;
+        .tst.loadOutputModule["xunit"];  xunitXml: .tst.output.top rows;
+        .tst.loadOutputModule["junit"];  junitXml: .tst.output.top rows;
+        .tst.output.top: prevTop; .resq.report: prevReport;
+
+        {[xml; lbl]
+            must[not xml like "*<tag>*";   lbl, ": a raw < > from a test name must be escaped"];
+            must[xml like "*&lt;tag&gt;*"; lbl, ": the escaped form must be present"];
+            / A bare & would make the document unparseable.
+            must[not xml like "*\" & \"*"; lbl, ": a raw ampersand must be escaped"];
+         }[xunitXml; "xunit"];
+        {[xml; lbl]
+            must[not xml like "*<tag>*";   lbl, ": a raw < > from a test name must be escaped"];
+            must[xml like "*&lt;tag&gt;*"; lbl, ": the escaped form must be present"];
+            must[not xml like "*\" & \"*"; lbl, ": a raw ampersand must be escaped"];
+         }[junitXml; "junit"];
+    };
+ };

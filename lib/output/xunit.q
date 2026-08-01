@@ -40,7 +40,15 @@
     rawMsg: $[`renderReportMessage in key `.tst; .tst.renderReportMessage rec`message; rec`message];
     msg: .tst.output.escapeXml rawMsg;
     t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
-    attrs: " type=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", string[t], "\"";
+    / xUnit v2 consumers read per-test status from `result`, NOT from the
+    / presence of a child element. Without it every test is indeterminate and a
+    / red run can be read as green. An errored test reports Fail: the schema has
+    / no third outcome, and the <error> child still carries the detail.
+    resultWord: $[recStatus in `pass;         "Pass";
+                  recStatus in `skip`pending; "Skip";
+                  "Fail"];
+    attrs: " type=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc],
+           "\" time=\"", string[t], "\" result=\"", resultWord, "\"";
     caseOpen: "    <test",attrs,">";
     caseClose: "    </test>";
     if[recStatus in `pass;
@@ -80,8 +88,11 @@
         failCount: sum failMask;
         errCount: sum errMask;
         skipCount: sum skipMask;
+        / xUnit v2 names the pass/fail totals `passed`/`failed`; `failures` is
+        / JUnit's spelling. Emit both so either consumer reads real numbers.
+        passCount: sum suiteStatus = `pass;
         suiteTime: .tst.output.toSeconds sum suiteRows`time;
-        header: "<assembly name=\"",suiteName,"\" total=\"",string[testCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",string[suiteTime],"\">";
+        header: "<assembly name=\"",suiteName,"\" total=\"",string[testCount],"\" passed=\"",string[passCount],"\" failed=\"",string[failCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",string[suiteTime],"\">";
         bodyLines: .tst.output.buildXunitCase each suiteRows;
         body: "\n" sv bodyLines;
         footer: "</assembly>";
