@@ -568,6 +568,8 @@ Codes 2 (`CONFIG_ERROR`) and 5 (`PARTIAL`) were removed — no code path emits t
 
 Skipped and pending tests do **not** cause a non-zero exit on their own; only actual failures and errors do.
 
+`resq discover` uses the same codes as a gate on test *presence*, not test outcome: **0** when every discovered source function has a matching test, **1** when any are untested (the count is printed as `Untested: N`). This lets CI fail a build that adds an untested function.
+
 **Default exit behaviour**: resQ exits with the appropriate code by default. Use `-noquit` to suppress the `exit` call (process stays running; useful for interactive sessions). `-exit` is a synonym that explicitly enables exit-on-completion and overrides a `"exit": false` in `resq.json`. Failures exit 1 even without `-exit`.
 
 ---
