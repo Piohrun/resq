@@ -225,7 +225,12 @@ initCLI:{[parsed]
     if[options`debug; .utl.DEBUG: 1b];
     if[options`perf; .tst.app.runPerformance: 1b];
     if[options`junit; .resq.config.fmt: `junit; .tst.app.xmlOutput: 1b];
-    if[options`xunit; .resq.config.fmt: `xunit; .resq.config.outDir: "test-results"; .tst.app.xmlOutput: 1b];
+    / -xunit used to force outDir to "test-results", so it alone wrote to a
+    / SUBDIRECTORY while -junit and -json wrote to outDir itself. That was
+    / undocumented -- every doc promises outDir/test-results.xml (default ".")
+    / -- and made the reporters inconsistent for no stated reason. An explicit
+    / -outDir still wins for all three (applied below).
+    if[options`xunit; .resq.config.fmt: `xunit; .tst.app.xmlOutput: 1b];
     if[options`json; .resq.config.fmt: `json; .tst.app.xmlOutput: 0b];
     if[options`noquit; .tst.app.exit: 0b];
     if[options`exit; .tst.app.exit: 1b];

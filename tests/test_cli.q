@@ -202,7 +202,13 @@
     out: @[read0; hsym `$wd, "/out.txt"; {()}];
     loaded: .utl.pathExists wd, "/executed.marker";
     reported: .utl.pathExists reportDir, "/test-results.xml";
-    result: `code`out`loaded`reported!(code; out; loaded; reported);
+    / Also observe the DEFAULT location (outDir "." == the child's cwd) and the
+    / "test-results/" subdirectory, so a reporter that quietly relocates its
+    / output is visible to a test rather than only to someone running it by hand.
+    cwdReport: .utl.pathExists childCwd, "/test-results.xml";
+    subdirReport: .utl.pathExists childCwd, "/test-results/test-results.xml";
+    result: `code`out`loaded`reported`cwdReport`subdirReport!(
+        code; out; loaded; reported; cwdReport; subdirReport);
     .tst.cliCleanup wd;
     result
 };
@@ -227,6 +233,35 @@
         .tst.cliAnyLike[r`out; "CLI ERROR: Missing value for -*"] musteq 1b;
         r[`loaded] musteq 0b;
         r[`reported] musteq 0b;
+    };
+
+    / -xunit used to force outDir to "test-results", so it alone wrote into a
+    / SUBDIRECTORY while -junit and -json wrote to outDir itself -- undocumented,
+    / and untested in either direction.
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "-xunit writes to outDir itself, not a test-results/ subdirectory"]{
+        r: .tst.cliRun["test @FIXTURE@ -xunit"; "cli_flags.q"; 0b];
+        r[`code] musteq 0;
+        must[r`cwdReport;      "-xunit must write test-results.xml into outDir"];
+        must[not r`subdirReport; "-xunit must not create a test-results/ subdirectory"];
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "-junit writes to the same default location as -xunit"]{
+        r: .tst.cliRun["test @FIXTURE@ -junit"; "cli_flags.q"; 0b];
+        r[`code] musteq 0;
+        must[r`cwdReport;        "-junit must write test-results.xml into outDir"];
+        must[not r`subdirReport; "-junit must not create a test-results/ subdirectory"];
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "an explicit -outDir is honoured by both xml reporters"]{
+        rj: .tst.cliRun["test @FIXTURE@ -junit -outDir @REPORT@"; "cli_flags.q"; 0b];
+        rj[`code] musteq 0;
+        must[rj`reported; "-junit -outDir must write into the given directory"];
+        rx: .tst.cliRun["test @FIXTURE@ -xunit -outDir @REPORT@"; "cli_flags.q"; 0b];
+        rx[`code] musteq 0;
+        must[rx`reported; "-xunit -outDir must write into the given directory"];
     };
 
     skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;

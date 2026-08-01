@@ -1643,9 +1643,9 @@ q resq.q [mode] [options] [paths...]
 **Options:**
 | Flag | Description |
 |------|-------------|
-| `-junit` | Output JUnit XML |
-| `-xunit` | Output XUnit XML |
-| `-json` | Output JSON report |
+| `-junit` | Output JUnit XML to `outDir/test-results.xml` |
+| `-xunit` | Output xUnit XML to `outDir/test-results.xml` |
+| `-json` | Output JSON report to `outDir/test-results.json` |
 | `-perf` | Include performance tests |
 | `-cov` / `-coverage` | Enable coverage |
 | `-strict` | Fail when no tests are found or executed |
