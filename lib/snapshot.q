@@ -8,8 +8,24 @@ updateSnaps: 0b
 setSnapDir:{[d] .tst.snapDir: d}
 setUpdateSnaps:{[b] .tst.updateSnaps: b}
 
+/ A snapshot name must be a single path leaf: reject "." / "..", path
+/ separators, Windows drive colons, and control characters so a crafted name
+/ can never read or write outside snapDir. Dotfile-style names are allowed.
+validSnapLeaf:{[n]
+    if[not 10h = type n; :0b];
+    if[0 = count n; :0b];
+    if[any n ~/: ("."; ".."); :0b];
+    if[any n in "/\\:"; :0b];
+    codes: "i"$n;
+    not (any 32 > codes) or any 127 = codes
+ };
+
 snapPath:{[name]
-    n: $[10h = type name; name; string name];
+    n: $[10h = type name; name;
+         -11h = type name; string name;
+         '"Invalid snapshot name: expected a string or symbol"];
+    if[not .tst.validSnapLeaf n;
+        '"Invalid snapshot name '", n, "': must be a bare file name (no path separators, no leading dot)"];
     n: $[n like "*.snap"; n; n, ".snap"];
     .utl.pathToHsym .tst.snapDir, "/", n
  };
@@ -38,18 +54,20 @@ saveSnap:{[name;data]
  }
 
 mustmatchSnap:{[actual;name]
+    / Validate before any filesystem access, and pass the raw name through so
+    / loadSnap/snapExists/saveSnap all share snapPath's single derivation.
+    validatedPath: .tst.snapPath name;
     n: $[10h=type name; name; string name];
-    snapName: `$n,".snap";
-    stored: .tst.loadSnap[snapName];
+    stored: .tst.loadSnap[name];
     / Decide existence by FILE PRESENCE, not by ()~stored: an empty-list,
     / empty-dict or empty-table snapshot all load back as a value that may
     / match (), so aliasing them to "missing" would re-create them every run
     / and fail under -strict despite the file existing on disk.
-    missing: not .tst.snapExists snapName;
+    missing: not .tst.snapExists name;
 
     / Explicit update intent always (re)writes and passes, with a NOTE.
     if[.tst.updateSnaps;
-        .tst.saveSnap[snapName;actual];
+        .tst.saveSnap[name;actual];
         -1 "NOTE: snapshot created: ", n, " (", .tst.snapDir, ") - review and commit it";
         :1b;
     ];
@@ -61,7 +79,7 @@ mustmatchSnap:{[actual;name]
         if[1b ~ @[get; `.tst.app.strict; 0b];
             ' "Snapshot missing under -strict: ", n, " (run without -strict once to create it)";
         ];
-        .tst.saveSnap[snapName;actual];
+        .tst.saveSnap[name;actual];
         -1 "NOTE: snapshot created: ", n, " (", .tst.snapDir, ") - review and commit it";
         :1b;
     ];

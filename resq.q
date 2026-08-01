@@ -49,56 +49,17 @@ if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."
 / Reset results table for fresh run
 .resq.state.results: .resq.state.emptyResults[];
 
-/ Initialize CLI
-.tst.initCLI[];
+/ Parse exactly once. Invalid input exits before mode dispatch, test loading, or
+/ reporter initialization, so malformed CLI input cannot run tests or create
+/ output artifacts.
+.resq.cli: .tst.parseCLI .z.x;
+if[not .resq.cli`ok;
+    -2 "CLI ERROR: ", .resq.cli`error;
+    exit .resq.EXIT.FAIL];
 
-/ Parse Args: collect positional args (everything not prefixed with -).
-/ A value-taking flag (-only "pat", -tag x, ...) has its VALUE as the next
-/ token; that value is NOT a flag (no leading "-") so the naive filter would
-/ also treat it as a positional test path. Exclude the token immediately
-/ FOLLOWING each value-flag occurrence. Boolean flags (-strict, -quiet, -junit,
-/ ...) are NOT listed here, so they never swallow their successor. The list
-/ mirrors cli.q's getArg call sites (both -x and --x spellings).
-.resq.valueFlagWords: `maxTestTime`fuzzLimit`isolateTimeout, (`$"cov-include"), (`$"cov-exclude"),
-  `outDir`exclude`only`tag, (`$"exclude-tag");
-.resq.valueFlagTokens: raze {("-",x;"--",x)} each string .resq.valueFlagWords;
-/ Index of every value-flag occurrence; its successor (if present and itself a
-/ non-flag token) is the consumed value.
-.resq.valueFlagIdx: where .z.x in .resq.valueFlagTokens;
-.resq.consumedValueIdx: 1 + .resq.valueFlagIdx;
-.resq.consumedValueIdx: .resq.consumedValueIdx where .resq.consumedValueIdx < count .z.x;
-.resq.consumedValueIdx: .resq.consumedValueIdx where not (.z.x .resq.consumedValueIdx) like "-*";
-/ Positionals are every index that is neither a "-"-flag nor a consumed value.
-/ Indexing by position (not `except` on values) keeps a path that legitimately
-/ equals a flag value, e.g. `resq test -only foo.q foo.q`.
-.resq.allIdx: til count .z.x;
-.resq.positionalIdx: .resq.allIdx where (not .z.x like "-*") and not .resq.allIdx in .resq.consumedValueIdx;
-.tst.app.args: .z.x .resq.positionalIdx;
-
-/ Loud warning for "-"-prefixed tokens that are NOT recognized flags. Full flag
-/ parsing lives in cli.q (getFlag/getArg); here we only need the recognized flag
-/ NAMES (both -x and --x spellings, plus the value-arg names whose own token is a
-/ leading-"-" word). A path that legitimately starts with "-" gets silently
-/ dropped by the filter above, so surface it and tell the user how to keep it.
-.resq.knownFlagWords: `perf`junit`xml`xunit`json`noquit`exit`cov`coverage`debug,
-  `interactive`strict`quiet`v`version`desc`describe`ff`fh`e`isolate`isolateTimeout,
-  (`$"fail-fast"), (`$"fail-hard"), `maxTestTime`fuzzLimit,
-  (`$"cov-include"), (`$"cov-exclude"), `outDir`exclude`only`tag, (`$"exclude-tag");
-.resq.knownFlagTokens: raze {("-",x;"--",x)} each string .resq.knownFlagWords;
-.resq.droppedFlags: .z.x where (.z.x like "-*") and not .z.x in .resq.knownFlagTokens;
-if[0 < count .resq.droppedFlags;
-    -1 "WARNING: ignoring unrecognized flag(s): ", ", " sv .resq.droppedFlags;
-    if[any {(x like "*/*") or x like "*.q"} each .resq.droppedFlags;
-        -1 "  (if you meant a path, prefix it with ./)"];
- ];
-
-/ Handle Debug Flag
-if[any .z.x like "-debug"; .utl.DEBUG: 1b];
-
-/ Determine mode and leave only mode-specific positional args.
-parsedMode: .tst.parseModeArgs .tst.app.args;
-.resq.mode: parsedMode`mode;
-.tst.app.args: parsedMode`args;
+.tst.initCLI .resq.cli;
+.resq.mode: .resq.cli`mode;
+.tst.app.args: .resq.cli`args;
 args: .tst.app.args;
 
 / --- DISPATCH ---
@@ -114,13 +75,26 @@ if[.resq.mode ~ `test;
         .tst.app.args: enlist "tests";
         -1 "No path specified; defaulting to tests/";
     ];
+    / Isolation cannot compose truthfully with coverage instrumentation or
+    / describe-only discovery. Reject both before reporter initialization or
+    / test loading so no report/coverage artifact can be created.
+    if[(1b ~ @[get; `.tst.app.isolate; 0b]) and
+       (1b ~ @[get; `.tst.app.runCoverage; 0b]);
+        -2 "CLI ERROR: process isolation cannot be combined with coverage";
+        exit .resq.EXIT.FAIL];
+    if[(1b ~ @[get; `.tst.app.isolate; 0b]) and
+       (1b ~ @[get; `.tst.app.describeOnly; 0b]);
+        -2 "CLI ERROR: process isolation cannot be combined with describe mode";
+        exit .resq.EXIT.FAIL];
+
     .tst.initReporting[];
     / Process-isolation mode (-isolate): each discovered FILE runs in its own q
-    / subprocess and the parent aggregates. .tst.isolate.runAll drives reporting
-    / AND the exit itself (honoring -noquit, reusing the .resq.EXIT.* precedence),
-    / so the in-process runAll path below is bypassed entirely.
+    / subprocess and the parent aggregates. runAll reports once and returns the
+    / granular status; this entry point alone owns process exit policy.
     if[1b ~ @[get; `.tst.app.isolate; 0b];
-        .tst.isolate.runAll[.tst.app.args];
+        .resq.isolateExitCode: .tst.isolate.runAll .tst.app.args;
+        if[not .resq.cli[`options; `noquit];
+            exit .resq.isolateExitCode];
     ];
     if[not 1b ~ @[get; `.tst.app.isolate; 0b];
         / -desc/-describe: specs are discovered but NOT executed, so the normal text
@@ -132,7 +106,7 @@ if[.resq.mode ~ `test;
             .resq.report: .tst.describeReport;
         ];
         .tst.runAll[];
-        if[not any .z.x like "-noquit";
+        if[not .resq.cli[`options; `noquit];
             / -desc exits cleanly (0) when files loaded without error; a load error
             / still surfaces as LOAD_ERROR so a broken file is never silently listed.
             if[1b ~ @[get; `.tst.app.describeOnly; 0b];
@@ -156,7 +130,7 @@ if[.resq.mode ~ `discover;
     src: .resq.HOME, "/examples/quickstart/src"; tst: .resq.HOME, "/examples/quickstart/test";
     if[0<count .tst.app.args; src: .tst.app.args 0];
     if[1 < count .tst.app.args; tst: .tst.app.args 1];
-    if[any .z.x like "-interactive"; .tst.start[]; exit 0];
+    if[.resq.cli[`options; `interactive]; .tst.start[]; exit 0];
     .tst.main[src; tst];
     exit 0;
  ];

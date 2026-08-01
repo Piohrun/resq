@@ -138,8 +138,8 @@ resq test tests/ -exclude "*slow*"    # title glob exclude
 | `must[cond; msg]` | bare boolean assertion |
 | `musteq[l; r]` | `~` equality; rich FAILURE DIFF on mismatch. **Preferred.** |
 | `mustmatch[l; r]` | exact synonym of `musteq` (same diff). Not "terser" — identical behaviour. |
-| `mustne[l; r]` | inequality |
-| `mustnmatch[l; r]` | negated `~` match |
+| `mustne[l; r]` | negated `~` match; exact inverse of `musteq`. Works on any value (vectors, dicts, tables). |
+| `mustnmatch[l; r]` | negated `~` match; synonym of `mustne` |
 | `mustlt`, `mustgt` | `<` / `>` |
 | `mustlike[l; r]` | `l like r` (r is a glob) |
 | `mustin`, `mustnin` | membership / non-membership |

@@ -3,7 +3,92 @@
 
 .tst.static.toStr:{[x] $[10h=type x; x; string x] }
 
-.tst.static.getDir:{[x] 
+.tst.static.rstrip:{[x]
+    s: .tst.static.toStr x;
+    keep: where not s in " \t";
+    $[count keep; (1+last keep)#s; ""]
+ }
+
+/ Blank out the non-executable spans of ONE line, preserving its length so
+/ character offsets stay comparable with the raw text. Returns the masked line
+/ plus the string/escape state to carry into the next line.
+/ A "/" only opens a comment at line start or after whitespace -- that is q's
+/ actual rule, and the reason `a/b` (divide) survives masking.
+.tst.static.maskCodeLine:{[line;initialInString;initialEscape]
+    inString: initialInString;
+    escaped: initialEscape;
+    inComment: 0b;
+    output: "";
+    i: 0;
+    while[i < count line;
+        char: line i;
+        $[inComment;
+            output,: enlist " ";
+          inString;
+            [ output,: enlist " ";
+              $[escaped;      escaped: 0b;
+                char="\\";    escaped: 1b;
+                char="\"";    inString: 0b;
+                (::)] ];
+          char="\"";
+            [ inString: 1b; output,: enlist " " ];
+          (char="/") and ((i=0) or line[i-1] in " \t");
+            [ inComment: 1b; output,: enlist " " ];
+            output,: enlist char];
+        i+: 1;
+    ];
+    (output; inString; escaped)
+ }
+
+/ Return source lines with comments, strings, block comments and everything
+/ after a script terminator replaced by spaces. Line lengths are preserved, so
+/ an offset into the masked text indexes the same character in the raw text.
+/ A lone "/" line opens a block comment (closed by a lone "\"); a line starting
+/ with "\" that is otherwise bare terminates the script.
+.tst.static.maskLines:{[inputLines]
+    lines: $[10h = type inputLines; "\n" vs inputLines;
+             0h  = type inputLines; .tst.static.toStr each inputLines;
+             enlist .tst.static.toStr inputLines];
+    output: ();
+    inBlock: 0b;
+    terminated: 0b;
+    inString: 0b;
+    escaped: 0b;
+    i: 0;
+    while[i < count lines;
+        raw: lines i;
+        rightTrimmed: .tst.static.rstrip raw;
+        blank: (count raw)#" ";
+        $[terminated;
+            output,: enlist blank;
+          inBlock;
+            [ output,: enlist blank;
+              if[rightTrimmed ~ enlist "\\"; inBlock: 0b] ];
+          (not inString) and rightTrimmed ~ enlist "/";
+            [ inBlock: 1b; output,: enlist blank ];
+          (not inString) and ((count raw) > 0) and
+              ("\\" = first raw) and rightTrimmed ~ enlist "\\";
+            [ terminated: 1b; output,: enlist blank ];
+            [ masked: .tst.static.maskCodeLine[raw; inString; escaped];
+              output,: enlist masked 0;
+              inString: masked 1;
+              escaped: masked 2 ]];
+        i+: 1;
+    ];
+    output
+ }
+
+.tst.static.validFunctionName:{[name]
+    n: trim .tst.static.toStr name;
+    if[not count n; :0b];
+    allowed: .Q.a, .Q.A, .Q.n, "._";
+    if[not all n in allowed; :0b];
+    if[first[n] in .Q.n, "_"; :0b];
+    if[n like "*..*"; :0b];
+    1b
+ }
+
+.tst.static.getDir:{[x]
   x: .tst.static.toStr x; 
   if[not count x; :"" ];
   i: (count x) - (reverse x) ? "/"; 

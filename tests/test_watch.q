@@ -164,7 +164,9 @@
   / (chdir, never reaches a shell) and "(" is rejected outright ('( invalid).
   / Lead with a real binary (mkdir, like the golden harness) so the compound
   / command reaches the shell. All paths are absolute.
-  cmd: "mkdir -p ", wd, " && ( timeout 9 q ", .resq.HOME, "/resq.q watch ", wd,
+  / timeout needs -k: q's watch loop survives plain SIGTERM (same lesson as
+  / isolate.q), and an unkilled child holds this test's pipes open forever.
+  cmd: "mkdir -p ", wd, " && ( timeout -k 2 9 q ", .resq.HOME, "/resq.q watch ", wd,
        " < /dev/null > ", out, " 2>&1 & echo started )",
        " && sleep 2 && echo '/ touched' >> ", tf,
        " && sleep 4 ; true";

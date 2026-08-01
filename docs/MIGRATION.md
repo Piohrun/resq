@@ -27,7 +27,7 @@ resQ uses different assertion names from qspec. The most common translations:
 | qspec | resQ | Notes |
 |-------|------|-------|
 | `assert.equal` | `musteq` or `mustEqual` | `~`-equality |
-| `assert.notEqual` | `mustne` or `mustNotEqual` | `<>`-inequality |
+| `assert.notEqual` | `mustne` or `mustNotEqual` | negated `~`-equality |
 | `assert.true` | `must[cond; msg]` | Takes a message |
 | `assert.false` | `must[not cond; msg]` | |
 | (none) | `mustlt`, `mustgt` | Numeric comparisons |

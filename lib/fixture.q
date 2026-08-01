@@ -3,6 +3,23 @@
 / Ensure fixtures is a global in .tst
 if[not `fixtures in key `.tst; fixtures:: ((),`)!(),(::)];
 
+/ The registry legitimately stores mixed value shapes: definition dicts AND
+/ bare symbol references (see cleanupAllFixtures). The null-key (::) sentinel
+/ keeps the value list generic; if it is ever lost, q collapses the values to
+/ a typed vector (or a table, for uniform dicts) and every later registration
+/ of a different shape dies with 'type. Rebuild the sentinel before amending.
+ensureFixtureRegistry:{[]
+    reg: @[get; `.tst.fixtures; {[e] ()!()}];
+    if[not 99h = type reg; reg: ()!()];
+    vals: value reg;
+    / uniform definition dicts collapse to a table; recover the rows as dicts
+    if[98h = type vals; vals: {x} each vals];
+    reg: key[reg]!vals;
+    / dict join re-materializes the value list; the (::) cannot conform to any
+    / typed vector, so the result is guaranteed generic again
+    .tst.fixtures:: (((),`)!(),(::)) , ((),`) _ reg;
+ }
+
 currentDirFixture: ` 
 savedDir: `directory`vars`context!("";(`,())!(),(::);`.)
 
@@ -24,6 +41,7 @@ fixtureAs:{[fixtureName;name]
 
     / Load and register
     fixture: .tst.loadFixture[fp; name];
+    .tst.ensureFixtureRegistry[];
     .tst.fixtures[name]: fixture;
     fixture ^ name
  }
@@ -53,6 +71,7 @@ fixtureInDir:{[fname;dir]
 / Register a fixture - 2-arg version (simple case)
 registerFixture:{[name;val]
     d: `val`scope`setup`teardown`instance!(val;`test;{};{};(::));
+    .tst.ensureFixtureRegistry[];
     .tst.fixtures[name]: d
  }
 
@@ -60,6 +79,7 @@ registerFixture:{[name;val]
 registerFixtureWithOpts:{[name;val;opts]
     d: `val`scope`setup`teardown`instance!(val;`test;{};{};(::));
     if[(99h = type opts) and (0 < count opts); d: d, opts];
+    .tst.ensureFixtureRegistry[];
     .tst.fixtures[name]: d
  }
 

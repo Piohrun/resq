@@ -1,5 +1,8 @@
 .tst.desc["Configuration File Support"]{
- after{@[hdel; hsym `$":test_config.json"; {}]};
+ after{
+  @[hdel; hsym `$":test_config.json"; {}];
+  @[hdel; hsym `$":test_config_directory.json"; {}];
+  };
 
  should["load default config when file does not exist"]{
   cfg: .tst.loadConfig["nonexistent.json"];
@@ -154,6 +157,115 @@
   applied: .tst.output.fuzzLimit;
   .tst.output.fuzzLimit: prevFuzz;
   applied musteq 100;
+  };
+
+ should["apply only a boolean runPerformance setting"]{
+  prevPerf:.tst.app.runPerformance;
+  .tst.app.runPerformance:0b;
+  .tst.applyConfig[(enlist `runPerformance)!enlist 1b];
+  appliedGood:.tst.app.runPerformance;
+  .tst.applyConfig[(enlist `runPerformance)!enlist "yes"];
+  appliedBad:.tst.app.runPerformance;
+  .tst.app.runPerformance:prevPerf;
+  appliedGood musteq 1b;
+  appliedBad musteq 1b;
+  };
+
+ should["accept and normalize safe test file patterns"]{
+  goodString:"*_spec.q";
+  goodList:("test_*.q"; "*_test.q"; "exact.q");
+  0 musteq count .tst.invalidConfigKeys (enlist `testFilePatterns)!enlist goodString;
+  0 musteq count .tst.invalidConfigKeys (enlist `testFilePatterns)!enlist goodList;
+
+  prevPatterns:@[get; `.resq.config.testFilePatterns; {()}];
+  .tst.applyConfig[(enlist `testFilePatterns)!enlist goodString];
+  applied:.resq.config.testFilePatterns;
+  .resq.config.testFilePatterns:prevPatterns;
+  applied mustmatch enlist goodString;
+  };
+
+ should["warn and reject unsafe test file patterns"]{
+  badPatterns:(
+    "";
+    ();
+    42;
+    `test;
+    ("test_*.q"; "");
+    enlist "nested/test_*.q";
+    enlist "nested\\test_*.q";
+    enlist "test_*_*.q";
+    enlist "control\001.q");
+  {
+    cfg:(enlist `testFilePatterns)!enlist x;
+    .tst.invalidConfigKeys[cfg] musteq enlist `testFilePatterns;
+    warnings:.tst.validateConfig cfg;
+    must[any warnings like "testFilePatterns must be*";
+         "invalid testFilePatterns must produce a config warning"];
+    } each badPatterns;
+  };
+
+ should["retain existing test file patterns after invalid config"]{
+  prevPatterns:@[get; `.resq.config.testFilePatterns; {()}];
+  expected:("test_*.q"; "*_test.q");
+  .resq.config.testFilePatterns:expected;
+  .tst.applyConfig[(enlist `testFilePatterns)!enlist 42];
+  applied:.resq.config.testFilePatterns;
+  .resq.config.testFilePatterns:prevPatterns;
+  applied mustmatch expected;
+  };
+
+ should["normalize JSON testFilePatterns strings and lists"]{
+  singleJson:"{ \"testFilePatterns\": \"*_spec.q\" }";
+  hsym[`$":test_config.json"] 0: enlist singleJson;
+  single:.tst.loadConfig "test_config.json";
+
+  listJson:"{ \"testFilePatterns\": [\"test_*.q\", \"*_test.q\"] }";
+  hsym[`$":test_config.json"] 0: enlist listJson;
+  listed:.tst.loadConfig "test_config.json";
+
+  single[`testFilePatterns] mustmatch enlist "*_spec.q";
+  listed[`testFilePatterns] mustmatch ("test_*.q"; "*_test.q");
+  };
+
+ should["reject integer vectors and infinities as config scalars"]{
+  badValues:(1 2; 0W; -0W);
+  {
+    cfg:(enlist `reportLimit)!enlist x;
+    .tst.invalidConfigKeys[cfg] musteq enlist `reportLimit;
+    } each badValues;
+  };
+
+ should["fail soft on malformed config roots"]{
+  prevPerf:.tst.app.runPerformance;
+  .tst.app.runPerformance:0b;
+  mustnotthrow[();(.tst.applyConfig;42)];
+  applied:.tst.app.runPerformance;
+
+  hsym[`$":test_config.json"] 0:enlist "[1, 2]";
+  loaded:.tst.loadConfig "test_config.json";
+  .tst.app.runPerformance:prevPerf;
+
+  applied musteq 0b;
+  loaded[`testFilePatterns] mustmatch .tst.defaultConfig`testFilePatterns;
+  };
+
+ should["use defaults when the config path is a directory"]{
+  path:"test_config_directory.json";
+  .utl.ensureDir path;
+  cfg:.tst.loadConfig path;
+  @[hdel;hsym `$path;{}];
+
+  cfg[`runPerformance] musteq .tst.defaultConfig`runPerformance;
+  cfg[`testFilePatterns] mustmatch .tst.defaultConfig`testFilePatterns;
+  };
+
+ should["use defaults when reading an existing config fails"]{
+  hsym[`$":test_config.json"] 0:enlist "{\"runPerformance\":true}";
+  `.tst.readConfigLines mock {[handle] '"simulated config read failure"};
+  cfg:.tst.loadConfig "test_config.json";
+
+  cfg[`runPerformance] musteq .tst.defaultConfig`runPerformance;
+  cfg[`testFilePatterns] mustmatch .tst.defaultConfig`testFilePatterns;
   };
  };
 
