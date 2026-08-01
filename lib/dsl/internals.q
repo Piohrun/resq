@@ -55,8 +55,11 @@ if[not `reportListLimit in key `.tst.output; .tst.output.reportListLimit: 1000];
     s
  };
 
-/ Initialize .resq namespace if not exists
-if[not `resq in key `.; .resq.state.init_: 1b; .resq.config.init_: 1b];
+/ Ensure the .resq namespaces exist before the keyed defaults below probe them.
+/ (This was written as ``if[not `resq in key `.; ...]``, but `key `.` never
+/ reports child namespaces, so the condition was always true and the assignment
+/ always ran. Unconditional is what it actually did, and what it needs to do.)
+.resq.state.init_: 1b; .resq.config.init_: 1b;
 
 / Resq config defaults
 if[not `fmt in key `.resq.config; .resq.config.fmt: `text];

@@ -310,3 +310,58 @@
         must[txt like "*FNDA:0,.probe.sub*"; "an uncalled function must report zero hits"];
     };
  };
+
+/ Two stacked bugs made .utl.require-loaded source permanently invisible to
+/ coverage, and made instrumentLoadedFiles a no-op:
+/   1. both paths were guarded by ``if[`tst in key `.]`` / ``if[`utl in key `.]``,
+/      and `key `.` NEVER reports child namespaces (it is empty even when the
+/      namespace exists), so the guards were always false;
+/   2. behind that, the condition `p like "*.q" and not p like "*coverage.q"`
+/      signalled 'type — q is right-to-left with uniform precedence, so it
+/      parsed as `p like ("*.q" and (not p like "*coverage.q"))`.
+/ Neither had a test, and `resq cover` looked fine because the `\l` path
+/ (.tst.sysl) does not go through either of them.
+.tst.desc["Coverage: namespace probing and require instrumentation"]{
+    should["not use `key \\`.` to detect a namespace"]{
+        / The idiom the bugs were built on. Pinning it here so the assumption is
+        / recorded rather than rediscovered.
+        must[not `tst in key `.;  "`key `.` does not report child namespaces"];
+        must[0 < count key `.tst; "`key `.tst` does report its members"];
+    };
+
+    should["evaluate the require instrumentation condition without signalling"]{
+        p: "/some/where/user_src.q";
+        / Unparenthesised this throws 'type; the fix is the parentheses.
+        r: @[{[x] (1b) and (x like "*.q") and (not x like "*coverage.q")}; p; {`$"THREW: ",x}];
+        r musteq 1b;
+        c: @[{[x] (1b) and (x like "*.q") and (not x like "*coverage.q")}; "/l/coverage.q"; {`$"THREW: ",x}];
+        c musteq 0b;
+    };
+
+    should["skip resQ's own lib by default but not other files under the root"]{
+        `.tst.origCovData3 mock .tst.coverageData;
+        `.tst.origCovEnabled3 mock .tst.coverageEnabled;
+        .tst.coverageEnabled: 1b;
+        .tst.coverageData: ()!();
+
+        home: @[get; `.resq.HOME; {""}];
+        must[0 < count home; "this test needs .resq.HOME"];
+
+        / A framework module: excluded.
+        .tst.instrumentFile home, "/lib/diff.q";
+        must[not (`$home, "/lib/diff.q") in key .tst.coverageData;
+             "resQ's own lib must not be instrumented by default"];
+
+        / A file under the install root that is NOT the framework: included.
+        / (The bundled examples live here; excluding all of HOME hid them.)
+        ex: home, "/examples/quickstart/src/gateway/auth.q";
+        if[.utl.pathExists ex;
+            .tst.instrumentFile ex;
+            must[(`$ex) in key .tst.coverageData;
+                 "a non-framework file under the install root must still be instrumented"];
+        ];
+
+        .tst.coverageData: .tst.origCovData3;
+        .tst.coverageEnabled: .tst.origCovEnabled3;
+    };
+ };

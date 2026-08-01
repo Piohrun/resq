@@ -50,20 +50,24 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 
     / If coverage is enabled and the coverage module is loaded, instrument
     / any .q file that is loaded through .utl.require.
-    covSuppressed: 0b;
-    if[`tst in key `.;
-      covSuppressed: 1b ~ @[get; `.tst.coverageLoading; 0b];
-    ];
+    / This branch used to be guarded by ``if[`tst in key `.]``, which is ALWAYS
+    / false -- q's root key list does not report child namespaces (`key `.` is
+    / empty even when .tst exists, while `key `.tst` works). The whole branch
+    / was therefore dead and NOTHING loaded via .utl.require was ever
+    / instrumented. Probe the namespace directly instead.
+    tstKeys: @[key; `.tst; {`symbol$()}];
+    covSuppressed: 1b ~ @[get; `.tst.coverageLoading; 0b];
     if[not covSuppressed;
-      if[`tst in key `.;
-        if[all `instrumentFile`coverageEnabled in key `.tst;
-        if[.tst.coverageEnabled and p like "*.q" and not p like "*coverage.q";
+      if[all `instrumentFile`coverageEnabled in tstKeys;
+        / Parenthesised deliberately: q evaluates right-to-left with uniform
+        / precedence, so the bare form parsed as
+        / `p like ("*.q" and (not p like "*coverage.q"))` and signalled 'type.
+        if[.tst.coverageEnabled and (p like "*.q") and (not p like "*coverage.q");
           covPath: $[p like ":*"; 1 _ p; p];
           covAbs: $[`resolvePath in key `.tst; .tst.resolvePath covPath; covPath];
           @[.tst.instrumentFile; covAbs; {[cp;e]
               -1 "WARNING: coverage instrumentation failed for ", cp, ": ", e
           }[covAbs]];
-        ];
         ];
       ];
     ];

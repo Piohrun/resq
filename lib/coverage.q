@@ -156,7 +156,21 @@
     if[`coverageExclude in key `.tst.app;
         if[any absPath like/: .tst.app.coverageExclude; :()]
     ];
-    
+
+    / Never instrument resQ's own modules by default. Now that .utl.require
+    / actually reaches instrumentation, the framework's internals would
+    / otherwise be wrapped on every `resq cover` run: that slows the run and
+    / buries the user's own functions in the report. An explicit -cov-include
+    / overrides this, which is how resQ measures coverage of itself.
+    / Scope this to <HOME>/lib specifically, NOT all of <HOME>: a project can
+    / legitimately keep its own sources under the install root (the bundled
+    / examples do), and excluding those would silently report nothing for them.
+    if[0 = count @[get; `.tst.app.coverageInclude; ()];
+        home: @[get; `.resq.HOME; {""}];
+        if[(0 < count home) and absPath like home, "/lib/*"; :()];
+    ];
+
+
     fileSym: `$absPath;
     .tst.ensureCoverageEntry[fileSym];
 
@@ -257,10 +271,12 @@
 
 / Instrument already-loaded .q files once coverage is enabled
 .tst.instrumentLoadedFiles:{[]
-    if[not `utl in key `.; :()];
-    if[not `loaded in key `.utl; :()];
-
-    loaded: .utl.loaded;
+    / `utl in key `.` is ALWAYS false: q's root key list does not report child
+    / namespaces (`key `.` is empty even when .utl exists, while `key `.utl`
+    / works). This guard therefore returned before instrumenting anything, so
+    / coverage only ever saw files loaded through .tst.sysl (\l) and nothing
+    / loaded via .utl.require. Probe the variable itself instead.
+    loaded: @[get; `.utl.loaded; {()}];
     if[0 = count loaded; :()];
 
     files: loaded where (loaded like "*.q") and not loaded like "*coverage.q";
