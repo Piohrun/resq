@@ -106,7 +106,7 @@
 / the file is appended to (size and/or mtime move).
 .tst.desc["watch: fingerprint handles spaced paths and detects edits"]{
   should["fingerprint a file under a spaced dir, detect an append"]{
-    wd: "/tmp/resq_watchfp_", string[.z.i], "_", string `long$.z.p;
+    wd: .utl.tempRoot[], "/resq_watchfp_", string[.z.i], "_", string `long$.z.p;
     sub: wd, "/my dir";
     tf: sub, "/test_a.q";
     system "mkdir -p ", .utl.shellQuote sub;
@@ -122,7 +122,7 @@
     system "rm -rf ", .utl.shellQuote wd;
   };
   should["statAll absorbs a missing path without throwing"]{
-    wd: "/tmp/resq_watchfp_m_", string[.z.i], "_", string `long$.z.p;
+    wd: .utl.tempRoot[], "/resq_watchfp_m_", string[.z.i], "_", string `long$.z.p;
     tf: wd, "/test_b.q";
     system "mkdir -p ", .utl.shellQuote wd;
     (hsym `$tf) 0: enlist "/ b";
@@ -152,7 +152,7 @@
 / Launch `resq watch <wd>` in the background with stdin at EOF, append to a
 / trivial passing test after a short delay, then collect the captured output.
 .tst.testState.watchchk.run:{[]
-  wd: "/tmp/resq_watch_", string[.z.i], "_", string `long$.z.p;
+  wd: .utl.tempRoot[], "/resq_watch_", string[.z.i], "_", string `long$.z.p;
   out: wd, "/out.txt";
   tf: wd, "/test_w.q";
   system "mkdir -p ", wd;

@@ -21,7 +21,7 @@
 / Lead the command with `mkdir`, NOT `cd`/`(`: q intercepts a leading `cd` /
 / rejects a leading `(`, mangling the `&&`-chained command.
 .tst.testState.tochk.run:{[extraArgs; fixtureContent]
-  wd: "/tmp/resq_testonly_", string[.z.i], "_", string `long$.z.p;
+  wd: .utl.tempRoot[], "/resq_testonly_", string[.z.i], "_", string `long$.z.p;
   fix: wd, "/test_fixture.q";
   system "mkdir -p ", wd;
   (hsym `$fix) 0: fixtureContent;

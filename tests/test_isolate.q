@@ -22,7 +22,7 @@
 .tst.isotest.qBinary: (getenv `QHOME), "/l64/q";
 .tst.isotest.canQ: 0 < count .tst.isotest.qExe[];
 .tst.isotest.canTimeout: 0 < count .tst.isotest.timeoutExe[];
-.tst.isotest.base: "/tmp/resq_isolate_test_", string .z.i;
+.tst.isotest.base: .utl.tempRoot[], "/resq_isolate_test_", string .z.i;
 .tst.isotest.counter: 0;
 
 .tst.isotest.workDir:{[]
@@ -31,7 +31,7 @@
  };
 
 .tst.isotest.cleanupBase:{[]
-    expected: "/tmp/resq_isolate_test_", string .z.i;
+    expected: .utl.tempRoot[], "/resq_isolate_test_", string .z.i;
     if[not .tst.isotest.base ~ expected;
         '"refusing unsafe isolate test cleanup path"];
     if[.utl.pathExists .tst.isotest.base;

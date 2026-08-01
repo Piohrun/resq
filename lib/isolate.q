@@ -35,10 +35,11 @@
 / present in this allocation list may be recursively removed.
 .tst.isolate.allocated: ();
 
+/ Shares .utl.tempRoot (which honours TMPDIR) and then enforces the stricter
+/ requirements isolation has: the root must exist and be a real directory,
+/ because child processes are about to write scratch into it.
 .tst.isolate.tempRoot:{[]
-    root: getenv `TMPDIR;
-    if[0 = count root; root: "/tmp"];
-    root: .utl.normalizePath root;
+    root: .utl.tempRoot[];
     if[(0 = count root) or not "/" = first root;
         '"TMPDIR must be an absolute directory: ", root];
     if[not .utl.isDir root;

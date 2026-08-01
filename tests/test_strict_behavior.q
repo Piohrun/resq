@@ -13,7 +13,7 @@
 / makes the shell exit 0 so q's `system` never throws 'os; we read the real
 / child exit code off the last stdout line. (Idiom copied from test_retry.q.)
 .tst.testState.strictchk.run:{[fixtureContent; extraFlags]
-  wd: "/tmp/resq_strict_", string[.z.i], "_", string `long$.z.p;
+  wd: .utl.tempRoot[], "/resq_strict_", string[.z.i], "_", string `long$.z.p;
   fix: wd, "/test_fixture.q";
   system "mkdir -p ", wd;
   (hsym `$fix) 0: fixtureContent;

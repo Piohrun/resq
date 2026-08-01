@@ -60,7 +60,7 @@
 / against a generated fixture (the golden-harness idiom from test_retry.q).
 / ---------------------------------------------------------------------------
 .tst.testState.hookerr.run:{[fixtureContent]
-  wd: "/tmp/resq_hookerr_", string[.z.i], "_", string `long$.z.p;
+  wd: .utl.tempRoot[], "/resq_hookerr_", string[.z.i], "_", string `long$.z.p;
   fix: wd, "/test_fixture.q";
   system "mkdir -p ", wd;
   (hsym `$fix) 0: fixtureContent;

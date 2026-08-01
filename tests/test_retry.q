@@ -87,7 +87,7 @@
 / Returns `code`out!(exitInt; outLines). `; echo $?` makes the shell exit 0 so
 / q's `system` never throws 'os; we read the real child exit code off stdout.
 .tst.testState.retrychk.run:{[fixtureContent]
-  wd: "/tmp/resq_retry_", string[.z.i], "_", string `long$.z.p;
+  wd: .utl.tempRoot[], "/resq_retry_", string[.z.i], "_", string `long$.z.p;
   fix: wd, "/test_fixture.q";
   system "mkdir -p ", wd;
   (hsym `$fix) 0: fixtureContent;

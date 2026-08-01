@@ -63,7 +63,13 @@
 / ---- environment / availability ------------------------------------------
 .tst.testState.ldiff.canQ:  0 < count @[system; "which q 2>/dev/null"; {()}];
 .tst.testState.ldiff.repo:  .resq.HOME;
-.tst.testState.ldiff.dir:   "/tmp/resq_ldiff_", string .z.i;
+.tst.testState.ldiff.dir:   .utl.tempRoot[], "/resq_ldiff_", string .z.i;
+/ Set by .report when a divergence is found: the generated scripts and dumps are
+/ the evidence, so the scratch dir survives for post-mortem. On a clean run
+/ afterAll removes it -- this suite previously never cleaned up at all and left
+/ one PID-keyed directory per run behind (201 of them had accumulated, in RAM on
+/ any machine where TMPDIR is tmpfs).
+.tst.testState.ldiff.keepDir: 0b;
 
 / ---- dumper sources (generated to /tmp at setup; NOT committed) ------------
 / Shared tail: walk root + non-system child namespaces, print "%name=value"
@@ -196,6 +202,9 @@
   -1 "---- prep dump ----"; -1 each prepD;
   -1 "(script saved at ", .tst.testState.ldiff.dir, "/script_", label, ".q)";
   -1 "";
+  / Preserve the scratch dir for post-mortem; afterAll only removes it on a
+  / clean run (see below).
+  .tst.testState.ldiff.keepDir: 1b;
  };
 
 / ===========================================================================
@@ -382,6 +391,14 @@
 / SUITE
 / ===========================================================================
 .tst.desc["loader differential: native q vs preprocessor (#slow)"]{
+  afterAll{
+    d: .tst.testState.ldiff.dir;
+    $[.tst.testState.ldiff.keepDir;
+        -1 "NOTE: loader-differential scratch kept for post-mortem: ", d;
+        / Guard the path shape before a recursive delete.
+        if[(d like "*/resq_ldiff_*") and .utl.pathExists d;
+            @[system; "rm -rf -- ", .utl.shellQuote d; {[e] }]]];
+  };
 
   skipIf[not .tst.testState.ldiff.canQ;
          "trivial script dumps identically both ways (dumper sanity)"]{

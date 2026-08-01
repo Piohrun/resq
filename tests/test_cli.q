@@ -142,7 +142,7 @@
 ]};
 .tst.cliCanQ: 0 < count .tst.cliQExe[];
 .tst.cliCanTimeout: 0 < count @[system; "command -v timeout 2>/dev/null"; {()}];
-.tst.cliBase: "/tmp/resq_cli_test_", string .z.i;
+.tst.cliBase: .utl.tempRoot[], "/resq_cli_test_", string .z.i;
 .tst.cliCounter: 0;
 
 .tst.cliWorkDir:{[]
@@ -158,7 +158,7 @@
 };
 
 .tst.cliCleanupBase:{[]
-    expectedBase: "/tmp/resq_cli_test_", string .z.i;
+    expectedBase: .utl.tempRoot[], "/resq_cli_test_", string .z.i;
     if[not .tst.cliBase ~ expectedBase;
         '"refusing unsafe CLI test base cleanup path"];
     if[.utl.pathExists .tst.cliBase;

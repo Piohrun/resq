@@ -34,8 +34,21 @@
 
 / Unique work-dir prefix. .z.i (process id) is stable within this single
 / process; a per-call counter keeps each scenario's dir distinct.
-.tst.golden.base: "/tmp/resq_golden";
+.tst.golden.base: .utl.tempRoot[], "/resq_golden";
 .tst.golden.counter: 0;
+
+/ Remove the whole golden scratch tree. The base honours TMPDIR, so this can no
+/ longer be the literal "/tmp/resq_golden" it once was -- with TMPDIR set, that
+/ literal deleted a path that did not exist and the real run dirs accumulated
+/ silently. The safety property the literal provided is kept as an explicit
+/ shape check: refuse to recursively delete anything that is not an absolute
+/ path ending in /resq_golden.
+.tst.golden.cleanupBase:{[]
+    d: .tst.golden.base;
+    if[not ("/" = first d) and d like "*/resq_golden"; :()];
+    if[not .utl.pathExists d; :()];
+    @[system; "rm -rf -- ", .utl.shellQuote d; {[e] }];
+ };
 .tst.golden.workDir:{[]
     .tst.golden.counter+: 1;
     .tst.golden.base, "/run_", string[.z.i], "_", string .tst.golden.counter
@@ -91,7 +104,7 @@
   / Each scenario has asserted before after{} fires, so per-test cleanup of the
   / literal prefix is safe and leaves nothing behind (rm -rf is idempotent).
   / Only ever rm -rf the exact literal prefix path - never a variable.
-  after{ system "rm -rf /tmp/resq_golden" };
+  after{ .tst.golden.cleanupBase[] };
 
   / f_pass: exit 0, 2 passed.
   skipIf[not .tst.golden.canQ; "f_pass: exit 0 and 2-passed summary"]{
@@ -387,7 +400,7 @@
 
 .tst.desc["Golden: report files #slow"]{
   / Per-test cleanup; idempotent rm of the exact literal prefix only.
-  after{ system "rm -rf /tmp/resq_golden" };
+  after{ .tst.golden.cleanupBase[] };
 
   / f_fail with -junit: real testcases, a failure node, escaped message, and
   / no illegal control bytes in the XML.

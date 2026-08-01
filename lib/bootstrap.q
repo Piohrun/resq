@@ -116,6 +116,18 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
         "'", ssr[s; "'"; "'\"'\"'"], "'"]
  };
 
+/ Root directory for scratch files, honouring TMPDIR. On many systems /tmp is
+/ tmpfs (RAM-backed), so anything written there costs memory rather than disk —
+/ respecting TMPDIR lets a caller point scratch at real storage.
+/ Returns a normalized absolute path with no trailing slash.
+.utl.tempRoot:{[]
+    root: getenv `TMPDIR;
+    if[0 = count root; root: "/tmp"];
+    root: .utl.normalizePath root;
+    if[(0 = count root) or not "/" = first root; root: "/tmp"];
+    $[(1 < count root) and "/" = last root; -1 _ root; root]
+ };
+
 / Ensure a directory exists. Centralizes shell use and path quoting.
 .utl.ensureDir:{[path]
     p: .utl.normalizePath path;
