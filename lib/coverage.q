@@ -398,6 +398,16 @@
 
     outH 0: enlist txt;
     -1 "LCOV report written to: ", outPath;
+    / An empty report is the one result that looks like success but measures
+    / nothing. The usual cause is loading the code under test with a loader the
+    / instrumenting hook does not see -- only `\l` and `system "l "` are
+    / intercepted (docs/COVERAGE.md) -- which otherwise yields a silently blank
+    / LCOV and a green run.
+    if[0 = count files;
+        -1 "WARNING: coverage instrumented 0 functions - this report is empty.";
+        -1 "         Source must be loaded with `\\l path` or `system \"l \", path`;";
+        -1 "         other loaders (including .utl.require) are not intercepted.";
+    ];
     outPath
  };
 

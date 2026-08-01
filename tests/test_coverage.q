@@ -259,3 +259,54 @@
         must[any lines like "end_of_record"; "record should be terminated"];
     };
 };
+
+/ An LCOV report with no records is the one coverage outcome that looks like
+/ success while measuring nothing — the usual cause being source loaded through
+/ a loader the instrumenting hook never sees (only `\l` / `system "l "` are
+/ intercepted). generateLCOV warns in that case; here we pin the structural
+/ facts it warns about.
+.tst.desc["Coverage: empty report is detectable"]{
+    before{
+        `.tst.origCovData2 mock .tst.coverageData;
+        `.tst.origCovFiles2 mock .tst.trackedFiles;
+        `.tst.origCovEnabled2 mock .tst.coverageEnabled;
+        / generateLCOV refuses to run unless coverage is on.
+        .tst.coverageEnabled: 1b;
+    };
+    after{
+        .tst.coverageData: .tst.origCovData2;
+        .tst.trackedFiles: .tst.origCovFiles2;
+        .tst.coverageEnabled: .tst.origCovEnabled2;
+    };
+
+    should["produce an LCOV with no SF records when nothing was instrumented"]{
+        .tst.coverageData: ()!();
+        .tst.trackedFiles: ();
+        out: .tst.tempFile ".lcov";
+        .tst.generateLCOV out;
+        txt: "\n" sv read0 hsym `$out;
+        must[not txt like "*SF:*";
+             "an uninstrumented run must yield no SF records, got: ", txt];
+    };
+
+    should["produce SF records once a file has coverage data"]{
+        / generateLCOV re-parses the source on disk for function names and line
+        / numbers, so the file must really exist -- a recorded hit alone is not
+        / enough to make a record.
+        src: .tst.tempFile ".q";
+        (hsym `$src) 0: (".probe.add:{[a;b] a+b};"; ".probe.sub:{[a;b] a-b};");
+
+        .tst.coverageData: ()!();
+        .tst.trackedFiles: ();
+        .tst.coverageData[`$src]: (`$(".probe.add"; ".probe.sub"))!(2; 0);
+
+        out: .tst.tempFile ".lcov";
+        .tst.generateLCOV out;
+        txt: "\n" sv read0 hsym `$out;
+        must[txt like "*SF:*";   "an instrumented file must appear as an SF record"];
+        must[txt like "*FNF:2*"; "both functions must be counted"];
+        must[txt like "*FNH:1*"; "only the called function counts as hit"];
+        must[txt like "*FNDA:2,.probe.add*"; "the call count must be reported per function"];
+        must[txt like "*FNDA:0,.probe.sub*"; "an uncalled function must report zero hits"];
+    };
+ };

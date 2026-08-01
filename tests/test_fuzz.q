@@ -107,7 +107,10 @@
   l: (10;`a;"foo";`a`b`c!1 2 3);
   res: .tst.pickFuzz[l;20];
   (count res) musteq 20;
-  must[all res in l; "every picked element must come from the source list"];
+  / `in` is not usable here: when the picked element is the DICT, `res in l`
+  / returns a dict of booleans, not a boolean. Match each element structurally.
+  must[all {[src; x] any src ~\: x}[l] each res;
+       "every picked element must come from the source list"];
   };
 
  should["return a list of elements from a typed list"]{
