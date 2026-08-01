@@ -55,7 +55,10 @@
     :caseOpen,"    <failure message=\"",msg,"\">",msg,"</failure>",caseClose
  };
 
-.tst.output.top:{[results]
+/ Named per-format so a later loadOutputModule call can re-select the builder:
+/ .utl.require is idempotent, so junit-then-xunit in one process would
+/ otherwise leave .tst.output.top pointing at whichever loaded first.
+.tst.output.xunitTop:{[results]
     rows: .tst.output.normalizeRows results;
     if[0=count rows; :"<assemblies></assemblies>"];
     / normalizeRows may hand back either a list of row dicts or an already
@@ -87,3 +90,5 @@
 
     "<assemblies>\n",suiteBlocks,"\n</assemblies>"
  };
+
+.tst.output.top: .tst.output.xunitTop;

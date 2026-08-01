@@ -56,13 +56,16 @@
     :caseOpen,"    <failure message=\"",msg,"\">",msg,"</failure>",caseClose
  };
 
-.tst.output.top:{[results]
+/ Named per-format so a later loadOutputModule call can re-select the builder:
+/ .utl.require is idempotent, so junit-then-xunit in one process would
+/ otherwise leave .tst.output.top pointing at whichever loaded first.
+.tst.output.junitTop:{[results]
     rows: .tst.output.normalizeRows results;
     if[0=count rows; :"<testsuites></testsuites>"];
     / normalizeRows may hand back either a list of row dicts or an already
     / assembled table; .tst.resultTable canonicalises both to a 98h table.
     t: .tst.resultTable results;
-    if[not 98h = type t; :"<testsuites><testsuite name=\"resq\"/>"];
+    if[not 98h = type t; :"<testsuites><testsuite name=\"resq\"/></testsuites>"];
 
     suites: distinct t`suite;
     / q lambdas do not close over outer locals, so the per-suite table t is
@@ -89,3 +92,5 @@
 
     "<testsuites>\n",suiteBlocks,"\n</testsuites>"
  };
+
+.tst.output.top: .tst.output.junitTop;
