@@ -91,6 +91,26 @@
         -1 "No tests ran.";
         :()];
 
+    / A test that executed but ran zero assertions proves nothing: in q a bare
+    / `0 < count warnings;` is a value the block discards, not a check, and the
+    / test passes however broken the code is. Report these even under -quiet --
+    / they are a correctness warning, not a diagnostic trailer -- but print
+    / nothing when there are none, so green output is unchanged.
+    executed: results where statusNorm = `pass;
+    if[count executed;
+        silent: select from executed where 0 = assertsRun;
+        if[count silent;
+            -1 "\n----------------------------------------------------------------";
+            -1 .resq.color[`yellow; "TESTS THAT ASSERTED NOTHING: ", string count silent];
+            -1 "  These passed without checking anything. In q a bare expression";
+            -1 "  is discarded, so wrap it: must[cond; \"message\"].";
+            { [r] -1 "  - ", string[r`suite], ": ", string[r`description] }
+                each 10 sublist 0!select suite, description from silent;
+            if[10 < count silent;
+                -1 "  ... and ", string[(count silent) - 10], " more"];
+        ];
+    ];
+
     -1 .resq.color[`green; "All tests passed."];
 
     / Diagnostic trailers (DEPENDENCY SUMMARY, SLOWEST TESTS) are noise on a

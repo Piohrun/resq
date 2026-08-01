@@ -37,13 +37,12 @@
         / Manually inject a dirty object into the assert state
         / This simulates a custom assertion that failed to stringify
         oldFailures: .tst.assertState.failures;
-        oldAsserts: .tst.assertState.assertsRun;
         .tst.assertState.failures,: enlist ({x+1}); 
-        .tst.assertState.assertsRun+: 1;
         txt: .tst.toString each .tst.assertState.failures;
-        must[0 < count txt; "Expected raw failures to stringify"];
-        / Restore assert state to avoid failing the test
+        / Drop the injected failure so it does not fail THIS test, but leave the
+        / assertion counter alone: rewinding it made this test look like it
+        / asserted nothing.
         .tst.assertState.failures: oldFailures;
-        .tst.assertState.assertsRun: oldAsserts;
+        must[0 < count txt; "Expected raw failures to stringify"];
     }];
 }];

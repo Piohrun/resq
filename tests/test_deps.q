@@ -47,7 +47,7 @@
     .tst.depGraph: `a`b`c!(enlist `b; enlist `c; enlist `a);
     deps: .tst.getDependents `a;
     .tst.depGraph: .tst.savedGraph;
-    all (`a`b`c) in deps;
+    must[all `a`b`c in deps; "a cycle must still yield every reachable dependent"];
   };
 };
 

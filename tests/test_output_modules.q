@@ -1,19 +1,19 @@
 .tst.desc["Output Module Support"]{
     should["load text output module"]{
         .tst.loadOutputModule["text"];
-        `reportText in key `.resq;
+        must[`reportText in key `.resq; "the text module must publish .resq.reportText"];
     };
 
     should["load console alias as text module"]{
         .tst.app.xmlOutput: 0b;
         .tst.loadOutputModule["console"];
-        `reportText in key `.resq;
+        must[`reportText in key `.resq; "the console alias must resolve to the text module"];
     };
 
     should["load uppercase aliases safely"]{
         .tst.app.xmlOutput: 0b;
         .tst.loadOutputModule["XML"];
-        `top in key `.tst.output;
+        must[`top in key `.tst.output; "an uppercase alias must still load the xml module"];
     };
 
     should["reporting mode can map xml format to junit output"]{
@@ -26,7 +26,7 @@
         .resq.config.fmt: prevFmt;
         .tst.app.xmlOutput: prevXmlOutput;
         .resq.report: prevReport;
-        result
+        must[result; "fmt `xml must select the junit/xml reporter and publish .tst.output.top"];
     };
 
     should["sanitize converts suite specs into flat rows"]{

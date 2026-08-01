@@ -7,6 +7,7 @@
         / Use a fresh handle each time
         h: hopen hsym `$fn;
         / Leave h open. resq should warn and close it after the spec.
+        must[0 < h; "the handle this test deliberately leaks must actually be open"];
     }];
 
     .tst.should["modify .z.ts"; {
@@ -14,6 +15,7 @@
         if[not `origTs in key `.tst; .tst.origTs:: @[get; `.z.ts; {::}]];
         .z.ts: { 2 + 2 };
         / We leave it modified. resq should warn and restore it.
+        must[{ 2 + 2 } ~ @[get; `.z.ts; {::}]; "the .z.ts override must be in place for the guard to restore"];
     }];
 }];
 

@@ -106,13 +106,15 @@
  should["return a list of elements from a general list"]{
   l: (10;`a;"foo";`a`b`c!1 2 3);
   res: .tst.pickFuzz[l;20];
-  all res in l;
+  (count res) musteq 20;
+  must[all res in l; "every picked element must come from the source list"];
   };
 
  should["return a list of elements from a typed list"]{
   l: 10 30 33 22 80 4;
   res: .tst.pickFuzz[l;40];
-  all res in l;
+  (count res) musteq 40;
+  must[all res in l; "every picked element must come from the source list"];
   };
 
  should["return lists of fuzz values given an empty typed list"]{

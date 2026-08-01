@@ -14,6 +14,8 @@
   should["inject multiple fixtures"; {[]
     .tst.registerFixture[`a; 10];
     .tst.registerFixture[`b; 20];
+    / The next test consumes these by name; prove they registered.
+    must[all `a`b in key .tst.fixtures; "both fixtures must be registered"];
   }];
   
   should["work with multiple args"; {[a;b]

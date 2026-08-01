@@ -30,18 +30,21 @@
   };
  should["warn for unsupported format"]{
   warnings: .tst.validateConfig `fmt`maxTestTime!(`unknown; 10);
-  0 < count warnings;
-  0 < count warnings where warnings like "Unsupported format*";
+  must[0 < count warnings; "an unknown format must produce a warning"];
+  must[0 < count warnings where warnings like "Unsupported format*";
+       "the warning must name the unsupported format"];
   };
  should["warn for non-text format type"]{
   warnings: .tst.validateConfig `fmt!5;
-  0 < count warnings;
-  0 < count warnings where warnings like "Unsupported format*";
+  must[0 < count warnings; "a non-text format must produce a warning"];
+  must[0 < count warnings where warnings like "Unsupported format*";
+       "the warning must name the unsupported format"];
   };
  should["warn for non-boolean pollution guard"]{
   warnings: .tst.validateConfig `pollutionGuard!5;
-  0 < count warnings;
-  0 < count warnings where warnings like "pollutionGuard must be a boolean";
+  must[0 < count warnings; "a non-boolean pollutionGuard must produce a warning"];
+  must[0 < count warnings where warnings like "pollutionGuard must be a boolean";
+       "the warning must name the pollutionGuard type requirement"];
   };
  should["merge config with defaults"]{
   testCfg: "{ \"fmt\": \"xunit\" }";
@@ -59,7 +62,8 @@
  should["warn if diff-table thresholds are non-integer"]{
   / Build the dict explicitly: shorthand `key!`sym is parsed as enum, not dict.
   warnings: .tst.validateConfig (enlist `diffLargeTableThreshold)!enlist 1.5;
-  0 < count warnings where warnings like "diffLargeTableThreshold must be an integer*";
+  must[0 < count warnings where warnings like "diffLargeTableThreshold must be an integer*";
+       "a non-integer diffLargeTableThreshold must warn and say it must be an integer"];
   };
  should["apply config to global settings"]{
   prevFmt: .resq.config.fmt;

@@ -58,7 +58,8 @@
         (hsym `$tf) 0: enlist "show 1+1";
         srcs: .tst.static.findSources tf;
         / Returns absolute symbol; we just need the basename to match.
-        any (string srcs) like "*", .tst.static.getBase tf;
+        must[any (string srcs) like "*", .tst.static.getBase tf;
+             "findSources on a single file must return that file"];
     };
 
     should["exploreFile pick up function definitions with arities"]{
