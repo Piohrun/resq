@@ -45,7 +45,12 @@ asserts[`mustmatch]:{[l;r]; .tst.asserts[`musteq][l;r]}
 asserts[`mustmatchs]:{[l;r]; .tst.mustmatchSnap[l;r]}
 asserts[`mustmatchst]:{[l;r]; .tst.mustmatchTxtSnap[l;r]}
 asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;"Got ", (-3!l), " — expected it NOT to match ", (-3!r)]}
-asserts[`mustne]:{[l;r]; .tst.asserts[`must][l<>r;"Got ", (-3!l), " — expected it NOT to equal ", (-3!r)]}
+/ mustne is the exact inverse of musteq, so it must use `~` (whole-value match),
+/ not `<>` (elementwise). With `<>` any non-atom yielded a boolean VECTOR rather
+/ than an atom: `must` then applied `all`, so mustne silently meant "every
+/ element differs" — 1 2 3 vs 9 2 3 reported a failure despite differing — and
+/ tables/ragged pairs crashed with 'type / 'length.
+asserts[`mustne]:{[l;r]; .tst.asserts[`must][not l~r;"Got ", (-3!l), " — expected it NOT to equal ", (-3!r)]}
 asserts[`mustlt]:{[l;r]; .tst.asserts[`must][l<r;"Got ", (-3!l), " — expected it to be less than ", (-3!r)]}
 asserts[`mustgt]:{[l;r]; .tst.asserts[`must][l>r;"Got ", (-3!l), " — expected it to be greater than ", (-3!r)]}
 asserts[`mustlike]:{[l;r]; .tst.asserts[`must][l like r;"Expected ", (-3!l), " to be like ", (-3!r)]}

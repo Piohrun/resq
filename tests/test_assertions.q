@@ -116,3 +116,48 @@
   must[(first testedFailures) like "*expected 7*"; "message should name the expected value"];
   };
  };
+
+/ Regression: mustne used `<>` (elementwise), so for any non-atom it handed
+/ `must` a boolean VECTOR. `must` applies `all`, so it meant "every element
+/ differs" instead of "the values are not identical" — and tables or
+/ different-length operands crashed with 'type / 'length before asserting.
+.tst.desc["mustne whole-value semantics"]{
+ should["register no failure for values that genuinely differ"]{
+  / Failures a single assertion adds, with global assert state left untouched.
+  probe: {[f] old: .tst.assertState.failures; f[];
+              n: (count .tst.assertState.failures) - count old;
+              .tst.assertState.failures: old; n};
+
+  probe[{mustne[1; 2]}] musteq 0;
+  probe[{mustne[`a; `b]}] musteq 0;
+  probe[{mustne[1 2 3; 1 2 4]}] musteq 0;
+  probe[{mustne[1 2 3; 9 2 3]}] musteq 0;              / only the first element differs
+  probe[{mustne["abc"; "abd"]}] musteq 0;
+  probe[{mustne[1 2 3; 1 2]}] musteq 0;                / operands of different length
+  probe[{mustne[`a`b!1 2; `a`b!1 3]}] musteq 0;
+  probe[{mustne[([]v:1 2 3); ([]v:1 2 4)]}] musteq 0;
+  };
+
+ should["register exactly one failure for values that are identical"]{
+  probe: {[f] old: .tst.assertState.failures; f[];
+              n: (count .tst.assertState.failures) - count old;
+              .tst.assertState.failures: old; n};
+
+  probe[{mustne[1; 1]}] musteq 1;
+  probe[{mustne[1 2 3; 1 2 3]}] musteq 1;
+  probe[{mustne["abc"; "abc"]}] musteq 1;
+  probe[{mustne[`a`b!1 2; `a`b!1 2]}] musteq 1;
+  probe[{mustne[([]v:1 2 3); ([]v:1 2 3)]}] musteq 1;
+  };
+
+ should["stay the exact inverse of musteq, including type strictness"]{
+  probe: {[f] old: .tst.assertState.failures; f[];
+              n: (count .tst.assertState.failures) - count old;
+              .tst.assertState.failures: old; n};
+
+  / `~` distinguishes 1 from 1.0, so musteq fails where mustne passes. Under the
+  / old `<>` both failed at once, which no pair of inverses should ever do.
+  probe[{musteq[1; 1.0]}] musteq 1;
+  probe[{mustne[1; 1.0]}] musteq 0;
+  };
+ };

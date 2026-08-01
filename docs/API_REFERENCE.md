@@ -318,7 +318,7 @@ All assertions are available in the root namespace for convenience.
 | `must` | `condition; message` | condition is true | `must[x > 0; "positive"]` |
 | `musteq` / `mustEqual` | `actual; expected` | `actual ~ expected` (match) | `result musteq 42` |
 | `mustmatch` | `actual; expected` | same as `musteq` | `(asc t) mustmatch expected` |
-| `mustne` / `mustNotEqual` | `actual; expected` | `actual <> expected` | `userId mustne 0` |
+| `mustne` / `mustNotEqual` | `actual; expected` | `not actual ~ expected` (exact inverse of `musteq`) | `userId mustne 0` |
 | `mustlt` / `mustLessThan` | `actual; expected` | `actual < expected` | `latency mustlt 100` |
 | `mustgt` / `mustGreaterThan` | `actual; expected` | `actual > expected` | `count users mustgt 0` |
 | `mustlike` | `actual; pattern` | `actual like pattern` | `email mustlike "*@*.com"` |
@@ -399,12 +399,15 @@ result`name musteq "alice";
 actual mustne expected
 ```
 
-Assert values are not equal.
+Assert values are not equal. This is the exact inverse of `musteq`: it compares
+whole values with `~`, so it works on vectors, strings, dictionaries and tables,
+and it is type-strict (`1 mustne 1.0` passes, just as `1 musteq 1.0` fails).
 
 **Example:**
 ```q
 userId mustne 0;
 result mustne `;
+(select from trades where sym=`AAPL) mustne ();
 ```
 
 ---
