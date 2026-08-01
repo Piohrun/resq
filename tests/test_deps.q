@@ -50,3 +50,64 @@
     all (`a`b`c) in deps;
   };
 };
+
+/ The scanner locates directives in MASKED source, so a require that is only
+/ mentioned -- in a comment, a string, a block comment, or after the script
+/ terminator -- is not an edge. The previous `like`-on-raw-lines scanner had to
+/ skip any line containing "like" to avoid ingesting its own detection
+/ patterns, which also silently dropped real requires from such lines.
+.tst.desc["Dependency directive masking"]{
+  should["ignore requires that are only mentioned, not executed"]{
+    / `enlist` on the one-character lines: in q source "/" and "\\" are char
+    / ATOMS, and a list mixing atoms with strings is not writable by `0:`.
+    src: (
+      "/ a comment naming .utl.require \"ghost_comment.q\"";
+      ".utl.require \"real_one.q\"";
+      "msg: \".utl.require \\\"ghost_string.q\\\"\"";
+      "scanner: {[l] l like \"*.utl.require*\"}";
+      enlist "/";
+      "block comment with .utl.require \"ghost_block.q\"";
+      enlist "\\";
+      ".my.utl.require \"ghost_prefixed.q\"";
+      "ratio: 6 % 2";
+      "if[1b; .utl.require \"real_two.q\"];";
+      enlist "\\";
+      ".utl.require \"ghost_after_terminator.q\"");
+    tmpFile: .tst.tempFile ".q";
+    (hsym `$tmpFile) 0: src;
+
+    targets: (.tst.parseDependencyRecords tmpFile)`target;
+    (asc targets) musteq asc ("real_one.q"; "real_two.q");
+  };
+
+  should["record whether a target was concatenated onto a prefix"]{
+    src: (
+      ".utl.require .utl.PKGLOADING,\"/tail_form.q\"";
+      ".utl.require \"standalone.q\"");
+    tmpFile: .tst.tempFile ".q";
+    (hsym `$tmpFile) 0: src;
+
+    recs: .tst.parseDependencyRecords tmpFile;
+    tailFlags: recs[`tail] recs[`target]?("/tail_form.q"; "standalone.q");
+    tailFlags musteq 10b;
+  };
+
+  should["keep a standalone absolute target absolute"]{
+    / A concatenated tail joins onto the requiring directory; a standalone
+    / absolute literal must not be rebased onto it and aimed at another file.
+    reqFile: .utl.PKGLOADING, "/deps.q";
+    tailResolved: .tst.resolveDepTargetRecord[reqFile; "/static_analysis.q"; 1b];
+    (string tailResolved) musteq .utl.PKGLOADING, "/static_analysis.q";
+    absResolved: .tst.resolveDepTargetRecord[reqFile; "/etc/hosts"; 0b];
+    (string absResolved) musteq "/etc/hosts";
+  };
+
+  should["still detect plain \\l directives"]{
+    tmpFile: .tst.tempFile ".q";
+    (hsym `$tmpFile) 0: ("\\l lib/mock.q"; "/ \\l ghost_commented.q");
+
+    recs: .tst.parseDependencyRecords tmpFile;
+    (recs`target) musteq enlist "lib/mock.q";
+    (first recs`kind) musteq `load;
+  };
+};
