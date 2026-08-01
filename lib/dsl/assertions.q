@@ -11,11 +11,23 @@ printDiffSafe:{[expected;actual]
  };
 
 asserts:()!()
+/ The condition must actually BE a boolean. `all` coerces anything else to true
+/ -- `all 5`, `all "text"` and `all 0N` are every one of them 1b -- so a null
+/ result, a stray count, or a swapped must["message"; cond] used to pass
+/ silently. A test library may report a false failure; it must never report a
+/ false pass. An empty boolean vector still passes: "all of zero items hold" is
+/ the intended reading where a test checks every element of a possibly-empty set.
 asserts[`must]:{[val;message];
   .tst.assertState.assertsRun+:1;
-  if[not all val;
-    m: $[10h = abs type message; message; .Q.s1 message];
-    .tst.assertState.failures,: enlist m];
+  $[not 1h = abs type val;
+      [ lim: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
+        .tst.assertState.failures,: enlist
+          "must expects a boolean condition, got type ", (string type val), "h: ",
+          .tst.truncate[val; `long$lim % 2] ];
+    not all val;
+      [ m: $[10h = abs type message; message; .Q.s1 message];
+        .tst.assertState.failures,: enlist m ];
+    (::)];
   }
 
 asserts[`musteq]:{[l;r]; 

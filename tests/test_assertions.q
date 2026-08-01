@@ -150,6 +150,37 @@
   probe[{mustne[([]v:1 2 3); ([]v:1 2 3)]}] musteq 1;
   };
 
+ should["reject a non-boolean condition instead of coercing it to true"]{
+  probe: {[f] old: .tst.assertState.failures; f[];
+              n: (count .tst.assertState.failures) - count old;
+              .tst.assertState.failures: old; n};
+
+  / `all` maps every one of these to 1b, so each used to pass silently.
+  probe[{must[5; "a count is not a condition"]}] musteq 1;
+  probe[{must[0N; "a null is not a condition"]}] musteq 1;
+  probe[{must["some message"; "swapped arguments"]}] musteq 1;
+  probe[{must[`sym; "a symbol is not a condition"]}] musteq 1;
+  probe[{must[(); "an empty generic list is not a condition"]}] musteq 1;
+
+  / Booleans still behave exactly as before.
+  probe[{must[1b; "true passes"]}] musteq 0;
+  probe[{must[0b; "false fails"]}] musteq 1;
+  probe[{must[111b; "all-true vector passes"]}] musteq 0;
+  probe[{must[101b; "any-false vector fails"]}] musteq 1;
+  / "all of zero items hold" -- an assertion over an empty set still passes.
+  probe[{must[`boolean$(); "empty boolean vector"]}] musteq 0;
+  };
+
+ should["name the offending type when the condition is not boolean"]{
+  old: .tst.assertState.failures;
+  must[0N; "ignored"];
+  reported: last .tst.assertState.failures;
+  .tst.assertState.failures: old;
+  must[reported like "*must expects a boolean condition*";
+       "message should state the contract, got: ", reported];
+  must[reported like "*-7h*"; "message should name the actual type, got: ", reported];
+  };
+
  should["stay the exact inverse of musteq, including type strictness"]{
   probe: {[f] old: .tst.assertState.failures; f[];
               n: (count .tst.assertState.failures) - count old;

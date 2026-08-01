@@ -350,10 +350,16 @@ must[condition; message]
 
 Assert that a condition is true.
 
+The condition must be a boolean. A non-boolean is reported as a failure naming
+the offending type, rather than being coerced — `all` treats `5`, `0N` and any
+non-empty string as true, so a null result or a swapped `must["message"; cond]`
+would otherwise pass silently. A boolean vector passes when every element is
+true; an empty one passes ("all of zero items hold").
+
 **Parameters:**
 | Name | Type | Description |
 |------|------|-------------|
-| `condition` | boolean | Condition to verify |
+| `condition` | boolean (atom or vector) | Condition to verify |
 | `message` | string | Error message if assertion fails |
 
 **Example:**
