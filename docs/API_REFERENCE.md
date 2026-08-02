@@ -1395,6 +1395,29 @@ Clear all callback logs.
 
 ---
 
+## 7.1 Async & Promises
+
+Full guide with worked examples: [`ASYNC.md`](ASYNC.md).
+
+| Function | Signature | Notes |
+|----------|-----------|-------|
+| `.tst.deferred` | `[]` → symbol | Create a pending deferred |
+| `.tst.resolve` | `id; value` | Settle successfully; throws if already settled |
+| `.tst.reject` | `id; reason` | Settle as failed; reason may be a string or symbol |
+| `.tst.await` | `id; timeoutMs` | Returns the value, or throws the rejection reason. `0N` → 5000ms. Throws on timeout |
+| `.tst.isSettled` | `id` → boolean | `0b` for an unknown id — never throws |
+| `.tst.getState` | `id` → dict | `` `state`val`err ``; throws on an unknown id |
+| `.tst.until` | `cond` → `1b` | Poll; fixed 1000ms timeout, 100ms interval. **Throws** on timeout |
+| `.tst.wait` | `cond; timeoutMs; intervalMs` | As `until` with explicit timings |
+| `.tst.waitEx` | `cond; timeoutMs; intervalMs; heartbeat` | `heartbeat=1b` fires `.z.ts` each interval |
+| `.tst.eventually` | `cond; timeoutMs; intervalMs` | A **throwing** condition counts as "not yet". `0N` → 5000/100 |
+| `.tst.sleep` | `ms` | Busy-wait — spins, does not yield |
+| `.tst.callbackSpy` | `name` → function | One-arg callback recording `(timestamp; args)`, returns args |
+| `.tst.getCallbackCalls` | `name` → list | Recorded calls; `()` if never spied |
+| `.tst.clearCallbackLogs` | `[]` | Logs are global and persist across tests — clear them |
+
+---
+
 ## 8. Snapshots
 
 See `docs/SNAPSHOTS.md` for a full guide. Brief reference below.

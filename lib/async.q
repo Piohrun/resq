@@ -15,7 +15,8 @@ sleep:{[ms]
 / @param timeout (int) Max wait in milliseconds
 / @param interval (int) Check interval in milliseconds
 / @param heartbeat (bool) If true, calls .z.ts[] during wait to allow timer-based logic
-/ @return (boolean) true if condition met, false (or signal) if timeout
+/ @return (boolean) 1b when the condition holds. On timeout this SIGNALS
+/          ("wait timeout: ...") -- it never returns 0b.
 waitEx:{[cond;timeout;interval;heartbeat]
     start: .z.p;
     limit: start + `long$timeout * 1000000;

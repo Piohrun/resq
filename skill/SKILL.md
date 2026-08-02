@@ -397,6 +397,7 @@ All keys optional; CLI flags win over the file. Common ones:
 ## 15. Deeper docs
 
 `docs/API_REFERENCE.md`, `ARCHITECTURE.md`, `COVERAGE.md`, `MIGRATION.md`
-(qspec migration), `FIXTURES.md`, `PBT.md` (fuzz), `SNAPSHOTS.md`,
+(qspec migration), `ASYNC.md` (deferreds, polling, callback spies),
+`FIXTURES.md`, `PBT.md` (fuzz), `SNAPSHOTS.md`,
 `TROUBLESHOOTING.md`, `WATCH.md`; `docs/README.md` is the index.
 `CHANGELOG.md` tracks behaviour changes.

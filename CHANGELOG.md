@@ -6,6 +6,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- **`docs/ASYNC.md`** — the async and promise helpers were shipped
+  undocumented. Covers deferreds (`deferred`/`resolve`/`reject`/`await`),
+  the polling helpers (`until`/`wait`/`waitEx`/`eventually`) and callback spies,
+  including the behaviours that surprise: the polling helpers **signal** on
+  timeout rather than returning `0b`, `eventually` treats a *throwing* condition
+  as "not ready yet" and polls on, `sleep` is a busy-wait, and callback logs are
+  global and persist between tests. Every example is executed by
+  `tests/test_async_documented.q`.
+
 - **Statement-level coverage** (`-cov-statements` / `"covStatements": true`,
   opt-in). Measured per-statement hits rather than derived ones: an untaken
   `if` branch inside a called function now reports zero. Probes are placed on

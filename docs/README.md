@@ -17,6 +17,7 @@
 10. `PERFORMANCE.md` — Benchmarking assertions and stats
 
 ### Migration
+- `ASYNC.md` — Deferreds, polling helpers and callback spies
 - `MIGRATION.md` — Moving from qspec to resQ
 
 ### Contributor / internal reference
@@ -34,6 +35,7 @@
 | `ARCHITECTURE.md` | Contributors | Namespace layout, exit codes, file tree |
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
 | `FIXTURES.md` | Users | Fixture scopes and lifecycle hooks |
+| `ASYNC.md` | Users | Testing callbacks and deferred results |
 | `MIGRATION.md` | qspec users | Porting guide from qspec |
 | `PARALLEL.md` | Users | CI parallelism strategy |
 | `PBT.md` | Users | Property-based testing |
