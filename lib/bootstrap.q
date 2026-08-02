@@ -38,9 +38,13 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
   
   / Try load
   res: @[{system "l ", x; 1b}; p; { [p;e]
-    / Coverage is loaded lazily by the runner only when -cov is passed,
-    / so its absence from the require chain is expected.
-    if[not p like "*coverage.q";
+    / Coverage is loaded lazily by the runner only when -cov is passed, so a
+    / MISSING coverage.q is expected and stays quiet. One that EXISTS but fails
+    / to load is a real defect: suppressing that hid a half-loaded coverage
+    / module -- initCoverage defined, generateLCOV not -- behind the vague
+    / "Coverage LCOV generator not available", and cost a long bisect to find.
+    quiet: (p like "*coverage.q") and not .utl.pathExists p;
+    if[not quiet;
         -1 "WARNING: Failed to load ", p, " (", e, ")"];
     0b
   }[p]];

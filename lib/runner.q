@@ -71,6 +71,21 @@
             }];
         ];
 
+        / A q file that opens an unterminated block comment does not FAIL to
+        / load -- it silently stops defining, so `system "l"` reports success and
+        / half the module is missing. That produced a coverage run with
+        / initCoverage present but generateLCOV absent, surfacing much later as a
+        / vague "LCOV generator not available". Check the module's entry points
+        / explicitly and say exactly what is missing.
+        covExports: `initCoverage`instrumentFile`generateLCOV`generateHTML;
+        covMissing: covExports where not covExports in key `.tst;
+        if[count covMissing;
+            -1 "Coverage module loaded INCOMPLETELY - missing: ",
+               " " sv string covMissing;
+            -1 "  (a truncated load usually means an unterminated block comment";
+            -1 "   in lib/coverage.q: a line containing only \"/\" opens one.)";
+        ];
+
         covInit: @[get; `.tst.initCoverage; {::}];
         .tst._covInitOk: 1b;
         @[covInit; (); {[e]

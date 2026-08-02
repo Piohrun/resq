@@ -40,15 +40,15 @@
     (output; inString; escaped)
  }
 
-/ Return source lines with comments, strings, block comments and everything
-/ after a script terminator replaced by spaces. Line lengths are preserved, so
-/ an offset into the masked text indexes the same character in the raw text.
-/ A lone "/" line opens a block comment (closed by a lone "\"); a line starting
-/ with "\" that is otherwise bare terminates the script.
-.tst.static.maskLines:{[inputLines]
-    lines: $[10h = type inputLines; "\n" vs inputLines;
-             0h  = type inputLines; .tst.static.toStr each inputLines;
-             enlist .tst.static.toStr inputLines];
+/ Shared cross-line driver. Walking a q source file correctly means tracking
+/ three pieces of state BETWEEN lines: whether a block comment is open (a lone
+/ "/" opens it, a lone "\\" closes it), whether the script has been terminated
+/ (a line starting "\\" that is otherwise bare), and whether a string literal is
+/ still open with a pending escape. That logic is subtle and was duplicated
+/ verbatim in two places; a fix to one would silently miss the other.
+/ blankFn: value to emit for a line that is skipped (in a block comment or past
+/ the terminator). lineFn: (raw; inString; escaped) -> (value; inString; escaped).
+.tst.static.scanSourceLines:{[lines; blankFn; lineFn]
     output: ();
     inBlock: 0b;
     terminated: 0b;
@@ -58,24 +58,35 @@
     while[i < count lines;
         raw: lines i;
         rightTrimmed: .tst.static.rstrip raw;
-        blank: (count raw)#" ";
         $[terminated;
-            output,: enlist blank;
+            output,: enlist blankFn raw;
           inBlock;
-            [ output,: enlist blank;
+            [ output,: enlist blankFn raw;
               if[rightTrimmed ~ enlist "\\"; inBlock: 0b] ];
           (not inString) and rightTrimmed ~ enlist "/";
-            [ inBlock: 1b; output,: enlist blank ];
+            [ inBlock: 1b; output,: enlist blankFn raw ];
           (not inString) and ((count raw) > 0) and
               ("\\" = first raw) and rightTrimmed ~ enlist "\\";
-            [ terminated: 1b; output,: enlist blank ];
-            [ masked: .tst.static.maskCodeLine[raw; inString; escaped];
-              output,: enlist masked 0;
-              inString: masked 1;
-              escaped: masked 2 ]];
+            [ terminated: 1b; output,: enlist blankFn raw ];
+            [ step: lineFn[raw; inString; escaped];
+              output,: enlist step 0;
+              inString: step 1;
+              escaped: step 2 ]];
         i+: 1;
     ];
     output
+ }
+
+/ Return source lines with comments, strings, block comments and everything
+/ after a script terminator replaced by spaces. Line lengths are preserved, so
+/ an offset into the masked text indexes the same character in the raw text.
+/ A lone "/" line opens a block comment (closed by a lone "\"); a line starting
+/ with "\" that is otherwise bare terminates the script.
+.tst.static.maskLines:{[inputLines]
+    lines: $[10h = type inputLines; "\n" vs inputLines;
+             0h  = type inputLines; .tst.static.toStr each inputLines;
+             enlist .tst.static.toStr inputLines];
+    .tst.static.scanSourceLines[lines; {(count x)#" "}; .tst.static.maskCodeLine]
  }
 
 .tst.static.validFunctionName:{[name]

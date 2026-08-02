@@ -58,35 +58,12 @@ depQuoteMaskLine:{[line;initialInString;initialEscape]
     (markers; inString; escaped)
  };
 
-/ Whole-file quote-open mask, tracking block comments and script termination
-/ exactly as maskLines does so the two stay in step line for line.
+/ Whole-file quote-open mask. Shares the cross-line driver with
+/ .tst.static.maskLines so block-comment, script-terminator and string-state
+/ handling exists in exactly one place -- the two used to be verbatim copies,
+/ differing only in what they emit per line.
 depQuoteMasks:{[lines]
-    output: ();
-    inBlock: 0b;
-    terminated: 0b;
-    inString: 0b;
-    escaped: 0b;
-    i: 0;
-    while[i < count lines;
-        raw: lines i;
-        rightTrimmed: .tst.static.rstrip raw;
-        blank: (count raw)#0b;
-        $[terminated;
-            output,: enlist blank;
-          inBlock;
-            [output,: enlist blank;
-             if[rightTrimmed ~ enlist "\\"; inBlock: 0b]];
-          (not inString) and rightTrimmed ~ enlist "/";
-            [inBlock: 1b; output,: enlist blank];
-          (not inString) and ((count raw) > 0) and
-              ("\\" = first raw) and rightTrimmed ~ enlist "\\";
-            [terminated: 1b; output,: enlist blank];
-            [marked: .tst.depQuoteMaskLine[raw; inString; escaped];
-             output,: enlist marked 0;
-             inString: marked 1;
-             escaped: marked 2]];
-        i+: 1];
-    output
+    .tst.static.scanSourceLines[lines; {(count x)#0b}; .tst.depQuoteMaskLine]
  };
 
 / Bracket depth at each (ascending) position in the masked text. Used to tell
