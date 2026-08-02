@@ -179,6 +179,32 @@ first exec id from active musteq id2    / BAD: first(exec id from(active musteq 
 ```
 **Rule**: if the LHS is more than a bare token or literal, parenthesise it.
 
+### Pitfall — a bare expression is NOT an assertion
+
+A `should` block's return value is ignored. A bare comparison is a value the
+block computes and discards, so the test passes no matter what the code does:
+
+```q
+should["checks the warning"]{
+    warnings: .cfg.validate bad;
+    0 < count warnings;                        / BAD: asserts nothing, always passes
+};
+should["checks the warning"]{
+    warnings: .cfg.validate bad;
+    must[0 < count warnings; "expected a warning"];   / GOOD
+};
+```
+This is the most common way to write a test that cannot fail — 17 of them once
+accumulated in resQ's own suite. Every check must go through an assertion verb
+(`must`, `musteq`, `mustthrow`, …).
+
+Two things catch it: the reporter lists any test that passed while running zero
+assertions, and `-strict` fails them.
+
+`must` also requires a genuinely boolean condition. `all` treats `5`, `0N` and
+any non-empty string as true, so `must[0N; ...]` and a swapped
+`must["message"; cond]` are reported rather than silently passing.
+
 ### Pitfall — single-char string vs char atom
 
 `string 0` is a 1-char *string* (`,"0"`); `"0"` is a char *atom*. `~`
@@ -303,7 +329,7 @@ resq test tests/                       # discover under tests/
 resq test tests/test_calculator.q      # one file
 resq test tests/ -quiet                # failures + summary only
 resq test tests/ -junit -outDir reports/   # JUnit -> reports/test-results.xml
-resq test tests/ -strict               # 0 EXECUTED tests => failure
+resq test tests/ -strict               # 0 EXECUTED tests, or any test that asserts nothing => failure
 resq test tests/ -desc                 # LIST tests, do not run them (exit 0)
 resq test tests/ -isolate              # each FILE in its own subprocess; -isolateTimeout N (s, default 300)
 resq cover src/ tests/                 # coverage: LCOV + HTML in outDir
