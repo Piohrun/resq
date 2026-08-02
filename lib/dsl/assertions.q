@@ -11,20 +11,34 @@ printDiffSafe:{[expected;actual]
  };
 
 asserts:()!()
-/ The condition must actually BE a boolean. `all` coerces anything else to true
-/ -- `all 5`, `all "text"` and `all 0N` are every one of them 1b -- so a null
-/ result, a stray count, or a swapped must["message"; cond] used to pass
-/ silently. A test library may report a false failure; it must never report a
-/ false pass. An empty boolean vector still passes: "all of zero items hold" is
-/ the intended reading where a test checks every element of a possibly-empty set.
+/ Accepted conditions: a boolean, or a number (q's own truthiness, as `if` and
+/ qspec both use -- `must[count x; "non-empty"]` is a legitimate idiom and stays
+/ source-compatible with qspec). A NULL number is rejected: it is the result of
+/ a computation that did not produce an answer, not a truth value. So is a
+/ string, symbol or anything else, because `all` maps those to true and the
+/ usual cause is a swapped `must["message"; cond]`.
+/ A test library may report a false failure; it must never report a false pass.
+/ An empty boolean vector still passes: "all of zero items hold" is the intended
+/ reading where a test checks every element of a possibly-empty set.
+.tst.mustConditionKind:{[val]
+    t: abs type val;
+    $[1h = t;                 `boolean;
+      t in 4 5 6 7 8 9h;      $[any null val; `null; `numeric];
+      `unusable]
+ };
+
 asserts[`must]:{[val;message];
   .tst.assertState.assertsRun+:1;
-  $[not 1h = abs type val;
+  kind: .tst.mustConditionKind val;
+  $[kind = `unusable;
       [ lim: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
         .tst.assertState.failures,: enlist
-          "must expects a boolean condition, got type ", (string type val), "h: ",
-          .tst.truncate[val; `long$lim % 2] ];
-    not all val;
+          "must expects a boolean or numeric condition, got type ",
+          (string type val), "h: ", .tst.truncate[val; `long$lim % 2] ];
+    kind = `null;
+      .tst.assertState.failures,: enlist
+        "must condition is null, which is not a truth value: ", .tst.toString val;
+    not all $[kind = `numeric; 0 <> val; val];
       [ m: $[10h = abs type message; message; .Q.s1 message];
         .tst.assertState.failures,: enlist m ];
     (::)];

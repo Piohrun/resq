@@ -150,13 +150,21 @@
   probe[{mustne[([]v:1 2 3); ([]v:1 2 3)]}] musteq 1;
   };
 
- should["reject a non-boolean condition instead of coercing it to true"]{
+ should["reject conditions that are not truth values, but keep q truthiness"]{
   probe: {[f] old: .tst.assertState.failures; f[];
               n: (count .tst.assertState.failures) - count old;
               .tst.assertState.failures: old; n};
 
-  / `all` maps every one of these to 1b, so each used to pass silently.
-  probe[{must[5; "a count is not a condition"]}] musteq 1;
+  / Numbers are truthy exactly as q's `if` and qspec treat them, so the common
+  / `must[count x; ...]` idiom keeps working and stays source-compatible.
+  probe[{must[count 1 2 3; "a non-zero count is true"]}] musteq 0;
+  probe[{must[1i; "non-zero int"]}] musteq 0;
+  probe[{must[2.5; "non-zero float"]}] musteq 0;
+  probe[{must[0; "zero is false"]}] musteq 1;
+  probe[{must[1 0 1; "any zero is false"]}] musteq 1;
+
+  / `all` maps each of these to 1b, so they used to pass silently. A null is not
+  / a truth value, and a string/symbol is almost always a swapped argument.
   probe[{must[0N; "a null is not a condition"]}] musteq 1;
   probe[{must["some message"; "swapped arguments"]}] musteq 1;
   probe[{must[`sym; "a symbol is not a condition"]}] musteq 1;
@@ -176,9 +184,16 @@
   must[0N; "ignored"];
   reported: last .tst.assertState.failures;
   .tst.assertState.failures: old;
-  must[reported like "*must expects a boolean condition*";
-       "message should state the contract, got: ", reported];
-  must[reported like "*-7h*"; "message should name the actual type, got: ", reported];
+  must[reported like "*not a truth value*";
+       "a null condition should say so, got: ", reported];
+
+  old2: .tst.assertState.failures;
+  must[`sym; "ignored"];
+  reported2: last .tst.assertState.failures;
+  .tst.assertState.failures: old2;
+  must[reported2 like "*must expects a boolean or numeric condition*";
+       "message should state the contract, got: ", reported2];
+  must[reported2 like "*-11h*"; "message should name the actual type, got: ", reported2];
   };
 
  should["stay the exact inverse of musteq, including type strictness"]{

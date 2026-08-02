@@ -20,25 +20,61 @@ The following qspec constructs work in resQ without changes:
 
 ---
 
-## Assertion Names
+## Assertion Names — Unchanged
 
-resQ uses different assertion names from qspec. The most common translations:
+**resQ uses the same assertion names as qspec.** Every qspec assertion exists in
+resQ under the same name and arity:
 
-| qspec | resQ | Notes |
-|-------|------|-------|
-| `assert.equal` | `musteq` or `mustEqual` | `~`-equality |
-| `assert.notEqual` | `mustne` or `mustNotEqual` | negated `~`-equality |
-| `assert.true` | `must[cond; msg]` | Takes a message |
-| `assert.false` | `must[not cond; msg]` | |
-| (none) | `mustlt`, `mustgt` | Numeric comparisons |
-| (none) | `mustlike` | Glob matching |
-| (none) | `mustin`, `mustnin` | Membership |
-| (none) | `mustmatch` | Synonym for `musteq` |
-| (none) | `mustthrow[pat; {code}]` | Error assertion |
-| (none) | `mustmatchs`, `mustmatchst` | Snapshot assertions |
+`must`, `musteq`, `mustne`, `mustmatch`, `mustnmatch`, `mustlt`, `mustgt`,
+`mustlike`, `mustin`, `mustnin`, `mustwithin`, `mustdelta`, `mustthrow`,
+`mustnotthrow`.
 
-Failure messages use `Got X — expected Y` wording. The FAILURE DIFF block shows
-a visual diff of expected vs actual.
+Nothing needs renaming. resQ adds `mustmatchignoringorder`, `mustincludecols`,
+`mustmatchs` / `mustmatchst` (snapshots), `mustBeFasterThan`, `mustAllocLessThan`,
+`mustHaveBeenCalledWith`, and camelCase aliases (`mustEqual`, `mustNotEqual`, …).
+
+qspec's own `test/test_assertions.q` runs unmodified under resQ and passes,
+including its assertions on exact failure-message wording for
+`mustthrow`/`mustnotthrow`.
+
+Failure messages otherwise use `Got X — expected Y` wording, and a mismatch
+prints a FAILURE DIFF block.
+
+---
+
+## Assertion Semantics — Read This Before Migrating
+
+The names match; three **behaviours** differ. This is where a working qspec
+suite can go red on resQ. Verified by running each case against both
+implementations.
+
+| Expression | qspec | resQ | Why |
+|---|---|---|---|
+| `1 1 1 musteq 1` | pass | **fail** | qspec's `musteq` is `=` (elementwise, broadcasts a scalar); resQ's is `~` (whole-value match) |
+| `1 musteq 1.0` | pass | **fail** | `~` is type-strict; `=` is not |
+| `([]v:1 2) musteq ([]v:1 2)` | `'type` | pass | `~` compares tables; `=` cannot |
+| `mustne[1 2 3; 1 2 4]` | fail | **pass** | qspec's `mustne` is `<>`, meaning "every element differs"; resQ's is `not ~` |
+| `must[0N; …]` | pass | **fail** | a null is not a truth value |
+| `must["message"; cond]` | pass | **fail** | swapped arguments — `all` mapped any non-empty string to true |
+
+Unchanged from qspec: `must[count x; …]` and any other numeric condition
+(non-zero is true, exactly as q's `if` treats it), `must` on booleans, and every
+comparison assertion on atoms.
+
+**The one to grep for is scalar broadcast.** `someVector musteq someScalar` is
+the common qspec idiom that silently stops passing:
+
+```q
+counts: 0 0 0;
+counts musteq 0                        / qspec: 0 0 0 = 0 -> 111b -> passes
+                                       / resQ:  vector ~ atom     -> FAILS
+must[all counts = 0; "all zero"];      / works in both
+counts musteq 3 # 0;                   / or compare like-for-like
+```
+
+`~` was chosen deliberately: it compares tables and dictionaries (which `=`
+signals `'type` on), and it does not silently equate `1` with `1.0`. The
+trade-off is that broadcast comparisons must be written explicitly.
 
 ---
 
@@ -135,14 +171,22 @@ resQ loads each test file into a unique isolated namespace. Consequences:
 };
 ```
 
-The main differences you will encounter are assertion names and the mock API
-(which in resQ does not require explicit `restore[]` calls — restoration is
-automatic after each `should` block).
+The differences you will actually encounter are the three assertion semantics
+above and the mock API (resQ needs no explicit `restore[]` — restoration is
+automatic after each `should` block, including when the test throws or fails).
+
+### Suggested migration order
+
+1. Point resQ at the existing suite and run it. The DSL loads as-is.
+2. Fix any `vector musteq scalar` comparisons — this is the bulk of real
+   breakage. They fail loudly, so the run tells you where they are.
+3. Run once with `-strict`, which additionally fails any test that executed no
+   assertion. qspec had no such check, so a long-lived suite usually has a few
+   tests that never verified anything.
 
 ---
 
 ## Things resQ Does Not Support from qspec
 
 - Nested `desc` blocks (use `alt{}` for sub-grouping within a suite).
-- `assert.deepEqual` — use `musteq` (which uses `~` match).
 - Any qspec reporter hooks (resQ uses its own text/JUnit/JSON reporters).
