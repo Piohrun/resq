@@ -330,11 +330,6 @@ applyConfig:{[cfg]
         .resq.config.testFilePatterns:.tst.normalizeTestFilePatterns cfg`testFilePatterns];
  }
 
-/ Merge CLI arguments into configuration (CLI takes precedence)
-/ @param cfg (dict) Base configuration
-/ @param args (dict) CLI arguments
-/ @return (dict) Merged configuration
-mergeCLIArgs:{[cfg; args] cfg, args where not null args}
 
 \d .
 ::

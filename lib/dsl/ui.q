@@ -1,4 +1,7 @@
 \d .tst
+/ Part of qspec's surface, kept for source compatibility: resQ assigns into
+/ .tst directly and does not call this itself, but an out-of-tree tool built
+/ on qspec may.
 uiSet:{.[`.tst;(),x;:;y]}
 
 resetExpecList:{.tst.expecList: ()} 

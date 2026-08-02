@@ -111,3 +111,31 @@
     (first recs`kind) musteq `load;
   };
 };
+
+/ Two public entry points of the dependency graph had no test and no caller in
+/ the tree, so nothing would have noticed them breaking. `resolveDepTarget` is
+/ the compat spelling that assumes a concatenated tail; `getDependencies` is the
+/ forward lookup (the reverse of getDependents).
+.tst.desc["Dependency graph: public lookups"]{
+  should["resolveDepTarget resolves as a concatenated tail"]{
+    reqFile: .utl.PKGLOADING, "/deps.q";
+    / The compat wrapper must agree with the explicit tail form it delegates to.
+    (.tst.resolveDepTarget[reqFile; "/static_analysis.q"])
+        musteq .tst.resolveDepTargetRecord[reqFile; "/static_analysis.q"; 1b];
+    (string .tst.resolveDepTarget[reqFile; "/static_analysis.q"])
+        musteq .utl.PKGLOADING, "/static_analysis.q";
+  };
+
+  should["getDependencies returns what a file requires"]{
+    .tst.rebuildGraph enlist .utl.PKGLOADING;
+    saPath: `$.utl.PKGLOADING, "/static_analysis.q";
+    ldPath: `$.utl.PKGLOADING, "/loader_discovery.q";
+    deps: .tst.getDependencies ldPath;
+    must[saPath in deps;
+         "loader_discovery.q requires static_analysis.q, got: ", .Q.s1 deps];
+  };
+
+  should["getDependencies returns empty for an unknown file"]{
+    (.tst.getDependencies `$"/no/such/file.q") musteq ();
+  };
+ };
