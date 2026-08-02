@@ -2,9 +2,9 @@
 
 / Authoritative CLI option schema. Aliases are stored as strings so unknown
 / user input is never interned as a symbol. Every alias accepts both -x and --x.
-.tst.cli.specNames:`perf`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`isolateTimeout`maxTestTime`fuzzLimit`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
-.tst.cli.specAliases:(enlist "perf";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");enlist "isolateTimeout";enlist "maxTestTime";enlist "fuzzLimit";enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
-.tst.cli.specKinds:(17 # `flag), 10 # `value;
+.tst.cli.specNames:`perf`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`isolateTimeout`maxTestTime`fuzzLimit`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
+.tst.cli.specAliases:(enlist "perf";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");enlist "isolateTimeout";enlist "maxTestTime";enlist "fuzzLimit";enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
+.tst.cli.specKinds:(18 # `flag), 10 # `value;
 .tst.cli.numericNames: `isolateTimeout`maxTestTime`fuzzLimit;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
@@ -238,6 +238,9 @@ initCLI:{[parsed]
     / Restore qspec's musteq (`=`) and mustne (`<>`) semantics so an unported
     / qspec suite runs unchanged. See docs/MIGRATION.md.
     if[options`qspecCompat; .tst.app.qspecCompat: 1b];
+    / Statement-level coverage rewrites function bodies at load time, so it is
+    / opt-in: see docs/COVERAGE.md for what it costs and what it buys.
+    if[options`covStatements; .tst.coverageStatements: 1b];
     if[options`quiet; .tst.app.quiet: 1b];
 
     / Process-isolation mode: each discovered test FILE runs in its own q

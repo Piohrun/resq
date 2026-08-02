@@ -6,6 +6,17 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- **Statement-level coverage** (`-cov-statements` / `"covStatements": true`,
+  opt-in). Measured per-statement hits rather than derived ones: an untaken
+  `if` branch inside a called function now reports zero. Probes are placed on
+  top-level statements and inside `if`/`do`/`while` bodies, which evaluate every
+  argument; `$[…]` is left alone because a probe among the branches of a
+  conditional *expression* would change its value. It works by rewriting
+  function bodies at load time, attempted per function and verified afterwards
+  (must still parse, must keep the same parameter list) with the original
+  restored on any failure. **Opt-in because it is a transformation of the code
+  under test and is not proven safe on every construct** — instrumenting resQ's
+  own `lib/loader.q` breaks it. See docs/COVERAGE.md.
 - **Line coverage.** LCOV now carries `DA:` records and `LF`/`LH` totals, so
   Codecov, SonarQube, Coveralls and `genhtml` accept the report and show a line
   percentage — previously it held only function records and most tools showed

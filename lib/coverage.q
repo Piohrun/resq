@@ -40,6 +40,9 @@
 / contract for unbound names. (\`get\` SIGNALS on an unknown name; the trap is
 / mandatory and its handler MUST be a lambda - \`@[f;x;e]\` requires it.)
 .tst.safeValue:{[sym] @[get; sym; {[e] .tst._covMissing}] };
+/ Trapped assignment, used to put an original definition back when
+/ statement instrumentation is abandoned.
+.tst.safeSet:{[sym;val] @[set; (sym; val); {[e] }]; };
 
 .tst.ensureCoverageEntry:{[fileSym]
     if[not fileSym in key .tst.coverageData;
@@ -191,6 +194,28 @@
     / are left as-is.
     lines: @[read0; fHandle; {()}];
     nsAt: .tst.coverageSysDNamespaces lines;
+
+    / Statement probes go in BEFORE the function wrapper, so the wrapper closes
+    / over the instrumented body. Each attempt is independent: a function that
+    / cannot be rewritten safely simply keeps derived line records.
+    starts: "j"$ $[`line in cols fns; fns`line; `long$()];
+    starts: starts where not null starts;
+    if[1b ~ @[get; `.tst.coverageStatements; 0b];
+        {[fs; nsAt; srcLines; starts; row]
+            nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
+            span: .tst.functionLineSpan[row`line; starts; count srcLines];
+            if[span[1] >= span[0];
+                / Trapped per function: a rewrite that throws must cost only this
+                / function its statement data, never abort instrumentation of the
+                / rest of the file (or, via the caller, of every later file).
+                okStmt: @[.tst.covInstrumentStatements[nm; fs; srcLines; span 0;]; span 1; {[e] 0b}];
+                if[1b ~ okStmt;
+                    d: $[fs in key .tst.stmtInstrumented; .tst.stmtInstrumented fs; `symbol$()];
+                    .tst.stmtInstrumented[fs]: distinct d, nm];
+            ];
+        }[fileSym; nsAt; lines; starts] each fns;
+    ];
+
     {[fs;nsAt;row]
         nm: row`name;
         nm: .tst.coverageQualifyName[nsAt; row`line; nm];
@@ -282,7 +307,11 @@
     files: loaded where (loaded like "*.q") and not loaded like "*coverage.q";
     files: files where 0 < count each files;
 
-    { .tst.instrumentFile .tst.resolvePath x } each files;
+    / Trapped per file for the same reason: one unreadable or unparseable source
+    / must not stop the remaining files being instrumented.
+    { @[.tst.instrumentFile; .tst.resolvePath x; {[p;e]
+          -1 "Coverage: could not instrument ", p, ": ", .tst.toString e
+        }[.tst.resolvePath x]] } each files;
  };
 
 / Initialize coverage and instrument already-loaded files
@@ -332,6 +361,193 @@
     (st; endLine)
  };
 
+/ ---------------------------------------------------------------------------
+/ Statement-level instrumentation.
+/ .
+/ Function-level wrapping cannot say WHICH lines of a called function ran, so
+/ line records derived from it read as covered even for a branch that never
+/ executed. Real per-line data needs a probe on each statement, which means
+/ rewriting the function's source at load time -- a transformation on the user's
+/ own code. It is therefore attempted per function and abandoned per function:
+/ any parse failure, rank change or exception restores the original definition
+/ and that function falls back to derived lines. Correctness of the code under
+/ test always wins over resolution of the report.
+/ ---------------------------------------------------------------------------
+
+/ line -> hit count, per file. Separate from coverageData (function hits).
+.tst.lineCoverageData: ()!();
+/ Files whose lines are genuinely MEASURED (not derived), per function name.
+.tst.stmtInstrumented: ()!();
+/ Lines carrying a probe, per file -- the denominator for measured coverage.
+.tst.stmtProbeLines: ()!();
+
+.tst.covL:{[f;n]
+    d: $[f in key .tst.lineCoverageData; .tst.lineCoverageData f; (`long$())!`long$()];
+    d[n]: 1 + $[n in key d; d n; 0];
+    .tst.lineCoverageData[f]: d;
+ };
+
+/ Split a function body into top-level statements, returning the source line
+/ each one starts on. Depth-, string- and comment-aware.
+/ Statements nested in `if[...]`, `do[...]` and `while[...]` count too: those
+/ forms evaluate every argument after the first, so each is a real statement and
+/ q guard clauses (`if[bad; :error]`) are exactly what needs measuring.
+/ `$[...]` is deliberately NOT descended into -- it is a conditional EXPRESSION
+/ whose branches are values, and probing there would change what it returns.
+.tst.covStatementLines:{[bodyLines]
+    depth: 0; inStr: 0b; esc: 0b;
+    atStart: 1b;
+    stmtDepths: enlist 0;    / bracket depths that hold a statement LIST
+    word: "";                / identifier immediately before the next "["
+    starts: ();
+    i: 0;
+    while[i < count bodyLines;
+        lineNo: bodyLines[i;0];
+        / A one-character source line (a lone `}`) is a char ATOM, not a string.
+        txt: (), bodyLines[i;1];
+        j: 0;
+        while[j < count txt;
+            c: txt j;
+            $[inStr;
+                $[esc; esc: 0b; c = "\\"; esc: 1b; c = "\""; inStr: 0b; ::];
+              c = "\"";
+                [ inStr: 1b;
+                  if[atStart and 0 = depth; starts,: lineNo; atStart: 0b] ];
+              (c = "/") and ((j = 0) or txt[j-1] in " \t");
+                j: count txt;
+              c in "{([";
+                [ if[atStart and depth in stmtDepths; starts,: lineNo; atStart: 0b];
+                  depth+: 1;
+                  / `if`/`do`/`while` open a statement list; anything else does not.
+                  if[(c = "[") and word in ("if"; "do"; "while");
+                      stmtDepths,: depth];
+                  word: "" ];
+              c in "})]";
+                [ stmtDepths: stmtDepths except depth;
+                  depth-: 1; if[depth < 0; depth: 0];
+                  word: "" ];
+              (c = ";") and depth in stmtDepths;
+                [ atStart: 1b; word: "" ];
+              c in " \t";
+                word: "";
+                [ if[atStart and depth in stmtDepths; starts,: lineNo; atStart: 0b];
+                  word: $[c in .Q.a, .Q.A; word, c; ""] ]];
+            j+: 1];
+        i+: 1];
+    distinct starts
+ };
+
+/ Offset just past a lambda's opening `{` and optional `[params]`, i.e. where
+/ the body begins on the definition's first line. Null when not a lambda open.
+.tst.covBodyStart:{[txt]
+    t: (), txt;
+    b: t ? "{";
+    if[b >= count t; :0N];
+    k: b + 1;
+    while[(k < count t) and t[k] in " \t"; k+: 1];
+    if[(k < count t) and t[k] = "[";
+        depth: 0;
+        while[k < count t;
+            $[t[k] = "["; depth+: 1; t[k] = "]"; depth-: 1; ::];
+            k+: 1;
+            if[depth = 0; :k]];
+        :0N];
+    b + 1
+ };
+
+/ Rewrite one function definition, inserting a probe at the start of every line
+/ that begins a statement. Returns (newSourceText; probedLineNumbers), or `::`
+/ when the shape is not one we will touch. The probed lines are returned rather
+/ than recomputed later: the report must count exactly the lines that carry a
+/ probe, and recomputing invites the two views drifting apart.
+.tst.covRewriteFunction:{[srcLines; startLine; endLine; fileSym]
+    if[(startLine < 1) or endLine > count srcLines; :(::)];
+    idx: (startLine - 1) + til 1 + endLine - startLine;
+    seg: srcLines idx;
+    firstTxt: (), first seg;
+    bodyAt: .tst.covBodyStart firstTxt;
+    if[null bodyAt; :(::)];
+
+    / Statement starts are computed over the BODY only: the signature's brackets
+    / would otherwise be read as an open expression.
+    bodyFirst: bodyAt _ firstTxt;
+    bodyLines: enlist (startLine; bodyFirst);
+    if[1 < count seg;
+        bodyLines,: flip (startLine + 1 + til -1 + count seg; 1 _ seg)];
+    stmtLines: .tst.covStatementLines bodyLines;
+    if[0 = count stmtLines; :(::)];
+
+    / The file symbol must be written as `$"..." -- a path contains slashes, and a
+    / bare backtick literal would not parse. Escape quotes and backslashes so any
+    / path survives being embedded in generated source.
+    pathTxt: string fileSym;
+    pathTxt: ssr[ssr[pathTxt; "\\"; "\\\\"]; "\""; "\\\""];
+    probe: {[p;n] ".tst.covL[`$\"", p, "\";", string[n], "];"}[pathTxt;];
+    out: ();
+    i: 0;
+    while[i < count seg;
+        lineNo: startLine + i;
+        txt: (), seg i;
+        $[not lineNo in stmtLines;
+            out,: enlist txt;
+          lineNo = startLine;
+            / Insert immediately after `{[params]`, never before the brace.
+            out,: enlist (bodyAt # txt), probe[lineNo], bodyAt _ txt;
+            [ lead: 0;
+              while[(lead < count txt) and txt[lead] in " \t"; lead+: 1];
+              out,: enlist (lead # txt), probe[lineNo], lead _ txt ]];
+        i+: 1];
+    ("\n" sv out; stmtLines)
+ };
+
+/ Apply the rewrite to one function and prove it survived, or put the original
+/ back. Returns 1b only when the instrumented definition is in place AND still
+/ looks like the same function.
+.tst.covInstrumentStatements:{[name; fileSym; srcLines; startLine; endLine]
+    orig: .tst.safeValue name;
+    if[not (type orig) within 100 104h; :0b];
+    origRank: count (value orig) 1;      / parameter list of the original
+
+    rw: @[.tst.covRewriteFunction[srcLines; startLine; endLine;]; fileSym; {[e] (::)}];
+    if[(::) ~ rw; :0b];
+    if[not 2 = count rw; :0b];
+    newSrc: rw 0;
+    probedLines: rw 1;
+    if[not 10h = type newSrc; :0b];
+
+    / The rewritten text already carries the definition verbatim, including the
+    / name exactly as the source wrote it. Evaluate it in the same context the
+    / file used, so unqualified references inside the body resolve as before:
+    / a source that wrote `.calc.f:{...}` is evaluated at root; one that wrote
+    / `f:{...}` under a `\d .calc` is evaluated with that namespace current.
+    srcName: trim (newSrc ? ":") # newSrc;
+    nm: string name;
+    dotAt: (count nm) - (reverse nm) ? ".";
+    ns: $[dotAt > 1; dotAt - 1; 0] # nm;
+    evalNs: $[(0 < count srcName) and "." = first srcName; ""; ns];
+    prevCtx: system "d";
+
+    ok: @[{[a]
+        if[count a 0; system "d ", a 0];
+        value a 1;
+        1b
+      }; (evalNs; newSrc); {[e] 0b}];
+    system "d ", string prevCtx;
+
+    if[not ok; .tst.safeSet[name; orig]; :0b];
+
+    / Same shape? A rewrite that changed the parameter list has changed the
+    / function, so refuse it even though it parsed.
+    now: .tst.safeValue name;
+    if[not (type now) within 100 104h; .tst.safeSet[name; orig]; :0b];
+    if[not origRank ~ count (value now) 1; .tst.safeSet[name; orig]; :0b];
+
+    / Remember which lines carry a probe, so the report counts exactly those.
+    pl: $[fileSym in key .tst.stmtProbeLines; .tst.stmtProbeLines fileSym; `long$()];
+    .tst.stmtProbeLines[fileSym]: asc distinct pl, "j"$ probedLines;
+    1b
+ };
+
 / Generate LCOV Report
 .tst.generateLCOV:{[outFile]
     if[not .tst.coverageEnabled; '"Coverage not enabled"];
@@ -369,6 +585,11 @@
         coverable: .tst.coverableLines srcLines;
         fnStarts: "j"$ $[`line in cols fns; fns`line; `long$()];
         fnStarts: fnStarts where not null fnStarts;
+        / Measured per-line hits for this file, and which functions carry them.
+        stmtNames: $[fileSym in key .tst.stmtInstrumented; .tst.stmtInstrumented fileSym; `symbol$()];
+        measuredMap: $[fileSym in key .tst.lineCoverageData; .tst.lineCoverageData fileSym; (`long$())!`long$()];
+        fileLines: {[m;n] $[n in key m; m n; 0j]}[measuredMap;] each 1 + til count srcLines;
+        probeLines: $[fileSym in key .tst.stmtProbeLines; .tst.stmtProbeLines fileSym; `long$()];
         lineHits: (count srcLines) # 0j;
         lineSeen: (count srcLines) # 0b;
 
@@ -389,17 +610,32 @@
             if[nm in key fData; hit: fData[nm]];
             if[hit > 0; hitFn+: 1];
 
-            / Project this function's hit count onto the lines it spans. Where
-            / functions overlap, the highest count wins.
+            / Where the function's statements were instrumented, its lines are
+            / MEASURED and only probed statements count. Otherwise fall back to
+            / projecting the function's hit count across its span (derived).
             span: .tst.functionLineSpan[row`line; fnStarts; count srcLines];
+            measured: nm in stmtNames;
             if[span[1] >= span[0];
-                idx: (span[0] - 1) + til 1 + span[1] - span[0];
-                idx: idx where idx < count srcLines;
-                if[count coverable; idx: idx where coverable idx];
-                if[count idx;
-                    lineSeen[idx]: 1b;
-                    lineHits[idx]: lineHits[idx] | "j"$hit;
-                ];
+                $[measured;
+                    [ / Only statement starts are countable; a continuation line
+                      / or a `];` is not an independently executable statement.
+                      bodyIdx: (span[0] - 1) + til 1 + span[1] - span[0];
+                      bodyIdx: bodyIdx where bodyIdx < count srcLines;
+                      inSpan: probeLines where probeLines within (span 0; span 1);
+                      sIdx: (inSpan - 1) where (inSpan - 1) < count srcLines;
+                      if[count sIdx;
+                          lineSeen[sIdx]: 1b;
+                          / fileLines is 0-indexed by (line - 1), which is what
+                          / sIdx already holds.
+                          lineHits[sIdx]: lineHits[sIdx] | "j"$fileLines sIdx ];
+                    ];
+                    [ idx: (span[0] - 1) + til 1 + span[1] - span[0];
+                      idx: idx where idx < count srcLines;
+                      if[count coverable; idx: idx where coverable idx];
+                      if[count idx;
+                          lineSeen[idx]: 1b;
+                          lineHits[idx]: lineHits[idx] | "j"$hit ];
+                    ]];
             ];
 
             nmStr: .tst._covNameStr nm;

@@ -22,6 +22,44 @@ Files loaded by other mechanisms (e.g. `\l` inside a helper that is itself loade
 
 Compiled operators and derived functions (e.g. `+/`, `each`) are skipped — they cannot be wrapped.
 
+### Statement-level coverage (`-cov-statements`, opt-in)
+
+By default line records are derived from function hits (see below). Pass
+`-cov-statements` — or set `"covStatements": true` — for **measured** per-statement
+coverage:
+
+```bash
+resq cover tests/ -cov-statements
+```
+
+```q
+.calc.classify:{[x]          / classify[5] only
+    if[x < 0;                DA:2,1
+        :`negative           DA:3,0   <- branch not taken
+    ];
+    if[x = 0;                DA:5,1
+        :`zero               DA:6,0   <- branch not taken
+    ];
+    `positive                DA:8,1
+ };                          LF:5  LH:3  -> 60%
+```
+
+Probes go on every top-level statement and on statements inside `if[…]`,
+`do[…]` and `while[…]`, which evaluate each argument in turn. `$[…]` is
+deliberately left alone: it is a conditional *expression* whose branches are
+values, and a probe among them would change what it returns. Only lines carrying
+a probe are counted, so `LF` is the number of statements, not the number of
+lines.
+
+**Why this is opt-in.** It works by rewriting your function bodies at load time
+and re-evaluating them in their original namespace. Each function is attempted
+independently and verified afterwards — the definition must still parse and keep
+the same parameter list, or the original is restored and that function falls
+back to derived lines. Even so, this is a transformation of the code under test,
+and it is not proven safe on every q construct: instrumenting resQ's own
+`lib/loader.q` breaks it. Turn it on deliberately, and check your suite still
+passes with it on before trusting the numbers.
+
 ### Line records are derived, not measured
 
 The LCOV output carries `DA:` line records and `LF`/`LH` totals, so standard

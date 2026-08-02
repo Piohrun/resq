@@ -429,3 +429,50 @@
         must[lh < lf; "an uncalled function must leave lines unhit"];
     };
  };
+
+/ Statement-level instrumentation rewrites function bodies at load time, so the
+/ splitter that decides where a probe may go is the safety-critical piece: it
+/ must find real statement boundaries and must NOT descend into a conditional
+/ EXPRESSION, whose branches are values rather than statements.
+.tst.desc["Coverage: statement boundary detection"]{
+    should["find top-level statements, ignoring nested and quoted semicolons"]{
+        mk: {[lines] flip (1 + til count lines; lines)};
+        (.tst.covStatementLines mk ("a: 1;"; "a+1"))                musteq 1 2;
+        (.tst.covStatementLines mk ("s: \"a;b\";"; "s"))            musteq 1 2;
+        (.tst.covStatementLines mk ("f: {[x] y: x*2; y+1};"; "f 3")) musteq 1 2;
+        (.tst.covStatementLines mk ("a: 1;"; "/ note"; "a+1"))      musteq 1 3;
+        (.tst.covStatementLines mk (enlist "a: 1; b: 2; a+b"))      musteq enlist 1;
+    };
+
+    should["descend into if/do/while bodies, which evaluate every argument"]{
+        mk: {[lines] flip (1 + til count lines; lines)};
+        (.tst.covStatementLines mk ("if[x<0;"; "  :`neg"; " ];"; "`pos")) musteq 1 2 4;
+        (.tst.covStatementLines mk ("do[3;"; "  i+:1"; " ];"; "i"))       musteq 1 2 4;
+        (.tst.covStatementLines mk ("while[c;"; "  i+:1"; " ];"; "i"))    musteq 1 2 4;
+    };
+
+    should["NOT descend into a conditional expression"]{
+        / $[c;a;b] returns one of its branches. A probe inserted among them would
+        / change what the expression evaluates to, so it must be left alone.
+        mk: {[lines] flip (1 + til count lines; lines)};
+        (.tst.covStatementLines mk ("r: $[x>0;"; "   \"pos\";"; "   \"neg\"];"; "r"))
+            musteq 1 4;
+    };
+
+    should["place probes after the signature, never before the brace"]{
+        src: (".f:{[x]"; "    y: x+1;"; "    y*2"; " };");
+        rw: .tst.covRewriteFunction[src; 1; 4; `$"/tmp/probe.q"];
+        must[2 = count rw; "the rewriter returns (text; probedLines)"];
+        (rw 1) musteq 2 3;
+        / rw 0 is already one joined string.
+        txt: rw 0;
+        firstLine: first "\n" vs txt;
+        / `like` treats "[" as a char class, so compare the prefix directly.
+        must[".f:{" ~ 4 # firstLine;
+             "the signature must be untouched, got: ", firstLine];
+        must[not (4 # firstLine) like "*covL*";
+             "no probe may precede the opening brace"];
+        must[any (("\n" vs txt) 1) like "*covL*";
+             "the first body statement must carry a probe"];
+    };
+ };
