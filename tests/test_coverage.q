@@ -365,3 +365,67 @@
         .tst.coverageEnabled: .tst.origCovEnabled3;
     };
  };
+
+/ LCOV must carry DA/LF/LH line records, not just function records: standard
+/ coverage services key off line data and show nothing useful without it. The
+/ records are DERIVED (a function's lines inherit its hit count) -- these tests
+/ pin that derivation, including that an uncalled function reports zero.
+.tst.desc["Coverage: LCOV line records"]{
+    before{
+        `.tst.origCovData4 mock .tst.coverageData;
+        `.tst.origCovFiles4 mock .tst.trackedFiles;
+        `.tst.origCovEnabled4 mock .tst.coverageEnabled;
+        .tst.coverageEnabled: 1b;
+    };
+    after{
+        .tst.coverageData: .tst.origCovData4;
+        .tst.trackedFiles: .tst.origCovFiles4;
+        .tst.coverageEnabled: .tst.origCovEnabled4;
+    };
+
+    should["emit DA lines spanning each function, with LF/LH totals"]{
+        src: .tst.tempFile ".q";
+        (hsym `$src) 0: (
+            ".calc.add:{[a;b]";
+            "    a+b";
+            " };";
+            "";
+            "/ a comment line";
+            ".calc.unused:{[a;b]";
+            "    a*b";
+            " };");
+
+        .tst.coverageData: ()!();
+        .tst.trackedFiles: ();
+        .tst.coverageData[`$src]: (`$(".calc.add"; ".calc.unused"))!(3; 0);
+
+        out: .tst.tempFile ".lcov";
+        .tst.generateLCOV out;
+        txt: read0 hsym `$out;
+
+        must[any txt like "DA:1,3";  "the called function's first line must carry its hit count"];
+        must[any txt like "DA:2,3";  "its body lines must carry the same count"];
+        must[any txt like "DA:6,0";  "an uncalled function's lines must report zero"];
+        / Blank and comment lines are not coverable and must not appear.
+        must[not any txt like "DA:4,*"; "a blank line must not be a DA record"];
+        must[not any txt like "DA:5,*"; "a comment line must not be a DA record"];
+        must[any txt like "LF:*"; "a line-found total must be present"];
+        must[any txt like "LH:*"; "a line-hit total must be present"];
+    };
+
+    should["report fewer hit lines than found when coverage is partial"]{
+        src: .tst.tempFile ".q";
+        (hsym `$src) 0: (".a.one:{[x] x+1 };"; ".a.two:{[x] x+2 };");
+        .tst.coverageData: ()!();
+        .tst.trackedFiles: ();
+        .tst.coverageData[`$src]: (`$(".a.one"; ".a.two"))!(1; 0);
+
+        out: .tst.tempFile ".lcov";
+        .tst.generateLCOV out;
+        txt: read0 hsym `$out;
+        lf: "J"$ 3 _ first txt where txt like "LF:*";
+        lh: "J"$ 3 _ first txt where txt like "LH:*";
+        must[lf > 0;  "some lines must be found"];
+        must[lh < lf; "an uncalled function must leave lines unhit"];
+    };
+ };

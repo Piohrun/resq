@@ -344,6 +344,27 @@
             enlist $[`failures in key e; e[`failures]; ()];
             enlist $[`assertsRun in key e; e[`assertsRun]; 0i]
         );
+        / Keep a perf block's measurement. runners[`perf] stores it on the
+        / expectation as `perf (time/space stats from benchmark.measureOpts) but
+        / nothing downstream read it, so a passing benchmark reported nothing at
+        / all and only a breached budget ever surfaced a number.
+        if[`perf in key e;
+            pr: e`perf;
+            if[99h = type pr;
+                popts: $[`props in key e; $[99h = type e`props; e`props; ()!()]; ()!()];
+                lim: {[d;k] $[k in key d; "f"$d k; 0nf]};
+                .tst.app.perfResults: .tst.app.perfResults upsert
+                    `suite`description`runs`avgTimeMs`minTimeMs`maxTimeMs`devTimeMs`avgSpaceBytes`maxSpaceBytes`timeLimitMs`spaceLimitBytes!(
+                        toSym s[`title];
+                        toSym e[`desc];
+                        "j"$$[`runs in key popts; popts`runs; 100];
+                        "f"$pr[`time;`avg];  "f"$pr[`time;`min];
+                        "f"$pr[`time;`max];  "f"$pr[`time;`dev];
+                        "f"$pr[`space;`avg]; "f"$pr[`space;`max];
+                        lim[popts;`maxTime]; lim[popts;`maxSpace]);
+            ];
+        ];
+
         / Defensive: re-initialise the results table if something clobbered it.
         if[not 98h = type .resq.state.results;
             .resq.state.results: .resq.state.emptyResults[];

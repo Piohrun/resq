@@ -129,3 +129,44 @@
         (any res[`failures] like "*Performance Failure: Avg Time*") mustmatch 1b;
     };
 };
+
+/ A perf block used to compute its averages and throw them away unless a budget
+/ was breached: a passing benchmark left no record anywhere, so performance could
+/ be gated but never tracked. Measurements now reach .tst.app.perfResults, the
+/ console PERFORMANCE section and the JSON report's `performance` array.
+.tst.desc["perf measurements are recorded"]{
+  should["capture a row per perf block, with stats and any budget"]{
+    saved: .tst.app.perfResults;
+    savedRes: .resq.state.results;          / expecRan also writes a result row
+    .tst.app.perfResults: .tst.app.emptyPerfResults[];
+
+    e: `desc`props`code`type!("recorded bench"; `runs`maxTime!(5; 5000); {til 10}; `perf);
+    ran: .tst.runners[`perf] e;
+    .tst.callbacks.expecRan[`title`expectations!(`PerfProbe; ()); ran];
+
+    rows: .tst.app.perfResults;
+    .tst.app.perfResults: saved;
+    .resq.state.results: savedRes;
+
+    must[0 < count rows; "a perf block must record a row"];
+    r: first rows;
+    (r`description) musteq `$"recorded bench";
+    (r`runs) musteq 5;
+    must[0 <= r`avgTimeMs;   "an average time must be recorded"];
+    must[not null r`maxTimeMs; "a max time must be recorded"];
+    / The declared budget travels with the measurement so the margin is visible.
+    (r`timeLimitMs) musteq 5000f;
+  };
+
+  should["record nothing for a suite with no perf blocks"]{
+    saved: .tst.app.perfResults;
+    savedRes: .resq.state.results;
+    .tst.app.perfResults: .tst.app.emptyPerfResults[];
+    e: `desc`code`type`failures`assertsRun!("plain"; {1+1}; `test; (); 1i);
+    .tst.callbacks.expecRan[`title`expectations!(`PlainProbe; ()); e];
+    n: count .tst.app.perfResults;
+    .tst.app.perfResults: saved;
+    .resq.state.results: savedRes;
+    n musteq 0;
+  };
+ };

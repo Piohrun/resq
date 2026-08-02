@@ -56,6 +56,15 @@ if[`resq in key `;
 / The text reporter (lib/output/text.q, loaded above) defines .resq.reportText
 / and aliases .resq.report to it. We just need the bookkeeping state here.
 .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
+/ Benchmark measurements from perf blocks. A perf block used to compute its
+/ averages and discard them unless a budget was breached, so a passing
+/ benchmark left no record and performance could be gated but never tracked.
+.tst.app.emptyPerfResults:{[]
+    flip `suite`description`runs`avgTimeMs`minTimeMs`maxTimeMs`devTimeMs`avgSpaceBytes`maxSpaceBytes`timeLimitMs`spaceLimitBytes!(
+        `symbol$(); `symbol$(); `long$(); `float$(); `float$(); `float$(); `float$();
+        `float$(); `float$(); `float$(); `float$())
+ };
+.tst.app.perfResults: .tst.app.emptyPerfResults[];
 if[not `strict in key .tst.app; .tst.app.strict: 0b];
 
 / Namespace Safety Guards

@@ -4,6 +4,29 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Line coverage.** LCOV now carries `DA:` records and `LF`/`LH` totals, so
+  Codecov, SonarQube, Coveralls and `genhtml` accept the report and show a line
+  percentage — previously it held only function records and most tools showed
+  nothing. The line records are **derived**: resQ instruments whole functions,
+  so every executable line of a function inherits that function's hit count
+  (blank and comment lines excluded). An uncalled function correctly reports
+  `DA:n,0`. It reads higher than a statement-level tool would on the same suite;
+  `FNF`/`FNH` remain the figure resQ actually measures. See docs/COVERAGE.md.
+- **Recorded benchmark measurements.** A `perf` block computed its averages and
+  discarded them unless a budget was breached, so performance could be gated but
+  never tracked. Measurements now reach a console `PERFORMANCE` section, a
+  `performance` array in the JSON report (per-benchmark min/max/avg/stdev, run
+  count, allocation, and the declared budgets), and `.tst.app.perfResults`.
+
+### Fixed
+
+- `docs/API_REFERENCE.md` documented the wrong properties for `perf`
+  (`iterations`/`warmup`, which belong to the low-level bench API) where the
+  block actually reads `runs`/`maxTime`/`maxSpace`.
+
+
 ## [0.3.0] - 2026-08-01 - Isolation & Reporting Integrity
 
 ### Changed

@@ -303,6 +303,35 @@
     -1 "Coverage tracking initialized.";
  };
 
+/ Lines that carry executable code, as a boolean per source line. Masking blanks
+/ out comments, strings and block comments first, so a comment-only or blank line
+/ is never counted as coverable.
+.tst.coverableLines:{[srcLines]
+    if[0 = count srcLines; :`boolean$()];
+    / Fall back to the raw lines if masking is unavailable or changes the line
+    / count; a comment-only line then still fails the trim test below only if it
+    / is genuinely blank, which is the safe direction (over-counting coverable
+    / lines understates coverage rather than overstating it).
+    masked: @[.tst.static.maskLines; srcLines; {[e] `maskFailed}];
+    if[not (0h = type masked) and (count masked) = count srcLines;
+        masked: srcLines];
+    {0 < count trim x} each masked
+ };
+
+/ Source lines a function spans: (startLine; endLine). exploreFile flattens a
+/ function's body to a single line, so height cannot come from there -- a
+/ function instead runs to the line before the next function starts, and the
+/ last one to end of file. Blank and comment lines in that range are filtered
+/ out by the caller, so trailing gaps between functions do not inflate the count.
+.tst.functionLineSpan:{[startLine; allStarts; totalLines]
+    st: "j"$ startLine;
+    if[(null st) or st < 1; :(0j; -1j)];
+    later: allStarts where allStarts > st;
+    endLine: $[count later; (min later) - 1; totalLines];
+    if[endLine > totalLines; endLine: totalLines];
+    (st; endLine)
+ };
+
 / Generate LCOV Report
 .tst.generateLCOV:{[outFile]
     if[not .tst.coverageEnabled; '"Coverage not enabled"];
@@ -332,6 +361,16 @@
         / name, otherwise every FNDA stays 0 for system-`d` modules.
         srcLines: @[read0; fHandle; {()}];
         nsAt: .tst.coverageSysDNamespaces srcLines;
+        / DA (line) records are DERIVED: every executable line of a function
+        / inherits that function's hit count. resQ instruments whole functions,
+        / not statements, so this is function coverage projected onto lines --
+        / it makes standard coverage tooling work, but an unexecuted branch
+        / inside a called function still reads as covered. See docs/COVERAGE.md.
+        coverable: .tst.coverableLines srcLines;
+        fnStarts: "j"$ $[`line in cols fns; fns`line; `long$()];
+        fnStarts: fnStarts where not null fnStarts;
+        lineHits: (count srcLines) # 0j;
+        lineSeen: (count srcLines) # 0b;
 
         sfLine: "SF:";
         sfLine,: pathStr;
@@ -349,6 +388,19 @@
             hit: 0;
             if[nm in key fData; hit: fData[nm]];
             if[hit > 0; hitFn+: 1];
+
+            / Project this function's hit count onto the lines it spans. Where
+            / functions overlap, the highest count wins.
+            span: .tst.functionLineSpan[row`line; fnStarts; count srcLines];
+            if[span[1] >= span[0];
+                idx: (span[0] - 1) + til 1 + span[1] - span[0];
+                idx: idx where idx < count srcLines;
+                if[count coverable; idx: idx where coverable idx];
+                if[count idx;
+                    lineSeen[idx]: 1b;
+                    lineHits[idx]: lineHits[idx] | "j"$hit;
+                ];
+            ];
 
             nmStr: .tst._covNameStr nm;
             lnStr: .tst._covNumStr ln;
@@ -371,6 +423,12 @@
 
             j+: 1;
         ];
+
+        / DA records first (LCOV convention), then the line summary.
+        daIdx: where lineSeen;
+        txt,: raze {[i; h] "DA:", string[i + 1], ",", string[h], "\n"}'[daIdx; lineHits daIdx];
+        txt,: "LF:", string[count daIdx], "\n";
+        txt,: "LH:", string[sum 0 < lineHits daIdx], "\n";
 
         fnfLine: "FNF:";
         fnfLine,: .tst._covNumStr fnCount;

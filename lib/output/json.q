@@ -13,7 +13,15 @@
         summaryStats`skipCount;
         string summaryStats`duration
     );
+    / Benchmark measurements from perf blocks, so a dashboard can chart timings
+    / over releases rather than only seeing pass/fail. Absent when none ran, so
+    / the document shape is unchanged for suites without benchmarks.
+    / NB: not named `perf` -- the DSL exports `perf` into .q, and q signals
+    / 'assign for a local shadowing a .q name (only bites lazily-loaded modules).
+    perfRows: @[get; `.tst.app.perfResults; {()}];
     payload: summary, enlist[`tests]!enlist reportRows;
+    if[98h = type perfRows; if[count perfRows;
+        payload: payload, enlist[`performance]!enlist 0!perfRows]];
     jsonReport: .j.j payload;
 
     outDirStr: .tst.toString .resq.config.outDir;

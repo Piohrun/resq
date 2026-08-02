@@ -22,6 +22,30 @@ Files loaded by other mechanisms (e.g. `\l` inside a helper that is itself loade
 
 Compiled operators and derived functions (e.g. `+/`, `each`) are skipped — they cannot be wrapped.
 
+### Line records are derived, not measured
+
+The LCOV output carries `DA:` line records and `LF`/`LH` totals, so standard
+coverage services (Codecov, SonarQube, Coveralls, `genhtml`) accept it and show a
+line percentage. **Read that number correctly:** resQ instruments whole
+functions, not statements. Every executable line of a function inherits that
+function's hit count — blank and comment lines are excluded, but a branch inside
+a called function that never executed still reads as covered.
+
+```
+FN:5,.calc.unused
+FNDA:0,.calc.unused     <- never called
+DA:5,0                  <- so all its lines report 0
+DA:6,0
+LF:7
+LH:3
+```
+
+So a line percentage from resQ answers *"how much of the code was reached at
+function granularity?"*, not *"which statements ran?"*. It is a real and useful
+signal — an uncalled function shows as fully uncovered — but it will read higher
+than a statement-level tool would report on the same suite. Treat it as
+directional, and use `FNF`/`FNH` when you want the number resQ actually measures.
+
 ### Granularity
 
 Coverage is **function-level**: a function is marked as hit if it was called at least once during the run. Line-level coverage is not available.

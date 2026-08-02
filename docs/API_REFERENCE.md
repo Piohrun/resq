@@ -261,7 +261,7 @@ Define a performance test.
 
 **Example:**
 ```q
-perf["sorting 10000 elements"; `iterations`warmup!(1000;100)]{
+perf["sorting 10000 elements"; `runs`maxTime!(1000; 50)]{
     asc 10000?1000;
 };
 ```

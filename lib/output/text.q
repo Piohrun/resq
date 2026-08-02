@@ -125,6 +125,28 @@
         { [f; ds] -1 string[f], " depends on: ", " " sv string ds }'[key .utl.testDeps; value .utl.testDeps];
     ];
 
+    / Benchmark measurements from perf blocks. Printed whenever any ran, pass or
+    / fail: the point of a benchmark is the number, not only the verdict.
+    / NB: not named `perf` -- the DSL exports `perf` into .q, and q signals
+    / 'assign for a local shadowing a .q name (only bites lazily-loaded modules).
+    perfRows: @[get; `.tst.app.perfResults; {()}];
+    if[98h = type perfRows; if[count perfRows;
+        -1 "\n----------------------------------------------------------------";
+        -1 "PERFORMANCE (", string[count perfRows], " benchmark", $[1 = count perfRows; ""; "s"], "):";
+        { [r]
+            line: "  ", string[r`suite], ": ", string[r`description];
+            line,: "  avg ", .tst.fmtMs[r`avgTimeMs], "ms";
+            line,: " (min ", .tst.fmtMs[r`minTimeMs], " / max ", .tst.fmtMs[r`maxTimeMs];
+            line,: " / sd ", .tst.fmtMs[r`devTimeMs], ")";
+            line,: " over ", string[r`runs], " runs";
+            if[not null r`avgSpaceBytes; line,: ", ", string[`long$r`avgSpaceBytes], " bytes"];
+            / Show the budget alongside the measurement so the margin is visible.
+            if[not null r`timeLimitMs;    line,: "  [limit ", .tst.fmtMs[r`timeLimitMs], "ms]"];
+            if[not null r`spaceLimitBytes; line,: "  [limit ", string[`long$r`spaceLimitBytes], " bytes]"];
+            -1 line;
+        } each perfRows;
+    ]];
+
     if[count results;
         -1 "\n----------------------------------------------------------------";
         -1 "SLOWEST TESTS (TOP 5):";
@@ -133,6 +155,13 @@
         slow: 5 sublist xdesc[ `time; 0!select last time by suite, description from results ];
         { [r] -1 "  ", .Q.s1[r`time], " - ", string[r`suite], ": ", string[r`description] } each slow;
     ];
+ };
+
+/ Sub-millisecond benchmarks are common, so a plain `string` of a float prints
+/ scientific notation. .Q.f gives fixed-decimal formatting.
+.tst.fmtMs:{[v]
+    if[null v; :"n/a"];
+    .Q.f[4; "f"$v]
  };
 
 .resq.report: .resq.reportText;
