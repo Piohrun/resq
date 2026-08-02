@@ -72,3 +72,33 @@
  / when evaluated via `value`. This is a pre-existing q language constraint.
  / Test: should["let you mask before and after functions inside of alternate blocks"]
  };
+
+/ qspec allows before/after to be declared AFTER the expectations they apply to
+/ ("Before and After values can be set after the expectation"). Joining alt's
+/ already-filled expectations with unfilled ones coerces the list to a table and
+/ q fills the new rows' before/after with `::`; treating that placeholder as a
+/ real hook meant a before/after declared after an alt block silently never ran.
+.tst.testState.altlog: ();
+.tst.desc["alt blocks and hooks declared after them"]{
+    alt{
+        before{ .tst.testState.altlog,: enlist "innerBefore" };
+        after{  .tst.testState.altlog,: enlist "innerAfter" };
+        should["inside alt"]{ .tst.testState.altlog,: enlist "innerTest"; 1 musteq 1; };
+    };
+    before{ .tst.testState.altlog,: enlist "outerBefore" };
+    after{  .tst.testState.altlog,: enlist "outerAfter" };
+    should["declared after the alt block"]{
+        .tst.testState.altlog,: enlist "outerTest"; 1 musteq 1;
+    };
+};
+
+.tst.desc["alt hook masking verification"]{
+    should["run the alt's own hooks, then the outer hooks declared after it"]{
+        .tst.testState.altlog musteq ("innerBefore";"innerTest";"innerAfter";
+                                      "outerBefore";"outerTest";"outerAfter");
+    };
+    should["clean up its scratch state"]{
+        @[{![`.tst.testState; (); 0b; enlist `altlog]}; (); {}];
+        1 musteq 1;
+    };
+};

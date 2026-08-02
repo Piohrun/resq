@@ -44,8 +44,22 @@ asserts[`must]:{[val;message];
     (::)];
   }
 
-asserts[`musteq]:{[l;r]; 
+/ True when qspec's `=` comparison would have accepted this pair but `~` did
+/ not: a scalar broadcast across a vector (`1 1 1 musteq 1`) or a type-loose
+/ numeric match (`1 musteq 1.0`). Trapped, because `=` signals on tables and on
+/ length-mismatched operands, which are exactly the cases `~` handles better.
+.tst.qspecEqWouldPass:{[l;r] 1b ~ @[{[a;b] all a = b}[l;]; r; {[e] 0b}] };
+
+asserts[`musteq]:{[l;r];
     if[l ~ r; :.tst.assertState.assertsRun+:1];
+    / qspec's musteq is `=`, resQ's is `~`. Under -qspec-compat accept anything
+    / qspec would have, so an unported suite runs unchanged; otherwise fail as
+    / usual but say so in the message, since this is the single most common
+    / reason a working qspec suite goes red on resQ.
+    qspecWouldPass: .tst.qspecEqWouldPass[l; r];
+    if[qspecWouldPass;
+        if[1b ~ @[get; `.tst.app.qspecCompat; 0b];
+            :.tst.assertState.assertsRun+:1]];
     / Use truncation for large values to prevent memory issues
     limit: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
     lStr: .tst.truncate[l; `long$limit % 2];
@@ -62,6 +76,12 @@ asserts[`musteq]:{[l;r];
             m,: " (length: ", string[count l], " vs ", string[count r], ")"
         ]
     ]];
+   / Self-guiding migration hint: name the exact reason and the switch.
+   if[qspecWouldPass;
+       m,: " [qspec compatibility: qspec's musteq used `=`, which would have"
+            , " accepted this (scalar broadcast or loose numeric type)."
+            , " resQ uses `~`. Run with -qspec-compat, or compare like-for-like"
+            , " -- see docs/MIGRATION.md]"];
    if[not .tst.suppressAssertionDiff; .tst.printDiffSafe[r;l]];
    .tst.asserts[`must][0b; m];
   }
@@ -76,7 +96,11 @@ asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;"Got ", (-3!l), " — e
 / than an atom: `must` then applied `all`, so mustne silently meant "every
 / element differs" — 1 2 3 vs 9 2 3 reported a failure despite differing — and
 / tables/ragged pairs crashed with 'type / 'length.
-asserts[`mustne]:{[l;r]; .tst.asserts[`must][not l~r;"Got ", (-3!l), " — expected it NOT to equal ", (-3!r)]}
+/ qspec's mustne is `<>` ("every element differs"); resQ's is the exact inverse
+/ of musteq. -qspec-compat restores the original semantics for unported suites.
+asserts[`mustne]:{[l;r];
+  cond: $[1b ~ @[get; `.tst.app.qspecCompat; 0b]; l <> r; not l ~ r];
+  .tst.asserts[`must][cond; "Got ", (-3!l), " — expected it NOT to equal ", (-3!r)]}
 asserts[`mustlt]:{[l;r]; .tst.asserts[`must][l<r;"Got ", (-3!l), " — expected it to be less than ", (-3!r)]}
 asserts[`mustgt]:{[l;r]; .tst.asserts[`must][l>r;"Got ", (-3!l), " — expected it to be greater than ", (-3!r)]}
 asserts[`mustlike]:{[l;r]; .tst.asserts[`must][l like r;"Expected ", (-3!l), " to be like ", (-3!r)]}

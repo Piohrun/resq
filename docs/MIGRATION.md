@@ -42,6 +42,30 @@ prints a FAILURE DIFF block.
 
 ---
 
+## The `-qspec-compat` Switch
+
+Run an unported qspec suite unchanged:
+
+```bash
+resq test tests/ -qspec-compat          # or --qspec-compat
+```
+or in `resq.json`:
+```json
+{ "qspecCompat": true }
+```
+
+It restores qspec's `musteq` (`=`) and `mustne` (`<>`) semantics — the only
+three behaviours that differ — while keeping every resQ improvement (table
+comparison, isolation, coverage, reporters, `-strict`). Without it, a
+comparison that qspec would have accepted fails with a message naming the
+difference and pointing here, so migration is self-guiding rather than
+guesswork.
+
+Recommended: start with the flag so the suite is green, then drop it and fix
+the handful of comparisons it flags.
+
+---
+
 ## Assertion Semantics — Read This Before Migrating
 
 The names match; three **behaviours** differ. This is where a working qspec
@@ -74,7 +98,8 @@ counts musteq 3 # 0;                   / or compare like-for-like
 
 `~` was chosen deliberately: it compares tables and dictionaries (which `=`
 signals `'type` on), and it does not silently equate `1` with `1.0`. The
-trade-off is that broadcast comparisons must be written explicitly.
+trade-off is that broadcast comparisons must be written explicitly — or run
+with `-qspec-compat`, which accepts both.
 
 ---
 
@@ -188,5 +213,22 @@ automatic after each `should` block, including when the test throws or fails).
 
 ## Things resQ Does Not Support from qspec
 
+These are qspec's **internal** APIs — the ones for building tools on top of
+qspec, not for writing tests. Every test-writing construct is supported; a
+suite of test files does not touch these.
+
 - Nested `desc` blocks (use `alt{}` for sub-grouping within a suite).
-- Any qspec reporter hooks (resQ uses its own text/JUnit/JSON reporters).
+- qspec's reporter hooks (resQ has its own text/JUnit/xUnit/JSON reporters).
+- `.tst.runExpec` / `.tst.getExpec` / `.tst.contextHelper` — qspec's internal
+  expectation-runner API. resQ reimplemented the runner (process isolation,
+  retries, timeouts), so these do not exist.
+- Spec-runner context handling. qspec leaves the namespace and file path
+  changed after a spec; resQ restores them, because it sandboxes each file.
+- File-discovery return types. `.tst.findTests` and friends return symbols in
+  resQ, strings in qspec.
+
+Running qspec's own suite under resQ: all files load, and every user-facing DSL
+test passes (`test_assertions` 7/7, `test_ui` 8/8, `test_mock` 6/6, `test_fuzz`
+12/12 with `-qspec-compat`). The only failures are in `test_expec_runner`,
+`test_spec_runner` and `test_fileloading`, which exercise exactly the internals
+listed above.

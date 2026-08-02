@@ -122,6 +122,10 @@
 / differs" instead of "the values are not identical" — and tables or
 / different-length operands crashed with 'type / 'length before asserting.
 .tst.desc["mustne whole-value semantics"]{
+ / These pin resQ's DEFAULT semantics, so they must not be perturbed by a run
+ / invoked with -qspec-compat (which deliberately restores qspec's).
+ before{ `.tst.app.qspecCompat mock 0b };
+
  should["register no failure for values that genuinely differ"]{
   / Failures a single assertion adds, with global assert state left untouched.
   probe: {[f] old: .tst.assertState.failures; f[];
@@ -205,5 +209,57 @@
   / old `<>` both failed at once, which no pair of inverses should ever do.
   probe[{musteq[1; 1.0]}] musteq 1;
   probe[{mustne[1; 1.0]}] musteq 0;
+  };
+ };
+
+/ resQ is meant to be a drop-in replacement for qspec (nugend/qspec). The
+/ assertion NAMES are already identical; three semantics differ, and
+/ -qspec-compat / "qspecCompat": true restores qspec's for an unported suite.
+/ Verified against qspec's real definitions:
+/   musteq  qspec: all l = r   (broadcasts a scalar, type-loose)
+/   mustne  qspec: all l <> r  ("every element differs")
+.tst.desc["qspec compatibility mode"]{
+ after{ .tst.app.qspecCompat: 0b };
+
+ should["fail qspec-style comparisons by default, with a migration hint"]{
+  probe: {[f] old: .tst.assertState.failures; f[];
+              n: (count .tst.assertState.failures) - count old;
+              msg: $[n > 0; last .tst.assertState.failures; ""];
+              .tst.assertState.failures: old; (n; msg)};
+  .tst.app.qspecCompat: 0b;
+
+  r: probe[{(0 0 0) musteq 0}];
+  (first r) musteq 1;
+  must[(last r) like "*qspec compatibility*";
+       "a broadcast mismatch must name the qspec difference, got: ", last r];
+  must[(last r) like "*-qspec-compat*"; "the hint must name the switch"];
+
+  (first probe[{1 musteq 1.0}]) musteq 1;
+  };
+
+ should["accept qspec's musteq semantics under -qspec-compat"]{
+  probe: {[f] old: .tst.assertState.failures; f[];
+              n: (count .tst.assertState.failures) - count old;
+              .tst.assertState.failures: old; n};
+  .tst.app.qspecCompat: 1b;
+
+  probe[{(0 0 0) musteq 0}]  musteq 0;   / scalar broadcast
+  probe[{1 musteq 1.0}]      musteq 0;   / loose numeric type
+  probe[{(1 2 3) musteq 1 2 3}] musteq 0; / exact match still fine
+  / Better than qspec, which signals 'type here:
+  probe[{([]v:1 2) musteq ([]v:1 2)}] musteq 0;
+  / A genuine mismatch must still fail.
+  probe[{(1 2 3) musteq 9 9 9}] musteq 1;
+  };
+
+ should["use qspec's elementwise mustne under -qspec-compat"]{
+  probe: {[f] old: .tst.assertState.failures; f[];
+              n: (count .tst.assertState.failures) - count old;
+              .tst.assertState.failures: old; n};
+  .tst.app.qspecCompat: 1b;
+  probe[{mustne[1 2 3; 4 5 6]}] musteq 0;   / every element differs
+  probe[{mustne[1 2 3; 1 2 4]}] musteq 1;   / qspec: not every element differs
+  .tst.app.qspecCompat: 0b;
+  probe[{mustne[1 2 3; 1 2 4]}] musteq 0;   / resQ: the values are not identical
   };
  };

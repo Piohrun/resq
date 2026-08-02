@@ -35,10 +35,23 @@ afterAll:{[code]
  .tst.currentAfterAllSet: 1b
  }
 
+/ A hook is "already set" only if the key is present AND carries a real value.
+/ Joining expectations that HAVE before/after (e.g. those returned by an alt
+/ block, which fills them on the way out) with ones that do not coerces the list
+/ to a table, and q fills the new rows' before/after with a `::` placeholder.
+/ Treating that placeholder as a real hook meant a `before`/`after` declared
+/ AFTER an alt block silently never ran -- qspec explicitly allows hooks to be
+/ declared after the expectations they apply to.
+hookUnset:{[ex;k]
+  if[not k in key ex; :1b];
+  v: ex k;
+  ((::) ~ v) or (() ~ v)
+ }
+
 fillExpecBA:{[x]
   { [ex]
-    if[not `before in key ex; ex[`before]: .tst.currentBefore];
-    if[not `after in key ex; ex[`after]: .tst.currentAfter];
+    if[.tst.hookUnset[ex; `before]; ex[`before]: .tst.currentBefore];
+    if[.tst.hookUnset[ex; `after];  ex[`after]:  .tst.currentAfter];
     ex
   } each x
  }

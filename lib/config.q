@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b;1000;10000;("test_*.q"; "*_test.q"))
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b;1000;10000;("test_*.q"; "*_test.q");0b)
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -160,7 +160,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`qspecCompat;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -170,7 +170,8 @@ validateConfig:{[cfg]
             "failFast must be a boolean";
             "failHard must be a boolean";
             "pollutionGuard must be a boolean";
-            "qNamespaceExports must be a boolean");
+            "qNamespaceExports must be a boolean";
+            "qspecCompat must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
   intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold;
@@ -238,7 +239,7 @@ invalidConfigKeys:{[cfg]
   ];
 
   / Boolean-typed keys: must be a single boolean.
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`qspecCompat;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
   / Integer-typed keys: must be a single integer-like value, not null, AND
@@ -300,6 +301,8 @@ applyConfig:{[cfg]
     if[ok`passOnly; .tst.app.passOnly: cfg`passOnly];
     if[ok`exit; .tst.app.exit: cfg`exit];
     if[ok`strict; .tst.app.strict: cfg`strict];
+    / qspec source-compatibility switch (musteq `=`, mustne `<>`).
+    if[ok`qspecCompat; .tst.app.qspecCompat: cfg`qspecCompat];
     if[ok`failFast; .tst.app.failFast: cfg`failFast];
     if[ok`failHard; .tst.app.failHard: cfg`failHard];
     if[ok`pollutionGuard; .tst.app.pollutionGuard: cfg`pollutionGuard];
