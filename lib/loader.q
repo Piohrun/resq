@@ -347,6 +347,15 @@
                     ""];
                 e: e, " (near line ", string[lineNo], $[count excerpt; ": ", excerpt; ""], ")";
             ];
+            / q signals 'limit when a single lambda exceeds its internal
+            / constant/expression capacity. A desc block IS one lambda, so a
+            / large suite file hits this at roughly 110-120 should blocks --
+            / reported against line 1 (where the desc opens), which tells the
+            / reader nothing. Name the real cause and the fix.
+            if[e like "limit*";
+                e: e, " -- a desc block is a single q lambda and this one exceeds q's",
+                      " per-lambda capacity (roughly 110-120 should blocks).",
+                      " Split it into several desc blocks, or group with alt{}."];
             -1 "CRITICAL LOAD ERROR in ", p, $[not null lineNo; " near line ", string[lineNo]; ""], ": ", e;
             `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
             if[(count .tst.app.allSpecs) > preCount;

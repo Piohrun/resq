@@ -693,6 +693,37 @@ q resq.q test tests/ -perf
 
 ## 10. q Language Limitations
 
+### `'limit` when loading a large test file
+
+A `desc` block compiles to a single q lambda, and q caps how much one lambda can
+hold. Around **110–120 `should` blocks in one `desc`** the file stops loading:
+
+```
+CRITICAL LOAD ERROR in tests/test_big.q near line 1: limit -- a desc block is a
+single q lambda and this one exceeds q's per-lambda capacity (roughly 110-120
+should blocks). Split it into several desc blocks, or group with alt{}.
+```
+
+The line number points at the `desc` opening, not at anything wrong. This is q's
+limit and cannot be raised. Two fixes, both verified:
+
+```q
+/ 1. split into separate desc blocks
+.tst.desc["Orders — validation"]{ ... };
+.tst.desc["Orders — pricing"]{ ... };
+
+/ 2. or group inside one desc with alt{} — each alt body is its own lambda,
+/    so the tests inside it do not count against the enclosing desc
+.tst.desc["Orders"]{
+  alt{ should["..."]{ ... }; / ...50 more });
+  alt{ should["..."]{ ... }; / ...50 more });
+};
+```
+
+(150 `should` blocks across three `alt` blocks in one `desc` loads fine; the
+same 150 directly in the `desc` does not.)
+
+
 ### Unqualified DSL names not found with `qNamespaceExports: false`
 
 **Symptom:**
