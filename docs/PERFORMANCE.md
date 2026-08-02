@@ -76,6 +76,20 @@ should["be lean"]{
 };
 ```
 
+## Which API to use
+
+Two entry points, one measurement core (`.tst.benchmark.sample`) — they differ
+in what they give you back, not in how they measure:
+
+| Want | Use | Gives you |
+|------|-----|-----------|
+| Fail the build on a budget | `perf` block, `mustBeFasterThan`, `mustAllocLessThan` | pass/fail + the recorded measurement |
+| Time and **allocation** statistics | `.tst.benchmark.measureOpts[n; code; opts]` | `` `time`space `` each with min/med/max/avg/dev (ms) |
+| Percentiles and a distribution | `.tst.bench[func; opts]` | iterations, min/max/avg/std, p50–p99, histogram, raw timings |
+
+`bench` does not record allocation: the `.Q.w[]` calls needed for it would show
+up in its own timings. Use `measureOpts` when you need memory.
+
 ## Low-Level Benchmarking
 
 For ad-hoc profiling, access the underlying library directly:

@@ -170,3 +170,52 @@
     n musteq 0;
   };
  };
+
+/ ---------------------------------------------------------------------------
+/ The measured subject must actually RUN. `value` applied to a lambda returns
+/ its internals without executing it, so measureOpts timed q's introspection
+/ instead of the user's code: a perf block executed zero times and reported
+/ ~200ns whatever it contained, and mustBeFasterThan/mustAllocLessThan were
+/ therefore always satisfied. Counting executions is the only assertion that
+/ catches this -- a timing alone looks plausible.
+/ ---------------------------------------------------------------------------
+.tst.desc["benchmark actually executes the subject"]{
+  should["run the code once per iteration, plus warmup"]{
+    .tst.testState.benchexec.n: 0;
+    .tst.benchmark.measureOpts[10; {.tst.testState.benchexec.n: 1 + .tst.testState.benchexec.n}; enlist[`gc]!enlist 0b];
+    n: .tst.testState.benchexec.n;
+    must[n >= 10; "expected at least 10 executions, got ", string n];
+  };
+
+  should["execute a niladic lambda too"]{
+    .tst.testState.benchexec.n: 0;
+    .tst.benchmark.measureOpts[5; {[] .tst.testState.benchexec.n: 1 + .tst.testState.benchexec.n}; enlist[`gc]!enlist 0b];
+    must[.tst.testState.benchexec.n >= 5;
+         "a niladic subject must run too, got ", string .tst.testState.benchexec.n];
+  };
+
+  should["still evaluate a q source string"]{
+    .tst.testState.benchexec.n: 0;
+    .tst.benchmark.measureOpts[5; ".tst.testState.benchexec.n: 1 + .tst.testState.benchexec.n"; enlist[`gc]!enlist 0b];
+    must[.tst.testState.benchexec.n >= 5;
+         "a string subject must still be evaluated, got ", string .tst.testState.benchexec.n];
+  };
+
+  should["distinguish slow work from trivial work"]{
+    / If the subject were not executed both would measure the same overhead.
+    slow: .tst.benchmark.measureOpts[20; {asc 20000?1000}; enlist[`gc]!enlist 0b];
+    fast: .tst.benchmark.measureOpts[20; {til 10}; enlist[`gc]!enlist 0b];
+    must[slow[`time;`avg] > fast[`time;`avg];
+         "sorting 20k must measure slower than `til 10`"];
+  };
+
+  should["make mustBeFasterThan meaningful"]{
+    probe: {[f] old: .tst.assertState.failures; f[];
+                n: (count .tst.assertState.failures) - count old;
+                .tst.assertState.failures: old; n};
+    / A generous bound passes; an impossible one must now FAIL, which it could
+    / not do while the subject was never run.
+    probe[{mustBeFasterThan[{til 10}; 1000]}] musteq 0;
+    probe[{mustBeFasterThan[{asc 50000?1000}; 0.0000001]}] musteq 1;
+  };
+ };

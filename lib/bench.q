@@ -30,7 +30,9 @@ benchPrintHistogram:{[hist]
     pctVal: h`pct;
     barLen: `int$pctVal * barWidth % maxPct;
     bar: barLen#"#";
-    lbl: (string `int$(`float$h`range_start)%1000)," - ",(string `int$(`float$h`range_end)%1000)," us";
+    / Two decimals, not `int$: sub-microsecond work is the common case and
+    / integer microseconds collapsed every bucket to the same "1 - 1 us".
+    lbl: (.Q.f[2; (`float$h`range_start)%1000])," - ",(.Q.f[2; (`float$h`range_end)%1000])," us";
     -1 "  ", (24$lbl), " |", bar, " ", (string `int$pctVal), "%";
   }[;maxPct;barWidth] each hist;
  };
@@ -46,18 +48,20 @@ benchPrint:{[stats]
   -1 "";
  };
 
-/ Run a function N times and collect timing data
+/ Run a function N times and collect timing data.
+/ Measurement itself is delegated to .tst.benchmark.sample -- the single timing
+/ core shared with perf blocks and the performance assertions. This file used to
+/ carry its OWN loop, which meant two implementations that could drift apart;
+/ they already differed in whether they executed the subject. What stays here is
+/ the richer presentation this API adds: percentiles and a histogram.
+/ Allocation is not recorded (space:0b): the .Q.w[] calls it needs would show up
+/ in these timings, and callers wanting memory use measureOpts.
 bench:{[func;opts]
   cfg: benchDefaults, $[99h=type opts; opts; ()!()];
-  if[cfg`warmup; do[cfg`warmup; func[]]];
-  if[cfg`gcBefore; .Q.gc[]];
   n: cfg`iterations;
-  times: ();
-  do[n; 
-    st: .z.p;
-    func[];
-    times,: .z.p - st
-  ];
+  smp: .tst.benchmark.sample[n; func;
+        `warmup`gcBefore`gcEach`space!(cfg`warmup; cfg`gcBefore; 0b; 0b)];
+  times: smp`timesNs;
   result: `iterations`total_ns`min_ns`max_ns`avg_ns`std_ns!(n; sum times; min times; max times; avg times; dev times);
   / Convert spans to float us/ms for easier use
   result[`total_us]: (`float$result`total_ns) % 1000;
