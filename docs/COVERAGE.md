@@ -53,12 +53,17 @@ lines.
 
 **Why this is opt-in.** It works by rewriting your function bodies at load time
 and re-evaluating them in their original namespace. Each function is attempted
-independently and verified afterwards — the definition must still parse and keep
-the same parameter list, or the original is restored and that function falls
-back to derived lines. Even so, this is a transformation of the code under test,
-and it is not proven safe on every q construct: instrumenting resQ's own
-`lib/loader.q` breaks it. Turn it on deliberately, and check your suite still
-passes with it on before trusting the numbers.
+independently and verified afterwards — the rewritten definition must parse, and
+must keep the same parameters, locals and referenced globals, or the original is
+restored and that function falls back to derived lines.
+
+Even with that envelope it remains a transformation of the code under test.
+It handles the constructs in resQ's own library and the bundled example, but it
+is not proven safe on every q construct. **resQ cannot instrument itself**: with
+its own `lib/` instrumented the framework stops running tests, because the code
+being rewritten is the code doing the rewriting. Turn statement coverage on
+deliberately, and confirm your suite still passes with it on before trusting the
+numbers.
 
 ### Line records are derived, not measured
 

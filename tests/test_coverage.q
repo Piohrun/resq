@@ -459,6 +459,31 @@
             musteq 1 4;
     };
 
+    should["place a nested statement's probe INSIDE its own construct"]{
+        / Regression. Probes were inserted at the START of the line, so a
+        / statement nested inside `if[...]` had its probe land in whatever
+        / enclosed the line. For `$[c; if[a;b:1]; ...]` that put it in the
+        / conditional expression's branch list, shifting every branch and
+        / silently changing what the expression returned -- it broke resQ's own
+        / loader. The probe must go at the statement's column, inside the if.
+        src: (".f:{[x]";
+              "    $[x;";
+              "        if[x; y: 1];";
+              "      z: 2];";
+              " };");
+        rw: .tst.covRewriteFunction[src; 1; 5; `$"/tmp/p.q"];
+        must[2 = count rw; "the rewriter returns (text; probedLines)"];
+        lines: "\n" vs rw 0;
+        ifLine: first lines where lines like "*if*";
+        / The probe must follow "if[x; ", not precede "if". (Two wildcards max:
+        / q's `like` signals 'nyi on three or more.)
+        trimmed: trim ifLine;
+        must["if" ~ 2 # trimmed;
+             "the line must still start with the construct, got: ", trimmed];
+        must[trimmed like "*covL*";
+             "the nested statement must carry a probe, got: ", trimmed];
+    };
+
     should["place probes after the signature, never before the brace"]{
         src: (".f:{[x]"; "    y: x+1;"; "    y*2"; " };");
         rw: .tst.covRewriteFunction[src; 1; 4; `$"/tmp/probe.q"];

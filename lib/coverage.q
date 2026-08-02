@@ -394,7 +394,7 @@
 / q guard clauses (`if[bad; :error]`) are exactly what needs measuring.
 / `$[...]` is deliberately NOT descended into -- it is a conditional EXPRESSION
 / whose branches are values, and probing there would change what it returns.
-.tst.covStatementLines:{[bodyLines]
+.tst.covStatementPositions:{[bodyLines]
     depth: 0; inStr: 0b; esc: 0b;
     atStart: 1b;
     stmtDepths: enlist 0;    / bracket depths that hold a statement LIST
@@ -416,7 +416,7 @@
               (c = "/") and ((j = 0) or txt[j-1] in " \t");
                 j: count txt;
               c in "{([";
-                [ if[atStart and depth in stmtDepths; starts,: lineNo; atStart: 0b];
+                [ if[atStart and depth in stmtDepths; starts,: enlist (lineNo; j); atStart: 0b];
                   depth+: 1;
                   / `if`/`do`/`while` open a statement list; anything else does not.
                   if[(c = "[") and word in ("if"; "do"; "while");
@@ -430,12 +430,15 @@
                 [ atStart: 1b; word: "" ];
               c in " \t";
                 word: "";
-                [ if[atStart and depth in stmtDepths; starts,: lineNo; atStart: 0b];
+                [ if[atStart and depth in stmtDepths; starts,: enlist (lineNo; j); atStart: 0b];
                   word: $[c in .Q.a, .Q.A; word, c; ""] ]];
             j+: 1];
         i+: 1];
     distinct starts
  };
+
+/ Backwards-compatible view: just the lines that begin a statement.
+.tst.covStatementLines:{[bodyLines] distinct .tst.covStatementPositions[bodyLines][;0] };
 
 / Offset just past a lambda's opening `{` and optional `[params]`, i.e. where
 / the body begins on the definition's first line. Null when not a lambda open.
@@ -474,28 +477,37 @@
     bodyLines: enlist (startLine; bodyFirst);
     if[1 < count seg;
         bodyLines,: flip (startLine + 1 + til -1 + count seg; 1 _ seg)];
-    stmtLines: .tst.covStatementLines bodyLines;
-    if[0 = count stmtLines; :(::)];
+    / Positions, not just lines: a statement nested in `if[...]` must get its
+    / probe INSIDE that bracket. Inserting at the start of the line would place
+    / it in whatever encloses the line -- for `$[c; if[a;b:1]; ...]` that means
+    / landing in the conditional expression's branch list and shifting every
+    / branch, which silently changes what the expression returns.
+    positions: .tst.covStatementPositions bodyLines;
+    if[0 = count positions; :(::)];
+    / Columns on the definition's first line are body-relative; shift them back.
+    positions: {[b; st; p] $[p[0] = st; (p 0; b + p 1); p]}[bodyAt; startLine;] each positions;
+    stmtLines: distinct positions[;0];
 
-    / The file symbol must be written as `$"..." -- a path contains slashes, and a
-    / bare backtick literal would not parse. Escape quotes and backslashes so any
-    / path survives being embedded in generated source.
+    / The file symbol is written as `$"..." -- a path contains slashes and a bare
+    / backtick literal would not parse. Escape so any path survives embedding.
     pathTxt: string fileSym;
     pathTxt: ssr[ssr[pathTxt; "\\"; "\\\\"]; "\""; "\\\""];
-    probe: {[p;n] ".tst.covL[`$\"", p, "\";", string[n], "];"}[pathTxt;];
+    probeFor: {[p;n] ".tst.covL[`$\"", p, "\";", string[n], "];"}[pathTxt;];
     out: ();
     i: 0;
     while[i < count seg;
         lineNo: startLine + i;
         txt: (), seg i;
-        $[not lineNo in stmtLines;
-            out,: enlist txt;
-          lineNo = startLine;
-            / Insert immediately after `{[params]`, never before the brace.
-            out,: enlist (bodyAt # txt), probe[lineNo], bodyAt _ txt;
-            [ lead: 0;
-              while[(lead < count txt) and txt[lead] in " \t"; lead+: 1];
-              out,: enlist (lead # txt), probe[lineNo], lead _ txt ]];
+        / Insert from the rightmost column so earlier offsets stay valid.
+        / NB: not `cols` -- that is a q keyword and assigning it signals 'assign.
+        insCols: desc positions[;1] where positions[;0] = lineNo;
+        newTxt: txt;
+        j: 0;
+        while[j < count insCols;
+            c: insCols j;
+            newTxt: (c # newTxt), probeFor[lineNo], c _ newTxt;
+            j+: 1];
+        out,: enlist newTxt;
         i+: 1];
     ("\n" sv out; stmtLines)
  };
@@ -506,7 +518,11 @@
 .tst.covInstrumentStatements:{[name; fileSym; srcLines; startLine; endLine]
     orig: .tst.safeValue name;
     if[not (type orig) within 100 104h; :0b];
-    origRank: count (value orig) 1;      / parameter list of the original
+    / q exposes a lambda's structure: [1] parameters, [2] locals, [3] the globals
+    / it references. Comparing those before and after is a far stronger check
+    / than "it still parses" -- a probe inserted somewhere that changes how a
+    / name binds shows up as a different local or global set.
+    origShape: 1 3 sublist value orig;   / (params; locals; globals)
 
     rw: @[.tst.covRewriteFunction[srcLines; startLine; endLine;]; fileSym; {[e] (::)}];
     if[(::) ~ rw; :0b];
@@ -536,11 +552,14 @@
 
     if[not ok; .tst.safeSet[name; orig]; :0b];
 
-    / Same shape? A rewrite that changed the parameter list has changed the
-    / function, so refuse it even though it parsed.
+    / Same shape? A rewrite that parsed but changed the function's parameters,
+    / locals, or which globals it binds has changed the function. Refuse it.
     now: .tst.safeValue name;
     if[not (type now) within 100 104h; .tst.safeSet[name; orig]; :0b];
-    if[not origRank ~ count (value now) 1; .tst.safeSet[name; orig]; :0b];
+    newShape: 1 3 sublist value now;
+    / The probe itself is the one global legitimately added.
+    newShape[2]: newShape[2] except `.tst.covL;
+    if[not origShape ~ newShape; .tst.safeSet[name; orig]; :0b];
 
     / Remember which lines carry a probe, so the report counts exactly those.
     pl: $[fileSym in key .tst.stmtProbeLines; .tst.stmtProbeLines fileSym; `long$()];
