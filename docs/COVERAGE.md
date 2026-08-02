@@ -57,9 +57,17 @@ independently and verified afterwards — the rewritten definition must parse, a
 must keep the same parameters, locals and referenced globals, or the original is
 restored and that function falls back to derived lines.
 
-Even with that envelope it remains a transformation of the code under test.
-It handles the constructs in resQ's own library and the bundled example, but it
-is not proven safe on every q construct. **resQ cannot instrument itself**: with
+Behaviour preservation is checked by execution, not by argument:
+`tests/test_coverage_differential.q` generates q functions from a grammar of the
+constructs that make instrumentation hard — guards with early return, loops,
+conditional expressions, nested lambdas, strings holding semicolons, comments,
+multi-line brackets — then calls each one before and after instrumenting it and
+requires identical return values *and* identical side effects. It runs a fixed
+corpus plus seeded random functions on every suite run, and was swept clean to
+seed 400. Reintroducing the line-start insertion defect makes it fail, so it
+demonstrably catches the class of bug it exists for.
+
+Even with that, it remains a transformation of the code under test. **resQ cannot instrument itself**: with
 its own `lib/` instrumented the framework stops running tests, because the code
 being rewritten is the code doing the rewriting. Turn statement coverage on
 deliberately, and confirm your suite still passes with it on before trusting the
