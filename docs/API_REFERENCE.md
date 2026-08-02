@@ -350,6 +350,11 @@ must[condition; message]
 
 Assert that a condition is true.
 
+A failing assertion past the first reports its position in the test —
+`... (assertion #3 in this test)` — so a multi-assertion test says which check
+failed. q provides no file/line for a failing assertion: nothing throws, and
+test bodies are evaluated via `value` so they carry no source position.
+
 The condition must be a boolean. A non-boolean is reported as a failure naming
 the offending type, rather than being coerced — `all` treats `5`, `0N` and any
 non-empty string as true, so a null result or a swapped `must["message"; cond]`

@@ -40,9 +40,21 @@ asserts[`must]:{[val;message];
         "must condition is null, which is not a truth value: ", .tst.toString val;
     not all $[kind = `numeric; 0 <> val; val];
       [ m: $[10h = abs type message; message; .Q.s1 message];
-        .tst.assertState.failures,: enlist m ];
+        / Which assertion in this test failed. assertState resets per
+        / expectation, so assertsRun is this assertion's ordinal. q gives no
+        / file/line for a failing assertion (nothing throws, and definitions
+        / evaluated via `value` carry no source position), so the ordinal is the
+        / locator available: in a test with several assertions it says which one.
+        .tst.assertState.failures,: enlist m, .tst.assertionOrdinalSuffix[] ];
     (::)];
   }
+
+/ Rendered only past the first assertion: "(assertion #1)" on a single-assertion
+/ test is noise, and goldens pin those messages exactly.
+.tst.assertionOrdinalSuffix:{[]
+  n: .tst.assertState.assertsRun;
+  $[n > 1; " (assertion #", string[n], " in this test)"; ""]
+ };
 
 / True when qspec's `=` comparison would have accepted this pair but `~` did
 / not: a scalar broadcast across a vector (`1 1 1 musteq 1`) or a type-loose

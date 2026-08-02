@@ -218,6 +218,33 @@
 / Verified against qspec's real definitions:
 /   musteq  qspec: all l = r   (broadcasts a scalar, type-loose)
 /   mustne  qspec: all l <> r  ("every element differs")
+/ q gives no file/line for a failing assertion: nothing throws, and definitions
+/ evaluated via `value` carry no source position, so a backtrace shows the
+/ expression but not where it lives. The assertion's ordinal within the test is
+/ the locator that IS available.
+.tst.desc["failure messages locate the assertion"]{
+ should["name the ordinal past the first assertion"]{
+  old: .tst.assertState.failures;
+  1 musteq 1;
+  2 musteq 2;
+  3 musteq 99;
+  reported: last .tst.assertState.failures;
+  .tst.assertState.failures: old;
+  / Two wildcards max: q's `like` signals 'nyi on three or more.
+  must[reported like "*assertion #3*";
+       "a later assertion should report its ordinal, got: ", reported];
+  };
+
+ should["stay quiet for the first assertion"]{
+  / A single-assertion test needs no ordinal, and goldens pin these messages.
+  probe: {[f] old: .tst.assertState.failures; f[];
+              msg: last .tst.assertState.failures;
+              .tst.assertState.failures: old; msg};
+  msg: probe[{must[0b; "plain message"]}];
+  must[not msg like "*assertion #*"; "the first assertion needs no ordinal, got: ", msg];
+  };
+ };
+
 .tst.desc["qspec compatibility mode"]{
  after{ .tst.app.qspecCompat: 0b };
 
