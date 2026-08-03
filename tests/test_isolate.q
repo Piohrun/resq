@@ -424,3 +424,101 @@
     r[`out] mustmatch ();
   };
  };
+
+/ ============================================================================
+/ -isolateWorkers: running N files at once must not change ANY verdict.
+/ .
+/ Isolation is the feature people trust when a suite contains something that can
+/ kill the run, so parallelism earns its place only if it is observably identical
+/ to the sequential path. These tests compare the two directly rather than
+/ asserting parallel output in isolation.
+/ ============================================================================
+.tst.desc["Isolate: parallel workers #slow"]{
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout;
+         "parallel run reaches the same verdicts as the sequential run"]{
+    / Compare the JSON REPORTS rather than console text: the reports are the
+    / contract CI consumes, and they carry the per-test verdicts that must not
+    / shift. (Console text also differs legitimately in the banner, which names
+    / the worker count.)
+    wd: .tst.isotest.workDir[];
+    fa: .tst.isotest.writeFixture[wd; "test_a.q"; .tst.isotest.fxPass1];
+    fb: .tst.isotest.writeFixture[wd; "test_b.q"; .tst.isotest.fxPass2];
+    ff: .tst.isotest.writeFixture[wd; "test_f.q"; .tst.isotest.fxFail];
+    files: .utl.shellQuote[fa], " ", .utl.shellQuote[fb], " ", .utl.shellQuote[ff];
+
+    serialDir:   wd, "/rep_serial";
+    parallelDir: wd, "/rep_parallel";
+    serial: .tst.isotest.run[files, " -json -outDir ",
+        .utl.shellQuote[serialDir], " -quiet"];
+    parallel: .tst.isotest.run[files, " -json -outDir ",
+        .utl.shellQuote[parallelDir], " -isolateWorkers 3 -quiet"];
+
+    musteq[parallel`code; serial`code];
+
+    / NOT named `load`: that is a q keyword and assigning to it fails with 'assign.
+    readReport: {[dir]
+        raw: @[read0; hsym `$dir, "/test-results.json"; {()}];
+        $[count raw; .j.k raze raw; ()!()]};
+    sJson: readReport serialDir;
+    pJson: readReport parallelDir;
+    must[0 < count sJson; "the sequential run must write a JSON report"];
+
+    / Counts must agree exactly...
+    musteq[pJson`testCount;  sJson`testCount];
+    musteq[pJson`passCount;  sJson`passCount];
+    musteq[pJson`failCount;  sJson`failCount];
+    musteq[pJson`errorCount; sJson`errorCount];
+
+    / ...and so must each individual verdict, in the same order. Ordering is
+    / part of the contract: children start together but are interpreted in file
+    / order, so a parallel report is not merely equivalent but identical here.
+    key3: {[j] (j[`tests]`suite; j[`tests]`description; j[`tests]`status)};
+    musteq[key3 pJson; key3 sJson];
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout;
+         "a worker count above the file count is clamped, not an error"]{
+    wd: .tst.isotest.workDir[];
+    fa: .tst.isotest.writeFixture[wd; "test_a.q"; .tst.isotest.fxPass1];
+    r: .tst.isotest.run[.utl.shellQuote[fa], " -isolateWorkers 64 -quiet"];
+    musteq[r`code; 0];
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout;
+         "each concurrent child still gets its own private scratch"]{
+    / Two files that both record their pid. Distinct pids prove the children were
+    / genuinely separate processes, and a clean run proves neither clobbered the
+    / other's report -- the failure mode a shared scratch would produce.
+    wd: .tst.isotest.workDir[];
+    pidA: wd, "/pid_a.txt";
+    pidB: wd, "/pid_b.txt";
+    fa: .tst.isotest.writeFixture[wd; "test_a.q";
+        (.tst.isotest.pidLine pidA;
+         ".tst.desc[\"pa\"]{ should[\"a\"]{ must[1b; \"t\"] }; };")];
+    fb: .tst.isotest.writeFixture[wd; "test_b.q";
+        (.tst.isotest.pidLine pidB;
+         ".tst.desc[\"pb\"]{ should[\"b\"]{ must[1b; \"t\"] }; };")];
+    r: .tst.isotest.run[.utl.shellQuote[fa], " ", .utl.shellQuote[fb],
+                        " -isolateWorkers 2 -quiet"];
+    musteq[r`code; 0];
+    a: @[read0; hsym `$pidA; {()}];
+    b: @[read0; hsym `$pidB; {()}];
+    must[(0 < count a) and 0 < count b; "both children must have run"];
+    must[not (first a) ~ first b; "children must be distinct processes"];
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout;
+         "no isolation scratch survives a parallel run"]{
+    wd: .tst.isotest.workDir[];
+    fa: .tst.isotest.writeFixture[wd; "test_a.q"; .tst.isotest.fxPass1];
+    fb: .tst.isotest.writeFixture[wd; "test_b.q"; .tst.isotest.fxPass2];
+    r: .tst.isotest.run[.utl.shellQuote[fa], " ", .utl.shellQuote[fb],
+                        " -isolateWorkers 2 -quiet"];
+    musteq[r`code; 0];
+    / runEnv gives the nested parent its own TMPDIR, so any leaked scratch would
+    / still be sitting under this scenario's tmp directory.
+    leftovers: @[{[p] key hsym `$p}; wd, "/tmp"; {`symbol$()}];
+    musteq[0; count leftovers where (string leftovers) like "resq_isolate.*"];
+  };
+ };
