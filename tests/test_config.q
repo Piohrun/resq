@@ -7,9 +7,10 @@
  should["load default config when file does not exist"]{
   cfg: .tst.loadConfig["nonexistent.json"];
   cfg[`fmt] musteq `text;
-  cfg[`exit] musteq 0b;
-  cfg[`pollutionGuard] musteq 1b;
-  cfg[`fuzzLimit] musteq 100;
+  cfg[`exit] musteq 1b;
+ cfg[`pollutionGuard] musteq 1b;
+ cfg[`fuzzLimit] musteq 100;
+  cfg[`coverageMin] musteq 0;
   };
  should["load and parse JSON config file"]{
   / Create test config file
@@ -149,6 +150,18 @@
   };
  should["accept a zero numeric value (boundary)"]{
   0 musteq count .tst.invalidConfigKeys (enlist `fuzzLimit)!enlist 0;
+  };
+ should["validate and apply a coverage minimum between zero and one hundred"]{
+  0 musteq count .tst.invalidConfigKeys (enlist `coverageMin)!enlist 100;
+  .tst.invalidConfigKeys[(enlist `coverageMin)!enlist 101] musteq enlist `coverageMin;
+  warnings: .tst.validateConfig (enlist `coverageMin)!enlist 101;
+  must[any warnings like "coverageMin must be between 0 and 100*";
+       "an out-of-range coverage minimum must warn"];
+  previous: @[get; `.tst.app.coverageMin; 0];
+  .tst.applyConfig[(enlist `coverageMin)!enlist 87];
+  applied: .tst.app.coverageMin;
+  .tst.app.coverageMin: previous;
+  applied musteq 87;
   };
  should["warn for a negative fuzzLimit"]{
   warnings: .tst.validateConfig (enlist `fuzzLimit)!enlist -5;

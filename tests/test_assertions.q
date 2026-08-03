@@ -58,6 +58,15 @@
   count[testedFailures] musteq 1;
   (first testedFailures) mustlike "*the error 'foo'. Error thrown: 'bar'*";
   };
+ should["never confuse a normal err0x-shaped return with an exception"]{
+  oldFailures: .tst.assertState.failures;
+  mustthrow["*boom*"; {(`err0x;"boom")}];
+  mustnotthrow["*boom*"; {(`err0x;"boom")}];
+  testedFailures: (count oldFailures) _ .tst.assertState.failures;
+  .tst.assertState.failures: oldFailures;
+  count[testedFailures] musteq 1;
+  (first testedFailures) mustlike "*No error thrown*";
+  };
  };
 
 .tst.desc["Assertion aliases"]{
@@ -114,6 +123,13 @@
   / Single-wildcard pattern (q `like` rejects 3+ stars with 'nyi).
   (first testedFailures) mustlike "Got 5 *";
   must[(first testedFailures) like "*expected 7*"; "message should name the expected value"];
+  };
+ };
+
+.tst.desc["failure diff context"]{
+ should["derive a suite and test label for streamed diff headers"]{
+  label: .tst.diffContextLabel[];
+  label mustlike "failure diff context :: derive a suite*";
   };
  };
 
@@ -209,6 +225,26 @@
   / old `<>` both failed at once, which no pair of inverses should ever do.
   probe[{musteq[1; 1.0]}] musteq 1;
   probe[{mustne[1; 1.0]}] musteq 0;
+ };
+};
+
+.tst.desc["successful assertions keep diagnostics lazy"]{
+ before{
+  `.tst.testState.lazyRenderCount mock 0;
+  `.tst.assertValueText mock {[v] .tst.testState.lazyRenderCount+:1; "rendered"};
+  };
+
+ should["not stringify operands on any successful comparison"]{
+  1 mustne 2;
+  1 mustnmatch 2;
+  1 mustlt 2;
+  2 mustgt 1;
+  "alpha" mustlike "a*";
+  2 mustin 1 2 3;
+  4 mustnin 1 2 3;
+  2 mustwithin 1 3;
+  mustdelta[0.1;1f;1f];
+  .tst.testState.lazyRenderCount musteq 0;
   };
  };
 

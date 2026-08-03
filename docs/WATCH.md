@@ -16,13 +16,14 @@ Pass one or more directories to watch. On each detected change, resQ re-runs the
 
 ### Change detection
 
-The watcher polls the watched directories on a fixed interval. Each `.q` file is fingerprinted by its size and mtime; a change to either triggers a test run. Hidden files (names starting with `.`) are ignored.
+The watcher polls the watched directories on a fixed interval. Each `.q` file is fingerprinted by its size and mtime; a change to either triggers a test run. New and deleted files are detected too. Hidden files (names starting with `.`) are ignored.
 
 ### What gets re-run
 
 1. **Test file changed**: runs only that file.
-2. **Source file changed**: looks for a matching test file by name convention (`src/foo.q` → `tests/test_foo.q`). If found, runs it. If not found, runs the full suite as a safety fallback.
-3. **Other file changed**: runs the full suite.
+2. **Source file changed**: looks for a matching test file using the configured discovery conventions (`src/foo.q` → `tests/test_foo.q` or `tests/foo_test.q` by default). If found, runs it. If not found, runs the full suite as a safety fallback.
+3. **File deleted**: runs the full remaining suite because the deleted path cannot be targeted safely.
+4. **Other file changed**: runs the full suite.
 
 ### Poll interval
 

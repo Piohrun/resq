@@ -628,6 +628,25 @@ q resq.q test tests/ -junit -outDir reports/ -exit
 mkdir -p reports/
 ```
 
+When more than one reporter is selected, look for
+`test-results.junit.xml`, `test-results.xunit.xml`, and/or
+`test-results.json`; resQ deliberately does not write an ambiguous
+`test-results.xml` in multi-format mode. A reporter generation or file-write
+error makes the run fail after the other selected reporters have been attempted.
+
+### Coverage does not fail the build
+
+Generating LCOV alone does not choose a policy. Add `-cov-min N`, or set
+`"coverageMin": N` in `resq.json`:
+
+```bash
+resq cover tests/ -strict -cov-min 80 -json -outDir reports/
+```
+
+The threshold is an integer percentage from 0 through 100. The run also fails
+when coverage measures no executable code or cannot write its reports. Coverage
+cannot be combined with `-isolate`; run it as a separate CI command.
+
 ---
 
 ### Tests timeout in CI

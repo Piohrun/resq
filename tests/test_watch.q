@@ -18,13 +18,16 @@
 / ============================================================================
 
 / ---------------------------------------------------------------------------
-/ (1) isTestFile: a .q file whose BASENAME matches test_*.q.
+/ (1) isTestFile: a .q file whose BASENAME matches configured discovery rules.
 .tst.desc["watch: isTestFile classifies test files by basename"]{
   should["accept tests/test_foo.q (basename test_foo.q)"]{
     must[.tst.watch.isTestFile "tests/test_foo.q"; "basename test_foo.q is a test file"];
   };
   should["accept a bare test_x.q with no directory"]{
     must[.tst.watch.isTestFile "test_x.q"; "test_x.q is a test file"];
+  };
+  should["accept the supported suffix convention foo_test.q"]{
+    must[.tst.watch.isTestFile "tests/foo_test.q"; "foo_test.q is a test file"];
   };
   should["reject a plain source file src/foo.q"]{
     must[not .tst.watch.isTestFile "src/foo.q"; "src/foo.q is not a test file"];
@@ -34,6 +37,34 @@
   };
   should["reject test_foo.txt (wrong suffix, two-star trap)"]{
     must[not .tst.watch.isTestFile "test_foo.txt"; "non-.q must be rejected"];
+  };
+ };
+
+.tst.desc["watch: deletion and source mapping follow discovery semantics"]{
+  before{
+    `.tst.watch.runnerCmd mock {.tst.testState.watchchk.ran: x};
+    `.tst.watch.scanFiles mock {()!()};
+    `.tst.watch.fileStates mock ()!();
+    `.tst.watch.deletedFiles mock `symbol$();
+    `.tst.testState.watchchk.ran mock `unset;
+  };
+
+  should["surface deleted paths and fall back to the full remaining suite"]{
+    deleted: `$"/project/tests/test_deleted.q";
+    .tst.watch.fileStates: (enlist deleted)!enlist (10; 20);
+    changes: .tst.watch.check[];
+    must[deleted in changes; "a deletion must be returned as a change"];
+    must[deleted in .tst.watch.deletedFiles; "deletion identity must be retained"];
+    .tst.watch.onChanges changes;
+    .tst.testState.watchchk.ran mustmatch ();
+  };
+
+  should["map a source change to the suffix-style test file"]{
+    source: `$"/project/src/foo.q";
+    test: `$"/project/tests/foo_test.q";
+    .tst.watch.fileStates: (source; test)!((10; 20); (30; 40));
+    .tst.watch.onChanges enlist source;
+    .tst.testState.watchchk.ran mustmatch enlist test;
   };
  };
 

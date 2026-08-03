@@ -9,6 +9,7 @@ resetExpecList[];
 currentBefore:{}
 currentAfter:{}
 currentNs:`.
+currentSourceLine:0Ni
 
 before:{[code]
  .tst.currentBefore: code
@@ -59,10 +60,22 @@ fillExpecBA:{[x]
   } each x
  }
 
+/ q refuses to join tables with different schemas. Expectations collected
+/ before an alt block do not yet have hook columns, while the alt's expectations
+/ are filled before being merged back into the outer list. Add only placeholder
+/ columns here: fillExpecBA still gets the final say, so hooks declared after an
+/ expectation retain qspec's documented behaviour.
+ensureExpecHookColumns:{[expecs]
+  if[not 98h = type expecs; :expecs];
+  if[not `before in cols expecs; expecs:update before:(::) from expecs];
+  if[not `after in cols expecs; expecs:update after:(::) from expecs];
+  expecs
+ }
+
 alt:{[code]
  oldBefore: .tst.currentBefore;
  oldAfter: .tst.currentAfter;
- oldExpecList: .tst.expecList;
+ oldExpecList: .tst.ensureExpecHookColumns .tst.expecList;
  .tst.expecList: ();
  code[];
  el:fillExpecBA .tst.expecList;
@@ -74,12 +87,12 @@ alt:{[code]
 should:{[des;code]
   desStr: .tst.toString des;
   tags: `$ {x where x like "#*"} " " vs desStr;
-  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace!(desStr;code;tags;.tst.currentNs))
+  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`line!(desStr;code;tags;.tst.currentNs;.tst.currentSourceLine))
  }
 
 holds:{[des;props;code]
   desStr: .tst.toString des;
-  d: .tst.internals.fuzzObj, (`desc`code`namespace!(desStr;code;.tst.currentNs));
+  d: .tst.internals.fuzzObj, (`desc`code`namespace`line!(desStr;code;.tst.currentNs;.tst.currentSourceLine));
   / Handle single-key dict (type -20 enumeration) and regular dict (type 99)
   propsDict: $[99h = type props; props;
                (type props) in -20 20h; (enlist key props)!(enlist value props);
@@ -96,7 +109,7 @@ holds:{[des;props;code]
 
 perf:{[des;props;code]
   desStr: .tst.toString des;
-  d: .tst.internals.perfObj, (`desc`code!(desStr;code));
+  d: .tst.internals.perfObj, (`desc`code`line!(desStr;code;.tst.currentSourceLine));
   / Handle single-key dict (type -20 enumeration) and regular dict (type 99)
   propsDict: $[99h = type props; props;
                (type props) in -20 20h; (enlist key props)!(enlist value props);
@@ -108,7 +121,7 @@ perf:{[des;props;code]
 
 / Register a skipped expectation under an explicit description.
 skipNamed:{[desStr;reason;code]
-  d: .tst.internals.testObj, (`desc`code`result`skipReason!(.tst.toString desStr; {}; `skip; reason));
+  d: .tst.internals.testObj, (`desc`code`result`skipReason`line!(.tst.toString desStr; {}; `skip; reason;.tst.currentSourceLine));
   .tst.expecList,: enlist d
  }
 
@@ -120,7 +133,7 @@ skip:{[reason;code]
 / Mark a test as pending (placeholder)
 pending:{[reason]
   desStr: "PENDING: ", .tst.toString reason;
-  d: .tst.internals.testObj, (`desc`code`result`skipReason!(desStr; {}; `pending; reason));
+  d: .tst.internals.testObj, (`desc`code`result`skipReason`line!(desStr; {}; `pending; reason;.tst.currentSourceLine));
   .tst.expecList,: enlist d
  }
 
@@ -138,7 +151,7 @@ skipIf:{[condition;reason;code]
 / Retry a flaky test up to N times before failing the suite.
 retry:{[retries;des;code]
   desStr: .tst.toString des;
-  d: .tst.internals.testObj, (`desc`code`retries`namespace!(desStr;code;retries;.tst.currentNs));
+  d: .tst.internals.testObj, (`desc`code`retries`namespace`line!(desStr;code;retries;.tst.currentNs;.tst.currentSourceLine));
   .tst.expecList,: enlist d
  }
 
@@ -149,8 +162,30 @@ retry:{[retries;des;code]
 testOnly:{[des;code]
   desStr: .tst.toString des;
   tags: (`$"only"), `$ {x where x like "#*"} " " vs desStr;
-  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`only!(desStr;code;tags;.tst.currentNs;1b))
+  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`only`line!(desStr;code;tags;.tst.currentNs;1b;.tst.currentSourceLine))
  }
+
+/ Line-aware wrappers inserted by loader.q. The shared dispatcher restores the
+/ previous value even when a constructor signals, so nested/programmatic DSL use
+/ cannot inherit a stale source line.
+.tst.callExpectationAt:{[lineNo;fn;args]
+  previous: .tst.currentSourceLine;
+  .tst.currentSourceLine: "i"$lineNo;
+  outcome: @[{[pair] (0b;.[pair 0;pair 1])};(fn;args);{[err](1b;err)}];
+  .tst.currentSourceLine: previous;
+  if[first outcome; 'last outcome];
+  last outcome
+ };
+
+shouldAt:{[lineNo;des;code] .tst.callExpectationAt[lineNo;.tst.should;(des;code)]}
+itAt:{[lineNo;des;code] .tst.callExpectationAt[lineNo;.tst.should;(des;code)]}
+holdsAt:{[lineNo;des;props;code] .tst.callExpectationAt[lineNo;.tst.holds;(des;props;code)]}
+perfAt:{[lineNo;des;props;code] .tst.callExpectationAt[lineNo;.tst.perf;(des;props;code)]}
+skipAt:{[lineNo;reason;code] .tst.callExpectationAt[lineNo;.tst.skip;(reason;code)]}
+pendingAt:{[lineNo;reason] .tst.callExpectationAt[lineNo;.tst.pending;enlist reason]}
+skipIfAt:{[lineNo;condition;reason;code] .tst.callExpectationAt[lineNo;.tst.skipIf;(condition;reason;code)]}
+retryAt:{[lineNo;retries;des;code] .tst.callExpectationAt[lineNo;.tst.retry;(retries;des;code)]}
+testOnlyAt:{[lineNo;des;code] .tst.callExpectationAt[lineNo;.tst.testOnly;(des;code)]}
 
 uiRuntimeNames:`fixture`fixtureAs`mock
 uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)

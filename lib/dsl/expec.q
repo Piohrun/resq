@@ -26,7 +26,7 @@ runners:()!()
  };
 
 runners[`perf]:{[expec];
-  opts: `runs`gc!10b;
+  opts: `runs`gc!(10;1b);
   if[0<count expec`props; opts: opts, expec`props];
   runs: $[`runs in key opts; opts`runs; 100];
   / Pass the gc flag through so measure can skip per-iteration .Q.gc[] when off.
@@ -89,7 +89,8 @@ teardownInstalledFixture:{[entry]
  teardown:fixtureDef`teardown;
  if[teardown~{}; :()];
  @[teardown; entry`value; {[name;e]
-   -1 "ERROR cleaning fixture '",string[name],"': ",e;
+   .tst.recordCleanupError[`testFixture;
+       "Fixture '",string[name],"' teardown failed: ",e];
    :()
   }[entry`name;]]
  }
@@ -249,20 +250,23 @@ runExpecAttempt:{[spec;expec];
   / Main Test
   beforeBad:`test;
   if[not count expec[`result];
-     timeout: first .tst.app.maxTestTime;
+     budgetMs: "f"$first .tst.app.maxTestTime;
      testStart: .z.p;
      / Execute test with error trapping (no session-killing \T command)
      res: @[.tst.callExpec; expec; {[e;err]
          st: .tst.stackTrace[];
          .tst.expecError[e; string e`type; err, st]
      }[expec]];
-     / Post-execution timeout check (safe - doesn't kill session)
-     if[timeout > 0;
-         elapsedSec: `long$(.z.p - testStart) % 1000000000;
-         if[elapsedSec > timeout;
-             / Mark as timeout failure but continue running
-             res: .tst.expecError[expec; "timeout";
-                 "Test exceeded timeout of ", string[timeout], "s (took ", string[elapsedSec], "s)"];
+     / Post-execution duration budget (milliseconds). This deliberately cannot
+     / preempt q code; process isolation owns hard hang termination.
+     if[budgetMs > 0;
+         elapsedMs: ("f"$.z.p - testStart) % 1000000;
+         if[elapsedMs > budgetMs;
+             timedExpec: $[99h = type res; res; expec];
+             res: .tst.expecError[timedExpec; "timeout";
+                 "Test exceeded duration budget of ", string[budgetMs], "ms (took ",
+                 string[elapsedMs], "ms). This check is post-execution; use -isolate",
+                 " -isolateTimeout N to terminate hung test files."];
          ];
      ];
      $[99h=type res; expec:res; @[{[e;r] e[`result]:`error; e[`errorText]:r; e}; expec; res]];

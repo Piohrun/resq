@@ -11,7 +11,17 @@
         `.tst.app.expectationsFailed   mock 7;
         `.tst.app.expectationsErrored  mock 3;
         `.tst.app.allSpecs             mock enlist `dummy;
+        `.tst.app.discoveredFiles      mock .tst.app.discoveredFiles;
+        `.tst.app.loadedFiles          mock .tst.app.loadedFiles;
+        `.tst.app.emptyFiles           mock .tst.app.emptyFiles;
         `.tst.app.executionState       mock `running;
+        `.tst.app.loadErrors           mock flip `file`error`type!(enlist `stale; enlist "old"; enlist `load);
+        `.tst.app.perfResults          mock enlist[`suite]!enlist `stale;
+        `.tst.app.passOnly             mock 0b;
+        `.tst.halt                     mock 1b;
+        `.tst.assertState              mock ``failures`assertsRun!(::;enlist "old";9);
+        `.tst.suppressAssertionDiff    mock 1b;
+        `.utl.testDeps                 mock (enlist `stale)!enlist enlist `dependency;
         `.resq.state.results           mock .resq.state.results;
     };
 
@@ -36,6 +46,23 @@
         .tst.runAllPhase.initRun[];
         (count .resq.state.results) musteq 0;
     };
+
+    should["reset transient errors, benchmarks, halt, assertion and dependency state"]{
+        .tst.runAllPhase.initRun[];
+        resetAssertState: .tst.assertState;
+        (count .tst.app.loadErrors) musteq 0;
+        (count .tst.app.perfResults) musteq 0;
+        .tst.halt musteq 0b;
+        resetAssertState mustmatch .tst.defaultAssertState;
+        .tst.suppressAssertionDiff musteq 0b;
+        (count .utl.testDeps) musteq 0;
+    };
+
+    should["suppress assertion diffs for pass-only runs"]{
+        .tst.app.passOnly: 1b;
+        .tst.runAllPhase.initRun[];
+        .tst.suppressAssertionDiff musteq 1b;
+    };
 };
 
 / ----------------------------------------------------------------------------
@@ -50,6 +77,7 @@
         `.tst.app.tagFilter        mock ();
         `.tst.app.excludeTagFilter mock ();
         `.tst.app.failHard         mock 0b;
+        `.tst.app.runPerformance   mock 0b;
     };
 
     should["narrow to runSpecs by title pattern"]{
@@ -88,6 +116,23 @@
         .tst.app.runSpecs: enlist "anything";
         .tst.runAllPhase.filterSpecs[];
         (count .tst.app.allSpecs) musteq 0;
+    };
+
+    should["filter perf expectations unless performance mode is enabled"]{
+        expecs: enlist .tst.internals.testObj;
+        expecs,: enlist .tst.internals.perfObj;
+        spec: `title`tags`expectations!(`mixed; (); expecs);
+
+        .tst.app.allSpecs: enlist spec;
+        .tst.app.runPerformance: 0b;
+        .tst.runAllPhase.filterSpecs[];
+        (count .tst.app.allSpecs[0; `expectations]) musteq 1;
+        .tst.app.allSpecs[0; `expectations; `type] mustmatch enlist `test;
+
+        .tst.app.allSpecs: enlist spec;
+        .tst.app.runPerformance: 1b;
+        .tst.runAllPhase.filterSpecs[];
+        (count .tst.app.allSpecs[0; `expectations]) musteq 2;
     };
 };
 
@@ -160,14 +205,14 @@
 
     should["report passed when all specs and state-results pass"]{
         .tst.app.results: enlist mkPassedSpec[];
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i);
+        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i;"";0Ni;"";());
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 1b;
     };
 
     should["report failed when any expectation failed"]{
         .tst.app.results: enlist mkFailedSpec[];
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`fail;"";0Nn;();0i);
+        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`fail;"";0Nn;();0i;"";0Ni;"";());
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 0b;
     };
@@ -175,7 +220,7 @@
     should["report failed when load errors exist"]{
         .tst.app.results: enlist mkPassedSpec[];
         .tst.app.loadErrors: flip `file`error`type!(enlist `bad.q; enlist "boom"; enlist `load);
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i);
+        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i;"";0Ni;"";());
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 0b;
     };
@@ -204,12 +249,15 @@
     should["survive when a sub-cleanup raises (each one is trapped)"]{
         / Same reason for manual save/restore: finalCleanup wipes mocks.
         savedState: .tst.app.executionState;
+        savedErrors: .tst.app.cleanupErrors;
         savedHook:  @[get; `.tst.cleanupAllFixtures; {{}}];
         .tst.cleanupAllFixtures: {'cleanupExplosion};
         .tst.app.executionState: `running;
         @[.tst.runAllPhase.finalCleanup; (); {[e] -1 "unexpected: ", e}];
         .tst.app.executionState musteq `completed;
+        count[.tst.app.cleanupErrors] musteq 1;
         .tst.cleanupAllFixtures: savedHook;
+        .tst.app.cleanupErrors: savedErrors;
         .tst.app.executionState: savedState;
     };
 };
@@ -220,6 +268,8 @@
     before{
         `.tst._runAllStep mock `before;
         `captured mock `;
+        `.tst.app.passed mock 1b;
+        `.resq.state.results mock .resq.state.emptyResults[];
     };
 
     should["set _runAllStep to the symbol name before invoking the phase"]{
@@ -228,4 +278,45 @@
         captured musteq `myPhase;
         .tst._runAllStep musteq `myPhase;
     };
+
+    should["turn an unexpected phase exception into a canonical error row"]{
+        result: .tst.runAllPhase.runSafely[`explodingPhase; {'"phase boom"}];
+        result musteq 0b;
+        .tst.app.passed musteq 0b;
+        count[.resq.state.results] musteq 1;
+        .resq.state.results[0;`suite] musteq `RESQ_FRAMEWORK_ERROR;
+        .resq.state.results[0;`description] musteq `explodingPhase;
+        .resq.state.results[0;`status] musteq `error;
+        must[.resq.state.results[0;`message] like "*phase boom*";
+             "the original phase exception must remain visible"];
+    };
 };
+
+/ A real second run is the lifecycle contract used by watch and -noquit. Keep
+/ this out-of-process so finalCleanup cannot disturb the live meta-test runner.
+.tst.testState.repeatRun.canQ: 0 < count @[system; "command -v q 2>/dev/null"; {()}];
+
+.tst.desc["runAll repeated-process lifecycle #slow"]{
+    skipIf[not .tst.testState.repeatRun.canQ;
+           "the same namespace-based qspec suite passes twice in one q process"]{
+        wd: .utl.tempRoot[], "/resq_repeat_", string[.z.i], "_", string `long$.z.p;
+        fix: wd, "/test_repeat.q";
+        stdinPath: wd, "/input.q";
+        outPath: wd, "/out.txt";
+        .utl.ensureDir wd;
+        (hsym `$fix) 0: ("\\d .repeat_probe";
+            "describe[\"repeat suite\"]{ should[\"passes\"]{ 1 musteq 1 } };";
+            "\\d .");
+        (hsym `$stdinPath) 0: (".tst.runAll[]"; enlist "\\");
+        cmd: "true && cd ", .utl.shellQuote[wd], " && timeout -k 5 30 q ",
+             .utl.shellQuote[.resq.HOME, "/resq.q"], " test ",
+             .utl.shellQuote[fix], " -quiet -noquit < ", .utl.shellQuote[stdinPath],
+             " > ", .utl.shellQuote[outPath], " 2>&1; echo $?";
+        status: "J"$last @[system; cmd; {[e] enlist "-1"}];
+        out: @[read0; hsym `$outPath; {()}];
+        system "rm -rf -- ", .utl.shellQuote wd;
+        status musteq 0;
+        (sum out like "*1 total (1 passed*") musteq 2i;
+        must[not any out like "*LOAD ERROR*"; "the second load must stay clean"];
+    };
+ };

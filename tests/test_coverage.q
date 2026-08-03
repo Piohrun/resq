@@ -6,6 +6,23 @@
 / Coverage isn't loaded by default; pull it in here.
 .utl.require .utl.PKGLOADING, "/coverage.q";
 
+/ generateLCOV writes coverage_state.txt beside the requested LCOV file. Keep
+/ both artifacts in a per-expectation temp directory so the framework's own
+/ suite never dirties a checkout.
+.tst.coverageTestCounter: 0;
+.tst.coverageTestOutput:{[]
+    .tst.coverageTestCounter+: 1;
+    dir: .utl.tempRoot[], "/resq_coverage_unit_", string[.z.i], "_",
+         string[.tst.coverageTestCounter], "_", string `long$.z.p;
+    .utl.ensureDir dir;
+    .tst.registerCleanup[{[p]
+        safePrefix: .utl.tempRoot[], "/resq_coverage_unit_";
+        if[p like safePrefix,"*";
+            system "rm -rf -- ", .utl.shellQuote p]
+    };enlist dir];
+    dir, "/coverage.lcov"
+ };
+
 .tst.desc["Coverage: scalar helpers"]{
     should["_covNumStr render a numeric count as a long string"]{
         / Multi-character results so we are unambiguously comparing strings
@@ -32,6 +49,18 @@
         resolved: .tst.resolvePath ":lib/runner.q";
         / No remaining colons in the absolute path (other than possibly a Windows drive, n/a here).
         must[not ":" in resolved; "':' prefix should be stripped"];
+    };
+
+    should["derive aggregate line and function percentages from LCOV records"]{
+        summary: .tst.coverageSummaryFromLines (
+            "TN:resq"; "LF:3"; "LH:2"; "FNF:2"; "FNH:1";
+            "LF:1"; "LH:1"; "FNF:2"; "FNH:2");
+        summary[`linesFound] musteq 4;
+        summary[`linesHit] musteq 3;
+        summary[`linePercent] musteq 75f;
+        summary[`functionsFound] musteq 4;
+        summary[`functionsHit] musteq 3;
+        summary[`functionPercent] musteq 75f;
     };
 };
 
@@ -246,7 +275,7 @@
         .tst.ensureCoverageEntry srcSym;
         .tst.coverageData[srcSym; `add]: 5;
 
-        outPath: .tst.tempFile ".lcov";
+        outPath: .tst.coverageTestOutput[];
         .tst.generateLCOV outPath;
 
         lines: read0 hsym `$outPath;
@@ -282,7 +311,7 @@
     should["produce an LCOV with no SF records when nothing was instrumented"]{
         .tst.coverageData: ()!();
         .tst.trackedFiles: ();
-        out: .tst.tempFile ".lcov";
+        out: .tst.coverageTestOutput[];
         .tst.generateLCOV out;
         txt: "\n" sv read0 hsym `$out;
         must[not txt like "*SF:*";
@@ -300,7 +329,7 @@
         .tst.trackedFiles: ();
         .tst.coverageData[`$src]: (`$(".probe.add"; ".probe.sub"))!(2; 0);
 
-        out: .tst.tempFile ".lcov";
+        out: .tst.coverageTestOutput[];
         .tst.generateLCOV out;
         txt: "\n" sv read0 hsym `$out;
         must[txt like "*SF:*";   "an instrumented file must appear as an SF record"];
@@ -399,7 +428,7 @@
         .tst.trackedFiles: ();
         .tst.coverageData[`$src]: (`$(".calc.add"; ".calc.unused"))!(3; 0);
 
-        out: .tst.tempFile ".lcov";
+        out: .tst.coverageTestOutput[];
         .tst.generateLCOV out;
         txt: read0 hsym `$out;
 
@@ -420,7 +449,7 @@
         .tst.trackedFiles: ();
         .tst.coverageData[`$src]: (`$(".a.one"; ".a.two"))!(1; 0);
 
-        out: .tst.tempFile ".lcov";
+        out: .tst.coverageTestOutput[];
         .tst.generateLCOV out;
         txt: read0 hsym `$out;
         lf: "J"$ 3 _ first txt where txt like "LF:*";

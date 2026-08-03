@@ -1,6 +1,8 @@
 # Runtime Code Coverage
 
-resQ provides **function-level code coverage** tracking via `resq cover`. It instruments your source functions at load time and records which ones are called during the test run.
+resQ provides function coverage, derived line coverage, and opt-in measured
+statement coverage via `resq cover`. It instruments source functions at load
+time and records which functions or injected statement probes execute.
 
 ## Usage
 
@@ -99,7 +101,10 @@ directional, and use `FNF`/`FNH` when you want the number resQ actually measures
 
 ### Granularity
 
-Coverage is **function-level**: a function is marked as hit if it was called at least once during the run. Line-level coverage is not available.
+The default measurement is **function-level**: a function is hit if it was
+called at least once. LCOV line records are derived from those hits and therefore
+do not distinguish an untaken branch inside a called function. With
+`-cov-statements`, line records come from executed statement probes instead.
 
 ---
 
@@ -109,7 +114,7 @@ Reports are written to `outDir` (default: `.`):
 
 | File | Contents |
 |------|----------|
-| `coverage.lcov` | Standard LCOV with SF/FN/FNDA/FNF/FNH records. Consumable by `genhtml`, Codecov, Coveralls, SonarQube. |
+| `coverage.lcov` | Standard LCOV with SF/FN/FNDA/FNF/FNH and DA/LF/LH records. Consumable by `genhtml`, Codecov, Coveralls, SonarQube. |
 | `coverage.html` | Per-function HTML report showing hit/miss status for each instrumented function. |
 | `coverage_state.txt` | Human-readable dump of the complete coverage state at run end. |
 
@@ -130,11 +135,25 @@ The `coverage.lcov` file is industry-standard and works with:
 - **Codecov / Coveralls**: Upload directly.
 - **SonarQube**: Import as generic test coverage.
 
+Gate a build with an integer percentage from 0 through 100:
+
+```bash
+resq cover tests/ -strict -cov-min 80 -json -outDir artifacts/coverage
+```
+
+The console prints both line and function percentages. `-cov-min` compares the
+LCOV line percentage when line records exist and otherwise falls back to the
+function percentage. The run exits 1 when it misses the threshold, measures no
+executable code, or cannot generate its reports. The JSON report includes the
+exact counts, percentage, threshold, basis, and pass/fail decision under its
+`coverage` object. Configuration-file equivalent: `"coverageMin": 80`.
+
 ---
 
 ## Limitations
 
-- **Function-level only** — no line-level data.
+- **Default lines are derived** — use `-cov-statements` when branch/statement
+  execution matters, and validate that source transformation against your code.
 - **`\l` / `system "l "` only** — the loader intercepts these two forms. Custom loaders are not auto-detected unless loader hijacking is explicitly enabled (experimental, see below).
 - **Compiled operators skipped** — `+/`, `each`, `':'`, etc. cannot be wrapped.
 

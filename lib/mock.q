@@ -28,13 +28,16 @@
     / Save original state if not already saved
     if[fqn in .tst.mockState.removeList; :mockSet[fqn;newVal]];
 
-    exists: not `dne ~ @[get;fqn;{`dne}];
+    / Tag the lookup outside its value. A legitimate original value of `dne (or
+    / any other q value) must never be confused with "name does not exist".
+    lookup: @[{[n] (1b; get n)}; fqn; {[err] (0b; err)}];
+    exists: 1b ~ first lookup;
     if[not exists;
         if[not fqn in .tst.mockState.removeList; .tst.mockState.removeList,: fqn];
         :mockSet[fqn;newVal]];
 
     if[not fqn in key .tst.mockState.store;
-        .tst.mockState.store[fqn]: get fqn];
+        .tst.mockState.store[fqn]: last lookup];
 
     mockSet[fqn;newVal]
  }
@@ -97,9 +100,20 @@
     if[0<count .tst.mockState.store;
         { [mockSet;k;v] 
             if[not null k; 
-                res: .[mockSet; (k;v); {(`restoreErr; x)}];
-                if[(2 = count res) and (first res) ~ `restoreErr;
-                    -1 "WARNING: Failed to restore mock '", string[k], "': ", last res
+                / Discard the setter's return value and add our own status tag;
+                / otherwise an original (`restoreErr;...) value impersonates an
+                / error even though restoration succeeded.
+                res: .[{[setFn;n;original] setFn[n;original]; (0b; "")};
+                         (mockSet;k;v);
+                         {[err] (1b; err)}];
+                if[1b ~ first res;
+                    if[`recordCleanupError in key `.tst;
+                        .tst.recordCleanupError[`mockRestore;
+                            "Failed to restore mock '", string[k], "': ", last res]
+                    ];
+                    if[not `recordCleanupError in key `.tst;
+                        -1 "ERROR: Failed to restore mock '", string[k], "': ", last res
+                    ];
                 ]
             ]
         }[mockSet]' [key .tst.mockState.store; value .tst.mockState.store]];

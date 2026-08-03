@@ -75,9 +75,22 @@
     cmd: "mkdir -p ", qWd, " && cd ", qWd,
          " && ", envPrefix, outerTimeout, " -k 5 45 ", qExe, " ", qHome,
          " test ", args, " -isolate < /dev/null > ", qOut, " 2>&1; echo $?";
-    statusLines: @[system; cmd; {[e] enlist "-1"}];
-    code: "J"$last statusLines;
-    out: @[read0; hsym `$wd, "/parent_out.txt"; {()}];
+    / A license-daemon-backed q installation can reject a burst of nested
+    / process starts even though the same command succeeds one second later.
+    / Retry ONLY that explicit startup diagnostic; all framework/test failures
+    / remain single-attempt observations.
+    code: -1;
+    out: ();
+    retryLicense: 1b;
+    attempt: 0;
+    while[retryLicense and attempt < 3;
+        attempt+: 1;
+        statusLines: @[system; cmd; {[e] enlist "-1"}];
+        code: "J"$last statusLines;
+        out: @[read0; hsym `$wd, "/parent_out.txt"; {()}];
+        retryLicense: any {0 < count ss[x;"couldn't connect to license daemon"]} each out;
+        if[retryLicense and attempt < 3; system "sleep 1"];
+    ];
     tmpEntries: @[key; hsym `$tmpDir; {`symbol$()}];
     scratchCount: sum (string tmpEntries) like "resq_isolate.*";
     `code`out`dir`tmpDir`scratchCount!(code; out; wd; tmpDir; scratchCount)
@@ -103,6 +116,65 @@
     ".tst.desc[\"iso contradictory exit\"]{ should[\"passes before process exit\"]{ must[1b; \"yes\"] }; };");
 .tst.isotest.fxLoad: ("undefinedTopLevelName[42];"; ".tst.desc[\"iso never\"]{ should[\"x\"]{ must[1b; \"t\"] }; };");
 .tst.isotest.fxSkip: (".tst.desc[\"iso skipped\"]{"; " skip[\"not run\"]{ must[0b; \"never\"] };"; "};");
+
+.tst.desc["Isolate: child argv uses effective parent options"]{
+  before{
+    `.tst.app.runSpecs        mock ("configured*"; "other*");
+    `.tst.app.excludeSpecs    mock enlist "excluded*";
+    `.tst.app.tagFilter       mock (`fast; `$"#fast");
+    `.tst.app.excludeTagFilter mock (`slow; `$"#slow");
+    `.tst.app.failFast        mock 1b;
+    `.tst.app.qspecCompat     mock 1b;
+  };
+
+  should["serialize config-derived filters and compatibility flags"]{
+    argv: .tst.isolate.childArgv["test_a.q"; "/tmp/isolate"];
+    (argv 1 + argv ? "-only") musteq "configured*,other*";
+    (argv 1 + argv ? "-exclude") musteq "excluded*";
+    (argv 1 + argv ? "-tag") musteq "fast,#fast";
+    (argv 1 + argv ? "-exclude-tag") musteq "slow,#slow";
+    must["-fail-fast" in argv; "failFast must reach the child"];
+    must["-qspec-compat" in argv; "qspec compatibility must reach the child"];
+  };
+ };
+
+.tst.desc["Isolate: dead-child diagnostics"]{
+  should["identifies a captured wsfull instead of guessing exit"]{
+    msg: .tst.isolate.noReportMessage[1;"'wsfull\n  [0]  huge allocation"];
+    must[0 < count ss[msg;"q runtime/startup failure (wsfull)"];
+         "captured fatal evidence must classify the dead child"];
+    must[0 = count ss[msg;"did a test call exit?"];
+         "a known fatal error must not be mislabeled as exit"];
+    must[0 < count ss[msg;"huge allocation"];
+         "the captured tail must remain attached"];
+  };
+
+  should["keeps the exit hint when the captured tail has no fatal evidence"]{
+    msg: .tst.isolate.noReportMessage[7;"last user log line"];
+    must[0 < count ss[msg;"process exited (code 7)"];
+         "the actual exit code must be retained"];
+    must[0 < count ss[msg;"did a test call exit?"];
+         "unknown dead children should retain the actionable exit hint"];
+  };
+
+  should["names a license-daemon startup rejection explicitly"]{
+    msg: .tst.isolate.noReportMessage[1;
+        "'2026.08.03T10:17:33 couldn't connect to license daemon -- exiting"];
+    must[0 < count ss[msg;"q runtime/startup failure"];
+         "runtime startup failures must not be presented as user exit calls"];
+    must[0 < count ss[msg;"couldn't connect to license daemon"];
+         "the actionable license diagnostic must survive"];
+  };
+
+  should["retries only the explicit license startup failure"]{
+    licenseRow: enlist .tst.isolate.errorRow[`ISOLATED_FILE_DIED;"test_a.q";
+        "couldn't connect to license daemon -- exiting"];
+    ordinaryRow: enlist .tst.isolate.errorRow[`ISOLATED_FILE_DIED;"test_b.q";
+        "process exited without producing results"];
+    .tst.isolate.retryableStartupFailure[licenseRow] musteq 1b;
+    .tst.isolate.retryableStartupFailure[ordinaryRow] musteq 0b;
+  };
+ };
 
 .tst.desc["Isolate: core process safety #slow"]{
   after{.tst.isotest.cleanupBase[]};
@@ -208,6 +280,15 @@
     r: .tst.isotest.run[.utl.shellQuote[f], " -maxTestTime 7 -fuzzLimit 3 -quiet"];
     musteq[r`code; 0];
     must[.tst.isotest.anyLike[r`out; "1 total (1 passed"]; "child must observe both numeric overrides"];
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "qspec compatibility reaches child"]{
+    wd: .tst.isotest.workDir[];
+    lines: enlist ".tst.desc[\"qspec child\"]{ should[\"broadcast\"]{ (0 0 0) musteq 0 }; };";
+    f: .tst.isotest.writeFixture[wd; "test_qspec.q"; lines];
+    r: .tst.isotest.run[.utl.shellQuote[f], " -qspec-compat -quiet"];
+    musteq[r`code; 0];
+    must[.tst.isotest.anyLike[r`out; "1 total (1 passed"]; "child must use qspec equality semantics"];
   };
  };
 
@@ -333,5 +414,13 @@
     musteq[r`code; 0];
     must[0 < count xml; "parent XML must exist"];
     musteq[sum sum each xml like "*<testcase*"; 3i];
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "pass-only is silent in isolation mode"]{
+    wd: .tst.isotest.workDir[];
+    f: .tst.isotest.writeFixture[wd; "test_pass.q"; .tst.isotest.fxPass2];
+    r: .tst.isotest.run[.utl.shellQuote[f], " -pass"];
+    musteq[r`code; 0];
+    r[`out] mustmatch ();
   };
  };

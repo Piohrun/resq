@@ -70,7 +70,7 @@
 
 .tst.sanitizeExpectation:{[suite; file; ns; tags; ex]
     if[not 99h = type ex;
-        :`suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
+        :`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
             suite;
             "Unavailable expectation";
             `pass;
@@ -79,6 +79,7 @@
             ();
             0;
             file;
+            0Ni;
             ns;
             tags)];
 
@@ -112,7 +113,8 @@
                   0h = type exFailures; .tst.stripAnsi each exFailures;
                   exFailures];
 
-    `suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
+    exLine: $[`line in key ex; "i"$ex`line; 0Ni];
+    `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
         suite;
         exDesc;
         exResult;
@@ -121,6 +123,7 @@
         exFailures;
         exAsserts;
         file;
+        exLine;
         ns;
         tags)
  };
@@ -133,7 +136,7 @@
     exs:   $[`expectations in key spec; .tst.sanitizeExpectations spec`expectations; ()];
 
     if[0 = count exs;
-        :enlist `suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
+        :enlist `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
             suite;
             "No expectations";
             .tst.normalizeResultStatus $[`result in key spec; spec`result; `pass];
@@ -142,6 +145,7 @@
             ();
             0i;
             file;
+            0Ni;
             ns;
             tags)
     ];
@@ -169,7 +173,7 @@
  };
 
 .tst.emptyResultTable:{[]
-    flip `suite`description`status`message`time`failures`assertsRun`file`namespace`tags!(
+    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
         ();
         ();
         `symbol$();
@@ -178,6 +182,7 @@
         ();
         `int$();
         ();
+        `int$();
         ();
         ())
  };

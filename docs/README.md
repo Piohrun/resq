@@ -13,8 +13,9 @@
 6. `PBT.md` — Property-based testing with `holds`
 7. `COVERAGE.md` — Instrumenting coverage and reading LCOV output
 8. `WATCH.md` — File-watch mode
-9. `PARALLEL.md` — CI-level parallelism strategy
-10. `PERFORMANCE.md` — Benchmarking assertions and stats
+9. `CI.md` — Production CI invocation, artifacts, and runner prerequisites
+10. `PARALLEL.md` — CI-level parallelism strategy
+11. `PERFORMANCE.md` — Benchmarking assertions and stats
 
 ### Migration
 - `ASYNC.md` — Deferreds, polling helpers and callback spies
@@ -34,6 +35,7 @@
 | `API_REFERENCE.md` | Users | Full API — DSL, assertions, CLI, config |
 | `ARCHITECTURE.md` | Contributors | Namespace layout, exit codes, file tree |
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
+| `CI.md` | Users | Production CI, coverage gates, reporter artifacts, runner setup |
 | `FIXTURES.md` | Users | Fixture scopes and lifecycle hooks |
 | `ASYNC.md` | Users | Testing callbacks and deferred results |
 | `MIGRATION.md` | qspec users | Porting guide from qspec |

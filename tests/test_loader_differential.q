@@ -39,6 +39,7 @@
 /     * bare line comment:  `x:5` / `/ comment` (\l: ignored; blob value: 'handle
 /                            - `5 /` parsed as the over-adverb)
 /     * trailing inline comment without `;`:    same over-adverb failure.
+/     * unmatched brackets inside inline comments: grouping consumed later lines.
 /   Fix: .tst.evalPreprocessed evaluates per-statement (line-buffered, like \l).
 /   The minimized repros are in the fixed nasty corpus below (ldiffCont,
 /   ldiffComment, ldiffInline).
@@ -231,7 +232,7 @@
 
 / Build one block. Returns a list of source lines. `k` makes names unique.
 .tst.testState.ldiff.block:{[k]
-  kind: .tst.testState.ldiff.randInt 11;
+  kind: .tst.testState.ldiff.randInt 12;
   nm: "v", string k;                       / safe name: never a reserved 1-char id
   $[
     kind = 0;
@@ -277,9 +278,12 @@
     kind = 9;
       / definition with trailing inline comment (no terminating ; first)
       enlist nm, ":", .tst.testState.ldiff.pick[("11";"22";"`z")], " / inline note";
-    / kind = 10
+    kind = 10;
       / definition then a leading-ws continuation across a comment line
-      (nm, ":5"; "/ comment between"; "    +6;")
+      (nm, ":5"; "/ comment between"; "    +6;");
+    / kind = 11
+      / inline-comment openers must not affect multi-line statement grouping
+      (nm, ":1 / ignored openers [{("; nm, "b:2;")
    ]
  };
 
@@ -358,6 +362,9 @@
   (.tst.testState.ldiff.row[`ldiffComment; ("zz:5"; "/ standalone comment"; "yy:6;")]),
   / DIVERGENCE FOUND: trailing inline comment with no terminating ; (\l: kk=5)
   (.tst.testState.ldiff.row[`ldiffInline; ("kk:5 / trailing comment"; "mm:6;")]),
+  / DIVERGENCE FOUND: an unmatched opener inside an inline comment is not code
+  (.tst.testState.ldiff.row[`inlineCommentBrackets;
+      ("commentBracketA:1 / ignored ["; "commentBracketB:2;")]),
   / continuation across a comment line (\l joins across it)
   (.tst.testState.ldiff.row[`contAcrossComment; ("aa:5"; "/ comment"; "    +3;"; "bb:aa;")]),
   / multi-line lambda (brackets keep value joining; must stay equivalent)

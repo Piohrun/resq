@@ -1,7 +1,18 @@
 # Migrating from qspec to resQ
 
-resQ's core DSL is source-compatible with qspec for the most common patterns.
-This guide covers what works unchanged, what differs, and what to watch for.
+resQ is test-source-compatible with qspec's public surface. The recommended
+drop-in path is the `bin/qspec` launcher: it adds test mode and qspec comparison
+semantics automatically, so existing test files and legacy runner options can
+stay unchanged.
+
+```bash
+qspec tests/                 # existing qspec invocation, now backed by resQ
+```
+
+The promise is pinned in the repository: `tests/test_qspec_upstream.q` runs
+byte-identical copies of qspec's seven public test files from commit
+`9b846b68a8d808e472ba504d18c325b14b468087` through that launcher on every full
+resQ test run. This guide covers the intentional boundary beyond that contract.
 
 ---
 
@@ -16,7 +27,11 @@ The following qspec constructs work in resQ without changes:
 | `it` | `it` | Alias for `should` |
 | `.tst.before` / `before` | `.tst.before` / `before` | Identical |
 | `.tst.after` / `after` | `.tst.after` / `after` | Identical |
+| `alt` | `alt` | Hook masking and hooks declared after expectations are preserved |
+| `mock` | `mock` | Same test-facing form; automatic restoration retained |
+| `fixture` / `fixtureAs` | `fixture` / `fixtureAs` | File, text, splayed, and directory fixtures |
 | `holds` | `holds` | Extended — see below |
+| `perf` | `perf` | Opt-in with `-perf` / `-performance`, as in qspec |
 
 ---
 
@@ -42,9 +57,23 @@ prints a FAILURE DIFF block.
 
 ---
 
-## The `-qspec-compat` Switch
+## Drop-in launcher and the `-qspec-compat` switch
 
-Run an unported qspec suite unchanged:
+For an existing qspec work repository, install `bin/qspec` on `PATH` and keep
+the old command:
+
+```bash
+qspec tests/
+```
+
+The launcher is symlink-safe, keeps the caller's working directory, invokes
+resQ's test mode, and enables `-qspec-compat`. It also accepts qspec's legacy
+runner spellings: `-desc`/`-describe`, `-xunit`, `-junit`,
+`-perf`/`-performance`, `-exclude`, `-only`, `-pass`, `-noquit`,
+`-fuzz-display-limt`/`-fdl`, `-ff`/`-fail-fast`, and
+`-fh`/`-fail-hard`.
+
+When invoking resQ directly, enable the same comparison compatibility explicitly:
 
 ```bash
 resq test tests/ -qspec-compat          # or --qspec-compat
@@ -54,23 +83,27 @@ or in `resq.json`:
 { "qspecCompat": true }
 ```
 
-It restores qspec's `musteq` (`=`) and `mustne` (`<>`) semantics — the only
-three behaviours that differ — while keeping every resQ improvement (table
-comparison, isolation, coverage, reporters, `-strict`). Without it, a
-comparison that qspec would have accepted fails with a message naming the
-difference and pointing here, so migration is self-guiding rather than
-guesswork.
+It restores qspec's `musteq` (`=`) and `mustne` (`<>`) semantics while keeping
+resQ improvements such as table comparison, isolation, coverage, reporters,
+and `-strict`. Without it, a comparison that qspec would have accepted fails
+with a message naming the difference and pointing here, so migration is
+self-guiding rather than guesswork.
 
-Recommended: start with the flag so the suite is green, then drop it and fix
-the handful of comparisons it flags.
+The launcher deliberately does **not** restore qspec false positives such as
+`must[0N; ...]` or swapped `must["message"; condition]`; those tests did not
+prove their condition in qspec. They fail loudly and need a local assertion fix,
+not a suite rewrite.
+
+Recommended: use `qspec` for a no-rewrite replacement. Move to `resq test`
+without compatibility only when you want to adopt resQ's stricter comparisons.
 
 ---
 
 ## Assertion Semantics — Read This Before Migrating
 
-The names match; three **behaviours** differ. This is where a working qspec
-suite can go red on resQ. Verified by running each case against both
-implementations.
+The names match; the comparison operators and `must` validation intentionally
+differ in native resQ mode. This is where a working qspec suite can go red.
+Each case below was verified against both implementations.
 
 | Expression | qspec | resQ | Why |
 |---|---|---|---|
@@ -202,10 +235,12 @@ automatic after each `should` block, including when the test throws or fails).
 
 ### Suggested migration order
 
-1. Point resQ at the existing suite and run it. The DSL loads as-is.
-2. Fix any `vector musteq scalar` comparisons — this is the bulk of real
-   breakage. They fail loudly, so the run tells you where they are.
-3. Run once with `-strict`, which additionally fails any test that executed no
+1. Put `bin/qspec` on `PATH` and run the existing command. The suite should load
+   and execute unchanged.
+2. Adopt resQ-only features while retaining the compatibility launcher.
+3. Optionally switch to `resq test` and fix any `vector musteq scalar`
+   comparisons that the stricter native semantics flag.
+4. Run once with `-strict`, which additionally fails any test that executed no
    assertion. qspec had no such check, so a long-lived suite usually has a few
    tests that never verified anything.
 
@@ -227,8 +262,8 @@ suite of test files does not touch these.
 - File-discovery return types. `.tst.findTests` and friends return symbols in
   resQ, strings in qspec.
 
-Running qspec's own suite under resQ: all files load, and every user-facing DSL
-test passes (`test_assertions` 7/7, `test_ui` 8/8, `test_mock` 6/6, `test_fuzz`
-12/12 with `-qspec-compat`). The only failures are in `test_expec_runner`,
-`test_spec_runner` and `test_fileloading`, which exercise exactly the internals
-listed above.
+The pinned public contract passes unchanged: `test_assertions` 7/7,
+`test_ui` 8/8, `test_mock` 6/6, `test_fuzz` 12/12, file fixtures 4/4,
+directory fixtures 5/5, and text fixtures 2/2. qspec's internal runner tests are
+not vendored as a compatibility contract because they exercise the private APIs
+listed above rather than test-source compatibility.

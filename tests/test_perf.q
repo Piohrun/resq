@@ -110,6 +110,23 @@
 };
 
 .tst.desc["perf DSL runner"]{
+    should["default to ten measured runs with per-iteration GC enabled"]{
+        `.tst.benchmark.measureOpts mock {[n; code; opts]
+            .tst.testState.perfDefaults: `runs`gc!(n; opts`gc);
+            stats: `min`med`max`avg`dev!(1f; 1f; 1f; 1f; 0f);
+            `time`space!(stats; stats)
+        };
+        expec: .tst.internals.perfObj, (`desc`code!("defaults"; {1+1}));
+        .tst.runners[`perf] expec;
+        .tst.testState.perfDefaults[`runs] musteq 10;
+        .tst.testState.perfDefaults[`gc] musteq 1b;
+    };
+
+    should["reject a non-positive run count clearly"]{
+        mustthrow["*positive integer*";
+            (.tst.benchmark.measureOpts; 0; {1+1}; enlist[`gc]!enlist 0b)];
+    };
+
     should["pass a sub-ms perf expectation under a generous maxTime"]{
         / Drive runners[`perf] directly. maxTime in ms; 1000ms is generous
         / headroom so this never flakes in CI even on a loaded runner.
