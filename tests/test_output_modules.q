@@ -206,6 +206,60 @@
 / meaningless output and stay green. These build a mixed result set and assert
 / on the generated document directly.
 .tst.desc["Reporter XML structure"]{
+    / A test's `namespace` is its generated SANDBOX name, which embeds the file's
+    / absolute path. Using it as classname/type made CI grouping depend on the
+    / checkout directory, so historical runs could never be matched. The SUITE
+    / title leads instead; namespace remains a fallback for rows without one.
+    should["group by stable suite title, not the path-derived sandbox namespace"]{
+        sandboxNs: ".sandbox_S_home_someone_checkout_tests_test_s_q_a1b2c3";
+        / `suite` is a SYMBOL, as real result rows carry: the reporter groups with
+        / `(t`suite) = x`, which is elementwise on a multi-character string and
+        / signals 'length. Build with flip + one-element columns.
+        rows: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+            enlist `$"Order validation"; enlist "grouped"; enlist `fail; enlist "bad";
+            enlist 0Nn; enlist enlist "bad"; enlist 1i;
+            enlist "/project/tests/test_s.q"; enlist 7i; enlist sandboxNs; enlist ());
+        prevTop: @[get; `.tst.output.top; {::}];
+        prevReport: .resq.report;
+        .tst.loadOutputModule["junit"]; junitXml: .tst.output.top rows;
+        .tst.loadOutputModule["xunit"]; xunitXml: .tst.output.top rows;
+        .tst.output.top: prevTop; .resq.report: prevReport;
+
+        must[0 < count ss[junitXml;"classname=\"Order validation\""];
+             "JUnit classname must be the suite title"];
+        must[0 < count ss[xunitXml;"type=\"Order validation\""];
+             "xUnit type must be the suite title"];
+        must[0 = count ss[junitXml;sandboxNs];
+             "the sandbox namespace must not reach the JUnit grouping key"];
+        must[0 = count ss[xunitXml;sandboxNs];
+             "the sandbox namespace must not reach the xUnit grouping key"];
+    };
+
+    / XML attribute-value normalization collapses a newline to a space, so a
+    / multi-line message crammed into message="..." reaches the consumer as one
+    / run-on line. Summary in the attribute, full detail in the element body.
+    should["keep the XML message attribute single-line and the body complete"]{
+        multi: "type\nFile: /project/tests/test_s.q\nSuite: S\nTest: boom";
+        rows: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+            enlist `S; enlist "boom"; enlist `error; enlist multi;
+            enlist 0Nn; enlist enlist multi; enlist 0i;
+            enlist "/project/tests/test_s.q"; enlist 3i; enlist ""; enlist ());
+        prevTop: @[get; `.tst.output.top; {::}];
+        prevReport: .resq.report;
+        .tst.loadOutputModule["junit"]; junitXml: .tst.output.top rows;
+        .tst.output.top: prevTop; .resq.report: prevReport;
+
+        must[0 < count ss[junitXml;"message=\"type ...\""];
+             "the attribute must carry a single-line summary with a continuation marker"];
+        must[0 < count ss[junitXml;"Suite: S"];
+             "the element body must retain the full multi-line detail"];
+        / Find the attribute itself and prove no raw newline survives inside it.
+        attrStart: first ss[junitXml;"message=\""];
+        attrTail: (attrStart + 9) _ junitXml;
+        attrText: (first ss[attrTail;"\""]) # attrTail;
+        must[not "\n" in attrText; "no raw newline may remain inside the attribute"];
+    };
+
     should["publish source locations in both XML schemas"]{
         rows: enlist `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
             "S";"located";`fail;"bad";0Nn;enlist "bad";1i;"/project/tests/test_s.q";42i;".spec";());
