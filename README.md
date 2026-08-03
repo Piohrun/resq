@@ -55,11 +55,15 @@ ln -s ~/.local/share/resq/bin/qspec ~/.local/bin/qspec # drop-in qspec command
 The launcher resolves its install location (symlink-safe) and exports
 `RESQ_HOME` for `resq.q` to find its modules, so you can invoke `resq`
 from any directory and have it operate on **your** project's `tests/`,
-not the framework's. You can also set `RESQ_HOME` manually if you
-prefer to call `q $RESQ_HOME/resq.q ...` directly.
+not the framework's. It also supervises test completion: a stray `exit 0` in a
+test or loaded application is forced to a failing status. You can set
+`RESQ_HOME` and call `q $RESQ_HOME/resq.q ...` directly for interactive work,
+but q does not let `.z.exit` change an already-requested exit code, so direct
+invocation cannot provide that status guard.
 
 The tested production baseline is kdb+/q 4.x on Linux. The launchers require
-Bash; process isolation has additional command-line dependencies. See
+Bash plus `mktemp`, `chmod`, `rm`, and `rmdir` for their completion guard;
+process isolation has additional command-line dependencies. See
 [Getting Started](docs/GETTING_STARTED.md) for the supported path and a
 CI-ready adoption sequence.
 
@@ -76,14 +80,14 @@ resq test tests/
 # Run an existing qspec suite unchanged, with qspec assertion semantics
 qspec tests/
 
-# Or invoke q directly from the resq repo
-q resq.q test examples/quickstart/test
+# Run the bundled example
+resq test examples/quickstart/test
 
 # Run with HTML coverage
-q resq.q cover examples/quickstart/test
+resq cover examples/quickstart/test
 
 # Report source functions that are not referenced by tests
-q resq.q discover examples/quickstart/src examples/quickstart/test \
+resq discover examples/quickstart/src examples/quickstart/test \
   -outDir artifacts/discovery
 ```
 
@@ -390,9 +394,10 @@ See `docs/README.md` for a suggested reading order.
 ## Dependencies
 
 - **Core in-process runner:** kdb+/q 4.x; the tested CI baseline is Linux x64.
-- **Launchers:** Bash.
-- **Process isolation:** GNU `timeout` with `-k`, plus `mktemp`, `chmod`, `rm`,
-  and `sh`. These are not required for an ordinary in-process run.
+- **Launchers:** Bash plus `mktemp`, `chmod`, `rm`, and `rmdir` for the private
+  completion marker.
+- **Process isolation:** GNU `timeout` with `-k` and `sh` in addition to the
+  launcher dependencies. These are not required when invoking q directly.
 
 See [Continuous Integration](docs/CI.md#runner-requirements) for licences,
 runner provisioning, and the security boundary.

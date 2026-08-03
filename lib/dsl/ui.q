@@ -165,6 +165,55 @@ testOnly:{[des;code]
   .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`only`line!(desStr;code;tags;.tst.currentNs;1b;.tst.currentSourceLine))
  }
 
+/ Loader-side declaration audit. q silently turns an under-applied function into
+/ a projection, so `holds["name"]{...}` can otherwise vanish without adding a
+/ test or raising an error. preprocessScript enters through the unary *Entry
+/ functions below; a fully-applied constructor marks its declaration complete.
+/ desc[] rejects anything still incomplete after its body returns.
+.tst.emptyDslDeclarations:{[]
+  flip `id`line`verb`completed!(`long$();`int$();`symbol$();`boolean$())
+ };
+.tst.dslDeclarations: .tst.emptyDslDeclarations[];
+.tst.dslDeclarationNextId: 0j;
+.tst.dslDeclarationAuditActive: 0b;
+.tst.dslArityUsage:
+  `should`it`holds`perf`skip`pending`skipIf`retry`testOnly!
+  ("should[description]{code}";
+   "it[description]{code}";
+   "holds[description;properties]{code}";
+   "perf[description;properties]{code}";
+   "skip[reason]{code}";
+   "pending[reason]";
+   "skipIf[condition;description]{code}";
+   "retry[count;description]{code}";
+   "testOnly[description]{code}");
+
+.tst.beginDslDeclaration:{[lineNo;verb]
+  if[not .tst.dslDeclarationAuditActive; :0Nj];
+  .tst.dslDeclarationNextId+: 1;
+  .tst.dslDeclarations,: enlist
+    `id`line`verb`completed!(.tst.dslDeclarationNextId;"i"$lineNo;verb;0b);
+  .tst.dslDeclarationNextId
+ };
+
+.tst.finishDslDeclaration:{[id]
+  if[null id; :()];
+  matches: where .tst.dslDeclarations[`id] = id;
+  if[count matches;
+    .tst.dslDeclarations[first matches;`completed]: 1b];
+  ::
+ };
+
+.tst.dslArityError:{[declarations]
+  row: first declarations;
+  verb: row`verb;
+  usage: $[verb in key .tst.dslArityUsage;
+            .tst.dslArityUsage verb;
+            string[verb], "[...]" ];
+  "DSL arity error: ", string[verb], " declaration at line ",
+    string[row`line], " was not fully applied; expected ", usage
+ };
+
 / Line-aware wrappers inserted by loader.q. The shared dispatcher restores the
 / previous value even when a constructor signals, so nested/programmatic DSL use
 / cannot inherit a stale source line.
@@ -186,6 +235,46 @@ pendingAt:{[lineNo;reason] .tst.callExpectationAt[lineNo;.tst.pending;enlist rea
 skipIfAt:{[lineNo;condition;reason;code] .tst.callExpectationAt[lineNo;.tst.skipIf;(condition;reason;code)]}
 retryAt:{[lineNo;retries;des;code] .tst.callExpectationAt[lineNo;.tst.retry;(retries;des;code)]}
 testOnlyAt:{[lineNo;des;code] .tst.callExpectationAt[lineNo;.tst.testOnly;(des;code)]}
+
+/ Unary entry points are deliberately applied before any user-supplied
+/ arguments. Each returns a projection carrying its declaration id, so only the
+/ exact source declaration that reaches full arity can complete the audit row.
+shouldEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`should];
+  {[id;lineNo;des;code] .tst.finishDslDeclaration id; .tst.shouldAt[lineNo;des;code]}[id;lineNo;;]
+ };
+itEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`it];
+  {[id;lineNo;des;code] .tst.finishDslDeclaration id; .tst.itAt[lineNo;des;code]}[id;lineNo;;]
+ };
+holdsEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`holds];
+  {[id;lineNo;des;props;code] .tst.finishDslDeclaration id; .tst.holdsAt[lineNo;des;props;code]}[id;lineNo;;;]
+ };
+perfEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`perf];
+  {[id;lineNo;des;props;code] .tst.finishDslDeclaration id; .tst.perfAt[lineNo;des;props;code]}[id;lineNo;;;]
+ };
+skipEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`skip];
+  {[id;lineNo;reason;code] .tst.finishDslDeclaration id; .tst.skipAt[lineNo;reason;code]}[id;lineNo;;]
+ };
+pendingEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`pending];
+  {[id;lineNo;reason] .tst.finishDslDeclaration id; .tst.pendingAt[lineNo;reason]}[id;lineNo;]
+ };
+skipIfEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`skipIf];
+  {[id;lineNo;condition;reason;code] .tst.finishDslDeclaration id; .tst.skipIfAt[lineNo;condition;reason;code]}[id;lineNo;;;]
+ };
+retryEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`retry];
+  {[id;lineNo;retries;des;code] .tst.finishDslDeclaration id; .tst.retryAt[lineNo;retries;des;code]}[id;lineNo;;;]
+ };
+testOnlyEntry:{[lineNo]
+  id: .tst.beginDslDeclaration[lineNo;`testOnly];
+  {[id;lineNo;des;code] .tst.finishDslDeclaration id; .tst.testOnlyAt[lineNo;des;code]}[id;lineNo;;]
+ };
 
 uiRuntimeNames:`fixture`fixtureAs`mock
 uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
@@ -212,6 +301,10 @@ uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
  .tst.currentBeforeAllSet: 0b;
  .tst.currentAfterAllSet: 0b;
  oldExpecList: .tst.expecList;
+ oldDslDeclarations: .tst.dslDeclarations;
+ oldDslDeclarationAuditActive: .tst.dslDeclarationAuditActive;
+ .tst.dslDeclarations: .tst.emptyDslDeclarations[];
+ .tst.dslDeclarationAuditActive: 1b;
  .tst.expecList: ();
  specObj: .tst.internals.specObj;
  titleStr: .tst.toString title;
@@ -221,8 +314,30 @@ uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
   specObj[`context]: specObj[`namespace]: system "d";
 
  oldDir: system "d";
- expectations[];
+ bodyOutcome: @[
+   {[fn] fn[]; (0b;::)};
+   expectations;
+   {[err] (1b;err)}];
  system "d ", string oldDir;
+ incompleteDeclarations:
+   .tst.dslDeclarations where not .tst.dslDeclarations`completed;
+ .tst.dslDeclarations: oldDslDeclarations;
+ .tst.dslDeclarationAuditActive: oldDslDeclarationAuditActive;
+
+ / Restore collection/hook state before surfacing either the original body
+ / exception or an arity audit error. loadTests can then roll the file back
+ / without leaving the next describe block in a half-open state.
+ if[(first bodyOutcome) or 0 < count incompleteDeclarations;
+   .tst.currentBefore: oldBefore;
+   .tst.currentAfter: oldAfter;
+   .tst.currentBeforeAll: oldBeforeAll;
+   .tst.currentAfterAll: oldAfterAll;
+   .tst.currentBeforeAllSet: 0b;
+   .tst.currentAfterAllSet: 0b;
+   .tst.expecList: oldExpecList;
+   if[first bodyOutcome; 'last bodyOutcome];
+   '.tst.dslArityError incompleteDeclarations;
+ ];
  
  / Use hsym format for tstPath - compatible with ` vs for path operations
  specObj[`tstPath]: $[`FILELOADING in key `.utl; .utl.FILELOADING; `$":unknown"];

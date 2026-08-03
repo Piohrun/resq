@@ -11,8 +11,10 @@ resq test tests/ -strict -isolate -isolateTimeout 120 \
 `-strict` rejects empty, all-skipped, and assertion-free green runs. `-isolate`
 runs every test file in a separate q process, so `exit`, an infinite loop, or a
 process-fatal error becomes a per-file error while the remaining files still
-run. Add `-isolateWorkers N` to run N files at once; verdicts, ordering and
-exit codes are unchanged, only wall-clock (see [PARALLEL.md](PARALLEL.md)). Use
+run. The `resq` launcher also supervises whole-run completion, so an unexpected
+`exit 0` cannot turn a non-isolated CI command green. Add `-isolateWorkers N`
+to run N files at once; verdicts, ordering and exit codes are unchanged, only
+wall-clock (see [PARALLEL.md](PARALLEL.md)). Use
 CI matrix jobs to shard beyond one machine. The default is one worker; increase
 it only after accounting for memory and q licence capacity.
 
@@ -68,14 +70,14 @@ Linux x64 runner labeled `kdb`. The runner needs:
 
 - kdb+/q 4.x on `PATH`, with its valid KX license available through `QHOME` or
   `QLIC`;
-- GNU `timeout` with `--kill-after`, plus `mktemp`, `chmod`, `rm`, and `sh` for
-  process isolation;
+- Bash, `mktemp`, `chmod`, `rm`, and `rmdir` for the supervised launcher;
+- GNU `timeout` with `--kill-after` plus `sh` for process isolation;
 - Python 3 for independent JSON/XML artifact validation.
 
 The core in-process test command requires only q. The bundled launchers require
-Bash. Process-isolation dependencies are checked before child execution and an
-unavailable tool fails isolation instead of silently falling back to the shared
-process.
+the marker tools above so premature `exit 0` fails closed. Process-isolation
+dependencies are checked before child execution and an unavailable tool fails
+isolation instead of silently falling back to the shared process.
 
 KX requires a license for every 64-bit q runtime. Provision the interpreter and
 license on the runner, or inject the license through your organization’s secret

@@ -274,6 +274,26 @@
              "xUnit v2 must expose source-file and source-line attributes"];
     };
 
+    should["publish captured subprocess output in JSON, JUnit and xUnit"]{
+        captured: "child says <hello> & keeps going";
+        row: `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+            `S;"isolated";`fail;"bad";0Nn;enlist "bad";1i;
+            "/project/tests/test_s.q";7i;"";();captured);
+        rows: enlist row;
+        prevTop: @[get; `.tst.output.top; {::}];
+        prevReport: .resq.report;
+        .tst.loadOutputModule["junit"]; junitXml: .tst.output.top rows;
+        .tst.loadOutputModule["xunit"]; xunitXml: .tst.output.top rows;
+        .tst.loadOutputModule["json"]; jsonRow: .tst.output.jsonRow row;
+        .tst.output.top: prevTop; .resq.report: prevReport;
+
+        (jsonRow`output) musteq captured;
+        must[0 < count ss[junitXml;"<system-out>child says &lt;hello&gt; &amp; keeps going</system-out>"];
+             "JUnit must expose escaped captured output in system-out"];
+        must[0 < count ss[xunitXml;"<output>child says &lt;hello&gt; &amp; keeps going</output>"];
+             "xUnit must expose escaped captured output"];
+    };
+
     should["mark every xunit test with a result CI can read"]{
         rows: (
             `suite`description`status`message`time`failures`assertsRun!("S";"passes";  `pass;  ""; 0Nn; (); 1i);

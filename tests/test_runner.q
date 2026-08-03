@@ -20,6 +20,7 @@
         `.tst.app.passOnly             mock 0b;
         `.tst.halt                     mock 1b;
         `.tst.assertState              mock ``failures`assertsRun!(::;enlist "old";9);
+        `.tst.pendingBacktrace         mock "stale trace";
         `.tst.suppressAssertionDiff    mock 1b;
         `.utl.testDeps                 mock (enlist `stale)!enlist enlist `dependency;
         `.resq.state.results           mock .resq.state.results;
@@ -53,6 +54,7 @@
         (count .tst.app.loadErrors) musteq 0;
         (count .tst.app.perfResults) musteq 0;
         .tst.halt musteq 0b;
+        .tst.pendingBacktrace musteq "";
         resetAssertState mustmatch .tst.defaultAssertState;
         .tst.suppressAssertionDiff musteq 0b;
         (count .utl.testDeps) musteq 0;
@@ -205,14 +207,14 @@
 
     should["report passed when all specs and state-results pass"]{
         .tst.app.results: enlist mkPassedSpec[];
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i;"";0Ni;"";());
+        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i;"";0Ni;"";();"");
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 1b;
     };
 
     should["report failed when any expectation failed"]{
         .tst.app.results: enlist mkFailedSpec[];
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`fail;"";0Nn;();0i;"";0Ni;"";());
+        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`fail;"";0Nn;();0i;"";0Ni;"";();"");
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 0b;
     };
@@ -220,7 +222,7 @@
     should["report failed when load errors exist"]{
         .tst.app.results: enlist mkPassedSpec[];
         .tst.app.loadErrors: flip `file`error`type!(enlist `bad.q; enlist "boom"; enlist `load);
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i;"";0Ni;"";());
+        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i;"";0Ni;"";();"");
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 0b;
     };

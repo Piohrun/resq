@@ -86,6 +86,9 @@ Define a test suite (specification). Also available as `describe` alias in root 
 - The function captures the current namespace context
 - Nested describes are not supported; use `alt` for grouping
 - `describe` is an alias for `.tst.desc` for convenience
+- Source-loaded DSL declarations are arity-audited. An under-applied
+  constructor that would otherwise become a discarded q projection is a load
+  error naming the constructor and source line.
 
 ---
 
@@ -1709,8 +1712,13 @@ Properly delete a variable by symbol (handles namespaces).
 ## CLI Options
 
 ```bash
-q resq.q [mode] [options] [paths...]
+resq [mode] [options] [paths...]
 ```
+
+The launcher is the production entry point. It preserves the granular q exit
+codes and additionally forces status 1 if q exits successfully before a test
+run completes. A direct `q resq.q ...` invocation cannot enforce that final
+status because q's `.z.exit` callback cannot change an existing `exit 0`.
 
 **Modes:**
 | Mode | Description |
@@ -1760,13 +1768,16 @@ q resq.q [mode] [options] [paths...]
 Reporter flags compose. A run with more than one selected format uses
 schema-specific filenames so JUnit and xUnit never overwrite one another.
 JUnit rows carry `file`/`line`; xUnit v2 rows carry
-`source-file`/`source-line`; JSON schema version 1 keeps `message` scalar and
-`failures` list-valued and includes the aggregate `assertionCount`. A reporter
-error fails the run after every selected reporter has been attempted.
+`source-file`/`source-line`; JSON schema version 1 keeps `message` and `output`
+scalar, keeps `failures` list-valued, and includes the aggregate
+`assertionCount`. Under `-isolate`, the first failed/error row from each file
+owns its bounded combined child stdout/stderr in `output`; JUnit publishes the
+same value as `<system-out>` and xUnit v2 as `<output>`. A reporter error fails
+the run after every selected reporter has been attempted.
 
-Selecting any machine reporter replaces the final text reporter; it does not
-also print the normal summary. Other progress and diagnostic lines can still be
-written to stdout/stderr unless `-quiet` suppresses them. See
+Selecting a machine reporter writes that artifact in addition to the final text
+summary. Other progress and diagnostic lines can still be written to
+stdout/stderr unless `-quiet` suppresses them. See
 [Test reporting](REPORTING.md) for filenames, the JSON schema, XML mappings, and
 size limits.
 
