@@ -395,10 +395,12 @@
     };
  };
 
-/ LCOV must carry DA/LF/LH line records, not just function records: standard
-/ coverage services key off line data and show nothing useful without it. The
-/ records are DERIVED (a function's lines inherit its hit count) -- these tests
-/ pin that derivation, including that an uncalled function reports zero.
+/ LCOV line records must describe MEASURED execution only. Deriving them -- giving
+/ every line of a called function that function's hit count -- made a one-branch-of-
+/ three function report LF:13 LH:13, i.e. 100% line coverage, in every LCOV service
+/ and in -cov-min. Default (function-level) mode therefore emits FN/FNDA and NO
+/ DA/LF/LH at all; -cov-statements is what produces real line data. These tests pin
+/ that split, so the derivation cannot come back unnoticed.
 .tst.desc["Coverage: LCOV line records"]{
     before{
         `.tst.origCovData4 mock .tst.coverageData;
@@ -412,7 +414,7 @@
         .tst.coverageEnabled: .tst.origCovEnabled4;
     };
 
-    should["emit DA lines spanning each function, with LF/LH totals"]{
+    should["emit function records but NO derived line records in default mode"]{
         src: .tst.tempFile ".q";
         (hsym `$src) 0: (
             ".calc.add:{[a;b]";
@@ -432,30 +434,44 @@
         .tst.generateLCOV out;
         txt: read0 hsym `$out;
 
-        must[any txt like "DA:1,3";  "the called function's first line must carry its hit count"];
-        must[any txt like "DA:2,3";  "its body lines must carry the same count"];
-        must[any txt like "DA:6,0";  "an uncalled function's lines must report zero"];
-        / Blank and comment lines are not coverable and must not appear.
-        must[not any txt like "DA:4,*"; "a blank line must not be a DA record"];
-        must[not any txt like "DA:5,*"; "a comment line must not be a DA record"];
-        must[any txt like "LF:*"; "a line-found total must be present"];
-        must[any txt like "LH:*"; "a line-hit total must be present"];
+        / Function-level truth is still reported in full.
+        must[any txt like "FN:1,.calc.add";    "the called function must be listed"];
+        must[any txt like "FNDA:3,.calc.add";  "with its hit count"];
+        must[any txt like "FNDA:0,.calc.unused"; "an uncalled function must report zero"];
+        must[any txt like "FNF:2"; "a function-found total must be present"];
+        must[any txt like "FNH:1"; "a function-hit total must be present"];
+
+        / Nothing was statement-instrumented, so no line was measured. An absent
+        / DA/LF/LH block reads as "not measured"; LF:0 would read as "no code".
+        must[not any txt like "DA:*"; "an unmeasured line must not get a DA record"];
+        must[not any txt like "LF:*"; "no line-found total without measured lines"];
+        must[not any txt like "LH:*"; "no line-hit total without measured lines"];
     };
 
-    should["report fewer hit lines than found when coverage is partial"]{
+    should["emit measured line records once statements are instrumented"]{
         src: .tst.tempFile ".q";
         (hsym `$src) 0: (".a.one:{[x] x+1 };"; ".a.two:{[x] x+2 };");
         .tst.coverageData: ()!();
         .tst.trackedFiles: ();
         .tst.coverageData[`$src]: (`$(".a.one"; ".a.two"))!(1; 0);
+        / Mark both functions as statement-instrumented and supply per-line hits,
+        / which is the state -cov-statements leaves behind.
+        `.tst.stmtInstrumented mock .tst.stmtInstrumented;
+        `.tst.stmtProbeLines   mock .tst.stmtProbeLines;
+        `.tst.lineCoverageData mock .tst.lineCoverageData;
+        .tst.stmtInstrumented[`$src]: `$(".a.one"; ".a.two");
+        .tst.stmtProbeLines[`$src]:   1 2;
+        .tst.lineCoverageData[`$src]: (1 2j)!(1 0j);
 
         out: .tst.coverageTestOutput[];
         .tst.generateLCOV out;
         txt: read0 hsym `$out;
+        must[any txt like "DA:1,1"; "the executed statement must report its hits"];
+        must[any txt like "DA:2,0"; "the unexecuted statement must report zero"];
         lf: "J"$ 3 _ first txt where txt like "LF:*";
         lh: "J"$ 3 _ first txt where txt like "LH:*";
         must[lf > 0;  "some lines must be found"];
-        must[lh < lf; "an uncalled function must leave lines unhit"];
+        must[lh < lf; "an unexecuted statement must leave lines unhit"];
     };
  };
 

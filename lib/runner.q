@@ -806,10 +806,21 @@
         primaryFound: $[0 < summary`linesFound; summary`linesFound; summary`functionsFound];
         primaryKind: $[0 < summary`linesFound; "lines"; "functions"];
         .tst.app.coveragePercent: primaryPercent;
-        -1 "Coverage: ", string[primaryPercent], "% ", primaryKind,
-            " (", string[primaryHit], "/", string[primaryFound], "); functions ",
-            string[summary`functionPercent], "% (", string[summary`functionsHit],
-            "/", string[summary`functionsFound], ")";
+        / Only append the function figure when lines are the primary signal;
+        / otherwise it repeats the headline verbatim ("100% functions; functions 100%").
+        headline: "Coverage: ", string[primaryPercent], "% ", primaryKind,
+            " (", string[primaryHit], "/", string[primaryFound], ")";
+        if[not primaryKind ~ "functions";
+            headline,: "; functions ", string[summary`functionPercent], "% (",
+                string[summary`functionsHit], "/", string[summary`functionsFound], ")"];
+        -1 headline;
+        / Say plainly which signal the number -- and any -cov-min gate -- is built
+        / on. Default mode wraps whole functions, so "100%" means every function
+        / was entered, NOT that every branch inside them ran. Naming that here is
+        / what stops a green gate from being read as a stronger claim than it is.
+        if[0 = summary`linesFound;
+            -1 "  (function-level: a function counts as covered once entered.",
+               " Statement/branch execution is NOT measured -- add -cov-statements.)"];
         required: @[get; `.tst.app.coverageMin; 0];
         if[primaryPercent < required;
             errors,: enlist "Coverage ",string[primaryPercent],"% is below required minimum ",
