@@ -73,6 +73,38 @@
             `perf`junit`noquit`strict`quiet`isolate`coverage`describe`failFast`failHard`debug`interactive;
     };
 
+    / --help and -scaffold were added after the schema's flag/value split, which
+    / is positionally coupled; parsing them proves the lists stayed aligned.
+    should["parse --help and -scaffold as flags"]{
+        h: .tst.parseCLI ("test"; "--help");
+        h[`ok] musteq 1b;
+        h[`options; `help] musteq 1b;
+        / No "h" alias: q claims -h before the script sees .z.x (bin/resq rewrites it).
+        must[not "-h" in .tst.cli.optionTokens;
+             "a bare -h alias would be shadowed by q itself"];
+
+        sc: .tst.parseCLI ("discover"; "src"; "tests"; "-scaffold");
+        sc[`ok] musteq 1b;
+        sc[`options; `scaffold] musteq 1b;
+        sc[`args] mustmatch ("src"; "tests");
+
+        / Absent by default: discover must not write a scaffold unasked.
+        plain: .tst.parseCLI ("discover"; "src"; "tests");
+        plain[`options; `scaffold] musteq 0b;
+    };
+
+    should["validate -isolateWorkers as a positive integer"]{
+        ok: .tst.parseCLI ("test"; "-isolateWorkers"; "4"; "suite.q");
+        ok[`ok] musteq 1b;
+        ok[`options; `isolateWorkers] musteq 4;
+        (.tst.parseCLI ("test"; "--isolate-workers"; "4"; "suite.q"))[`options; `isolateWorkers] musteq 4;
+        / Zero workers would mean "run nothing"; reject it rather than silently
+        / clamping, the same contract -isolateTimeout uses.
+        .tst.cliParseFails[("test"; "-isolateWorkers"; "0"); "Value must be > 0 for *"] musteq 1b;
+        .tst.cliParseFails[("test"; "-isolateWorkers"; "-2"); "Value must be > 0 for *"] musteq 1b;
+        .tst.cliParseFails[("test"; "-isolateWorkers"; "two"); "Invalid integer for *"] musteq 1b;
+    };
+
     should["support both spellings for every value option"]{
         single: .tst.parseCLI ("test"; "-maxTestTime"; "0"; "-fuzzLimit"; "4";
             "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";
