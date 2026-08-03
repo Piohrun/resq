@@ -104,7 +104,10 @@
     should["keep measure as a backward-compatible wrapper (gc defaults on)"]{
         / Bare measure must still return the time/space dict structure.
         res: .tst.benchmark.measure[10; {1+1}];
-        `time`space mustmatch key res;
+        / `heapGrowth` joined `time`space when the allocation metric was split
+        / into retained vs transient; `mustin` keeps this pinning the CONTRACT
+        / (both original keys present) without re-breaking on the next addition.
+        `time`space mustin key res;
         `min`med`max`avg`dev mustin key res`time;
     };
 };

@@ -38,16 +38,28 @@
   o: (`warmup`gcBefore`gcEach`space!(3; 1b; 1b; 1b)), $[99h=type opts; opts; ()!()];
   if[0 < o`warmup; do[o`warmup; .tst.benchmark.invoke code]];
   if[o`gcBefore; .Q.gc[]];
+  / Two DIFFERENT memory signals, because q exposes no total-allocated counter
+  / and neither one alone is "bytes allocated":
+  /   used delta -> bytes still held after the call (RETAINED). Blind to anything
+  /                 the call allocated and released: a 160MB temporary vector
+  /                 measures as ~160 bytes here.
+  /   heap delta -> growth of q's heap, which captures a large TRANSIENT, but is
+  /                 quantized to q's allocation blocks (64MB on x86_64), so it
+  /                 reads 0 for anything smaller and over-states what it catches.
+  / `space` stays the retained figure (the budget metric mustAllocLessThan uses);
+  / `heapGrowth` is reported alongside so a big transient is not invisible.
+  / Both are floored at 0 rather than abs'd -- the old `abs s2-s1` reported code
+  / that NET FREED memory as though it had allocated that much.
   r: {[gcEach; wantSpace; x]
     if[gcEach; .Q.gc[]];
-    s1: $[wantSpace; .Q.w[]`used; 0];
+    w1: $[wantSpace; .Q.w[]; `used`heap!0 0];
     t1: .z.p;
     .tst.benchmark.invoke x;
     t2: .z.p;
-    s2: $[wantSpace; .Q.w[]`used; 0];
-    ("j"$t2-t1; abs s2-s1)
+    w2: $[wantSpace; .Q.w[]; `used`heap!0 0];
+    ("j"$t2-t1; 0 | w2[`used]-w1`used; 0 | w2[`heap]-w1`heap)
   }[o`gcEach; o`space] each n # enlist code;
-  `timesNs`space!(first each r; last each r)
+  `timesNs`space`heapGrowth!(r[;0]; r[;1]; r[;2])
  }
 
 .tst.benchmark.measureOpts:{[n;code;opts]
@@ -56,8 +68,9 @@
         `warmup`gcBefore`gcEach`space!(3; 1b; o`gc; 1b)];
   / Timings are FLOAT milliseconds with nanosecond precision (no `long$ floor,
   / so sub-millisecond code does not measure 0).
-  `time`space!(.tst.benchmark.stats (`float$smp`timesNs) % 1000000;
-               .tst.benchmark.stats smp`space)
+  `time`space`heapGrowth!(.tst.benchmark.stats (`float$smp`timesNs) % 1000000;
+               .tst.benchmark.stats smp`space;
+               .tst.benchmark.stats smp`heapGrowth)
  }
 
 / Backward-compatible wrapper: gc on by default. Public API unchanged.
