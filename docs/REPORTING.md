@@ -57,6 +57,27 @@ resQ still attempts the others and then fails the run. An XML serialization
 failure leaves a small parseable diagnostic document when the output file can
 still be written.
 
+## Failure detail in the artifacts
+
+A failing comparison records its one-line summary **and** the structural diff:
+
+```
+Got +`sym`px!(`a`b`c;1 2 3f) — expected +`sym`px!(`a`b`c;1 2 4f)
+--- diff ---
+Table content mismatch (showing first 1 mismatches):
+  Row 2:
+    Col px: Exp=4f Act=3f
+```
+
+Both halves reach JSON (`failures`) and the JUnit/xUnit element body, so a CI
+consumer sees which row, column or index differed — not just that two values
+were unequal. The XML `message` attribute keeps only the summary line, because
+XML attribute-value normalization would flatten the newlines.
+
+The console prints the summary line in its end-of-run listing: the same diff has
+already streamed at failure time under a `FAILURE DIFF [suite :: test]` banner,
+so repeating it would double every failure in the log.
+
 ## Console output
 
 The text reporter is intended for diagnosis. It includes suite/test status,

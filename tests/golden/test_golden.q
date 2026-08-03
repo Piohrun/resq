@@ -147,6 +147,51 @@
          "the JSON artifact must still be produced"];
   };
 
+  / The structural diff must reach the MACHINE reports, not just the terminal.
+  / It used to exist only as a streamed console banner, so JSON/JUnit carried the
+  / one-line "Got X — expected Y" and a CI consumer never saw which row, column
+  / or index actually differed.
+  skipIf[not .tst.golden.canQ; "the structural diff reaches JSON and JUnit"]{
+    r: .tst.golden.run .tst.golden.fixtures, "f_fail.q -json -junit -quiet";
+    musteq[r`code; 1];
+
+    j: .j.k raze .tst.golden.readFile[r`dir; "test-results.json"];
+    failing: j[`tests] where j[`tests;`status] ~\: "fail";
+    musteq[count failing; 1];
+    / `failures` is a JSON array per row, so this is a list OF lists: take the
+    / row's list, then its first entry, to reach a plain char vector for `ss`.
+    detail: first first failing`failures;
+    must[0 < count ss[detail; "Got 1 — expected 2"];
+         "the JSON failure must keep its one-line summary"];
+    must[0 < count ss[detail; "--- diff ---"];
+         "the JSON failure must carry the diff section"];
+    must[0 < count ss[detail; "Value mismatch"];
+         "the JSON failure must carry the rendered diff body"];
+
+    / Same detail in the XML element body; the attribute stays one line, because
+    / XML attribute-value normalization would flatten newlines into spaces.
+    xml: "\n" sv .tst.golden.readFile[r`dir; "test-results.junit.xml"];
+    must[0 < count ss[xml; "Value mismatch"];
+         "the JUnit body must carry the rendered diff"];
+    must[0 = count ss[xml; "message=\"Got 1 — expected 2\n"];
+         "the JUnit message attribute must not contain a raw newline"];
+  };
+
+  / The console keeps the SUMMARY line only: the same diff already streamed live
+  / under a "FAILURE DIFF [suite :: test]" banner, so repeating it in the
+  / end-of-run listing would double every failure in the log.
+  skipIf[not .tst.golden.canQ; "console listing shows the summary, not the diff again"]{
+    r: .tst.golden.run .tst.golden.fixtures, "f_fail.q";
+    musteq[r`code; 1];
+    must[.tst.golden.anyLike[r`out; "FAILURE DIFF"];
+         "the diff must still stream at failure time"];
+    / "Value mismatch" belongs to the streamed banner; it must appear exactly
+    / once, not a second time inside the per-suite failure listing.
+    / `sum` over booleans yields an int; musteq is `~` and so type-strict.
+    must[1 = sum {0 < count ss[x; "Value mismatch"]} each r`out;
+         "the diff body must appear exactly once, in the streamed banner"];
+  };
+
   / -pass is qspec's silence contract: run, keep the exit status, print nothing.
   / It must stay silent even with a file reporter selected.
   skipIf[not .tst.golden.canQ; "-pass stays silent alongside a file reporter"]{

@@ -4,10 +4,22 @@
 / whose items are all char vectors) is joined with an indented newline so it
 / reads as separate lines instead of q's `,"..."` enlisted-string literal. A
 / plain string passes through .tst.toString unchanged.
+/ Drop an appended structural diff from ONE message. A failing musteq records
+/ "<summary>\n--- diff ---\n<diff>" so the machine reports carry the diff too,
+/ but the console already streamed that diff at failure time, labelled with its
+/ suite and test. Reprinting it in the summary would double every failure in the
+/ log for no new information, so the console keeps the summary line.
+.resq.summaryOnly:{[s]
+    if[not 10h = abs type s; :s];
+    marker: @[get; `.tst.diffDetailMarker; {"\n--- diff ---\n"}];
+    at: ss[s; marker];
+    $[count at; (first at) # s; s]
+ };
+
 .resq.renderMsg:{[v]
     if[(0h = type v) and all 10h = type each v;
-        :"\n    " sv v];
-    .tst.toString v
+        :"\n    " sv .resq.summaryOnly each v];
+    .resq.summaryOnly .tst.toString v
  };
 
 / Colorize console text using the SAME central gate as diff.q (.tst.useColor,
