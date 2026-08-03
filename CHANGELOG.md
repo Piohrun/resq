@@ -4,6 +4,22 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-03 - qspec Drop-in, Measured Coverage & Fail-Closed Runs
+
+A minor bump: new capabilities and fixes, no removals. Several of the fixes
+are **fail-closed** and can turn a previously-green suite red — deliberately,
+because each one marks a run that was passing without having proved what it
+claimed. Expect to see, in rough order of likelihood:
+
+- an under-applied DSL constructor (`holds["x"]{...}` with no properties
+  argument) is now a load error instead of a silently missing test;
+- a test or loaded source calling `exit` before the runner finishes now fails
+  the run instead of exiting 0 with no report;
+- a test that passes without running an assertion fails under `-strict`.
+
+`bin/qspec` runs an unmodified qspec suite with qspec's comparison semantics,
+so migration needs no source changes; see [MIGRATION.md](docs/MIGRATION.md).
+
 ### Added
 
 - **Production CI gate and deployment guide.** `.github/workflows/ci.yml` runs

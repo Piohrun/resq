@@ -44,13 +44,19 @@ assistance.
 
 ## Installation
 
-Clone the repo and put the launchers on your `PATH`:
+Clone the repo at a release tag and put the launchers on your `PATH`:
 
 ```bash
-git clone https://github.com/Piohrun/resq.git ~/.local/share/resq
+git clone --branch v0.4.0 https://github.com/Piohrun/resq.git ~/.local/share/resq
 ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq   # adjust to taste
 ln -s ~/.local/share/resq/bin/qspec ~/.local/bin/qspec # drop-in qspec command
 ```
+
+Pin the tag for CI. `main` moves, and a test framework that changes underneath
+a pipeline turns an unrelated commit into a red build. `resq --version` reports
+the release you are on; `git -C ~/.local/share/resq describe --tags` confirms
+the checkout. Omit `--branch` only if you specifically want the development
+tip.
 
 The launcher resolves its install location (symlink-safe) and exports
 `RESQ_HOME` for `resq.q` to find its modules, so you can invoke `resq`
