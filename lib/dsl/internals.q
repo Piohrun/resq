@@ -15,6 +15,9 @@ if[not `output in key `.tst; .tst.output.init_: 1b];
 if[not `excludeSpecs in key `.tst.app; .tst.app.excludeSpecs: ()];
 if[not `runSpecs in key `.tst.app; .tst.app.runSpecs: ()];
 if[not `args in key `.tst.app; .tst.app.args: ()];
+/ Sandboxes this run created, so finalCleanup deletes exactly those rather than
+/ every root namespace whose name happens to start with "sandbox_".
+if[not `sandboxNamespaces in key `.tst.app; .tst.app.sandboxNamespaces: `symbol$()];
 if[not `describeOnly in key `.tst.app; .tst.app.describeOnly: 0b];
 if[not `xmlOutput in key `.tst.app; .tst.app.xmlOutput: 0b];
 if[not `runPerformance in key `.tst.app; .tst.app.runPerformance: 0b];

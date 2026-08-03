@@ -240,8 +240,15 @@
 
     should["transition executionState to completed"]{
         saved: .tst.app.executionState;
+        / finalCleanup now really does release the registered sandboxes (it used
+        / to be a no-op, because it matched on `key `.` which never lists
+        / namespaces). Calling it MID-RUN would therefore empty the sandbox of
+        / every test file loaded so far, so blank the registry for this call.
+        savedSandboxes: .tst.app.sandboxNamespaces;
+        .tst.app.sandboxNamespaces: `symbol$();
         .tst.app.executionState: `running;
         .tst.runAllPhase.finalCleanup[];
+        .tst.app.sandboxNamespaces: savedSandboxes;
         .tst.app.executionState musteq `completed;
         .tst.app.executionState: saved;
     };
@@ -251,9 +258,15 @@
         savedState: .tst.app.executionState;
         savedErrors: .tst.app.cleanupErrors;
         savedHook:  @[get; `.tst.cleanupAllFixtures; {{}}];
+        / Blank the sandbox registry for the same reason as the test above:
+        / finalCleanup releases registered sandboxes for real now, and calling it
+        / mid-run would empty every already-loaded test file's namespace.
+        savedSandboxes: .tst.app.sandboxNamespaces;
+        .tst.app.sandboxNamespaces: `symbol$();
         .tst.cleanupAllFixtures: {'cleanupExplosion};
         .tst.app.executionState: `running;
         @[.tst.runAllPhase.finalCleanup; (); {[e] -1 "unexpected: ", e}];
+        .tst.app.sandboxNamespaces: savedSandboxes;
         .tst.app.executionState musteq `completed;
         count[.tst.app.cleanupErrors] musteq 1;
         .tst.cleanupAllFixtures: savedHook;
@@ -319,4 +332,86 @@
         (sum out like "*1 total (1 passed*") musteq 2i;
         must[not any out like "*LOAD ERROR*"; "the second load must stay clean"];
     };
+ };
+
+/ ============================================================================
+/ finalCleanup must release the sandboxes THIS run created -- and nothing else.
+/ .
+/ Two q facts make the obvious implementation a no-op, which is what the previous
+/ one was: `key `.` lists only root VARIABLES (never child namespaces), and q
+/ cannot delete a namespace at all -- `![`.; (); 0b; enlist `ns]` returns cleanly
+/ and changes nothing. What can be reclaimed is a namespace's CONTENTS, which is
+/ where the memory lives.
+/ ============================================================================
+/ Build `.<ns>.<member>` by string concatenation. NOT `` ` sv `.,ns,`member ``:
+/ `sv` joins with ".", and `` `. `` is already ".", so that form yields
+/ `..ns.member` and silently writes to the wrong place. Defined at FILE scope
+/ because q lambdas do not close over locals of the enclosing desc block.
+.tst.testState.sbxMember:{[ns; m] `$ ".", string[ns], ".", string m};
+
+.tst.desc["runAll phase: releaseSandboxes"]{
+
+  should["clear the members of a registered sandbox"]{
+    / Save/restore by hand rather than `mock`: releaseSandboxes is called from
+    / finalCleanup, which also runs .tst.restore, so a mock would be rolled back
+    / before the clearing ran. Exercising releaseSandboxes directly also avoids
+    / restoring every mock and .q export in the middle of this suite.
+    saved: .tst.app.sandboxNamespaces;
+    ns: `$"sandbox_S_resq_cleanup_probe";
+    (.tst.testState.sbxMember[ns;`payload]) set til 100000;
+    (.tst.testState.sbxMember[ns;`marker]) set `present;
+    .tst.app.sandboxNamespaces: enlist ns;
+
+    must[0 < count key `$".", string ns; "the probe sandbox must start populated"];
+    .tst.releaseSandboxes[];
+    musteq[0; count key `$".", string ns];
+    / q keeps the (now empty) namespace name; only the contents are reclaimable.
+    musteq[`GONE; @[get; .tst.testState.sbxMember[ns;`marker]; {`GONE}]];
+    .tst.app.sandboxNamespaces: saved;
+  };
+
+  should["leave an unregistered same-prefix namespace untouched"]{
+    / The naming convention alone must not authorize clearing: under -noquit,
+    / watch mode or embedded use a user may own a namespace starting "sandbox_".
+    / Save/restore by hand rather than `mock`: releaseSandboxes is called from
+    / finalCleanup, which also runs .tst.restore, so a mock would be rolled back
+    / before the clearing ran. Exercising releaseSandboxes directly also avoids
+    / restoring every mock and .q export in the middle of this suite.
+    saved: .tst.app.sandboxNamespaces;
+    mine: `$"sandbox_S_resq_registered_probe";
+    theirs: `$"sandbox_userdata_probe";
+    (.tst.testState.sbxMember[mine;`payload]) set 1 2 3;
+    (.tst.testState.sbxMember[theirs;`payload]) set `keepme;
+    .tst.app.sandboxNamespaces: enlist mine;
+
+    .tst.releaseSandboxes[];
+    musteq[0; count key `$".", string mine];
+    musteq[`keepme; @[get; .tst.testState.sbxMember[theirs;`payload]; {`GONE}]];
+    .tst.app.sandboxNamespaces: saved;
+  };
+
+  should["drain the registry so a second run cannot re-clear stale names"]{
+    / Save/restore by hand rather than `mock`: releaseSandboxes is called from
+    / finalCleanup, which also runs .tst.restore, so a mock would be rolled back
+    / before the clearing ran. Exercising releaseSandboxes directly also avoids
+    / restoring every mock and .q export in the middle of this suite.
+    saved: .tst.app.sandboxNamespaces;
+    ns: `$"sandbox_S_resq_drain_probe";
+    (.tst.testState.sbxMember[ns;`payload]) set 42;
+    .tst.app.sandboxNamespaces: enlist ns;
+    .tst.releaseSandboxes[];
+    musteq[0; count .tst.app.sandboxNamespaces];
+    .tst.app.sandboxNamespaces: saved;
+  };
+
+  should["survive a registered namespace that no longer exists"]{
+    / Save/restore by hand rather than `mock`: releaseSandboxes is called from
+    / finalCleanup, which also runs .tst.restore, so a mock would be rolled back
+    / before the clearing ran. Exercising releaseSandboxes directly also avoids
+    / restoring every mock and .q export in the middle of this suite.
+    saved: .tst.app.sandboxNamespaces;
+    .tst.app.sandboxNamespaces: enlist `$"sandbox_S_resq_never_created";
+    mustnotthrow[(); {.tst.releaseSandboxes[]}];
+    .tst.app.sandboxNamespaces: saved;
+  };
  };

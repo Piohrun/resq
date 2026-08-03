@@ -341,6 +341,14 @@
         cleanP[where not cleanP in .Q.a,.Q.A,.Q.n]: first "_";
         hashStr: 8 # raze string md5 absPath;
         nsName: `$".sandbox_S", cleanP, "_", hashStr;
+        / Register the sandbox so end-of-run cleanup can delete exactly what this
+        / run created. finalCleanup used to remove EVERY root namespace matching
+        / `sandbox_*`, which is fine in a dedicated test process but destroys an
+        / unrelated user namespace of that name under -noquit, watch mode, or
+        / embedded use. Store the bare root name (no leading dot) to match the
+        / form `key `.` returns.
+        .tst.app.sandboxNamespaces: distinct .tst.app.sandboxNamespaces,
+            `$1 _ string nsName;
 
         loadCtx: .tst.captureRuntimeContext[];
 

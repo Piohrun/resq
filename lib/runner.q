@@ -844,16 +844,40 @@
  };
 
 / End-of-run cleanup. Every step is trapped so one bad cleanup does not
-/ skip the rest. Sandbox namespaces are removed wholesale.
+/ skip the rest. Only namespaces THIS run created are removed.
 .tst.runAllPhase.finalCleanup:{[]
     .tst.app.executionState: `completed;
     @[.tst.cleanupAllFixtures; (); {[e] .tst.recordCleanupError[`sessionFixture;e]}];
     @[.tst.restoreOriginalQ; (); {[e] .tst.recordCleanupError[`qNamespaceRestore;e]}];
     @[.tst.restore; (); {[e] .tst.recordCleanupError[`mockRestore;e]}];
 
-    rootKeys: key `.;
-    sandboxKeys: rootKeys where (string rootKeys) like "sandbox_*";
-    if[0 < count sandboxKeys; ![`.; (); 0b; sandboxKeys]];
+    .tst.releaseSandboxes[];
+ };
+
+/ Release each sandbox this run created. Kept separate from finalCleanup so it
+/ can be exercised without also restoring every mock and .q export, which
+/ finalCleanup does and which is destructive in the middle of a run.
+/ .
+/ Two q facts shape this:
+/ .
+/   1. `key `.` lists only root VARIABLES, never child namespaces, so the old
+/      `rootKeys where (string rootKeys) like "sandbox_*"` matched nothing --
+/      it could neither free a sandbox nor, as feared, hit a user namespace
+/      sharing the prefix. It was dead code.
+/   2. q cannot remove a namespace. `![`.; (); 0b; enlist `sandbox_a]` returns
+/      cleanly and changes nothing.
+/ .
+/ What IS reclaimable is the namespace's CONTENTS, which is where the memory
+/ actually is: clearing one sandbox holding a 5M-element vector returned ~67MB.
+/ So delete the members of exactly the registered sandboxes. The empty namespace
+/ name persists, matching how top-level names behave elsewhere.
+.tst.releaseSandboxes:{[]
+    registered: distinct @[get; `.tst.app.sandboxNamespaces; {`symbol$()}];
+    {[ns]
+        full: `$".", string ns;
+        @[{[n] members: key n; if[count members; ![n; (); 0b; members]]}; full; {[e] ::}];
+    } each registered;
+    .tst.app.sandboxNamespaces: `symbol$();
  };
 
 / Phase-runner helper. Records the current phase name as a symbol

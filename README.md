@@ -304,6 +304,12 @@ ordinary top-level declarations. Explicit writes to root/application namespaces,
 external services, or the filesystem remain shared state; use fixtures, cleanup,
 and process isolation where those effects matter.
 
+At end of run, resQ empties the sandboxes it created, releasing whatever the test
+files declared. It tracks them by registration, so a namespace of your own that
+merely starts with `sandbox_` is never touched — which matters under `-noquit`,
+watch mode, or when resQ is embedded in a longer-lived process. q cannot remove a
+namespace, so the (now empty) names persist, exactly as for top-level names.
+
 ### Global Pollution Guard
 The runner snapshots application namespaces before and after each `desc` suite.
 If a suite introduces a name or modifies an existing global, resQ reports it.
