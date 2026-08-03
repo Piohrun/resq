@@ -3,23 +3,24 @@
 ## Suggested Reading Order
 
 ### New users
-1. `../README.md` — Installation, quick start, writing tests, exit codes
-2. `API_REFERENCE.md` — Complete DSL, assertions cheat-sheet, CLI flags, config
-3. `TROUBLESHOOTING.md` — Common errors and CI/CD integration tips
+1. [Getting Started](GETTING_STARTED.md) — Installation, first test, qspec replacement, and a CI-ready baseline
+2. [API Reference](API_REFERENCE.md) — Complete DSL, assertions cheat-sheet, CLI flags, and config
+3. [Test Reporting](REPORTING.md) — Console output and JSON/JUnit/xUnit contracts
+4. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
 
 ### Going deeper
-4. `FIXTURES.md` — Fixture scopes and lifecycle hooks
-5. `SNAPSHOTS.md` — Binary and text snapshot testing
-6. `PBT.md` — Property-based testing with `holds`
-7. `COVERAGE.md` — Instrumenting coverage and reading LCOV output
-8. `WATCH.md` — File-watch mode
-9. `CI.md` — Production CI invocation, artifacts, and runner prerequisites
-10. `PARALLEL.md` — CI-level parallelism strategy
-11. `PERFORMANCE.md` — Benchmarking assertions and stats
+5. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
+6. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
+7. [Property-based testing](PBT.md) — Generative tests with `holds`
+8. [Coverage](COVERAGE.md) — Instrumenting coverage and reading LCOV output
+9. [Watch mode](WATCH.md) — File-watch mode
+10. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
+11. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
+12. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
 
 ### Migration
-- `ASYNC.md` — Deferreds, polling helpers and callback spies
-- `MIGRATION.md` — Moving from qspec to resQ
+- [Async helpers](ASYNC.md) — Deferreds, polling helpers, and callback spies
+- [Migrating from qspec](MIGRATION.md) — Compatibility boundary and adoption sequence
 
 ### Contributor / internal reference
 - `ARCHITECTURE.md` — Namespace layout, file structure, exit codes
@@ -32,14 +33,16 @@
 
 | File | Audience | Purpose |
 |------|----------|---------|
+| `GETTING_STARTED.md` | New users | Installation, first test, migration, and production adoption |
 | `API_REFERENCE.md` | Users | Full API — DSL, assertions, CLI, config |
+| `REPORTING.md` | Users / CI consumers | Console, JSON, JUnit, and xUnit contracts |
 | `ARCHITECTURE.md` | Contributors | Namespace layout, exit codes, file tree |
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
 | `CI.md` | Users | Production CI, coverage gates, reporter artifacts, runner setup |
 | `FIXTURES.md` | Users | Fixture scopes and lifecycle hooks |
 | `ASYNC.md` | Users | Testing callbacks and deferred results |
 | `MIGRATION.md` | qspec users | Porting guide from qspec |
-| `PARALLEL.md` | Users | CI parallelism strategy |
+| `PARALLEL.md` | Users | Isolated worker concurrency and CI sharding |
 | `PBT.md` | Users | Property-based testing |
 | `PERFORMANCE.md` | Users | Benchmarking |
 | `SNAPSHOTS.md` | Users | Binary and text snapshot testing |

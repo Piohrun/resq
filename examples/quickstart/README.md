@@ -31,5 +31,11 @@ The runner will re-execute tests whenever you modify files in `src/` or `test/`.
 ### 4. Discovery
 Check for untested functions:
 ```bash
-./bin/resq discover examples/quickstart/src examples/quickstart/test
+./bin/resq discover examples/quickstart/src examples/quickstart/test \
+  -outDir artifacts/discovery
 ```
+
+This static audit writes `artifacts/discovery/coverage_report.html` and exits 1
+when a source-function name is not referenced by live test source. It is not
+runtime coverage. Add `-scaffold` to also create fill-in test stubs under
+`artifacts/discovery/missingTests/`.

@@ -28,7 +28,7 @@ assistance.
 ## Key Features
 
 - **High-Resolution Benchmarking**: Professional stats (min, max, avg, percentiles) and ASCII histograms built-in.
-- **Automated Discovery**: Scans codebase for untested functions and generates boilerplate templates.
+- **Automated Discovery**: Scans test source for unreferenced functions, writes an HTML report, and can generate boilerplate templates on request.
 - **CI/CD Integration**: JUnit XML, xUnit XML, and JSON reporters with detailed metrics.
 - **Retry support**: `retry[n; "desc"]{...}` re-runs a flaky test up to n+1 total attempts.
 - **Advanced Utilities**:
@@ -37,7 +37,7 @@ assistance.
   - **Parametrized Tests**: Run tests against a table of scenarios with `.tst.forall`.
   - **Async Testing**: Robust wait-for-condition and sleep utilities.
   - **Snapshot Testing**: Binary and text snapshots for complex data structures; text snapshots produce readable `git diff` output.
-- **Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV, a per-function HTML report (`coverage.html`), and `coverage_state.txt`. Default line records are derived from function hits; `-cov-statements` enables measured statement coverage, and `-cov-min N` gates CI. Compiled operators and derived functions are skipped.
+- **Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV, a per-function HTML report (`coverage.html`), and `coverage_state.txt`. Coverage is function-level by default and emits no line records; `-cov-statements` enables measured statement/line coverage, and `-cov-min N` gates CI on whichever basis was measured. Compiled operators and derived functions are skipped.
 - **Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change.
 
 ---
@@ -58,6 +58,11 @@ from any directory and have it operate on **your** project's `tests/`,
 not the framework's. You can also set `RESQ_HOME` manually if you
 prefer to call `q $RESQ_HOME/resq.q ...` directly.
 
+The tested production baseline is kdb+/q 4.x on Linux. The launchers require
+Bash; process isolation has additional command-line dependencies. See
+[Getting Started](docs/GETTING_STARTED.md) for the supported path and a
+CI-ready adoption sequence.
+
 ---
 
 ## Quick Start
@@ -77,25 +82,36 @@ q resq.q test examples/quickstart/test
 # Run with HTML coverage
 q resq.q cover examples/quickstart/test
 
-# Start Discovery Engine
-q resq.q discover examples/quickstart/src examples/quickstart/test
+# Report source functions that are not referenced by tests
+q resq.q discover examples/quickstart/src examples/quickstart/test \
+  -outDir artifacts/discovery
 ```
 
 ---
 
 ## Automated Test Discovery
 
-Check your codebase for coverage gaps and generate boilerplate instantly.
+Check which source-function names are referenced by test source, and optionally
+generate boilerplate. This is a static name-presence audit, not proof that a
+function executed; use `resq cover` for runtime coverage.
 
 ### Usage
 ```bash
 q resq.q discover src/ tests/
+
+# Also write stubs under artifacts/discovery/missingTests/
+q resq.q discover src/ tests/ -scaffold -outDir artifacts/discovery
 ```
 
 **Features:**
 - **Visual Tree**: Instantly see which directories lack tests.
-- **Smart Templates**: Generates ready-to-fill `should` blocks for untested functions.
+- **HTML report**: Always writes `coverage_report.html` to `outDir` (default `.`).
+- **Smart Templates**: With `-scaffold`, generates ready-to-fill `should` blocks under `outDir/missingTests/`.
 - **Namespace Aware**: Correctly identifies functions within `\d` namespace blocks.
+
+Discovery exits 1 when any source function is unreferenced and 0 when all are
+referenced. It strips q comments before scanning, but a live-code reference can
+still count even if that code never executes.
 
 ---
 
@@ -159,8 +175,9 @@ perf["Fast SMA"; `maxTime`runs!(10; 100)]{
 `beforeAll` runs once before all expectations in the block. If it throws, the
 block's tests are skipped and one error result is recorded (the run fails), but
 other desc blocks still run. `afterAll` runs once after the block's tests even
-if `beforeAll` failed; a throwing `afterAll` prints a warning but does not fail
-the suite.
+if `beforeAll` failed. A throwing `afterAll` is recorded as a structured cleanup
+error and fails the run; other cleanup tasks and suites still get a chance to
+run.
 
 ---
 
@@ -187,6 +204,7 @@ q resq.q test tests/ -desc
 # Run each test FILE in its own q subprocess (opt-in process isolation)
 q resq.q test tests/ -isolate
 q resq.q test tests/ -isolate -isolateTimeout 120   # per-file wall-clock cap (s)
+q resq.q test tests/ -isolate -isolateWorkers 4     # bounded concurrent children
 ```
 
 Tags are `#word` tokens embedded in the suite title string:
@@ -259,6 +277,7 @@ aggregates the per-file results and applies the normal summary, reporters
 ```bash
 q resq.q test tests/ -isolate
 q resq.q test tests/ -isolate -isolateTimeout 120   # per-file timeout, default 300s
+q resq.q test tests/ -isolate -isolateWorkers 4     # default 1; preserves file order
 ```
 Isolation converts three run-killers into per-file failures instead of letting
 one bad file corrupt the whole run: a test that calls `exit` (caught as
@@ -266,6 +285,11 @@ one bad file corrupt the whole run: a test that calls `exit` (caught as
 `-isolateTimeout`, reported as a timeout — requires the `timeout` binary for
 preemption), and a process-fatal error (`wsfull`/`stack`). Exit-code semantics
 match the normal path (load errors → 4, any failure → 1, no files → 3).
+
+Isolation is a resilience boundary, not a security sandbox. Child processes
+inherit the invoking user's filesystem, environment, network, and credentials;
+only run trusted test code. Each concurrent child also consumes memory and a q
+runtime/licence allocation. See [Parallel execution](docs/PARALLEL.md).
 
 Strict mode can also be enabled in `resq.json`:
 ```json
@@ -275,12 +299,14 @@ Strict mode can also be enabled in `resq.json`:
 ```
 
 ### Namespace Isolation (Sandboxing)
-Every test file is automatically loaded into a unique, isolated namespace. Tests
-cannot accidentally pollute the global namespace or affect unrelated tests.
+Every test file is loaded into a unique generated namespace, which contains its
+ordinary top-level declarations. Explicit writes to root/application namespaces,
+external services, or the filesystem remain shared state; use fixtures, cleanup,
+and process isolation where those effects matter.
 
 ### Global Pollution Guard
-The runner snapshots the global namespace before and after each test. If a test
-introduces a name or modifies an existing global, resQ reports it.
+The runner snapshots application namespaces before and after each `desc` suite.
+If a suite introduces a name or modifies an existing global, resQ reports it.
 
 For members added to existing namespaces, the runner cleans them up. For brand-new
 top-level names, the runner clears the value to `::` and warns — q does not allow
@@ -312,6 +338,8 @@ passing suites — failures still print fully:
 q resq.q test tests/ -quiet
 ```
 
+Output written directly by test code or benchmark helpers is not intercepted.
+
 ### Custom Test-File Discovery
 Default discovery matches `test_*.q` and `*_test.q`. Override via `resq.json`:
 ```json
@@ -334,7 +362,9 @@ See `docs/` for detailed guides:
 
 | Guide | Purpose |
 |-------|---------|
+| `docs/GETTING_STARTED.md` | Installation, first test, qspec replacement, production adoption |
 | `docs/API_REFERENCE.md` | Complete API — all DSL, assertions, CLI flags, config keys |
+| `docs/REPORTING.md` | Console, JSON schema, JUnit/xUnit mappings, artifact names |
 | `docs/ARCHITECTURE.md` | Namespace layout, file structure, exit codes (contributor reference) |
 | `docs/COVERAGE.md` | Coverage instrumentation, LCOV output, HTML report |
 | `docs/CI.md` | Production CI invocation, runner prerequisites, artifacts |
@@ -353,8 +383,13 @@ See `docs/README.md` for a suggested reading order.
 
 ## Dependencies
 
-- **kdb+ 4.x** (4.0 or newer recommended).
-- No runtime dependencies beyond q itself.
+- **Core in-process runner:** kdb+/q 4.x; the tested CI baseline is Linux x64.
+- **Launchers:** Bash.
+- **Process isolation:** GNU `timeout` with `-k`, plus `mktemp`, `chmod`, `rm`,
+  and `sh`. These are not required for an ordinary in-process run.
+
+See [Continuous Integration](docs/CI.md#runner-requirements) for licences,
+runner provisioning, and the security boundary.
 
 ## LLM Skill
 

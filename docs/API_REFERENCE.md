@@ -16,6 +16,8 @@ Complete reference documentation for the resQ testing framework.
 8. [Snapshots](#8-snapshots)
 9. [Benchmarking](#9-benchmarking)
 10. [Utilities](#10-utilities)
+11. [CLI Options](#cli-options)
+12. [Configuration File](#configuration-file)
 
 ---
 
@@ -161,6 +163,36 @@ Define teardown code that runs after each test in the current scope.
 ```q
 after{
     .db.close db;
+};
+```
+
+---
+
+### beforeAll / afterAll
+
+```q
+beforeAll[code]
+afterAll[code]
+```
+
+Define suite-level setup and teardown for the current `desc` block. `beforeAll`
+runs once before its expectations. If it throws, the suite records an error and
+does not execute those expectations; later suites still run. `afterAll` runs
+once after the suite, including after a failed `beforeAll` unless fail-hard has
+halted cleanup.
+
+A throwing `afterAll` is a structured cleanup error and fails the run. The
+runner continues with the remaining cleanup work so one teardown error does not
+hide another.
+
+```q
+.tst.desc["Database"]{
+    beforeAll{ .db.testConn::hopen `:localhost:5000 };
+    afterAll{ hclose .db.testConn };
+
+    should["answer a query"]{
+        count[.db.testConn "select from trade"] mustgt 0;
+    };
 };
 ```
 
@@ -1000,7 +1032,11 @@ Register a fixture value programmatically.
 .tst.registerSpecCleanup[func; args]   / fires after the spec, after handle teardown
 ```
 
-Queue a cleanup callable to run once the test scope finishes. `func` is invoked with `args` (a list — single-arg cleanups still pass `enlist value`). Failures are trapped and logged as `WARNING: Cleanup task failed: ...`; one bad cleanup does not abort the rest.
+Queue a cleanup callable to run once the test scope finishes. `func` is invoked
+with `args` (a list — single-arg cleanups still pass `enlist value`). Failures
+are trapped, converted to structured error rows, and fail the run. One bad
+cleanup does not abort the remaining expectation-, spec-, fixture-, or session-
+scope cleanup work.
 
 Choose the scope by **what the cleanup depends on**:
 
@@ -1687,15 +1723,18 @@ q resq.q [mode] [options] [paths...]
 **Options:**
 | Flag | Description |
 |------|-------------|
-| `-junit` | Output JUnit XML (single format: `test-results.xml`; multi-format: `test-results.junit.xml`) |
+| `-junit` / `-xml` | Output JUnit XML (single format: `test-results.xml`; multi-format: `test-results.junit.xml`) |
 | `-xunit` | Output xUnit v2 XML (single format: `test-results.xml`; multi-format: `test-results.xunit.xml`) |
 | `-json` | Output JSON report to `outDir/test-results.json` |
 | `-perf` | Include performance tests |
+| `-pass` | qspec compatibility: run and preserve exit status, but suppress all result reporters and loading/audit chatter |
 | `-cov` / `-coverage` | Enable coverage |
 | `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
 | `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses LCOV line percentage, falling back to functions when no line records exist |
+| `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
+| `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
 | `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
 | `-fh` / `--fail-hard` | Hard stop and skip cleanup on first failure |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
@@ -1707,11 +1746,16 @@ q resq.q [mode] [options] [paths...]
 | `-fuzzLimit N` | Limit fuzz failure reporting |
 | `-isolate` | Run each test FILE in its own `q` subprocess; the parent aggregates results, reporters, and exit codes (a test calling `exit`, an infinite loop, or a fatal error becomes a per-file failure instead of killing the whole run) |
 | `-isolateTimeout N` | Per-FILE wall-clock cap in seconds under `-isolate` (default 300; needs the `timeout` binary to preempt a hang) |
+| `-isolateWorkers N` | Run N isolated files concurrently (default 1, i.e. sequential). Verdicts, ordering and exit codes are identical to a sequential run; only wall-clock changes |
 | `-outDir DIR` | Output directory for reports and coverage files |
 | `-noquit` | Suppress exit call (process stays running; useful interactively) |
 | `-exit` | Force exit-on-completion (overrides `"exit": false` in `resq.json`) |
 | `-quiet` | Suppress `Loading Test:` lines, the RUN AUDIT block, and per-suite output for passing suites. Failures still print fully. |
 | `-v` / `-version` | Print version |
+| `--help` / `-usage` / `--usage` | Print usage and exit 0 (`resq -h` works via the launcher; q claims bare `-h` for itself) |
+| `-debug` | Enable verbose internal diagnostics |
+| `-interactive` | `discover` only: use the interactive discovery wizard |
+| `-scaffold` | `discover` only: in addition to `coverage_report.html`, write the `missingTests/` stub tree under `outDir` |
 
 Reporter flags compose. A run with more than one selected format uses
 schema-specific filenames so JUnit and xUnit never overwrite one another.
@@ -1719,6 +1763,12 @@ JUnit rows carry `file`/`line`; xUnit v2 rows carry
 `source-file`/`source-line`; JSON schema version 1 keeps `message` scalar and
 `failures` list-valued and includes the aggregate `assertionCount`. A reporter
 error fails the run after every selected reporter has been attempted.
+
+Selecting any machine reporter replaces the final text reporter; it does not
+also print the normal summary. Other progress and diagnostic lines can still be
+written to stdout/stderr unless `-quiet` suppresses them. See
+[Test reporting](REPORTING.md) for filenames, the JSON schema, XML mappings, and
+size limits.
 
 **Filtering examples:**
 ```bash
@@ -1795,22 +1845,61 @@ Create `resq.json` in project root:
 }
 ```
 
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `fmt` | `"text"` | Default single reporter: `text`, `junit`, `xunit`, or `json` (`console`/`xml` are legacy aliases) |
+| `outDir` | `"."` | Report, coverage, and discovery artifact directory |
+| `describeOnly` | `false` | Discover and list suites/tests without executing them |
+| `xmlOutput` | `false` | Legacy switch that selects JUnit when `fmt` is `text` |
+| `runPerformance` | `false` | Include `perf` blocks |
+| `excludeSpecs` | empty | Suite-title glob(s) to exclude |
+| `runSpecs` | empty | Suite-title glob(s) to include |
+| `passOnly` | `false` | qspec-compatible silent result reporting |
+| `exit` | `true` | Exit the q process with the run status |
+| `strict` | `false` | Fail empty, all-skipped, and assertion-free runs/tests |
+| `fuzzLimit` | `100` | Maximum displayed fuzz failures |
+| `failFast` | `false` | Enable fail-fast behavior |
+| `failHard` | `false` | Halt immediately and skip cleanup after failure |
+| `pollutionGuard` | `true` | Detect and restore application-namespace changes per suite |
+| `maxTestTime` | `0` | Post-execution per-test budget in milliseconds (`0` disables) |
+| `reportLimit` | `50000` | Maximum rendered failure/error message characters |
+| `reportListLimit` | `1000` | Compatibility setting; no separate list cap is currently enforced |
+| `qNamespaceExports` | `true` | Export compatibility DSL names through reserved namespace `.q` |
+| `diffLargeTableThreshold` | `1000` | Start adaptive table-diff sampling above this row count |
+| `diffHugeTableThreshold` | `10000` | Add random table-diff sampling above this row count |
+| `testFilePatterns` | `test_*.q`, `*_test.q` | Basename patterns used during directory discovery |
+| `qspecCompat` | `false` | Use qspec comparison semantics for `musteq` / `mustne` |
+| `covStatements` | `false` | Enable measured statement/line instrumentation |
+| `coverageMin` | `0` | Coverage gate percentage (`0` disables the threshold) |
+
 Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `console` is normalized to `text`.
+
+`reportLimit` caps rendered failure/error messages in machine reports.
+`reportListLimit` is accepted and retained for compatibility, but the current
+reporters do not enforce a separate list-element limit.
 
 `coverageMin` is an integer from 0 through 100. A positive value enables
 coverage and applies the same fail-closed threshold as `-cov-min`. Set
-`covStatements` to `true` for measured statement probes instead of derived line
+`covStatements` to `true` for measured statement probes instead of function-level
 records.
 
-`qNamespaceExports` controls compatibility exports into the reserved `.q` namespace. It defaults to `true` for existing suites. Set it to `false` to rely on root aliases and `.tst.*` APIs without writing resQ helpers into `.q`.
+`qNamespaceExports` controls compatibility exports into the reserved `.q`
+namespace. It defaults to `true` for existing suites. With it set to `false`,
+sandboxed test files must use fully qualified `.tst.*` APIs; unqualified root
+aliases do not resolve reliably through a generated test namespace.
 
 `pollutionGuard` controls deep namespace snapshot/restore checks around each suite. It defaults to `true`. Set it to `false` for very large sessions where global namespace comparison overhead is too high.
 
-`testFilePatterns` is the list of glob patterns the loader matches against base filenames when scanning a directory. Defaults to BSD-style `test_*.q` / `*_test.q`. Override for codebases that use other conventions (e.g. `["*_spec.q"]` for BDD, `["*Test.q"]` for xUnit). Explicit `.q` file paths passed on the command line are always honoured regardless of patterns.
+`testFilePatterns` is the list of glob patterns the loader matches against base filenames when scanning a directory. Defaults to `test_*.q` / `*_test.q`. Override for codebases that use other conventions (e.g. `["*_spec.q"]` for BDD, `["*Test.q"]` for xUnit). Explicit `.q` file paths passed on the command line are always honoured regardless of patterns.
 
 `diffLargeTableThreshold` / `diffHugeTableThreshold` control adaptive sampling in `lib/diff.q`. Tables larger than the *large* threshold trigger head/middle/tail sampling instead of a full row scan; tables larger than the *huge* threshold add a random sample on top. Increase both for systems with very large reference tables; decrease for stricter (but slower) diff coverage.
 
-CLI arguments override configuration file values.
+Where a CLI option is supplied, it takes precedence over the corresponding
+configuration value. Boolean CLI flags enable behavior; there are no `--no-*`
+forms for disabling a configured feature.
+
+Unknown keys and invalid values produce `CONFIG WARNING` lines and are ignored;
+the valid/default value remains in effect.
 
 ---
 
