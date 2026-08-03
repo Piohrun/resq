@@ -24,6 +24,104 @@ runners:()!()
     $[0 < count ctx; "\n", ctx; ""]
  };
 
+/ True when a .Q.sbt line opens a frame: two spaces, "[", digits, "]".
+.tst.btIsFrameHead:{[ln]
+    if[not 10h = abs type ln; :0b];
+    if[3 > count ln; :0b];
+    if[not "  [" ~ 3 # ln; :0b];
+    rest: 3 _ ln;
+    at: rest ? "]";
+    if[at >= count rest; :0b];
+    digits: at # rest;
+    (0 < count digits) and all digits in .Q.n
+ };
+
+/ Group .Q.sbt's flat text into frames. A frame is its head line plus the
+/ continuation lines (source excerpt, caret) that follow it.
+.tst.btFrames:{[lines]
+    heads: where .tst.btIsFrameHead each lines;
+    if[0 = count heads; :()];
+    starts: distinct 0, heads;
+    bounds: starts, count lines;
+    {[lines; lo; hi] lines lo + til hi - lo}[lines]'[-1 _ bounds; 1 _ bounds]
+ };
+
+/ Literal substring test. NOT `ss`: `ss` reads "[", "]", "*" and "?" as pattern
+/ syntax, so an install path containing a bracket -- entirely legal on disk --
+/ turns into a character class and either mismatches or signals. The needles here
+/ are filesystem paths, so they must be compared as bytes.
+.tst.literalIn:{[needle; hay]
+    n: count needle;
+    if[0 = n; :1b];
+    if[n > count hay; :0b];
+    any {[h; nd; i] nd ~ h i + til count nd}[hay; needle] each til 1 + (count hay) - n
+ };
+
+/ True when a frame belongs to resQ's own runner rather than to the code under
+/ test. Matched on the SOURCE PATH, not on a `.tst.*` name: a test may legally
+/ call framework helpers, and those frames are the user's business. Scoped to
+/ <HOME>/lib and <HOME>/resq.q rather than all of <HOME>, for the same reason
+/ coverage scopes its self-exclusion that way -- a project can live under the
+/ install root (the bundled examples do) and must keep its frames.
+.tst.btIsRunnerFrame:{[frame]
+    head: $[count frame; first frame; ""];
+    if[not 10h = abs type head; :0b];
+    home: @[get; `.resq.HOME; {""}];
+    if[0 = count home; :0b];
+    .tst.literalIn[home, "/lib/"; head] or .tst.literalIn[home, "/resq.q:"; head]
+ };
+
+/ The text of a frame's head after its "[N]" marker, left-trimmed.
+.tst.btFrameBody:{[head]
+    if[not 10h = abs type head; :""];
+    at: head ? "]";
+    if[at >= count head; :""];
+    body: (at + 1) _ head;
+    while[(0 < count body) and (first body) in " \t"; body: 1 _ body];
+    body
+ };
+
+/ A frame that is only a dispatch hop through a q primitive -- "(.Q.trp)",
+/ "(.q.each)", "(.q.over)". q emits these with no source location, so they carry
+/ no information on their own; they are transparent to the tail scan rather than
+/ anchors for it. The distinguishing mark is the surrounding parentheses: the
+/ test body's own frame is a bare lambda ("{ .deep.outer[] }") and so still stops
+/ the scan, which is exactly where trimming must end.
+.tst.btIsTransparentFrame:{[frame]
+    body: .tst.btFrameBody $[count frame; first frame; ""];
+    (body like "(*)") and not any body = "/"
+ };
+
+/ Drop the runner frames between the test body and process entry.
+/ .
+/ A nested error in user code produced ~85 lines, of which ~30 were resQ's own
+/ dispatch (.tst.finishFixtureTest, the .Q.trp hop, .tst.runners, runAll, resq.q)
+/ -- always the same frames, never actionable, and long enough that the four
+/ frames that matter scrolled away. Only the OUTERMOST CONTIGUOUS run is removed,
+/ so anything between user frames survives; scanning stops at the first frame
+/ that is not the runner's.
+/ .
+/ Fails open twice over: an unrecognised layout, or a trace that is entirely
+/ framework (a genuine resQ bug, where those frames ARE the evidence), returns
+/ the trace untouched. A count of what was dropped is appended so the omission is
+/ visible rather than silent.
+.tst.trimRunnerFrames:{[formatted]
+    lines: "\n" vs formatted;
+    frames: .tst.btFrames lines;
+    if[0 = count frames; :formatted];
+    isRunner: .tst.btIsRunnerFrame each frames;
+    droppable: isRunner or .tst.btIsTransparentFrame each frames;
+    keep: count frames;
+    while[(keep > 0) and droppable keep - 1; keep-: 1];
+    if[keep in (0; count frames); :formatted];
+    / Never trim a tail of bare dispatch hops that contains no runner frame:
+    / without one there is no evidence this is the framework's boundary.
+    if[not any isRunner keep + til (count frames) - keep; :formatted];
+    omitted: (count frames) - keep;
+    "\n" sv (raze keep # frames), enlist "  ... (", string[omitted],
+        " resQ runner frame", $[1 = omitted; ""; "s"], " omitted)"
+ };
+
 / Format the backtrace object supplied by .Q.trp while the original failing
 / frames still exist. Formatting is defensive: a formatter problem must never
 / replace the test's original error.
@@ -31,6 +129,8 @@ runners:()!()
     ctx: .tst.stackTrace[];
     formatted: @[.Q.sbt; bt; {[err] ""}];
     if[not 10h = type formatted; formatted: .tst.toString formatted];
+    if[count formatted;
+        formatted: @[.tst.trimRunnerFrames; formatted; {[orig; err] orig}[formatted;]]];
     if[count formatted;
         ctx,: $[count ctx; "\n"; ""], "Q Backtrace:\n", formatted];
     ctx

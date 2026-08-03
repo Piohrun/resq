@@ -244,7 +244,33 @@
          "JUnit must publish captured child output as system-out"];
     must[0 < count ss[xml;"RESQ_CHILD_DIAGNOSTIC"];
          "JUnit system-out must contain child stderr"];
+    / ... and NOTHING of the child's own report. Forwarding the whole transcript
+    / repeated a SUMMARY box per failing file and advertised the child's private
+    / mktemp scratch, which also made two runs of the same suite differ.
+    must[not .tst.isotest.anyLike[r`out; "resq_isolate."];
+         "the child's private scratch path must not reach the parent console"];
+    must[1 = sum r[`out] like "SUMMARY";
+         "exactly one SUMMARY block (the parent's) must be printed"];
+    must[0 = count ss[captured;"JSON Report written to"];
+         "captured output must not carry the child's reporter lines"];
+    must[0 = count ss[captured;"resq_isolate."];
+         "captured output must not carry the child's scratch path"];
+    must[0 = count ss[captured;.tst.isolatedReportSentinel];
+         "the report sentinel itself must be cut, not forwarded"];
     must[0 = r`scratchCount; "private scratch must be removed"];
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout;
+         "a failing isolated suite produces byte-identical output across runs"]{
+    wd: .tst.isotest.workDir[];
+    ff: .tst.isotest.writeFixture[wd; "test_diagnostic.q"; .tst.isotest.fxDiagnostic];
+    args: .utl.shellQuote[ff], " -quiet";
+    first_: .tst.isotest.run[args];
+    second: .tst.isotest.run[args];
+    musteq[first_`code; second`code];
+    / Durations are absent from -quiet failure output, so the transcripts must
+    / match exactly. They did not while the child's mktemp scratch name leaked.
+    musteq[first_`out; second`out];
   };
 
   skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "exit-zero child cannot fake green"]{

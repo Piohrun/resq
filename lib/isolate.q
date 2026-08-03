@@ -173,18 +173,38 @@
     limit: "j"$@[get; `.tst.output.reportLimit; 50000];
     if[(null limit) or limit <= 0; :""];
     if[size <= limit;
-        :"c"$@[read1; (path;0;size); {[err] `byte$()}]];
+        :.tst.isolate.trimChildReport "c"$@[read1; (path;0;size); {[err] `byte$()}]];
 
     marker: "\n... [captured child output truncated ",
         string[size - limit], " bytes] ...\n";
     if[limit <= count marker;
-        :"c"$@[read1; (path;size - limit;limit); {[err] `byte$()}]];
+        :.tst.isolate.trimChildReport "c"$@[read1; (path;size - limit;limit); {[err] `byte$()}]];
     keep: limit - count marker;
     headCount: keep div 2;
     tailCount: keep - headCount;
     head: "c"$@[read1; (path;0;headCount); {[err] `byte$()}];
     tail: "c"$@[read1; (path;size - tailCount;tailCount); {[err] `byte$()}];
-    head,marker,tail
+    .tst.isolate.trimChildReport head,marker,tail
+ };
+
+/ Drop the child's own report from its captured stdout, keeping everything the
+/ TEST produced. Cuts at the sentinel the child emits immediately before
+/ reporting (see .tst.isolatedReportSentinel in lib/runner.q).
+/ .
+/ Fails open: an absent sentinel -- an old child, a child that died before
+/ reporting, or a sentinel split by the head/tail truncation above -- returns the
+/ text unchanged, because losing a duplicate summary matters far less than losing
+/ a diagnostic. Trailing blank lines go too, so the forwarded transcript does not
+/ end in whitespace the reporters would have to trim again.
+.tst.isolate.trimChildReport:{[text]
+    if[0 = count text; :text];
+    sentinel: @[get; `.tst.isolatedReportSentinel; {""}];
+    if[0 = count sentinel; :text];
+    at: ss[text; sentinel];
+    if[0 = count at; :text];
+    kept: (first at) # text;
+    while[(0 < count kept) and (last kept) in " \t\r\n"; kept: -1 _ kept];
+    kept
  };
 
 / Attach one bounded per-file transcript to the first failing/error row. This
@@ -321,6 +341,10 @@
     argv: .tst.isolate.appendValue[argv; "-maxTestTime"; @[get; `.tst.app.maxTestTime; 0]];
     argv: .tst.isolate.appendValue[argv; "-fuzzLimit"; @[get; `.tst.output.fuzzLimit; 0]];
     argv: .tst.isolate.appendFlag[argv; "-quiet"; @[get; `.tst.app.quiet; 0b]];
+    / Marks where the child's own report starts so readCaptured can forward the
+    / test output without the child's duplicate summary and scratch-path
+    / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.
+    argv,: enlist "-isolate-child";
     argv, ("-json"; "-outDir"; wd)
  };
 

@@ -50,6 +50,24 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- A runtime error's backtrace now stops at the test body. The runner's own
+  dispatch frames (`.tst.finishFixtureTest`, the `.Q.trp` hops, `runAll`,
+  `resq.q`) are always the same and never actionable, but accounted for roughly
+  30 of the ~85 lines a nested user error produced, pushing the frames that
+  matter out of view; a four-frame error is now 15 lines. Only the outermost
+  contiguous run of framework frames is dropped, and the count of omitted frames
+  is stated. Anything bracketed by user code — including a `(.q.each)` hop
+  inside the user's own call chain — is kept, and a trace with no user frames at
+  all (a genuine resQ bug, where those frames are the evidence) is left intact.
+- Isolated runs no longer forward a failing child's own report. The captured
+  transcript kept the child's per-suite listing, SUMMARY box, verdict line and
+  `JSON Report written to <private scratch>` line, so every failing file
+  duplicated the parent's summary and advertised a scratch directory deleted
+  moments later. Because that path comes from `mktemp`, it also made two runs of
+  the same failing suite differ, breaking the byte-stable output
+  `docs/PARALLEL.md` promises. The child now marks where its report begins and
+  the parent cuts there, keeping test-produced output (`show`, `-1`, library
+  chatter) and the structural diff in the console, JSON and JUnit `system-out`.
 - Source-loaded DSL declarations now fail at load time when a constructor is
   under-applied and leaves a q projection (for example,
   `holds["property"]{...}`). All line-annotated constructors, including

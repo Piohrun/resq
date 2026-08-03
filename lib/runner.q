@@ -913,6 +913,36 @@
 / still run after an unexpected framework error. A phase failure stops only the
 / remaining execution phases; the lifecycle tail is unconditional.
 / ----------------------------------------------------------------------------
+
+/ Boundary between a child's TEST output and its own report.
+/ .
+/ Under -isolate the parent forwards a failing child's captured stdout so user
+/ diagnostics (show, -1, library chatter) survive into the merged report. But the
+/ child also runs a full reporter: its per-suite listing, SUMMARY box, verdict
+/ line and "JSON Report written to <private scratch>" line. Forwarding those
+/ duplicated the parent's own summary once per failing file and advertised a
+/ scratch directory that is deleted moments later -- and, because the scratch
+/ name comes from mktemp, it made two runs of the same failing suite differ,
+/ breaking the byte-stable output docs/PARALLEL.md promises.
+/ .
+/ The child therefore marks where its report starts and the parent cuts there.
+/ Emitted ONLY for isolation children (the parent passes -isolate-child), so an
+/ ordinary run's stdout is unchanged. The text is human-readable on purpose: if
+/ the cut is ever missed, the line explains itself rather than looking like junk.
+/ .
+/ Silent under -pass, whose contract is that a run prints nothing at all; there
+/ is no report to trim in that mode anyway.
+/ .
+/ Keep the text free of "[", "]", "*" and "?": the parent locates it with `ss`,
+/ where those are pattern syntax rather than literal characters.
+.tst.isolatedReportSentinel: "--- resq: child report follows (trimmed by parent) ---";
+
+.tst.markIsolatedReportBegin:{[]
+    if[not 1b ~ @[get; `.tst.app.isolateChild; 0b]; :()];
+    if[1b ~ @[get; `.tst.app.passOnly; 0b]; :()];
+    -1 .tst.isolatedReportSentinel;
+ };
+
 .tst.runAll:{[]
     continue: .tst.runAllPhase.runSafely[`initRun; .tst.runAllPhase.initRun];
     if[continue; continue: .tst.runAllPhase.runSafely[`loadTests; {.tst.loadTests .tst.app.args}]];
@@ -926,6 +956,6 @@
     .tst.runAllPhase.runSafely[`cleanup; .tst.runAllPhase.finalCleanup];
     .tst.runAllPhase.runSafely[`cleanupErrors; .tst.runAllPhase.injectCleanupErrors];
     .tst.runAllPhase.runSafely[`resultsSummary; .tst.runAllPhase.computePassed];
-    .tst.runAllPhase.runSafely[`report; {.tst.printRunAudit[]; .resq.report .resq.state.results}];
+    .tst.runAllPhase.runSafely[`report; {.tst.markIsolatedReportBegin[]; .tst.printRunAudit[]; .resq.report .resq.state.results}];
     ::
  };

@@ -122,6 +122,41 @@ Error loading test: tests/mytest.q not found
 
 ## 2. Assertion Failures
 
+### Reading the backtrace on a runtime error
+
+A test that *throws* (as opposed to failing an assertion) reports the q error,
+the file/suite/test context, and a `Q Backtrace:` with the frames of your code:
+
+```
+BOOM_AT_LEAF
+
+File: :/proj/tests/test_bt.q
+Suite: Backtrace
+Test: nested runtime error
+
+Q Backtrace:
+  [23] .deep.leaf:{[] '"BOOM_AT_LEAF"}
+                      ^
+  [22] .deep.middle:{[] .deep.leaf[]}
+                        ^
+  [21] .deep.outer:{[] .deep.middle[]}
+                       ^
+  [20] { .deep.outer[] }
+         ^
+  ... (18 resQ runner frames omitted)
+```
+
+Frames read innermost first, and the caret marks the failing expression. The
+trailing note counts resQ's own dispatch frames, which are dropped because they
+are identical for every error and never point at the cause. Only the outermost
+run of them is removed: a q primitive hop inside your own call chain (such as
+`(.q.each)`) is kept, and an error raised inside resQ itself keeps its full
+trace, since there those frames *are* the evidence.
+
+Assertion failures do not throw, so they carry a `FAILURE DIFF` rather than a
+backtrace. If you want a backtrace for a failing comparison, signal instead:
+`if[not cond; '"explain"]`.
+
 ### Unexpected type mismatch
 
 **Symptom:**

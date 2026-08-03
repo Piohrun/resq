@@ -114,6 +114,11 @@ and `output`. The public statuses are `pass`, `fail`, `error`, `skip`, and
 list of strings, including on passing rows. Missing source lines serialize as
 JSON null. `output` is normally empty; under process isolation the first
 failed/error row for a file carries that child's bounded combined stdout/stderr.
+That transcript is the child's **test** output — `show`, `-1`, library chatter,
+and the structural failure diff — and stops where the child's own reporter
+begins. The child's per-suite listing, summary and report-file lines are dropped:
+the parent re-renders all of that from the merged rows, and the child's report
+named a private scratch directory that no longer exists by the time you read it.
 
 Two top-level sections are conditional:
 

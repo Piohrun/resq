@@ -5,9 +5,15 @@
 / NOTE: `help` carries no "h" alias. q itself claims -h and errors with '-h before
 / the script ever sees .z.x, so a short form cannot be honoured here -- bin/resq
 / rewrites -h to --help before exec'ing q.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`help`scaffold`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("help";"usage");enlist "scaffold";enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
-.tst.cli.specKinds:(21 # `flag), 12 # `value;
+/ `isolateChild` is INTERNAL: the parent sets it on each child it launches so the
+/ child marks where its own report begins (see .tst.isolatedReportSentinel).
+/ Deliberately a flag rather than an environment variable -- a variable is
+/ inherited by every process the child then spawns, and a test that launches a
+/ nested resQ run would have had the marker appear in output it asserts on.
+/ Not listed in printUsage; it is a protocol detail, not a user option.
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`help`scaffold`isolateChild`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
+.tst.cli.specKinds:(22 # `flag), 12 # `value;
 .tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
@@ -311,6 +317,7 @@ initCLI:{[parsed]
     / -isolateWorkers N runs N files at once. Default 1 (strictly sequential), so
     / the reliability path everyone already relies on is unchanged unless asked.
     if[options`isolate; .tst.app.isolate: 1b];
+    if[options`isolateChild; .tst.app.isolateChild: 1b];
     if[0 < count options`isolateTimeout;
         .tst.app.isolateTimeout: options`isolateTimeout];
     if[0 < count options`isolateWorkers;
