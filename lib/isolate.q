@@ -125,7 +125,7 @@
  };
 
 .tst.isolate.rowWithMeta:{[suite;dsc;status;message;tm;failures;asserts;rowMeta]
-    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
         enlist suite;
         enlist dsc;
         enlist status;
@@ -136,7 +136,8 @@
         enlist $[`file in key rowMeta; rowMeta`file; ""];
         enlist $[`line in key rowMeta; "i"$rowMeta`line; 0Ni];
         enlist $[`namespace in key rowMeta; rowMeta`namespace; ""];
-        enlist $[`tags in key rowMeta; rowMeta`tags; `symbol$()])
+        enlist $[`tags in key rowMeta; rowMeta`tags; `symbol$()];
+        enlist $[`output in key rowMeta; .tst.toString rowMeta`output; ""])
  };
 
 .tst.isolate.row:{[suite; dsc; status; message; tm; failures; asserts]
@@ -157,9 +158,49 @@
  };
 
 .tst.isolate.tail:{[wd; n]
-    lines: @[read0; hsym `$wd, "/out.txt"; {()}];
+    lines: "\n" vs .tst.isolate.readCaptured wd;
     lines: (neg n) sublist lines;
     $[count lines; "\n" sv lines; ""]
+ };
+
+/ Read at most reportLimit bytes from a child's combined stdout/stderr. For a
+/ large log keep both ends: setup/user diagnostics tend to be near the front,
+/ while the framework verdict and runtime fatal text are near the back.
+.tst.isolate.readCaptured:{[wd]
+    path: hsym `$wd, "/out.txt";
+    size: @[hcount; path; {[err] 0}];
+    if[size <= 0; :""];
+    limit: "j"$@[get; `.tst.output.reportLimit; 50000];
+    if[(null limit) or limit <= 0; :""];
+    if[size <= limit;
+        :"c"$@[read1; (path;0;size); {[err] `byte$()}]];
+
+    marker: "\n... [captured child output truncated ",
+        string[size - limit], " bytes] ...\n";
+    if[limit <= count marker;
+        :"c"$@[read1; (path;size - limit;limit); {[err] `byte$()}]];
+    keep: limit - count marker;
+    headCount: keep div 2;
+    tailCount: keep - headCount;
+    head: "c"$@[read1; (path;0;headCount); {[err] `byte$()}];
+    tail: "c"$@[read1; (path;size - tailCount;tailCount); {[err] `byte$()}];
+    head,marker,tail
+ };
+
+/ Attach one bounded per-file transcript to the first failing/error row. This
+/ avoids repeating a file's log for every failed test while keeping it in the
+/ canonical result table for console, JSON, JUnit and xUnit reporters.
+.tst.isolate.attachCaptured:{[wd;rows]
+    if[(not 98h = type rows) or 0 = count rows; :rows];
+    statuses: .tst.normalizeResultStatus each rows`status;
+    failing: where statuses in `fail`error;
+    if[0 = count failing; :rows];
+    captured: .tst.stripAnsi .tst.isolate.readCaptured wd;
+    if[0 = count captured; :rows];
+    outputs: $[`output in cols rows; rows`output; (count rows) # enlist ""];
+    outputs[first failing]: captured;
+    rows[`output]: outputs;
+    rows
  };
 
 / A child that dies before JSON exists may have called exit, but its captured
@@ -200,7 +241,7 @@
              99h = type tests; enlist tests;
              0h = type tests; tests;
              enlist tests];
-    {[t]
+    raze {[t]
         suite: `$ .tst.toString t`suite;
         dsc: `$ .tst.toString t`description;
         status: `$ .tst.toString t`status;
@@ -214,7 +255,8 @@
         sourceNs: $[`namespace in key t; .tst.toString t`namespace; ""];
         rowTags: $[`tags in key t; `$(),t`tags; `symbol$()];
         sourceLine: $[`line in key t; "i"$t`line; 0Ni];
-        rowMeta: `file`line`namespace`tags!(sourcePath;sourceLine;sourceNs;rowTags);
+        sourceOutput: $[`output in key t; .tst.toString t`output; ""];
+        rowMeta: `file`line`namespace`tags`output!(sourcePath;sourceLine;sourceNs;rowTags;sourceOutput);
         .tst.isolate.rowWithMeta[suite;dsc;status;msg;tm;fails;asserts;rowMeta]
     } each tests
  };
@@ -245,6 +287,18 @@
     if[-11h = type values; :string values];
     if[0 = count values; :""];
     "," sv .tst.toString each (),values
+ };
+
+/ A child owns one file, while suite/tag selection is global to the parent run.
+/ Therefore a valid empty child report is neutral when any selector is active;
+/ the parent still applies the ordinary no-results failure after all files have
+/ been aggregated, so a filter that matches nowhere remains non-zero.
+.tst.isolate.filtersActive:{[]
+    any 0 < count each (
+        @[get; `.tst.app.runSpecs; ()];
+        @[get; `.tst.app.excludeSpecs; ()];
+        @[get; `.tst.app.tagFilter; ()];
+        @[get; `.tst.app.excludeTagFilter; ()])
  };
 
 / Child argv derives from normalized CLI values plus effective parent settings.
@@ -296,7 +350,9 @@
 .tst.isolate.fileCommand:{[wd; file; timeoutSecs]
     childArgv: .tst.isolate.childArgv[file; wd];
     timedArgv: (.tst.isolate.timeoutExe; "-k"; .tst.toString 5; string timeoutSecs), childArgv;
-    .tst.isolate.shellCommand[timedArgv],
+    / The parent launcher owns its completion marker. Isolated q children are
+    / already supervised by this module and must not complete the parent's run.
+    "RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
         " < /dev/null > ", .utl.shellQuote[wd, "/out.txt"], " 2>&1; ",
         "echo $? > ", .utl.shellQuote[wd, "/rc.txt"], "; true"
  };
@@ -338,7 +394,8 @@
         msg: "file exceeded isolateTimeout (", string[timeoutSecs], "s); killed",
              $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
         .tst.isolate.print progress, "TIMEOUT";
-        :enlist .tst.isolate.errorRow[`ISOLATED_FILE_TIMEOUT; file; msg]];
+        :.tst.isolate.attachCaptured[wd;
+            enlist .tst.isolate.errorRow[`ISOLATED_FILE_TIMEOUT; file; msg]]];
 
     if[code = .resq.EXIT.LOAD_ERROR;
         hasLoadRow: $[count rows;
@@ -346,35 +403,41 @@
             0b];
         if[hasLoadRow;
             .tst.isolate.print progress, "LOAD ERROR (", string[count rows], " rows)";
-            :rows];
+            :.tst.isolate.attachCaptured[wd;rows]];
         msg: "file failed to load (exit 4)",
              $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
         .tst.isolate.print progress, "LOAD ERROR";
-        :rows, enlist .tst.isolate.errorRow[`FILE_LOAD_ERROR; file; msg]];
+        :.tst.isolate.attachCaptured[wd;
+            rows, enlist .tst.isolate.errorRow[`FILE_LOAD_ERROR; file; msg]]];
 
     if[valid;
         if[code = .resq.EXIT.PASS;
             .tst.isolate.print progress, "ok (", string[count rows], " tests)";
             :rows];
+        if[(code = .resq.EXIT.FAIL) and (0 = count rows) and .tst.isolate.filtersActive[];
+            .tst.isolate.print progress, "filtered (0 tests)";
+            :rows];
         if[(code = .resq.EXIT.FAIL) and hasFailingRows;
             .tst.isolate.print progress, "FAILED (", string[count rows], " tests)";
-            :rows];
+            :.tst.isolate.attachCaptured[wd;rows]];
         expectedCodes: (.resq.EXIT.PASS; .resq.EXIT.FAIL; .resq.EXIT.LOAD_ERROR);
         unexpected: not code in expectedCodes;
         processRow: .tst.isolate.processExitRow[file; code; unexpected];
         .tst.isolate.print progress, "PROCESS ERROR (exit ", string[code], ")";
-        :rows, enlist processRow];
+        :.tst.isolate.attachCaptured[wd;rows, enlist processRow]];
 
     detail: .tst.isolate.tail[wd; 20];
     if[0 = count raw;
         msg: .tst.isolate.noReportMessage[code;detail];
         .tst.isolate.print progress, "DIED (exit ", string[code], ", no results)";
-        :enlist .tst.isolate.errorRow[`ISOLATED_FILE_DIED; file; msg]];
+        :.tst.isolate.attachCaptured[wd;
+            enlist .tst.isolate.errorRow[`ISOLATED_FILE_DIED; file; msg]]];
 
     msg: decoded`error, " (exit ", string[code], ")",
          $[count detail; "\n", detail; ""];
     .tst.isolate.print progress, "INVALID REPORT";
-    enlist .tst.isolate.errorRow[`ISOLATED_REPORT_ERROR; file; msg]
+    .tst.isolate.attachCaptured[wd;
+        enlist .tst.isolate.errorRow[`ISOLATED_REPORT_ERROR; file; msg]]
  };
 
 .tst.isolate.runFile:{[file; timeoutSecs; k; n]

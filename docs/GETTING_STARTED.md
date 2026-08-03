@@ -14,8 +14,9 @@ q -q <<< 'show .z.K; exit 0'
 ```
 
 The normal in-process runner needs only q. The supplied `resq` and `qspec`
-launchers are Bash scripts. Process isolation additionally needs GNU `timeout`
-with `-k` support, `mktemp`, `chmod`, `rm`, and `sh`; see
+launchers need Bash, `mktemp`, `chmod`, `rm`, and `rmdir` for their private
+completion marker. Process isolation additionally needs GNU `timeout` with
+`-k` support and `sh`; see
 [Continuous Integration](CI.md#runner-requirements).
 
 ## 2. Install the launchers
@@ -29,8 +30,11 @@ resq --help
 ```
 
 The launchers preserve the caller's working directory, so relative test paths
-and `resq.json` resolve against your project. If you invoke q directly, set
-`RESQ_HOME` and use `q "$RESQ_HOME/resq.q" ...`.
+and `resq.json` resolve against your project. They also fail closed if test or
+application code calls `exit 0` before the runner completes. If you invoke q
+directly, set `RESQ_HOME` and use `q "$RESQ_HOME/resq.q" ...`; direct invocation
+prints the premature-exit diagnostic, but q does not allow `.z.exit` to replace
+the requested status, so use the launcher in CI.
 
 ## 3A. Replace qspec without rewriting tests
 

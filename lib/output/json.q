@@ -25,6 +25,8 @@
     if[not `line in key out; out[`line]: 0Ni];
     if[not `namespace in key out; out[`namespace]: ""];
     if[not `tags in key out; out[`tags]: `symbol$()];
+    rawOutput: $[`output in key out; out`output; ""];
+    out[`output]: .tst.stripAnsi .tst.renderReportMessage rawOutput;
     out
  };
 

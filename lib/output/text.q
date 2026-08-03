@@ -58,6 +58,10 @@
                 -1 "  Failures: ";
                 { -1 "    ", .resq.renderMsg x } each fl
             ];
+            captured: $[`output in key f; .tst.toString f`output; ""];
+            if[count captured;
+                -1 "  Captured child output:";
+                -1 captured];
         } each fails;
 
         -1 "  (",string[count sRes]," tests, ",string[count fails]," failed)";

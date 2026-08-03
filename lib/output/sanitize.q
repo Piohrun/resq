@@ -70,7 +70,7 @@
 
 .tst.sanitizeExpectation:{[suite; file; ns; tags; ex]
     if[not 99h = type ex;
-        :`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+        :`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
             suite;
             "Unavailable expectation";
             `pass;
@@ -81,12 +81,14 @@
             file;
             0Ni;
             ns;
-            tags)];
+            tags;
+            "")];
 
     exDesc:     $[`desc in key ex; .tst.toString ex`desc; "Unnamed expectation"];
     exResult:   .tst.normalizeResultStatus $[`result in key ex; ex`result; `pass];
     exFailures: $[`failures in key ex; ex`failures; ()];
     exErr:      $[`errorText in key ex; ex`errorText; ()];
+    exOutput:   $[`output in key ex; .tst.renderReportMessage ex`output; ""];
     rawTime: $[`time in key ex; ex`time; 0Nn];
     exTime: $[(98h = type rawTime) and (0 < count rawTime); first rawTime;
               -16h = type rawTime; rawTime;
@@ -112,9 +114,10 @@
     exFailures: $[10h = type exFailures; .tst.stripAnsi exFailures;
                   0h = type exFailures; .tst.stripAnsi each exFailures;
                   exFailures];
+    exOutput: .tst.stripAnsi exOutput;
 
     exLine: $[`line in key ex; "i"$ex`line; 0Ni];
-    `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+    `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
         suite;
         exDesc;
         exResult;
@@ -125,7 +128,8 @@
         file;
         exLine;
         ns;
-        tags)
+        tags;
+        exOutput)
  };
 
 .tst.sanitizeSpec:{[spec]
@@ -136,7 +140,7 @@
     exs:   $[`expectations in key spec; .tst.sanitizeExpectations spec`expectations; ()];
 
     if[0 = count exs;
-        :enlist `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+        :enlist `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
             suite;
             "No expectations";
             .tst.normalizeResultStatus $[`result in key spec; spec`result; `pass];
@@ -147,7 +151,8 @@
             file;
             0Ni;
             ns;
-            tags)
+            tags;
+            "")
     ];
     .tst.sanitizeExpectation[suite;file;ns;tags;] each exs
  };
@@ -173,7 +178,7 @@
  };
 
 .tst.emptyResultTable:{[]
-    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
         ();
         ();
         `symbol$();
@@ -183,6 +188,7 @@
         `int$();
         ();
         `int$();
+        ();
         ();
         ())
  };

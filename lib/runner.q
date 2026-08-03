@@ -428,7 +428,7 @@
         expecTags: $[`tags in key e; (),e`tags; ()];
         rowTags: distinct specTags, expecTags;
         sourceLine: $[`line in key e; "i"$e`line; 0Ni];
-        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
             enlist toSym s[`title];
             enlist toSym e[`desc];
             enlist status;
@@ -439,7 +439,8 @@
             enlist fileText;
             enlist sourceLine;
             enlist namespaceText;
-            enlist rowTags
+            enlist rowTags;
+            enlist ""
         );
         / Keep a perf block's measurement. runners[`perf] stores it on the
         / expectation as `perf (time/space stats from benchmark.measureOpts) but
@@ -520,6 +521,7 @@
     .tst.app.perfResults: .tst.app.emptyPerfResults[];
     .tst.halt: 0b;
     .tst.assertState: .tst.defaultAssertState;
+    .tst.pendingBacktrace: "";
     .tst.suppressAssertionDiff: 1b ~ @[get; `.tst.app.passOnly; 0b];
     if[`testDeps in key `.utl; .utl.testDeps: ()!()];
     if[`activateQNamespaceExports in key `.tst; .tst.activateQNamespaceExports[]];
@@ -617,7 +619,7 @@
 .tst.runAllPhase.injectLoadErrors:{[]
     if[0 = count .tst.app.loadErrors; :()];
     {[err]
-        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
             enlist `FILE_LOAD_ERROR;
             enlist err`file;
             enlist `error;
@@ -628,7 +630,8 @@
             enlist .utl.pathToString err`file;
             enlist 0Ni;
             enlist "";
-            enlist `symbol$()
+            enlist `symbol$();
+            enlist ""
         );
         `.resq.state.results upsert toInsert;
 
@@ -682,7 +685,7 @@
 .tst.runAllPhase.applyStrictMode:{[]
     .tst.runAllPhase.applyStrictAssertions[];
     if[not (.tst.app.strict and 0 = .tst.app.expectationsRan); :()];
-    toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+    toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
         enlist `STRICT_MODE_FAILURE;
         enlist `NO_TESTS_FOUND;
         enlist `error;
@@ -693,7 +696,8 @@
         enlist "";
         enlist 0Ni;
         enlist "";
-        enlist `symbol$()
+        enlist `symbol$();
+        enlist ""
     );
     `.resq.state.results upsert toInsert;
  };
@@ -712,7 +716,7 @@
         sourcePath: $[`file in key rec; .utl.pathToString rec`file; ""];
         suiteSym: `$ $[count suiteText; suiteText; "CLEANUP_ERROR"];
         descSym: `$ "cleanup [",scopeText,"]",$[count testText; " after ",testText; ""];
-        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
             enlist suiteSym;
             enlist descSym;
             enlist `error;
@@ -723,7 +727,8 @@
             enlist sourcePath;
             enlist 0Ni;
             enlist "";
-            enlist `symbol$());
+            enlist `symbol$();
+            enlist "");
         `.resq.state.results upsert toInsert;
       } each records;
     / Injection is a drain operation. Clearing only after every row was added
@@ -740,7 +745,7 @@
     errText: .tst.toString err;
     messageText: "Framework phase '",phaseText,"' failed: ",errText;
     -1 "ERROR: ",messageText;
-    toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+    toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
         enlist `RESQ_FRAMEWORK_ERROR;
         enlist `$phaseText;
         enlist `error;
@@ -751,7 +756,8 @@
         enlist "";
         enlist 0Ni;
         enlist "";
-        enlist `symbol$());
+        enlist `symbol$();
+        enlist "");
     `.resq.state.results upsert toInsert;
     .tst.app.passed: 0b;
  };

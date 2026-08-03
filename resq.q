@@ -20,6 +20,50 @@ system "l ", .resq.HOME, "/lib/bootstrap.q";
 .utl.resqHomeAtBoot: .resq.HOME;
 .utl.PKGLOADING: .resq.HOME, "/lib";
 
+/ A q `exit 0` cannot be cancelled or have its status changed from .z.exit.
+/ The supported launchers therefore supervise test-mode completion through a
+/ private directory. The callback adds an immediate diagnostic; the completion
+/ marker makes the launcher fail closed even if application code replaces
+/ .z.exit while tests are loading.
+.resq.exitGuardDir: getenv `RESQ_RUN_GUARD_DIR;
+.resq.exitGuardArmed: 0b;
+.resq.exitGuardPrevious: @[get; `.z.exit; {::}];
+.resq.exitGuardWrite:{[name;text]
+    if[0 = count .resq.exitGuardDir; :0b];
+    path: .resq.exitGuardDir, "/", name;
+    @[
+        {[pair]
+            handle: hsym `$pair 0;
+            handle 0: enlist pair 1;
+            1b};
+        (path;text);
+        {[err]
+            -2 "resQ ERROR: could not write process guard marker: ", err;
+            0b}]
+ };
+.resq.armExitGuard:{[]
+    .resq.exitGuardArmed: 1b;
+    .resq.exitGuardWrite["armed";string .z.i];
+    ::
+ };
+.resq.completeExitGuard:{[]
+    if[.resq.exitGuardArmed;
+        .resq.exitGuardWrite["complete";string .z.i]];
+    .resq.exitGuardArmed: 0b;
+    ::
+ };
+.resq.onProcessExit:{[code]
+    if[.resq.exitGuardArmed;
+        -2 "resQ ERROR: q exited before resQ completed the test run (requested exit ",
+           string[code], ").";
+        .resq.exitGuardWrite["premature";string code]];
+    if[100h = type .resq.exitGuardPrevious;
+        @[.resq.exitGuardPrevious;code;{[err]
+            -2 "resQ WARNING: previous .z.exit handler failed: ", err}]];
+    ::
+ };
+.z.exit:{[code] .resq.onProcessExit code};
+
 / Load Libraries
 .utl.require .resq.HOME,"/lib/init.q"
 .utl.require .resq.HOME,"/lib/config.q"
@@ -92,12 +136,14 @@ if[.resq.mode ~ `test;
         -2 "CLI ERROR: process isolation cannot be combined with describe mode";
         exit .resq.EXIT.FAIL];
 
+    .resq.armExitGuard[];
     .tst.initReporting[];
     / Process-isolation mode (-isolate): each discovered FILE runs in its own q
     / subprocess and the parent aggregates. runAll reports once and returns the
     / granular status; this entry point alone owns process exit policy.
     if[1b ~ @[get; `.tst.app.isolate; 0b];
         .resq.isolateExitCode: .tst.isolate.runAll .tst.app.args;
+        .resq.completeExitGuard[];
         if[1b ~ .tst.app.exit;
             exit .resq.isolateExitCode];
     ];
@@ -111,6 +157,7 @@ if[.resq.mode ~ `test;
             .resq.report: .tst.describeReport;
         ];
         .tst.runAll[];
+        .resq.completeExitGuard[];
         if[1b ~ .tst.app.exit;
             / -desc exits cleanly (0) when files loaded without error; a load error
             / still surfaces as LOAD_ERROR so a broken file is never silently listed.

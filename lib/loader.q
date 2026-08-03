@@ -99,14 +99,21 @@
             ];
         ];
         if[(i < count txt) and not inString;
-            boundary: (i = 0) or not txt[i - 1] in .Q.a,.Q.A,.Q.n,"_.";
+            qualified: (5 <= i) and ".tst." ~ 5 # (i - 5) _ txt;
+            boundary: qualified or (i = 0) or not txt[i - 1] in .Q.a,.Q.A,.Q.n,"_.";
             candidates: where {[source;at;verb]
                 prefix: verb,"[";
                 prefix ~ (count prefix) # at _ source
               }[txt;i;] each verbs;
             if[boundary and count candidates;
                 verb: verbs first candidates;
-                out,: ".tst.",verb,"At[",string[lineNo],";";
+                / Enter through a unary guard before consuming the constructor
+                / arguments. If the source supplies too few arguments q returns
+                / a projection and silently discards it at the end of desc[];
+                / the entry/finish pair lets desc detect that lost declaration.
+                / For an explicit .tst.holds[...] call, `.tst.` is already in
+                / out; preserve it and replace only the constructor name.
+                out,: $[qualified; verb; ".tst.",verb],"Entry[",string[lineNo],"][";
                 i+: 1 + count verb;
             ];
         ];

@@ -110,6 +110,7 @@
 .tst.isotest.fxPass1: enlist ".tst.desc[\"iso pass one\"]{ should[\"a\"]{ musteq[1+1; 2] }; should[\"b\"]{ must[1b; \"t\"] }; };";
 .tst.isotest.fxPass2: enlist ".tst.desc[\"iso pass two\"]{ should[\"c\"]{ musteq[2*2; 4] }; };";
 .tst.isotest.fxFail: enlist ".tst.desc[\"iso fail\"]{ should[\"bad\"]{ musteq[1; 2] }; };";
+.tst.isotest.fxDiagnostic: enlist ".tst.desc[\"iso diagnostics\"]{ should[\"noisy mismatch\"]{ -1 \"RESQ_CHILD_DIAGNOSTIC\"; (`a`b!1 2) musteq (`a`b!1 3) }; };";
 .tst.isotest.fxExit: enlist ".tst.desc[\"iso exiter\"]{ should[\"quits\"]{ exit 0 }; };";
 .tst.isotest.fxReportThenExit: (".resq.childReport:.resq.report;";
     ".resq.report:{[results] .resq.childReport results; exit 9};";
@@ -139,6 +140,21 @@
  };
 
 .tst.desc["Isolate: dead-child diagnostics"]{
+  after{.tst.isotest.cleanupBase[]};
+
+  should["bounds captured output while retaining its head and tail"]{
+    wd: .tst.isotest.workDir[];
+    .tst.isotest.writeFixture[wd; "out.txt";
+        enlist "HEAD-",(500 # "x"),"-TAIL"];
+    `.tst.output.reportLimit mock 120;
+    captured: .tst.isolate.readCaptured wd;
+    must[(count captured) <= 120; "captured output must obey reportLimit"];
+    must[0 < count ss[captured;"HEAD-"]; "the diagnostic head must survive"];
+    must[0 < count ss[captured;"-TAIL"]; "the diagnostic tail must survive"];
+    must[0 < count ss[captured;"captured child output truncated"];
+         "truncation must be explicit"];
+  };
+
   should["identifies a captured wsfull instead of guessing exit"]{
     msg: .tst.isolate.noReportMessage[1;"'wsfull\n  [0]  huge allocation"];
     must[0 < count ss[msg;"q runtime/startup failure (wsfull)"];
@@ -200,6 +216,37 @@
     must[0 = r`scratchCount; "private scratch must be removed"];
   };
 
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout;
+         "failing child output and the full diff reach every parent reporter"]{
+    wd: .tst.isotest.workDir[];
+    ff: .tst.isotest.writeFixture[wd; "test_diagnostic.q"; .tst.isotest.fxDiagnostic];
+    reportDir: wd, "/reports";
+    r: .tst.isotest.run[.utl.shellQuote[ff], " -junit -json -outDir ",
+        .utl.shellQuote[reportDir], " -quiet"];
+    rawJson: @[read0; hsym `$reportDir, "/test-results.json"; {()}];
+    report: $[count rawJson; .j.k raze rawJson; ()!()];
+    xml: "\n" sv @[read0; hsym `$reportDir, "/test-results.junit.xml"; {()}];
+
+    musteq[1; r`code];
+    must[.tst.isotest.anyLike[r`out; "RESQ_CHILD_DIAGNOSTIC"];
+         "the parent console must retain child stderr"];
+    must[.tst.isotest.anyLike[r`out; "FAILURE DIFF"] and
+         .tst.isotest.anyLike[r`out; "b: Value mismatch"];
+         "the parent console must retain the child's full structural diff"];
+    must[0 < count report; "the parent JSON report must exist"];
+    captured: .tst.toString first report[`tests]`output;
+    must[0 < count ss[captured;"RESQ_CHILD_DIAGNOSTIC"];
+         "JSON output must retain child stderr"];
+    must[(0 < count ss[captured;"FAILURE DIFF"]) and
+         0 < count ss[captured;"b: Value mismatch"];
+         "JSON output must retain the full diff"];
+    must[0 < count ss[xml;"<system-out>"];
+         "JUnit must publish captured child output as system-out"];
+    must[0 < count ss[xml;"RESQ_CHILD_DIAGNOSTIC"];
+         "JUnit system-out must contain child stderr"];
+    must[0 = r`scratchCount; "private scratch must be removed"];
+  };
+
   skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "exit-zero child cannot fake green"]{
     wd: .tst.isotest.workDir[];
     fe: .tst.isotest.writeFixture[wd; "test_e.q"; .tst.isotest.fxExit];
@@ -248,6 +295,17 @@
 
 .tst.desc["Isolate: child option propagation #slow"]{
   after{.tst.isotest.cleanupBase[]};
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "-only may filter an entire child file"]{
+    wd: .tst.isotest.workDir[];
+    fd: .tst.isotest.writeFixture[wd; "test_drop.q"; enlist ".tst.desc[\"drop suite\"]{ should[\"drop\"]{ must[1b; \"yes\"] }; };"];
+    fk: .tst.isotest.writeFixture[wd; "test_keep.q"; enlist ".tst.desc[\"keep suite\"]{ should[\"keep\"]{ must[1b; \"yes\"] }; };"];
+    r: .tst.isotest.run[.utl.shellQuote[fd], " ", .utl.shellQuote[fk], " -only 'keep*' -quiet"];
+    musteq[r`code; 0];
+    must[.tst.isotest.anyLike[r`out; "1 total (1 passed"]; "the selected file must determine the global verdict"];
+    must[not .tst.isotest.anyLike[r`out; "ISOLATED_PROCESS_EXIT"]; "a filtered-empty child is not a process failure"];
+    must[0 = r`scratchCount; "private scratch must be removed"];
+  };
 
   skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "-only reaches child"]{
     wd: .tst.isotest.workDir[];

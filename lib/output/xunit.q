@@ -53,6 +53,10 @@
     / `,&quot;...`). Fall back to escapeXml directly if the helper isn't loaded.
     rawMsg: $[`renderReportMessage in key `.tst; .tst.renderReportMessage rec`message; rec`message];
     msg: .tst.output.escapeXml rawMsg;
+    rawOutput: $[`output in key rec; .tst.toString rec`output; ""];
+    outputNode: $[count rawOutput;
+        "<output>",.tst.output.escapeXml[rawOutput],"</output>";
+        ""];
     t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
     / xUnit v2 has no per-test Error outcome: an errored resQ expectation is a
     / failed test with a distinct exception-type on its <failure> node.
@@ -75,17 +79,17 @@
     caseOpen: "      <test",attrs,">";
     caseClose: "      </test>";
     if[recStatus in `pass;
-        :caseOpen,caseClose
+        :caseOpen,outputNode,caseClose
     ];
     if[recStatus in `skip`pending;
         reason: $[count rawMsg; msg; "Skipped"];
-        :caseOpen,"\n        <reason>",reason,"</reason>\n",caseClose
+        :caseOpen,"\n        <reason>",reason,"</reason>\n",outputNode,caseClose
     ];
     failureType: $[(recStatus ~ `error) or recStatus like "*Error";
                    "resQ.Error";
                    "resQ.AssertionFailure"];
     :caseOpen,"\n        <failure exception-type=\"",failureType,"\"><message>",msg,
-        "</message></failure>\n",caseClose
+        "</message></failure>\n",outputNode,caseClose
  };
 
 / Named per-format so a later loadOutputModule call can re-select the builder:

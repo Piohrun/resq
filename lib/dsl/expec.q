@@ -4,9 +4,12 @@ runners:()!()
 
 / Context tracking for better error diagnostics
 .tst.currentContext: `file`suite`test!(""; ""; "");
+/ A test-body error must cross fixture teardown before the outer runner can turn
+/ it into a result. q truncates long signalled strings, so retain the original
+/ formatted trace out-of-band for that immediate outer trap.
+.tst.pendingBacktrace: "";
 
-/ Stack trace capture for debugging test failures
-/ Returns execution context as a string for error diagnostics
+/ Test context retained even when no q backtrace object is available.
 .tst.stackTrace:{[]
     / Build context string from current test context
     ctx: "";
@@ -17,12 +20,38 @@ runners:()!()
     if[0 < count suiteCtx; ctx,: "Suite: ", suiteCtx, "\n"];
     if[0 < count testCtx; ctx,: "Test: ", testCtx, "\n"];
     
-    / Keep this conservative: .Q.bt can itself fail in trapped execution paths.
-    bt: "";
-    if[(10h = type bt) and (0 < count bt); ctx,: "\nQ Backtrace:\n", bt];
-    
     / Return empty if no context available
     $[0 < count ctx; "\n", ctx; ""]
+ };
+
+/ Format the backtrace object supplied by .Q.trp while the original failing
+/ frames still exist. Formatting is defensive: a formatter problem must never
+/ replace the test's original error.
+.tst.stackTraceFor:{[bt]
+    ctx: .tst.stackTrace[];
+    formatted: @[.Q.sbt; bt; {[err] ""}];
+    if[not 10h = type formatted; formatted: .tst.toString formatted];
+    if[count formatted;
+        ctx,: $[count ctx; "\n"; ""], "Q Backtrace:\n", formatted];
+    ctx
+ };
+
+.tst.trapExpecError:{[expec;errorType;err;bt]
+    pending: @[get; `.tst.pendingBacktrace; ""];
+    .tst.pendingBacktrace: "";
+    errorText: $[count pending; pending;
+        .tst.toString[err],.tst.stackTraceFor bt];
+    .tst.expecError[expec;errorType;errorText]
+ };
+
+/ Run a before/after hook through one unary entry point so .Q.trp can preserve
+/ nested hook frames and still return the expectation dictionary on success.
+.tst.runExpecHook:{[state]
+    expec: state`expec;
+    code: state`code;
+    expec[state`field]: code;
+    code[];
+    expec
  };
 
 runners[`perf]:{[expec];
@@ -136,14 +165,21 @@ finishFixtureTest:{[state]
  }
 
 runners[`test]:{[expec]
+ .tst.pendingBacktrace: "";
  func:expec`code;
  params:.tst.testFixtureParams func;
  .tst.validateTestFixtures[params;expec`desc];
  installed:.tst.installTestFixtures[params;expec`desc];
  state:`func`expec`installed!(func;expec;installed);
- outcome:@[.tst.finishFixtureTest; state; {[e] (`error;e)}];
+ / This inner trap is required because fixture teardown must happen after a
+ / throwing body. Keep the original .Q.trp backtrace object until teardown has
+ / completed, then turn it into the ordinary test-error result.
+ outcome:.Q.trp[.tst.finishFixtureTest; state; {[err;bt] (`error;err;bt)}];
  .tst.teardownInstalledFixtures installed;
- if[`error~first outcome; 'last outcome];
+ if[`error~first outcome;
+     .tst.pendingBacktrace: (outcome 1), .tst.stackTraceFor outcome 2;
+     'outcome 1];
+ .tst.pendingBacktrace: "";
  last outcome
  }
 
@@ -240,10 +276,9 @@ runExpecAttempt:{[spec;expec];
  if[`before in key expec;
     c: expec`before;
     if[type[c] within 100 104h;
-        expec: @[{[e;c] e[`before]:c; c[]; e}[expec;c]; (); {[e;err]
-            st: .tst.stackTrace[];
-            .tst.expecError[e;"before"; err, st]
-        }[expec]];
+        hookState: `expec`code`field!(expec;c;`before);
+        expec: .Q.trp[.tst.runExpecHook;hookState;
+            .tst.trapExpecError[expec;"before";;]];
     ];
  ];
 
@@ -252,11 +287,12 @@ runExpecAttempt:{[spec;expec];
   if[not count expec[`result];
      budgetMs: "f"$first .tst.app.maxTestTime;
      testStart: .z.p;
-     / Execute test with error trapping (no session-killing \T command)
-     res: @[.tst.callExpec; expec; {[e;err]
-         st: .tst.stackTrace[];
-         .tst.expecError[e; string e`type; err, st]
-     }[expec]];
+     / Execute test with a backtrace-aware trap (no session-killing \T command).
+     / The ordinary test runner catches body errors one level deeper so it can
+     / unwind fixtures without losing the original frames; this outer trap owns
+     / setup errors and the other expectation runner types.
+     res: .Q.trp[.tst.callExpec;expec;
+         .tst.trapExpecError[expec;.tst.toString expec`type;;]];
      / Post-execution duration budget (milliseconds). This deliberately cannot
      / preempt q code; process isolation owns hard hang termination.
      if[budgetMs > 0;
@@ -277,10 +313,9 @@ runExpecAttempt:{[spec;expec];
  if[`after in key expec;
     c: expec`after;
     if[type[c] within 100 104h;
-        expec: @[{[e;c] e[`after]:c; c[]; e}[expec;c]; (); {[e;err]
-            st: .tst.stackTrace[];
-            .tst.expecError[e;"after"; err, st]
-        }[expec]];
+        hookState: `expec`code`field!(expec;c;`after);
+        expec: .Q.trp[.tst.runExpecHook;hookState;
+            .tst.trapExpecError[expec;"after";;]];
     ];
  ];
 

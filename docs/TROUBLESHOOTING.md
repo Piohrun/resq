@@ -611,16 +611,26 @@ Without `-strict`, an all-skipped suite exits 0 — this is intentional.
 
 **Solution:** Remove `-noquit` (or set `"exit": true` in `resq.json`). The default behaviour already exits with the correct code — no extra flag is required:
 ```bash
-q resq.q test tests/
+resq test tests/
 # Exits 0 on pass, 1 on failure, 3 if no tests found, 4 on load error.
 ```
 
 If you explicitly want to force exit-on-completion regardless of the config file, pass `-exit`:
 ```bash
-q resq.q test tests/ -exit
+resq test tests/ -exit
 ```
 
-**A test calling `exit` fakes a green run.** A stray `exit 0` inside a test file silently kills the whole process with code 0 — every later file is skipped and CI sees success. Run with `-isolate` so each file runs in its own subprocess: a file that exits without producing results is reported as a per-file failure (exit 1), and an infinite loop is killed at `-isolateTimeout N` (default 300s; needs the `timeout` binary). Exit-code precedence is unchanged (load error → 4, any failure → 1, no files → 3).
+**A test calling `exit`.** The `resq` and `qspec` launchers supervise test-run
+completion. A stray `exit 0` inside a test file or loaded application now emits
+an explicit premature-exit diagnostic and is forced to status 1. Use
+`-isolate` as well when you want the remaining files to continue: a child that
+exits without a report becomes a per-file failure, and an infinite loop is
+killed at `-isolateTimeout N` (default 300s; needs the `timeout` binary).
+
+Calling `q resq.q ...` directly can print the diagnostic through `.z.exit`, but
+q cannot change an exit code once requested. Use the launcher whenever the
+process status is your CI verdict. Exit-code precedence remains load error → 4,
+any failure → 1, no files → 3.
 
 ---
 
@@ -631,7 +641,7 @@ q resq.q test tests/ -exit
 **Solutions:**
 ```bash
 # Ensure flags are set
-q resq.q test tests/ -junit -outDir reports/ -exit
+resq test tests/ -junit -outDir reports/ -exit
 ```
 
 resQ creates a missing output directory. If the file is still absent, check the
@@ -645,9 +655,9 @@ error makes the run fail after the other selected reporters have been attempted.
 
 ### Machine report exists but the console summary is missing
 
-This is expected. Selecting `-junit`, `-xunit`, or `-json` replaces the final
-text reporter; reporter flags compose with each other, not with the text
-summary. Other progress and diagnostics may still appear unless `-quiet` is
+This is not expected. Selecting `-junit`, `-xunit`, or `-json` writes that
+artifact in addition to the final text summary. Other progress and diagnostics
+may still appear unless `-quiet` is
 set. See [Test reporting](REPORTING.md).
 
 ### A passing test is followed by a cleanup error

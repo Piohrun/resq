@@ -66,6 +66,10 @@
     / consumer as one run-on line. Put a single-line summary in the attribute and
     / keep the full text in the element body, which preserves newlines verbatim.
     msgAttr: .tst.output.escapeXml .tst.output.firstLine rawMsg;
+    rawOutput: $[`output in key rec; .tst.toString rec`output; ""];
+    systemOut: $[count rawOutput;
+        "<system-out>",.tst.output.escapeXml[rawOutput],"</system-out>";
+        ""];
     t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
     attrs: " classname=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", string[t], "\"";
     if[`file in key rec;
@@ -80,17 +84,17 @@
     caseOpen: "    <testcase",attrs,">";
     caseClose: "    </testcase>";
     if[recStatus in `pass;
-        :caseOpen,caseClose
+        :caseOpen,systemOut,caseClose
     ];
     if[recStatus in `skip`pending;
         reason: $[count rawMsg; msg; "Skipped"];
         reasonAttr: $[count rawMsg; msgAttr; "Skipped"];
-        :caseOpen,"    <skipped message=\"",reasonAttr,"\">",reason,"</skipped>",caseClose
+        :caseOpen,"    <skipped message=\"",reasonAttr,"\">",reason,"</skipped>",systemOut,caseClose
     ];
     if[(recStatus ~ `error) or recStatus like "*Error";
-        :caseOpen,"    <error message=\"",msgAttr,"\">",msg,"</error>",caseClose
+        :caseOpen,"    <error message=\"",msgAttr,"\">",msg,"</error>",systemOut,caseClose
     ];
-    :caseOpen,"    <failure message=\"",msgAttr,"\">",msg,"</failure>",caseClose
+    :caseOpen,"    <failure message=\"",msgAttr,"\">",msg,"</failure>",systemOut,caseClose
  };
 
 / Named per-format so a later loadOutputModule call can re-select the builder:

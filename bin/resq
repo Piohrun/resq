@@ -23,4 +23,40 @@ done
 # against THEIR project, not the framework install. resq.q reads
 # RESQ_HOME to find its own modules.
 export RESQ_HOME
-exec q "$RESQ_HOME/resq.q" "${args[@]}" -e 1
+
+# q honours `exit 0` immediately, even from test/application code, and its
+# .z.exit callback cannot change that status. Supervise test-mode completion
+# with a private marker directory so an early exit cannot make CI green.
+guard_root="${TMPDIR:-/tmp}"
+case "$guard_root" in
+  /*) ;;
+  *) guard_root="/tmp" ;;
+esac
+guard_root="${guard_root%/}"
+guard_dir="$(mktemp -d "$guard_root/resq-run-guard.XXXXXXXX")" || {
+  echo "resQ ERROR: unable to create process guard directory" >&2
+  exit 1
+}
+chmod 700 "$guard_dir" || {
+  echo "resQ ERROR: unable to secure process guard directory" >&2
+  rmdir -- "$guard_dir" 2>/dev/null
+  exit 1
+}
+
+cleanup_guard() {
+  rm -f -- "$guard_dir/armed" "$guard_dir/complete" "$guard_dir/premature"
+  rmdir -- "$guard_dir" 2>/dev/null
+}
+trap cleanup_guard EXIT
+
+export RESQ_RUN_GUARD_DIR="$guard_dir"
+q "$RESQ_HOME/resq.q" "${args[@]}" -e 1
+q_status=$?
+
+if [ "$q_status" -eq 0 ] && [ -f "$guard_dir/armed" ] &&
+   { [ -f "$guard_dir/premature" ] || [ ! -f "$guard_dir/complete" ]; }; then
+  echo "resQ ERROR: q exited before resQ completed; forcing a failing status." >&2
+  q_status=1
+fi
+
+exit "$q_status"

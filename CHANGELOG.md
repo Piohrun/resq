@@ -42,14 +42,6 @@ All notable changes to the **resQ** project will be documented in this file.
   restored on any failure. **Opt-in because it is a transformation of the code
   under test and is not proven safe on every construct** — instrumenting resQ's
   own `lib/loader.q` breaks it. See docs/COVERAGE.md.
-- **Line coverage.** LCOV now carries `DA:` records and `LF`/`LH` totals, so
-  Codecov, SonarQube, Coveralls and `genhtml` accept the report and show a line
-  percentage — previously it held only function records and most tools showed
-  nothing. The line records are **derived**: resQ instruments whole functions,
-  so every executable line of a function inherits that function's hit count
-  (blank and comment lines excluded). An uncalled function correctly reports
-  `DA:n,0`. It reads higher than a statement-level tool would on the same suite;
-  `FNF`/`FNH` remain the figure resQ actually measures. See docs/COVERAGE.md.
 - **Recorded benchmark measurements.** A `perf` block computed its averages and
   discarded them unless a budget was breached, so performance could be gated but
   never tracked. Measurements now reach a console `PERFORMANCE` section, a
@@ -58,6 +50,28 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- Source-loaded DSL declarations now fail at load time when a constructor is
+  under-applied and leaves a q projection (for example,
+  `holds["property"]{...}`). All line-annotated constructors, including
+  explicit `.tst.*` calls, participate in the arity audit instead of silently
+  registering fewer tests than were written.
+- Isolated suite/tag filtering now treats a valid, filtered-empty child file as
+  neutral. The parent computes the verdict after aggregating all files, so a
+  filter that selects tests in another file passes while a filter that matches
+  nothing globally still fails.
+- The `resq` and `qspec` launchers now supervise test-run completion. A test or
+  loaded application calling `exit 0` before the runner finishes is forced to
+  exit 1, even if it replaces `.z.exit`; ordinary completed runs retain their
+  granular exit status. Isolation children cannot complete the parent marker.
+- Runtime errors now use `.Q.trp` at the test/hook execution boundary and format
+  the original frames with `.Q.sbt`, retaining nested function names and source
+  snippets after fixture teardown instead of reporting only file/suite/test
+  context.
+- Process isolation now retains a bounded head/tail transcript of a failing
+  child's combined stdout/stderr, replays it in the parent console, and exposes
+  it as JSON `output`, JUnit `<system-out>`, and xUnit `<output>`. Passing child
+  output is still discarded, and one transcript is attached per failing file to
+  avoid multiplying logs across result rows.
 - Reporters now compose without filename collisions, preserve file/line and skip
   metadata, expose aggregate JSON `assertionCount`, use stable JSON field types,
   and fail the run on serialization or
