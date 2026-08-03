@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements!(`text;".";0b;0b;0b;();();0b;0b;0b;100;0b;0b;1b;0;50000;1000;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0)
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -75,6 +75,9 @@ loadConfig:{[path]
     ];
     if[10h = type merged`reportListLimit;
         merged[`reportListLimit]: "I"$merged`reportListLimit
+    ];
+    if[10h = type merged`coverageMin;
+        merged[`coverageMin]: "I"$merged`coverageMin
     ];
     if[`testFilePatterns in key merged;
         if[.tst.validTestFilePatterns merged`testFilePatterns;
@@ -175,13 +178,14 @@ validateConfig:{[cfg]
             "covStatements must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin;
   intMsgs:("fuzzLimit must be an integer scalar";
            "maxTestTime must be an integer scalar";
            "reportLimit must be an integer scalar";
            "reportListLimit must be an integer scalar";
            "diffLargeTableThreshold must be an integer scalar";
-           "diffHugeTableThreshold must be an integer scalar");
+           "diffHugeTableThreshold must be an integer scalar";
+           "coverageMin must be an integer scalar");
   warnings,: raze checkType[cfg;;(-5h;-6h;-7h);]'[intNames; intMsgs];
 
   / Range check: numeric keys must be non-negative. A correctly-typed but
@@ -201,8 +205,13 @@ validateConfig:{[cfg]
              "reportLimit must be >= 0";
              "reportListLimit must be >= 0";
              "diffLargeTableThreshold must be >= 0";
-             "diffHugeTableThreshold must be >= 0");
+             "diffHugeTableThreshold must be >= 0";
+             "coverageMin must be between 0 and 100");
   warnings,: raze checkNonNeg[cfg;;]'[intNames; rangeMsgs];
+  if[`coverageMin in key cfg;
+    if[(type cfg`coverageMin) in -5 -6 -7h;
+      if[(not null cfg[`coverageMin]) and (cfg[`coverageMin] > 100);
+        warnings,: enlist "coverageMin must be between 0 and 100"]]];
 
   warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];
 
@@ -248,12 +257,15 @@ invalidConfigKeys:{[cfg]
   / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
   / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
   / with a warning, default retained (the warn-and-ignore contract).
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin;
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
       not .tst.validNonNegativeConfigInteger v
     }[cfg] each intNames;
+  if[`coverageMin in key cfg;
+    if[(type cfg`coverageMin) in -5 -6 -7h;
+      if[(not null cfg[`coverageMin]) and (cfg[`coverageMin] > 100); invalid,:`coverageMin]]];
 
   / outDir: string or symbol.
   if[`outDir in key cfg; if[not (type cfg`outDir) in 10 -10 11h; invalid,: `outDir]];
@@ -299,7 +311,9 @@ applyConfig:{[cfg]
     if[ok`runPerformance; .tst.app.runPerformance: cfg`runPerformance];
     if[ok`excludeSpecs; .tst.app.excludeSpecs: cfg`excludeSpecs];
     if[ok`runSpecs; .tst.app.runSpecs: cfg`runSpecs];
-    if[ok`passOnly; .tst.app.passOnly: cfg`passOnly];
+    if[ok`passOnly;
+        .tst.app.passOnly: cfg`passOnly;
+        if[cfg`passOnly; .tst.app.quiet: 1b]];
     if[ok`exit; .tst.app.exit: cfg`exit];
     if[ok`strict; .tst.app.strict: cfg`strict];
     / qspec source-compatibility switch (musteq `=`, mustne `<>`).
@@ -313,6 +327,7 @@ applyConfig:{[cfg]
     if[ok`maxTestTime; .tst.app.maxTestTime: cfg`maxTestTime];
     if[ok`reportLimit; .tst.output.reportLimit: cfg`reportLimit];
     if[ok`reportListLimit; .tst.output.reportListLimit: cfg`reportListLimit];
+    if[ok`coverageMin; .tst.app.coverageMin: cfg`coverageMin];
 
     if[ok`qNamespaceExports;
         if[`setQNamespaceExports in key `.tst;

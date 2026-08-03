@@ -22,7 +22,19 @@
     .tst.resultRows rows
  };
 
-.tst.output.buildXunitCase:{[rec]
+.tst.output.xunitUuid:{[seed]
+    h: raze string md5 .tst.toString seed;
+    (8 # h), "-", (4 # 8 _ h), "-", (4 # 12 _ h), "-",
+        (4 # 16 _ h), "-", (12 # 20 _ h)
+ };
+
+.tst.output.xunitTimestamp:{[]
+    parts: "D" vs string .z.p;
+    / xUnit's round-trippable form specifies seven fractional-second digits.
+    (ssr[first parts; "."; "-"]), "T", (16 # last parts), "Z"
+ };
+
+.tst.output.buildXunitCase:{[rec;idSeed]
     recStatus: .tst.normalizeResultStatus $[`status in key rec; rec`status; `pass];
     / type/classname fallback chain: namespace -> suite name -> "resq". An empty
     / namespace would otherwise emit type="" and group poorly in CI UIs.
@@ -40,27 +52,38 @@
     rawMsg: $[`renderReportMessage in key `.tst; .tst.renderReportMessage rec`message; rec`message];
     msg: .tst.output.escapeXml rawMsg;
     t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
-    / xUnit v2 consumers read per-test status from `result`, NOT from the
-    / presence of a child element. Without it every test is indeterminate and a
-    / red run can be read as green. An errored test reports Fail: the schema has
-    / no third outcome, and the <error> child still carries the detail.
+    / xUnit v2 has no per-test Error outcome: an errored resQ expectation is a
+    / failed test with a distinct exception-type on its <failure> node.
     resultWord: $[recStatus in `pass;         "Pass";
                   recStatus in `skip`pending; "Skip";
                   "Fail"];
-    attrs: " type=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc],
-           "\" time=\"", string[t], "\" result=\"", resultWord, "\"";
-    caseOpen: "    <test",attrs,">";
-    caseClose: "    </test>";
+    testId: .tst.output.xunitUuid idSeed;
+    attrs: " id=\"", testId, "\" type=\"", suite, "\" name=\"",
+           .tst.output.escapeXml[statusDesc], "\" time=\"", string[t],
+           "\" result=\"", resultWord, "\"";
+    if[`file in key rec;
+        fileStr: .tst.toString rec`file;
+        if[count fileStr; attrs,: " source-file=\"", .tst.output.escapeXml[fileStr], "\""];
+    ];
+    if[`line in key rec;
+        sourceLine: "i"$rec`line;
+        if[(not null sourceLine) and sourceLine > 0;
+            attrs,: " source-line=\"", string[sourceLine], "\""];
+    ];
+    caseOpen: "      <test",attrs,">";
+    caseClose: "      </test>";
     if[recStatus in `pass;
         :caseOpen,caseClose
     ];
     if[recStatus in `skip`pending;
-        :caseOpen,"    <reason/>",caseClose
+        reason: $[count rawMsg; msg; "Skipped"];
+        :caseOpen,"\n        <reason>",reason,"</reason>\n",caseClose
     ];
-    if[(recStatus ~ `error) or recStatus like "*Error";
-        :caseOpen,"    <error message=\"",msg,"\">",msg,"</error>",caseClose
-    ];
-    :caseOpen,"    <failure message=\"",msg,"\">",msg,"</failure>",caseClose
+    failureType: $[(recStatus ~ `error) or recStatus like "*Error";
+                   "resQ.Error";
+                   "resQ.AssertionFailure"];
+    :caseOpen,"\n        <failure exception-type=\"",failureType,"\"><message>",msg,
+        "</message></failure>\n",caseClose
  };
 
 / Named per-format so a later loadOutputModule call can re-select the builder:
@@ -68,38 +91,65 @@
 / otherwise leave .tst.output.top pointing at whichever loaded first.
 .tst.output.xunitTop:{[results]
     rows: .tst.output.normalizeRows results;
-    if[0=count rows; :"<assemblies></assemblies>"];
+    stamp: .tst.output.xunitTimestamp[];
+    runSeed: stamp, "/", string .z.i;
+    rootOpen: "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<assemblies schema-version=\"2\" id=\"",
+        .tst.output.xunitUuid[runSeed], "\" start-rtf=\"", stamp,
+        "\" finish-rtf=\"", stamp, "\" timestamp=\"", stamp, "\">";
+    if[0=count rows; :rootOpen,"\n</assemblies>"];
     / normalizeRows may hand back either a list of row dicts or an already
     / assembled table; .tst.resultTable canonicalises both to a 98h table.
     t: .tst.resultTable results;
     if[not 98h = type t; :"<assemblies/>"];
 
+    statuses: .tst.normalizeResultStatus each t`status;
+    totalCount: count t;
+    passCount: sum statuses = `pass;
+    failedCount: sum statuses in `fail`error;
+    skipCount: sum statuses in `skip`pending;
+    totalTime: .tst.output.toSeconds sum t`time;
+    framework: "resQ ", $[`VERSION in key `.resq; .tst.toString .resq.VERSION; "unknown"];
+    assemblyName: $[`HOME in key `.resq; .tst.toString[.resq.HOME], "/resq.q"; "resQ"];
+    runDate: 10 # stamp;
+    runTime: 8 # 11 _ stamp;
+    assemblyId: .tst.output.xunitUuid runSeed, "/assembly";
+    assemblyOpen: "  <assembly id=\"", assemblyId, "\" name=\"",
+        .tst.output.escapeXml[assemblyName], "\" environment=\"kdb+ q ",
+        .tst.output.escapeXml[string .z.K], "\" test-framework=\"",
+        .tst.output.escapeXml[framework], "\" run-date=\"", runDate,
+        "\" run-time=\"", runTime, "\" total=\"", string[totalCount],
+        "\" passed=\"", string[passCount], "\" failed=\"", string[failedCount],
+        "\" skipped=\"", string[skipCount], "\" errors=\"0\" time=\"",
+        string[totalTime], "\" not-run=\"0\">";
+
     suites: distinct t`suite;
-    / q lambdas do not close over outer locals, so the per-suite table t is
-    / passed in explicitly as the first projected argument.
-    suiteBlocks: raze {[t; x]
+    collectionBlocks: raze {[t;runSeed;x]
         suiteName: .tst.output.escapeXml x;
         suiteRows: t where (t`suite) = x;
         testCount: count suiteRows;
         suiteStatus: .tst.normalizeResultStatus each suiteRows`status;
-        errMask: suiteStatus = `error;
         skipMask: suiteStatus in `skip`pending;
-        failMask: suiteStatus = `fail;
+        failMask: suiteStatus in `fail`error;
         failCount: sum failMask;
-        errCount: sum errMask;
         skipCount: sum skipMask;
-        / xUnit v2 names the pass/fail totals `passed`/`failed`; `failures` is
-        / JUnit's spelling. Emit both so either consumer reads real numbers.
         passCount: sum suiteStatus = `pass;
         suiteTime: .tst.output.toSeconds sum suiteRows`time;
-        header: "<assembly name=\"",suiteName,"\" total=\"",string[testCount],"\" passed=\"",string[passCount],"\" failed=\"",string[failCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",string[suiteTime],"\">";
-        bodyLines: .tst.output.buildXunitCase each suiteRows;
+        collectionId: .tst.output.xunitUuid runSeed, "/collection/", .tst.toString x;
+        header: "    <collection id=\"", collectionId, "\" name=\"", suiteName,
+            "\" total=\"", string[testCount], "\" passed=\"", string[passCount],
+            "\" failed=\"", string[failCount], "\" skipped=\"", string[skipCount],
+            "\" time=\"", string[suiteTime], "\" not-run=\"0\">";
+        indices: til count suiteRows;
+        bodyLines: {[rs;seed;i]
+            .tst.output.buildXunitCase[rs i; seed, "/test/", string i]
+          }[suiteRows;collectionId;] each indices;
         body: "\n" sv bodyLines;
-        footer: "</assembly>";
+        footer: "    </collection>";
         $[0<count body; header,"\n",body,"\n",footer; header,"\n",footer]
-    }[t;] each suites;
+    }[t;runSeed;] each suites;
 
-    "<assemblies>\n",suiteBlocks,"\n</assemblies>"
+    rootOpen,"\n",assemblyOpen,"\n",collectionBlocks,
+        "\n  </assembly>\n</assemblies>"
  };
 
 .tst.output.top: .tst.output.xunitTop;

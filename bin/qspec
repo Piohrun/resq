@@ -1,0 +1,18 @@
+#!/bin/bash
+# qspec-compatible resQ launcher.
+# Usage: qspec [legacy qspec options] <test files/directories>
+
+# Resolve install root (symlink safe).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+RESQ_HOME="$(dirname "$DIR")"
+
+# Keep the caller's CWD so relative test and fixture paths retain qspec's
+# behavior. The compatibility switch restores qspec assertion semantics.
+export RESQ_HOME
+exec q "$RESQ_HOME/resq.q" test "$@" -qspec-compat -e 1

@@ -46,4 +46,28 @@
         .tst.output.reportListLimit musteq 1000;
     };
 
+    should["bound and localize a mismatch in a 100k-row table"]{
+        n: 100000;
+        expected: ([] id:til n; v:n#0j);
+        actual: expected;
+        actual[n - 1;`v]: 1j;
+        rendered: "\n" sv .tst.diff[expected;actual];
+        must[(count rendered) < 5000;
+             "large-table diagnostics must stay below 5KB, got ",string count rendered];
+        must[0 < count ss[rendered;"Row 99999"];
+             "the bounded diagnostic must retain the mismatch location"];
+    };
+
+    should["bound and localize a mismatch in a million-element vector"]{
+        n: 1000000;
+        expected: til n;
+        actual: expected;
+        actual[n - 1]: -1;
+        rendered: "\n" sv .tst.diff[expected;actual];
+        must[(count rendered) < 5000;
+             "million-vector diagnostics must stay below 5KB, got ",string count rendered];
+        must[0 < count ss[rendered;"Idx 999999"];
+             "the bounded diagnostic must retain the mismatch index"];
+    };
+
 };

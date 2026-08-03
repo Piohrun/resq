@@ -1,4 +1,3 @@
-
 .tst.desc["Loading File Fixtures"]{
  before{fixture[`myFixture]};
  should["load the fixture specified"]{

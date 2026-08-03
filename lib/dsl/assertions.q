@@ -1,9 +1,24 @@
 / assertions.q - core assertion DSL (musteq, mustthrow, snapshots, aliases)
 \d .tst
 
+/ Name the active expectation on streamed diffs. The summary may appear much
+/ later, so an anonymous block is not actionable in a multi-failure CI log.
+.tst.diffContextLabel:{[]
+    ctx: @[get; `.tst.currentContext; {()!()}];
+    if[not 99h = type ctx; :""];
+    suiteName: $[`suite in key ctx; .tst.toString ctx`suite; ""];
+    testName: $[`test in key ctx; .tst.toString ctx`test; ""];
+    $[(count suiteName) and count testName; suiteName, " :: ", testName;
+      count testName; testName;
+      suiteName]
+ };
+
 / Print expected-vs-actual diff; rendering problems must never mask the assertion failure itself.
 printDiffSafe:{[expected;actual]
-    @[{ -1 ""; -1 "FAILURE DIFF ---------------------------------------------------";
+    @[{ label: .tst.diffContextLabel[];
+        -1 "";
+        -1 "FAILURE DIFF", $[count label; " [", label, "] "; " "],
+            "---------------------------------------------------";
         -1 .tst.diff[x 0; x 1];
         -1 "----------------------------------------------------------------"; };
       (expected;actual);
@@ -11,6 +26,34 @@ printDiffSafe:{[expected;actual]
  };
 
 asserts:()!()
+
+/ Assertion diagnostics are deferred so a successful comparison never renders
+/ (or copies) its operands. This matters for the exact workloads resQ is meant
+/ to test: million-element vectors and large tables should be cheap when green.
+.tst.assertValueText:{[val]
+  limit: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
+  .tst.truncate[val;`long$limit % 2]
+ };
+
+.tst.deferAssertionMessage:{[fn;args]
+  `resqDeferredMessage`resqDeferredArgs!(fn;args)
+ };
+
+.tst.renderAssertionMessage:{[message]
+  if[99h = type message;
+    if[`resqDeferredMessage in key message;
+      fn: message`resqDeferredMessage;
+      if[type[fn] in 100 104h;
+        args: $[`resqDeferredArgs in key message; message`resqDeferredArgs; ()];
+        outcome: @[{[pair] (0b;.[pair 0;pair 1])};(fn;args);{[err](1b;err)}];
+        :$[first outcome;
+            "Assertion failed; diagnostic rendering failed: ", .tst.toString last outcome;
+            last outcome];
+      ];
+    ];
+  ];
+  message
+ };
 / Accepted conditions: a boolean, or a number (q's own truthiness, as `if` and
 / qspec both use -- `must[count x; "non-empty"]` is a legitimate idiom and stays
 / source-compatible with qspec). A NULL number is rejected: it is the result of
@@ -39,7 +82,8 @@ asserts[`must]:{[val;message];
       .tst.assertState.failures,: enlist
         "must condition is null, which is not a truth value: ", .tst.toString val;
     not all $[kind = `numeric; 0 <> val; val];
-      [ m: $[10h = abs type message; message; .Q.s1 message];
+      [ renderedMessage: .tst.renderAssertionMessage message;
+        m: $[10h = abs type renderedMessage; renderedMessage; .Q.s1 renderedMessage];
         / Which assertion in this test failed. assertState resets per
         / expectation, so assertsRun is this assertion's ordinal. q gives no
         / file/line for a failing assertion (nothing throws, and definitions
@@ -102,7 +146,9 @@ asserts[`musteq]:{[l;r];
 asserts[`mustmatch]:{[l;r]; .tst.asserts[`musteq][l;r]}
 asserts[`mustmatchs]:{[l;r]; .tst.mustmatchSnap[l;r]}
 asserts[`mustmatchst]:{[l;r]; .tst.mustmatchTxtSnap[l;r]}
-asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;"Got ", (-3!l), " — expected it NOT to match ", (-3!r)]}
+asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;
+  .tst.deferAssertionMessage[{[a;b] "Got ",.tst.assertValueText[a],
+    " — expected it NOT to match ",.tst.assertValueText[b]};(l;r)]]}
 / mustne is the exact inverse of musteq, so it must use `~` (whole-value match),
 / not `<>` (elementwise). With `<>` any non-atom yielded a boolean VECTOR rather
 / than an atom: `must` then applied `all`, so mustne silently meant "every
@@ -112,14 +158,45 @@ asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;"Got ", (-3!l), " — e
 / of musteq. -qspec-compat restores the original semantics for unported suites.
 asserts[`mustne]:{[l;r];
   cond: $[1b ~ @[get; `.tst.app.qspecCompat; 0b]; l <> r; not l ~ r];
-  .tst.asserts[`must][cond; "Got ", (-3!l), " — expected it NOT to equal ", (-3!r)]}
-asserts[`mustlt]:{[l;r]; .tst.asserts[`must][l<r;"Got ", (-3!l), " — expected it to be less than ", (-3!r)]}
-asserts[`mustgt]:{[l;r]; .tst.asserts[`must][l>r;"Got ", (-3!l), " — expected it to be greater than ", (-3!r)]}
-asserts[`mustlike]:{[l;r]; .tst.asserts[`must][l like r;"Expected ", (-3!l), " to be like ", (-3!r)]}
-asserts[`mustin]:{[l;r]; .tst.asserts[`must][l in r;"Expected ", (-3!l), " to be in ", (-3!r)]}
-asserts[`mustnin]:{[l;r]; .tst.asserts[`must][not l in r;"Expected ", (-3!l), " to not be in ", (-3!r)]}
-asserts[`mustwithin]:{[l;r]; .tst.asserts[`must][l within r;"Expected ", (-3!l), " to be within ", (-3!r)]}
-asserts[`mustdelta]:{[tol;l;r]; .tst.asserts[`must][l within (r - abs tol;r + abs tol);"Expected ", (-3!l), " to be within +/-", (-3!tol), " of ", (-3!r)]}
+  .tst.asserts[`must][cond; .tst.deferAssertionMessage[{[a;b]
+    "Got ",.tst.assertValueText[a]," — expected it NOT to equal ",.tst.assertValueText[b]};(l;r)]]}
+asserts[`mustlt]:{[l;r]; .tst.asserts[`must][l<r; .tst.deferAssertionMessage[{[a;b]
+  "Got ",.tst.assertValueText[a]," — expected it to be less than ",.tst.assertValueText[b]};(l;r)]]}
+asserts[`mustgt]:{[l;r]; .tst.asserts[`must][l>r; .tst.deferAssertionMessage[{[a;b]
+  "Got ",.tst.assertValueText[a]," — expected it to be greater than ",.tst.assertValueText[b]};(l;r)]]}
+asserts[`mustlike]:{[l;r]; .tst.asserts[`must][l like r; .tst.deferAssertionMessage[{[a;b]
+  "Expected ",.tst.assertValueText[a]," to be like ",.tst.assertValueText[b]};(l;r)]]}
+asserts[`mustin]:{[l;r]; .tst.asserts[`must][l in r; .tst.deferAssertionMessage[{[a;b]
+  "Expected ",.tst.assertValueText[a]," to be in ",.tst.assertValueText[b]};(l;r)]]}
+asserts[`mustnin]:{[l;r]; .tst.asserts[`must][not l in r; .tst.deferAssertionMessage[{[a;b]
+  "Expected ",.tst.assertValueText[a]," to not be in ",.tst.assertValueText[b]};(l;r)]]}
+asserts[`mustwithin]:{[l;r]; .tst.asserts[`must][l within r; .tst.deferAssertionMessage[{[a;b]
+  "Expected ",.tst.assertValueText[a]," to be within ",.tst.assertValueText[b]};(l;r)]]}
+asserts[`mustdelta]:{[tol;l;r]; .tst.asserts[`must][l within (r - abs tol;r + abs tol);
+  .tst.deferAssertionMessage[{[t;a;b] "Expected ",.tst.assertValueText[a],
+    " to be within +/-",.tst.assertValueText[t]," of ",.tst.assertValueText[b]};(tol;l;r)]]}
+
+/ Execute the code forms accepted by mustthrow/mustnotthrow. Kept outside the
+/ assertions so both use exactly the same dispatch semantics.
+.tst.executeAssertionCode:{[code]
+  t:type code;
+  if[t in 100 104h; :code[]];
+  if[0h = t;
+    if[0 = count code; :()];
+    f:first code;
+    args: 1 _ code;
+    fval: $[-11h = type f; value f; f];
+    if[(type fval) in 100 104h; :fval . args];
+    :value code
+  ];
+  value code
+ };
+
+/ Return (didThrow; payload). The success tag is added OUTSIDE the user result,
+/ so no ordinary return value can collide with the error representation.
+.tst.captureAssertionCode:{[code]
+  @[{[c] (0b; .tst.executeAssertionCode c)}; code; {[err] (1b; err)}]
+ };
 
 asserts[`mustthrow]:{[e;c];
   / Arg-shape guard: convention is mustthrow[pattern; code]. If the FIRST arg is
@@ -127,22 +204,8 @@ asserts[`mustthrow]:{[e;c];
   / writing it infix). Signal a clear message instead of crashing with 'type.
   if[((type e) within 100 104h) and not (type c) within 100 104h;
     '"mustthrow expects [pattern; code] — got code first; did you call it infix? Use mustthrow[pattern; {code}]"];
-  execCode:{[code]
-    t:type code;
-    if[t in 100 104h; :code[]];
-    if[0h = t;
-      if[0 = count code; :()];
-      f:first code;
-      args: 1 _ code;
-      fval: $[-11h = type f; value f; f];
-      if[(type fval) in 100 104h; :fval . args];
-      :value code
-    ];
-    value code
-  };
-  / Use sentinel value to detect errors vs normal return
-  r:@[execCode;c;{(`err0x;x)}];
-  isErr: (2 = count r) and (first r) ~ `err0x;
+  r:.tst.captureAssertionCode c;
+  isErr: 1b ~ first r;
   errMsg: $[isErr; last r; ""];
   / Ensure errMsg is string for concatenation
   errStr: $[10h = type errMsg; errMsg; -3!errMsg];
@@ -172,22 +235,8 @@ asserts[`mustnotthrow]:{[e;c];
   / Arg-shape guard: convention is mustnotthrow[pattern; code]. See mustthrow.
   if[((type e) within 100 104h) and not (type c) within 100 104h;
     '"mustnotthrow expects [pattern; code] — got code first; did you call it infix? Use mustnotthrow[pattern; {code}]"];
-  execCode:{[code]
-    t:type code;
-    if[t in 100 104h; :code[]];
-    if[0h = t;
-      if[0 = count code; :()];
-      f:first code;
-      args: 1 _ code;
-      fval: $[-11h = type f; value f; f];
-      if[(type fval) in 100 104h; :fval . args];
-      :value code
-    ];
-    value code
-  };
-  / Use sentinel value to detect errors vs normal return
-  r:@[execCode;c;{(`err0x;x)}];
-  isErr: (2 = count r) and (first r) ~ `err0x;
+  r:.tst.captureAssertionCode c;
+  isErr: 1b ~ first r;
   errMsg: $[isErr; last r; ""];
   / Ensure errMsg is string for concatenation
   errStr: $[10h = type errMsg; errMsg; -3!errMsg];

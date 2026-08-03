@@ -64,6 +64,60 @@
     ];
  };
 
+/ Rewrite an expectation constructor at the start of a source line to its
+/ line-aware wrapper. q lambdas evaluated through `value` do not retain source
+/ locations, so this lightweight load-time annotation is the only reliable way
+/ to give CI reporters the declaration line. Strings/comments and ordinary q
+/ expressions are untouched.
+.tst.annotateExpectationLine:{[lineNo;line]
+    verbs: ("should";"it";"holds";"perf";"skip";"pending";"skipIf";"retry";"testOnly");
+    txt: (),line;
+    out: "";
+    inString: 0b;
+    escaped: 0b;
+    i: 0;
+    while[i < count txt;
+        c: txt i;
+        if[inString;
+            out,: c;
+            $[escaped; escaped: 0b;
+              c = "\\"; escaped: 1b;
+              c = "\""; inString: 0b;
+              ::];
+            i+: 1;
+        ];
+        if[(i < count txt) and not inString;
+            c: txt i;
+            if[c = "\""; inString: 1b; out,: c; i+: 1];
+        ];
+        if[(i < count txt) and not inString;
+            c: txt i;
+            / An inline comment ends scanning; preserve its text verbatim.
+            if[(c = "/") and ((i = 0) or txt[i - 1] in " \t");
+                out,: i _ txt;
+                i: count txt;
+            ];
+        ];
+        if[(i < count txt) and not inString;
+            boundary: (i = 0) or not txt[i - 1] in .Q.a,.Q.A,.Q.n,"_.";
+            candidates: where {[source;at;verb]
+                prefix: verb,"[";
+                prefix ~ (count prefix) # at _ source
+              }[txt;i;] each verbs;
+            if[boundary and count candidates;
+                verb: verbs first candidates;
+                out,: ".tst.",verb,"At[",string[lineNo],";";
+                i+: 1 + count verb;
+            ];
+        ];
+        if[(i < count txt) and not inString;
+            out,: txt i;
+            i+: 1;
+        ];
+    ];
+    out
+ };
+
 .tst.preprocessScript:{[lines]
     lines: .utl.pathToString each lines;
     state: 0b;                 / 1b while inside a block comment
@@ -105,7 +159,7 @@
                         out,: enlist ".tst.sysl \"", pEsc, "\";" ];
                       out,: enlist "system \"", esc, "\";" ] ] ];
             / Ordinary line (includes "/ text" line comments).
-            out,: enlist .tst.rewriteSystemLoad ln ];
+            out,: enlist .tst.annotateExpectationLine[i + 1;.tst.rewriteSystemLoad ln] ];
         i +: 1;
     ];
     1 _ out
@@ -148,9 +202,9 @@
  };
 
 / Count the net bracket-nesting contribution of a line: +1 for each of { ( [
-/ and -1 for each } ) ], skipping any char inside a "..." string. Approximate
-/ (does not track \ block comments -- the caller's grouping drops those), but
-/ enough to tell whether a statement's brackets are still open across lines.
+/ and -1 for each } ) ], skipping strings and the remainder of an inline comment.
+/ In q, "/" opens a comment at column 1 or after whitespace; operator/adverb uses
+/ such as x%y and +/ remain code. Block comments are removed before evaluation.
 .tst.bracketDelta:{[ln]
     ln: .utl.pathToString ln;
     inStr: 0b; delta: 0; i: 0; n: count ln;
@@ -160,6 +214,7 @@
             $[c = "\\"; i +: 1;                   / skip escaped char in string
               c = "\""; inStr: 0b; ::];
           c = "\"";    inStr: 1b;
+          (c = "/") and ((i = 0) or ln[i - 1] in " \t"); i: n;
           c in "{(["; delta +: 1;
           c in "})]"; delta -: 1;
           ::];
@@ -334,8 +389,12 @@
         / would fire side effects twice). Parse-localization pinpoints the common
         / case (a SYNTAX error); a pure runtime error parses cleanly and keeps the
         / original message.
-        res: @[.tst.evalPreprocessed; .tst.preprocessScript content; {(`err0x; x)}];
-        if[(2 = count res) and (first res) ~ `err0x;
+        / Add the outcome tag outside evalPreprocessed's return value. Ordinary q
+        / code can then return any shape without impersonating a loader error.
+        res: @[{[lines] (0b; .tst.evalPreprocessed lines)};
+               .tst.preprocessScript content;
+               {[err] (1b; err)}];
+        if[1b ~ first res;
             e: last res;
             lineNo: @[.tst.localizeSyntaxError; content; {0N}];
             if[not null lineNo;

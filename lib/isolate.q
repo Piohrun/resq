@@ -19,6 +19,13 @@
 .tst.isolate.rmExe: .tst.isolate.commandPath "rm";
 .tst.isolate.shExe: .tst.isolate.commandPath "sh";
 
+/ All isolation diagnostics pass through one gate so qspec's -pass contract is
+/ silent while the parent still returns the aggregated process status.
+.tst.isolate.print:{[message]
+    if[1b ~ @[get; `.tst.app.passOnly; 0b]; :()];
+    -1 message
+ };
+
 / Require timeout's kill-after form and prove it can preempt a busy process.
 .tst.isolate.probeTimeout:{[exe]
     if[(0 = count exe) or 0 = count .tst.isolate.shExe; :0b];
@@ -89,10 +96,10 @@
 
 .tst.isolate.cleanupScratch:{[wd]
     if[not .tst.isolate.validScratch wd;
-        -1 "ERROR: refusing unsafe isolation scratch cleanup: ", wd;
+        .tst.isolate.print "ERROR: refusing unsafe isolation scratch cleanup: ", wd;
         :0b];
     if[0 = count .tst.isolate.rmExe;
-        -1 "ERROR: rm executable unavailable; cannot clean isolation scratch: ", wd;
+        .tst.isolate.print "ERROR: rm executable unavailable; cannot clean isolation scratch: ", wd;
         :0b];
     cmd: .utl.shellQuote[.tst.isolate.rmExe], " -rf -- ", .utl.shellQuote wd;
     ok: @[{system x; 1b}; cmd; {[e] 0b}];
@@ -101,7 +108,7 @@
         wd;
         {[e] `ok`exists!(0b; 1b)}];
     if[not inspected`ok;
-        -1 "ERROR: unable to inspect isolation scratch after cleanup: ", wd;
+        .tst.isolate.print "ERROR: unable to inspect isolation scratch after cleanup: ", wd;
         :0b];
     if[inspected`exists; ok: 0b];
     if[ok;
@@ -117,15 +124,23 @@
       enlist .tst.toString v]
  };
 
-.tst.isolate.row:{[suite; dsc; status; message; tm; failures; asserts]
-    flip `suite`description`status`message`time`failures`assertsRun!(
+.tst.isolate.rowWithMeta:{[suite;dsc;status;message;tm;failures;asserts;rowMeta]
+    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
         enlist suite;
         enlist dsc;
         enlist status;
         enlist message;
         enlist tm;
         enlist failures;
-        enlist `int$asserts)
+        enlist `int$asserts;
+        enlist $[`file in key rowMeta; rowMeta`file; ""];
+        enlist $[`line in key rowMeta; "i"$rowMeta`line; 0Ni];
+        enlist $[`namespace in key rowMeta; rowMeta`namespace; ""];
+        enlist $[`tags in key rowMeta; rowMeta`tags; `symbol$()])
+ };
+
+.tst.isolate.row:{[suite; dsc; status; message; tm; failures; asserts]
+    .tst.isolate.rowWithMeta[suite;dsc;status;message;tm;failures;asserts;()!()]
  };
 
 .tst.isolate.errorRow:{[suiteSym; file; msg]
@@ -147,6 +162,39 @@
     $[count lines; "\n" sv lines; ""]
  };
 
+/ A child that dies before JSON exists may have called exit, but its captured
+/ tail can identify a fatal q/runtime condition. Prefer that evidence over the
+/ old blanket "did a test call exit?" guess.
+.tst.isolate.fatalHint:{[detail]
+    if[0 = count detail; :""];
+    normalized: lower detail;
+    needles: ("couldn't connect to license daemon";"wsfull";"stack overflow";"segmentation fault";"segfault";
+              "out of memory";"cannot allocate memory";"aborted";"core dumped");
+    hits: needles where {[txt;needle] 0 < count ss[txt;needle]}[normalized;] each needles;
+    $[count hits; first hits; ""]
+ };
+
+.tst.isolate.noReportMessage:{[code;detail]
+    hint: .tst.isolate.fatalHint detail;
+    prefix: $[count hint;
+        "child terminated before producing results; output identifies a q runtime/startup failure (",
+            hint,")";
+        "process exited (code ",string[code],
+            ") without producing results - did a test call exit?"];
+    prefix, $[count detail; "\n",detail; ""]
+ };
+
+/ Retry only a q process that demonstrably failed before startup because the KX
+/ license daemon was temporarily unavailable. Never retry user test failures.
+.tst.isolate.retryableStartupFailure:{[rows]
+    if[0 = count rows; :0b];
+    needle: "couldn't connect to license daemon";
+    any {[target;row]
+        msg: lower .tst.toString first row`message;
+        0 < count ss[msg;target]
+    }[needle;] each rows
+ };
+
 .tst.isolate.rowsFromJson:{[tests]
     tests: $[98h = type tests; {[t;i] t i}[tests] each til count tests;
              99h = type tests; enlist tests;
@@ -162,7 +210,12 @@
         tm: $[count tmText; @["N"$; tmText; 0Nn]; 0Nn];
         fails: .tst.isolate.toStrList $[`failures in key t; t`failures; ()];
         asserts: $[`assertsRun in key t; t`assertsRun; 0];
-        .tst.isolate.row[suite; dsc; status; msg; tm; fails; asserts]
+        sourcePath: $[`file in key t; .tst.toString t`file; ""];
+        sourceNs: $[`namespace in key t; .tst.toString t`namespace; ""];
+        rowTags: $[`tags in key t; `$(),t`tags; `symbol$()];
+        sourceLine: $[`line in key t; "i"$t`line; 0Ni];
+        rowMeta: `file`line`namespace`tags!(sourcePath;sourceLine;sourceNs;rowTags);
+        .tst.isolate.rowWithMeta[suite;dsc;status;msg;tm;fails;asserts;rowMeta]
     } each tests
  };
 
@@ -186,18 +239,31 @@
     $[1b ~ enabled; argv, enlist flag; argv]
  };
 
+.tst.isolate.serializeValues:{[values]
+    if[() ~ values; :""];
+    if[10h = type values; :values];
+    if[-11h = type values; :string values];
+    if[0 = count values; :""];
+    "," sv .tst.toString each (),values
+ };
+
 / Child argv derives from normalized CLI values plus effective parent settings.
 / Parent reporter/lifecycle/isolation options are deliberately absent.
 .tst.isolate.childArgv:{[file; wd]
-    options: .resq.cli`options;
     argv: (.tst.isolate.qExe; .resq.HOME, "/resq.q"; "test"; file);
-    argv: .tst.isolate.appendValue[argv; "-only"; options`only];
-    argv: .tst.isolate.appendValue[argv; "-exclude"; options`exclude];
-    argv: .tst.isolate.appendValue[argv; "-tag"; options`tag];
-    argv: .tst.isolate.appendValue[argv; "-exclude-tag"; options`excludeTag];
+    argv: .tst.isolate.appendValue[argv; "-only";
+        .tst.isolate.serializeValues @[get; `.tst.app.runSpecs; ()]];
+    argv: .tst.isolate.appendValue[argv; "-exclude";
+        .tst.isolate.serializeValues @[get; `.tst.app.excludeSpecs; ()]];
+    argv: .tst.isolate.appendValue[argv; "-tag";
+        .tst.isolate.serializeValues @[get; `.tst.app.tagFilter; ()]];
+    argv: .tst.isolate.appendValue[argv; "-exclude-tag";
+        .tst.isolate.serializeValues @[get; `.tst.app.excludeTagFilter; ()]];
     argv: .tst.isolate.appendFlag[argv; "-strict"; @[get; `.tst.app.strict; 0b]];
     argv: .tst.isolate.appendFlag[argv; "-perf"; @[get; `.tst.app.runPerformance; 0b]];
+    argv: .tst.isolate.appendFlag[argv; "-fail-fast"; @[get; `.tst.app.failFast; 0b]];
     argv: .tst.isolate.appendFlag[argv; "-fail-hard"; @[get; `.tst.app.failHard; 0b]];
+    argv: .tst.isolate.appendFlag[argv; "-qspec-compat"; @[get; `.tst.app.qspecCompat; 0b]];
     argv: .tst.isolate.appendValue[argv; "-maxTestTime"; @[get; `.tst.app.maxTestTime; 0]];
     argv: .tst.isolate.appendValue[argv; "-fuzzLimit"; @[get; `.tst.output.fuzzLimit; 0]];
     argv: .tst.isolate.appendFlag[argv; "-quiet"; @[get; `.tst.app.quiet; 0b]];
@@ -209,6 +275,9 @@
  };
 
 .tst.isolate.runFileBody:{[wd; file; timeoutSecs; k; n]
+    / A retry must not decode an artifact left by its preceding attempt.
+    @[hdel; hsym `$wd, "/out.txt"; {}];
+    @[hdel; hsym `$wd, "/test-results.json"; {}];
     childArgv: .tst.isolate.childArgv[file; wd];
     timedArgv: (.tst.isolate.timeoutExe; "-k"; .tst.toString 5; string timeoutSecs), childArgv;
     outPath: wd, "/out.txt";
@@ -231,7 +300,7 @@
     if[code in 124 137;
         msg: "file exceeded isolateTimeout (", string[timeoutSecs], "s); killed",
              $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
-        -1 progress, "TIMEOUT";
+        .tst.isolate.print progress, "TIMEOUT";
         :enlist .tst.isolate.errorRow[`ISOLATED_FILE_TIMEOUT; file; msg]];
 
     if[code = .resq.EXIT.LOAD_ERROR;
@@ -239,37 +308,35 @@
             any ({first x`suite} each rows) = `FILE_LOAD_ERROR;
             0b];
         if[hasLoadRow;
-            -1 progress, "LOAD ERROR (", string[count rows], " rows)";
+            .tst.isolate.print progress, "LOAD ERROR (", string[count rows], " rows)";
             :rows];
         msg: "file failed to load (exit 4)",
              $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
-        -1 progress, "LOAD ERROR";
+        .tst.isolate.print progress, "LOAD ERROR";
         :rows, enlist .tst.isolate.errorRow[`FILE_LOAD_ERROR; file; msg]];
 
     if[valid;
         if[code = .resq.EXIT.PASS;
-            -1 progress, "ok (", string[count rows], " tests)";
+            .tst.isolate.print progress, "ok (", string[count rows], " tests)";
             :rows];
         if[(code = .resq.EXIT.FAIL) and hasFailingRows;
-            -1 progress, "FAILED (", string[count rows], " tests)";
+            .tst.isolate.print progress, "FAILED (", string[count rows], " tests)";
             :rows];
         expectedCodes: (.resq.EXIT.PASS; .resq.EXIT.FAIL; .resq.EXIT.LOAD_ERROR);
         unexpected: not code in expectedCodes;
         processRow: .tst.isolate.processExitRow[file; code; unexpected];
-        -1 progress, "PROCESS ERROR (exit ", string[code], ")";
+        .tst.isolate.print progress, "PROCESS ERROR (exit ", string[code], ")";
         :rows, enlist processRow];
 
     detail: .tst.isolate.tail[wd; 20];
     if[0 = count raw;
-        msg: "process exited (code ", string[code],
-             ") without producing results - did a test call exit?",
-             $[count detail; "\n", detail; ""];
-        -1 progress, "DIED (exit ", string[code], ", no results)";
+        msg: .tst.isolate.noReportMessage[code;detail];
+        .tst.isolate.print progress, "DIED (exit ", string[code], ", no results)";
         :enlist .tst.isolate.errorRow[`ISOLATED_FILE_DIED; file; msg]];
 
     msg: decoded`error, " (exit ", string[code], ")",
          $[count detail; "\n", detail; ""];
-    -1 progress, "INVALID REPORT";
+    .tst.isolate.print progress, "INVALID REPORT";
     enlist .tst.isolate.errorRow[`ISOLATED_REPORT_ERROR; file; msg]
  };
 
@@ -283,18 +350,29 @@
         :enlist .tst.isolate.errorRow[`ISOLATED_SETUP_ERROR; file; msg]];
 
     wd: scratchAttempt`wd;
-    result: .[
-        .tst.isolate.runFileBody;
-        (wd; file; timeoutSecs; k; n);
-        {[file; e]
-            msg: "isolation helper failed: ", e;
-            enlist .tst.isolate.errorRow[`ISOLATED_HELPER_ERROR; file; msg]
-        }[file;]];
+    result: ();
+    retryStartup: 1b;
+    attempt: 0;
+    while[retryStartup and attempt < 3;
+        attempt+: 1;
+        result: .[
+            .tst.isolate.runFileBody;
+            (wd; file; timeoutSecs; k; n);
+            {[file; e]
+                msg: "isolation helper failed: ", e;
+                enlist .tst.isolate.errorRow[`ISOLATED_HELPER_ERROR; file; msg]
+            }[file;]];
+        retryStartup: .tst.isolate.retryableStartupFailure result;
+        if[retryStartup and attempt < 3;
+            .tst.isolate.print "  transient q license startup failure; retrying file (attempt ",
+                string[attempt + 1], "/3)";
+            system "sleep 1"];
+    ];
     cleaned: @[
         .tst.isolate.cleanupScratch;
         wd;
         {[file; e]
-            -1 "ERROR: isolation scratch cleanup failed for ", file, ": ", e;
+            .tst.isolate.print "ERROR: isolation scratch cleanup failed for ", file, ": ", e;
             0b
         }[file;]];
     if[not cleaned;
@@ -368,13 +446,13 @@
     ];
     if[unavailable;
         msg: "Process isolation requires a working timeout with -k support and q/mktemp/chmod/rm/sh executables.";
-        -1 "ERROR: ", msg;
+        .tst.isolate.print "ERROR: ", msg;
         .tst.isolate.upsertRows enlist .tst.isolate.errorRow[
             `ISOLATION_UNAVAILABLE; "isolation"; msg];
     ];
 
     if[(not unavailable) and 0 < n;
-        -1 "Running ", string[n], " test file(s) in isolated subprocesses (timeout ",
+        .tst.isolate.print "Running ", string[n], " test file(s) in isolated subprocesses (timeout ",
             string[timeoutSecs], "s each)";
         {[files; timeoutSecs; n; i]
             .tst.isolate.upsertRows

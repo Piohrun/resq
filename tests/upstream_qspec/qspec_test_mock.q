@@ -15,21 +15,6 @@
   (get `..foo) musteq 0;
   delete foo from `.;
   };
- should["restore a legitimate dne-valued target instead of deleting it"]{
-  .tst.testState.mockDneOriginal: `dne;
-  `.tst.testState.mockDneOriginal mock 42;
-  .tst.restore[];
-  (get `.tst.testState.mockDneOriginal) musteq `dne;
-  @[{![`.tst.testState;();0b;enlist x]}; `mockDneOriginal; {}];
-  };
- should["restore values shaped like the old restore-error sentinel"]{
-  original: (`restoreErr; "ordinary value");
-  .tst.testState.mockRestoreTuple: original;
-  `.tst.testState.mockRestoreTuple mock 42;
-  .tst.restore[];
-  (get `.tst.testState.mockRestoreTuple) musteq original;
-  @[{![`.tst.testState;();0b;enlist x]}; `mockRestoreTuple; {}];
-  };
  should["remove any variables that did not originally exist when all variables are restored"]{
   `foo mock 1;
   .tst.restore[];

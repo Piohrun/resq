@@ -259,6 +259,15 @@ Define a performance test.
 | `props` | dict | Benchmark configuration |
 | `code` | function | Code to benchmark |
 
+Supported `props` keys:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `runs` | positive int | `10` | Number of measured executions |
+| `gc` | boolean | `1b` | Run GC before each measured execution |
+| `maxTime` | number | none | Maximum average wall-clock time in milliseconds |
+| `maxSpace` | number | none | Maximum average allocation in bytes |
+
 **Example:**
 ```q
 perf["sorting 10000 elements"; `runs`maxTime!(1000; 50)]{
@@ -1116,6 +1125,9 @@ testCases: ([] input: (1;2;3); expected: (2;4;6));
 
 **Notes:**
 - A precedence bug that caused the first row to spuriously fail when prior assertion state contained failures has been fixed. Each row now evaluates independently of prior assertion state.
+- Assertion failures are accumulated across every row, retain their original
+  diagnostic, and include the row's parameter values. A runtime error still
+  stops the loop and is reported as an error with parameter context.
 
 ---
 
@@ -1141,6 +1153,10 @@ Generate and run all combinations of parameters (Cartesian product).
     result mustgt 0;
 }];
 ```
+
+All combinations run even when an earlier combination fails an assertion. Each
+failure retains the assertion message and is suffixed with its parameter values.
+Runtime errors remain fail-fast and are reported as errors.
 
 ---
 
@@ -1395,7 +1411,7 @@ Clear all callback logs.
 
 ---
 
-## 7.1 Async & Promises
+### Async API summary
 
 Full guide with worked examples: [`ASYNC.md`](ASYNC.md).
 
@@ -1671,14 +1687,15 @@ q resq.q [mode] [options] [paths...]
 **Options:**
 | Flag | Description |
 |------|-------------|
-| `-junit` | Output JUnit XML to `outDir/test-results.xml` |
-| `-xunit` | Output xUnit XML to `outDir/test-results.xml` |
+| `-junit` | Output JUnit XML (single format: `test-results.xml`; multi-format: `test-results.junit.xml`) |
+| `-xunit` | Output xUnit v2 XML (single format: `test-results.xml`; multi-format: `test-results.xunit.xml`) |
 | `-json` | Output JSON report to `outDir/test-results.json` |
 | `-perf` | Include performance tests |
 | `-cov` / `-coverage` | Enable coverage |
 | `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
+| `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses LCOV line percentage, falling back to functions when no line records exist |
 | `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
 | `-fh` / `--fail-hard` | Hard stop and skip cleanup on first failure |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
@@ -1686,7 +1703,7 @@ q resq.q [mode] [options] [paths...]
 | `-exclude PATTERN` | Skip suites whose title matches the `like` glob pattern |
 | `-tag TAG` | Run only suites tagged with TAG (`#TAG` in the title) |
 | `-exclude-tag TAG` | Exclude suites tagged with TAG |
-| `-maxTestTime N` | Mark a test as timed out after N milliseconds |
+| `-maxTestTime N` | Mark a returned test as over-budget after N milliseconds (post-execution; does not interrupt hangs) |
 | `-fuzzLimit N` | Limit fuzz failure reporting |
 | `-isolate` | Run each test FILE in its own `q` subprocess; the parent aggregates results, reporters, and exit codes (a test calling `exit`, an infinite loop, or a fatal error becomes a per-file failure instead of killing the whole run) |
 | `-isolateTimeout N` | Per-FILE wall-clock cap in seconds under `-isolate` (default 300; needs the `timeout` binary to preempt a hang) |
@@ -1695,6 +1712,13 @@ q resq.q [mode] [options] [paths...]
 | `-exit` | Force exit-on-completion (overrides `"exit": false` in `resq.json`) |
 | `-quiet` | Suppress `Loading Test:` lines, the RUN AUDIT block, and per-suite output for passing suites. Failures still print fully. |
 | `-v` / `-version` | Print version |
+
+Reporter flags compose. A run with more than one selected format uses
+schema-specific filenames so JUnit and xUnit never overwrite one another.
+JUnit rows carry `file`/`line`; xUnit v2 rows carry
+`source-file`/`source-line`; JSON schema version 1 keeps `message` scalar and
+`failures` list-valued and includes the aggregate `assertionCount`. A reporter
+error fails the run after every selected reporter has been attempted.
 
 **Filtering examples:**
 ```bash
@@ -1759,6 +1783,8 @@ Create `resq.json` in project root:
     "pollutionGuard": true,
     "fuzzLimit": 100,
     "maxTestTime": 0,
+    "coverageMin": 0,
+    "covStatements": false,
     "reportLimit": 50000,
     "reportListLimit": 1000,
     "qNamespaceExports": true,
@@ -1770,6 +1796,11 @@ Create `resq.json` in project root:
 ```
 
 Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `console` is normalized to `text`.
+
+`coverageMin` is an integer from 0 through 100. A positive value enables
+coverage and applies the same fail-closed threshold as `-cov-min`. Set
+`covStatements` to `true` for measured statement probes instead of derived line
+records.
 
 `qNamespaceExports` controls compatibility exports into the reserved `.q` namespace. It defaults to `true` for existing suites. Set it to `false` to rely on root aliases and `.tst.*` APIs without writing resQ helpers into `.q`.
 

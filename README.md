@@ -1,13 +1,24 @@
 # resQ
 
-**resQ** is a testing, benchmarking, and discovery framework for **kdb+/q**. It
-extends the BDD-style foundations of `qspec` with features needed for
-professional CI/CD pipelines: automated test discovery, JUnit/JSON/xUnit
-reporters, property-based testing, coverage, watch mode, and rich diff output.
+**resQ** is a drop-in, test-source-compatible replacement for
+[`qspec`](https://github.com/nugend/qspec), plus a testing, benchmarking, and
+discovery framework for **kdb+/q**. Existing qspec suites can run through the
+`qspec` launcher without rewriting their DSL, assertions, fixtures, mocks, fuzz
+tests, or perf blocks. resQ adds automated discovery, JUnit/JSON/xUnit reporters,
+coverage, watch mode, process isolation, and rich diff output.
+
+The compatibility promise is executable: resQ runs a pinned, unmodified copy of
+qspec's seven public test files in its own test suite. qspec's private runner and
+reporter internals are not compatibility APIs; the precise boundary and the few
+intentional correctness differences are documented in
+[Migrating from qspec](docs/MIGRATION.md).
 
 ## Project Status
 
-This is an **alpha** release. APIs and behaviours may change without notice.
+The public qspec-compatible DSL and machine-readable result schemas are treated
+as stable. The framework's own release gate runs strict normal and process-
+isolated suites, its pinned upstream qspec contract, a coverage threshold, and
+independent JSON/XML parsing. See [Continuous Integration](docs/CI.md).
 
 ## AI Assistance
 
@@ -26,18 +37,19 @@ assistance.
   - **Parametrized Tests**: Run tests against a table of scenarios with `.tst.forall`.
   - **Async Testing**: Robust wait-for-condition and sleep utilities.
   - **Snapshot Testing**: Binary and text snapshots for complex data structures; text snapshots produce readable `git diff` output.
-- **Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV, a per-function HTML report (`coverage.html`), and `coverage_state.txt`. Coverage is function-level; compiled operators and derived functions are skipped.
+- **Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV, a per-function HTML report (`coverage.html`), and `coverage_state.txt`. Default line records are derived from function hits; `-cov-statements` enables measured statement coverage, and `-cov-min N` gates CI. Compiled operators and derived functions are skipped.
 - **Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change.
 
 ---
 
 ## Installation
 
-Clone the repo and put the `bin/resq` launcher on your `PATH`:
+Clone the repo and put the launchers on your `PATH`:
 
 ```bash
 git clone https://github.com/Piohrun/resq.git ~/.local/share/resq
 ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq   # adjust to taste
+ln -s ~/.local/share/resq/bin/qspec ~/.local/bin/qspec # drop-in qspec command
 ```
 
 The launcher resolves its install location (symlink-safe) and exports
@@ -55,6 +67,9 @@ resQ comes with a unified CLI for all operations.
 ```bash
 # Run tests (from your project root, after installing the launcher)
 resq test tests/
+
+# Run an existing qspec suite unchanged, with qspec assertion semantics
+qspec tests/
 
 # Or invoke q directly from the resq repo
 q resq.q test examples/quickstart/test
@@ -199,11 +214,22 @@ force exit-on-completion even if `resq.json` has `"exit": false`.
 
 ```bash
 # Standard CI invocation — exits 1 on any failure
-q resq.q test tests/
+resq test tests/ -strict -isolate -isolateTimeout 120 \
+  -junit -json -outDir artifacts/tests
 
 # Hard stop on first failure (requires -exit for the process to actually stop)
 q resq.q test tests/ -ff -exit
 ```
+
+Run coverage separately because coverage instrumentation and process isolation
+cannot be combined:
+
+```bash
+resq cover tests/ -strict -cov-min 80 -json -outDir artifacts/coverage
+```
+
+See [Continuous Integration](docs/CI.md) for reporter filenames, q runner
+licensing/prerequisites, and the checked-in GitHub Actions workflow.
 
 ---
 
@@ -311,6 +337,7 @@ See `docs/` for detailed guides:
 | `docs/API_REFERENCE.md` | Complete API — all DSL, assertions, CLI flags, config keys |
 | `docs/ARCHITECTURE.md` | Namespace layout, file structure, exit codes (contributor reference) |
 | `docs/COVERAGE.md` | Coverage instrumentation, LCOV output, HTML report |
+| `docs/CI.md` | Production CI invocation, runner prerequisites, artifacts |
 | `docs/FIXTURES.md` | Fixture scopes, lifecycle hooks, dependency injection |
 | `docs/PARALLEL.md` | CI-level parallelism strategy |
 | `docs/PBT.md` | Property-based testing with `holds` |

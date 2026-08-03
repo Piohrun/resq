@@ -76,16 +76,32 @@
     should["support both spellings for every value option"]{
         single: .tst.parseCLI ("test"; "-maxTestTime"; "0"; "-fuzzLimit"; "4";
             "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";
+            "-cov-min"; "85";
             "-outDir"; "reports"; "-exclude"; "slow*"; "-only"; "fast*";
             "-tag"; "smoke"; "-exclude-tag"; "flaky"; "suite.q");
         longForm: .tst.parseCLI ("test"; "--maxTestTime"; "0"; "--fuzzLimit"; "4";
             "--isolateTimeout"; "5"; "--cov-include"; "lib/*"; "--cov-exclude"; "tests/*";
+            "--coverage-min"; "85";
             "--outDir"; "reports"; "--exclude"; "slow*"; "--only"; "fast*";
             "--tag"; "smoke"; "--exclude-tag"; "flaky"; "suite.q");
         single[`ok] musteq 1b;
         longForm[`ok] musteq 1b;
         single[`options] mustmatch longForm`options;
         single[`args] mustmatch longForm`args;
+    };
+
+    should["normalize qspec's legacy runner aliases"]{
+        legacy: .tst.parseCLI ("suite.q"; "-performance"; "-pass";
+            "-fuzz-display-limt"; "7");
+        short: .tst.parseCLI ("suite.q"; "-fdl"; "11");
+        legacy[`ok] musteq 1b;
+        legacy[`mode] musteq `test;
+        legacy[`args] mustmatch enlist "suite.q";
+        legacy[`options; `perf] musteq 1b;
+        legacy[`options; `passOnly] musteq 1b;
+        legacy[`options; `fuzzLimit] musteq 7;
+        short[`ok] musteq 1b;
+        short[`options; `fuzzLimit] musteq 11;
     };
 
     should["treat every token after -- as positional, including dash-prefixed paths"]{
@@ -125,6 +141,8 @@
         .tst.cliParseFails[("test"; "-fuzzLimit"; "-2"); "Value must be >= 0 for -*"] musteq 1b;
         .tst.cliParseFails[("test"; "-isolateTimeout"; "0"); "Value must be > 0 for -*"] musteq 1b;
         .tst.cliParseFails[("test"; "-isolateTimeout"; "-1"); "Value must be > 0 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-cov-min"; "101"); "Value must be between 0 and 100 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-cov-min"; "-1"); "Value must be between 0 and 100 for -*"] musteq 1b;
     };
 
     should["reject contradictory process-lifecycle flags"]{
@@ -171,7 +189,7 @@
     file: wd, "/", name;
     lines: (
         "(hsym `$\"", marker, "\") 0: enlist \"loaded\";";
-        ".tst.desc[\"single suite alpha #fast\"]{ should[\"one\"]{ 1 musteq 1; }; };";
+        ".tst.desc[\"single suite alpha #fast\"]{ should[\"one\"]{ 1 musteq 1; must[not \"/.\" ~ -2 # .resq.HOME; \"HOME must be normalized\"]; }; };";
         ".tst.desc[\"other suite beta\"]{ should[\"two\"]{ 2 musteq 2; }; };"
     );
     (hsym `$file) 0: lines;
@@ -181,9 +199,10 @@
 / Run resQ in a fresh directory under GNU timeout with SIGKILL escalation.
 / args may contain @FIXTURE@, @REPORT@, and @WD@ placeholders.
 / repoCwd selects a natural invocation from the repository root.
-.tst.cliRun:{[args; fixtureName; repoCwd]
+.tst.cliRunConfigured:{[args; fixtureName; repoCwd; configText]
     wd: .tst.cliWorkDir[];
     fixturePath: .tst.cliWriteFixture[wd; fixtureName];
+    if[0 < count configText; (hsym `$wd, "/resq.json") 0: enlist configText];
     reportDir: wd, "/reports";
     argLine: ssr[args; "@FIXTURE@"; .utl.shellQuote fixturePath];
     argLine: ssr[argLine; "@REPORT@"; .utl.shellQuote reportDir];
@@ -193,7 +212,7 @@
     qCwd: .utl.shellQuote childCwd;
     qOut: .utl.shellQuote wd, "/out.txt";
     qExe: .utl.shellQuote .tst.cliQExe[];
-    qHome: .utl.shellQuote .tst.cliResqHome, "/resq.q";
+    qHome: .utl.shellQuote $[repoCwd; "resq.q"; .tst.cliResqHome, "/resq.q"];
     cmd: "mkdir -p ", qWd, " && cd ", qCwd,
          " && timeout -k 5 20 ", qExe, " ", qHome, " ", argLine,
          " < /dev/null > ", qOut, " 2>&1; echo $?";
@@ -207,10 +226,17 @@
     / output is visible to a test rather than only to someone running it by hand.
     cwdReport: .utl.pathExists childCwd, "/test-results.xml";
     subdirReport: .utl.pathExists childCwd, "/test-results/test-results.xml";
-    result: `code`out`loaded`reported`cwdReport`subdirReport!(
-        code; out; loaded; reported; cwdReport; subdirReport);
+    junitReport: .utl.pathExists reportDir, "/test-results.junit.xml";
+    xunitReport: .utl.pathExists reportDir, "/test-results.xunit.xml";
+    jsonReport: .utl.pathExists reportDir, "/test-results.json";
+    result: `code`out`loaded`reported`cwdReport`subdirReport`junitReport`xunitReport`jsonReport!(
+        code;out;loaded;reported;cwdReport;subdirReport;junitReport;xunitReport;jsonReport);
     .tst.cliCleanup wd;
     result
+};
+
+.tst.cliRun:{[args; fixtureName; repoCwd]
+    .tst.cliRunConfigured[args; fixtureName; repoCwd; ""]
 };
 
 .tst.cliAnyLike:{[lines; pattern] any lines like pattern};
@@ -265,11 +291,43 @@
     };
 
     skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "multiple reporters coexist without overwriting schemas"]{
+        r: .tst.cliRun["test @FIXTURE@ -junit -xunit -json -outDir @REPORT@"; "cli_flags.q"; 0b];
+        r[`code] musteq 0;
+        must[r`junitReport; "multi-report mode must emit test-results.junit.xml"];
+        must[r`xunitReport; "multi-report mode must emit test-results.xunit.xml"];
+        must[r`jsonReport; "multi-report mode must emit test-results.json"];
+        must[not r`reported; "ambiguous test-results.xml must not be emitted in multi-report mode"];
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
            "double-hyphen options match single-hyphen behavior"]{
         r: .tst.cliRun["test @FIXTURE@ --only \"single*\" --noquit --quiet"; "cli_flags.q"; 0b];
         r[`code] musteq 0;
         .tst.cliAnyLike[r`out; "*1 total*"] musteq 1b;
         r[`loaded] musteq 1b;
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "the documented relative resq.q entrypoint keeps HOME canonical"]{
+        r: .tst.cliRun["test @FIXTURE@ -quiet"; "cli_relative.q"; 1b];
+        r[`code] musteq 0;
+        r[`loaded] musteq 1b;
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "config exit false suppresses the process exit call"]{
+        r: .tst.cliRunConfigured["test @WD@/missing.q -quiet"; "cli_config.q"; 0b;
+            "{\"exit\":false}"];
+        r[`code] musteq 0;
+        .tst.cliAnyLike[r`out; "*FILE_LOAD_ERROR*"] musteq 1b;
+    };
+
+    skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
+           "-exit overrides config false and preserves granular load status"]{
+        r: .tst.cliRunConfigured["test @WD@/missing.q -quiet -exit"; "cli_config.q"; 0b;
+            "{\"exit\":false}"];
+        r[`code] musteq 4;
     };
 
     skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;

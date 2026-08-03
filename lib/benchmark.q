@@ -33,6 +33,8 @@
 / statistics rather than re-measuring.
 / ---------------------------------------------------------------------------
 .tst.benchmark.sample:{[n;code;opts]
+  if[not (type n) in -5 -6 -7h; '"benchmark iterations must be a positive integer"];
+  if[(null n) or n <= 0; '"benchmark iterations must be a positive integer"];
   o: (`warmup`gcBefore`gcEach`space!(3; 1b; 1b; 1b)), $[99h=type opts; opts; ()!()];
   if[0 < o`warmup; do[o`warmup; .tst.benchmark.invoke code]];
   if[o`gcBefore; .Q.gc[]];

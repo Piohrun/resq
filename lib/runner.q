@@ -10,48 +10,95 @@
         .tst.app.xmlOutput: reportFmt in `junit`xunit;
     ];
 
-    / Define XML reporter function
-    .resq.reportXml:{[results]
+    / Shared XML writer. A single-format run retains test-results.xml; when
+    / both XML schemas are requested, schema-specific names prevent overwrite.
+    / Serialization failures still leave a small, parseable diagnostic artifact,
+    / then signal so the enclosing multi-reporter dispatcher can fail the run.
+    .resq.writeXmlReport:{[results;builder;fileName]
       / JUnit/XUnit output expects flat result rows (the results argument),
       / which .tst.resultRows (called inside the reporter) sanitizes itself.
-      / Defensive serialization to avoid reporter crashes
-      xmlReport: $[`top in key `.tst.output;
-        @[.tst.output.top; results; {[e]
-            -1 "ERROR: XML reporter failed: ", .tst.toString e;
-            "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"reporter_failed\"/></testsuite></testsuites>"
-          }];
-        "<testsuites><testsuite name=\"resq\" errors=\"1\" tests=\"1\"><testcase name=\"reporter\"/><error message=\"xml_generator_unavailable\"/></testsuite></testsuites>"
-      ];
+      buildOutcome: $[type[builder] in 100 104h;
+        @[
+          {[pair]
+            buildFn: pair 0;
+            payload: pair 1;
+            (0b; buildFn payload)
+          };
+          (builder;results);
+          {[e] (1b;.tst.toString e)}];
+        (1b;"xml_generator_unavailable")];
+      xmlReport: $[first buildOutcome;
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?><testsuites tests=\"1\" failures=\"0\" errors=\"1\"><testsuite name=\"resq reporter\" tests=\"1\" failures=\"0\" errors=\"1\"><testcase name=\"report generation\"><error message=\"reporter_failed\">Reporter generation failed; see stderr.</error></testcase></testsuite></testsuites>";
+        last buildOutcome];
       outDirStr: .tst.toString .resq.config.outDir;
       if[0 = count outDirStr; outDirStr: "."];
       baseDirStr: .tst.toString .tst.app.baseDir;
       if[0 = count baseDirStr; baseDirStr: system "cd"];
       if[not outDirStr like "/*"; outDirStr: baseDirStr, "/", outDirStr];
       outDirStr: .utl.normalizePath outDirStr;
-      outFile: outDirStr, "/test-results.xml";
+      outFile: outDirStr, "/", fileName;
       .utl.ensureDir outDirStr;
       hsym[`$outFile] 0: enlist xmlReport;
       -1 "XML Report written to ", outFile;
+      if[first buildOutcome;
+        '"XML reporter failed: ", last buildOutcome];
      };
 
-    / Apply XML reporter if enabled
-    if[.tst.app.xmlOutput;
-      reportModule: $[reportFmt=`xunit; "xunit"; "junit"];
-      if[.tst.loadOutputModule[reportModule];
-          if[`top in key `.tst.output;
-              .resq.report: .resq.reportXml;
-          ];
-     ];
-    ];
+    .resq.reportXml:{[results]
+        .resq.writeXmlReport[results;.tst.output.top;"test-results.xml"]
+     };
 
-    / Apply JSON reporter when explicitly requested (non-XML path)
-    if[not .tst.app.xmlOutput;
-        if[reportFmt ~ `json;
-            if[.tst.loadOutputModule["json"];
-                if[`reportJson in key `.resq; .resq.report: .resq.reportJson];
-            ];
-        ];
-    ];
+    requested: @[get; `.tst.app.reportFormats; `symbol$()];
+    formats: $[count requested; requested;
+               .tst.app.xmlOutput and reportFmt ~ `text; enlist `junit;
+               enlist reportFmt];
+    formats: distinct {$[x~`console;`text;x~`xml;`junit;x]} each formats;
+    reportAvailability: .tst.loadOutputModule each formats;
+    .tst.app.activeReportFormats: formats where reportAvailability;
+
+    / Invoke one reporter under a structural tag. This lets reportSelected try
+    / every requested format even when an earlier serializer or file write fails.
+    .resq.invokeReporter:{[results;multiple;available;format]
+        if[not available;
+            :(1b;"requested output module unavailable")];
+        @[
+          {[args]
+            resultRows: args 0;
+            isMultiple: args 1;
+            reportFormat: args 2;
+            $[reportFormat ~ `text;
+                .resq.reportText resultRows;
+              reportFormat ~ `json;
+                .resq.reportJson resultRows;
+              reportFormat ~ `junit;
+                .resq.writeXmlReport[resultRows;.tst.output.junitTop;
+                    $[isMultiple;"test-results.junit.xml";"test-results.xml"]];
+              reportFormat ~ `xunit;
+                .resq.writeXmlReport[resultRows;.tst.output.xunitTop;
+                    $[isMultiple;"test-results.xunit.xml";"test-results.xml"]];
+              ::];
+            (0b;"")
+          };
+          (results;multiple;format);
+          {[e] (1b;.tst.toString e)}]
+     };
+
+    .resq.reportSelected:{[selected;availability;results]
+        multiple: 1 < count selected;
+        outcomes: {[resultRows;isMultiple;formats;available;i]
+            .resq.invokeReporter[resultRows;isMultiple;available i;formats i]
+        }[results;multiple;selected;availability;] each til count selected;
+        failedAt: where first each outcomes;
+        if[count failedAt;
+            details: {[fmt;err] string[fmt], ": ", err}'[
+                selected failedAt; last each outcomes failedAt];
+            '"REPORTER_FAILURE: ", "; " sv details];
+        ::
+     };
+    / Capture the selected list in a projection. A later initReporting call may
+    / change activeReportFormats, but restoring a previously saved reporter must
+    / restore its behavior too (important for embedded/repeated-process use).
+    .resq.report: .resq.reportSelected[formats;reportAvailability;];
      
 
     if[.tst.app.runCoverage;
@@ -95,6 +142,11 @@
         }];
         if[1b ~ .tst._covInitOk; -1 "Coverage enabled."];
      ];
+
+    / qspec compatibility: -pass executes the suite and preserves its exit
+    / status, but suppresses every result reporter (text, XML, JSON).
+    if[1b ~ @[get; `.tst.app.passOnly; 0b];
+        .resq.report: {[results] ()}];
  };
 
 / Run a suite-level hook (beforeAll/afterAll). Returns `ok or (`failed;errText).
@@ -194,7 +246,9 @@
             if[`afterAll in key spec;
                 afterAllResult: .tst.runHook spec`afterAll;
                 if[not afterAllResult ~ `ok;
-                    -1 "WARNING: afterAll hook failed for suite '", .tst.toString[specTitle], "': ", .tst.toString afterAllResult 1;
+                    .tst.recordCleanupError[`afterAll;
+                        "afterAll hook failed for suite '", .tst.toString[specTitle], "': ",
+                        .tst.toString afterAllResult 1];
                 ];
             ];
         ];
@@ -224,13 +278,15 @@
     / Remove skipped expectations (halt)
     res: res where not (::)~/: res;
 
-    / Run suite-level afterAll hook (skip if halting). A failed afterAll is a
-    / cleanup failure: WARN, do not fail the suite.
+    / Run suite-level afterAll hook (skip if halting). Cleanup failures are
+    / recorded now and injected as error rows after all cleanup attempts finish.
     if[not .tst.halt;
         if[`afterAll in key spec;
             afterAllResult: .tst.runHook spec`afterAll;
             if[not afterAllResult ~ `ok;
-                -1 "WARNING: afterAll hook failed for suite '", .tst.toString[specTitle], "': ", .tst.toString afterAllResult 1;
+                .tst.recordCleanupError[`afterAll;
+                    "afterAll hook failed for suite '", .tst.toString[specTitle], "': ",
+                    .tst.toString afterAllResult 1];
             ];
         ];
     ];
@@ -350,14 +406,26 @@
 
         toSym: {`$ .tst.toString x};
         dur: `timespan$ first e[`time];
-        toInsert: flip `suite`description`status`message`time`failures`assertsRun!(
+        fileText: $[`tstPath in key s; .utl.pathToString s`tstPath; ""];
+        namespaceText: $[`namespace in key e; .tst.toString e`namespace;
+                         `namespace in key s; .tst.toString s`namespace;
+                         ""];
+        specTags: $[`tags in key s; (),s`tags; ()];
+        expecTags: $[`tags in key e; (),e`tags; ()];
+        rowTags: distinct specTags, expecTags;
+        sourceLine: $[`line in key e; "i"$e`line; 0Ni];
+        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
             enlist toSym s[`title];
             enlist toSym e[`desc];
             enlist status;
             enlist messageText;
             enlist dur;
             enlist $[`failures in key e; e[`failures]; ()];
-            enlist $[`assertsRun in key e; e[`assertsRun]; 0i]
+            enlist $[`assertsRun in key e; e[`assertsRun]; 0i];
+            enlist fileText;
+            enlist sourceLine;
+            enlist namespaceText;
+            enlist rowTags
         );
         / Keep a perf block's measurement. runners[`perf] stores it on the
         / expectation as `perf (time/space stats from benchmark.measureOpts) but
@@ -395,7 +463,7 @@
             -1 "Desc:  ", .tst.toString e[`desc];
             -1 "Error: ", .tst.toString messageText;
             if[1b ~ .tst.app.failHard; .tst.halt: 1b];
-            if[(1b ~ .tst.app.exit) and not 1b ~ .tst.app.failHard; .tst.die 1];
+            if[(1b ~ @[get; `.tst.app.exitImmediately; 0b]) and not 1b ~ .tst.app.failHard; .tst.die 1];
         ];
     };
     (s;e);
@@ -433,6 +501,14 @@
     .tst.app.emptyFiles: ();
     .tst.app.executionState: `notStarted;
     .tst.app.baseDir: system "cd";
+    .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
+    .tst.app.cleanupErrors: ();
+    .tst.app.perfResults: .tst.app.emptyPerfResults[];
+    .tst.halt: 0b;
+    .tst.assertState: .tst.defaultAssertState;
+    .tst.suppressAssertionDiff: 1b ~ @[get; `.tst.app.passOnly; 0b];
+    if[`testDeps in key `.utl; .utl.testDeps: ()!()];
+    if[`activateQNamespaceExports in key `.tst; .tst.activateQNamespaceExports[]];
 
     / On non-Linux, per-spec leak detection only sees IPC handles (.z.W),
     / not file descriptors. Warn once per session if we are using the fallback.
@@ -451,6 +527,19 @@
 .tst.runAllPhase.filterSpecs:{[]
     if[0 = count .tst.app.allSpecs; :()];
     if[1b ~ .tst.app.failHard; .tst.app.allSpecs[; `failHard]: 1b];
+    / Match qspec: perf expectations are opt-in and disappear from the run
+    / unless -perf/-performance (or runPerformance:true) was selected.
+    specKeys: $[98h = type .tst.app.allSpecs;
+                cols .tst.app.allSpecs;
+                key first .tst.app.allSpecs];
+    if[(not 1b ~ .tst.app.runPerformance) and `expectations in specKeys;
+        .tst.app.allSpecs[; `expectations]: {
+            expecs:x;
+            if[98h = type expecs;
+                :expecs where not expecs[`type] = `perf];
+            expecs where not {`perf ~ x`type} each expecs
+        } each .tst.app.allSpecs[; `expectations];
+    ];
     if[0 <> count .tst.app.excludeSpecs;
         .tst.app.allSpecs: .tst.app.allSpecs where not (or) over .tst.app.allSpecs[; `title] like/: .tst.app.excludeSpecs
     ];
@@ -514,14 +603,18 @@
 .tst.runAllPhase.injectLoadErrors:{[]
     if[0 = count .tst.app.loadErrors; :()];
     {[err]
-        toInsert: flip `suite`description`status`message`time`failures`assertsRun!(
+        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
             enlist `FILE_LOAD_ERROR;
             enlist err`file;
             enlist `error;
             enlist err`error;
             enlist 0Nn;
             enlist enlist err`error;
-            enlist 0i
+            enlist 0i;
+            enlist .utl.pathToString err`file;
+            enlist 0Ni;
+            enlist "";
+            enlist `symbol$()
         );
         `.resq.state.results upsert toInsert;
 
@@ -575,24 +668,87 @@
 .tst.runAllPhase.applyStrictMode:{[]
     .tst.runAllPhase.applyStrictAssertions[];
     if[not (.tst.app.strict and 0 = .tst.app.expectationsRan); :()];
-    toInsert: flip `suite`description`status`message`time`failures`assertsRun!(
+    toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
         enlist `STRICT_MODE_FAILURE;
         enlist `NO_TESTS_FOUND;
         enlist `error;
         enlist "Strict mode enabled but no tests were executed (skipped tests do not count under -strict).";
         enlist 0Nn;
         enlist enlist "No tests were executed (skipped tests do not count under -strict).";
-        enlist 0i
+        enlist 0i;
+        enlist "";
+        enlist 0Ni;
+        enlist "";
+        enlist `symbol$()
     );
     `.resq.state.results upsert toInsert;
+ };
+
+/ Convert every recorded teardown/cleanup failure into an ordinary error row.
+/ Called only after finalCleanup, so late session-fixture and restore errors are
+/ included in both exit status and machine-readable reports.
+.tst.runAllPhase.injectCleanupErrors:{[]
+    records: @[get; `.tst.app.cleanupErrors; {()}];
+    if[0 = count records; :()];
+    {[rec]
+        suiteText: $[`suite in key rec; .tst.toString rec`suite; ""];
+        testText: $[`test in key rec; .tst.toString rec`test; ""];
+        scopeText: $[`scope in key rec; .tst.toString rec`scope; "cleanup"];
+        messageText: $[`message in key rec; .tst.toString rec`message; "Cleanup failed"];
+        sourcePath: $[`file in key rec; .utl.pathToString rec`file; ""];
+        suiteSym: `$ $[count suiteText; suiteText; "CLEANUP_ERROR"];
+        descSym: `$ "cleanup [",scopeText,"]",$[count testText; " after ",testText; ""];
+        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+            enlist suiteSym;
+            enlist descSym;
+            enlist `error;
+            enlist messageText;
+            enlist 0Nn;
+            enlist enlist messageText;
+            enlist 0i;
+            enlist sourcePath;
+            enlist 0Ni;
+            enlist "";
+            enlist `symbol$());
+        `.resq.state.results upsert toInsert;
+      } each records;
+    / Injection is a drain operation. Clearing only after every row was added
+    / keeps a mid-injection error diagnosable while preventing duplicate rows
+    / if a caller invokes this phase again.
+    .tst.app.cleanupErrors: ();
+ };
+
+/ Turn an unexpected framework-phase exception into the same canonical result
+/ contract as a test error. The runner must never print an exception and then
+/ leave machine reporters (or the process exit status) green.
+.tst.runAllPhase.recordFrameworkError:{[phase;err]
+    phaseText: .tst.toString phase;
+    errText: .tst.toString err;
+    messageText: "Framework phase '",phaseText,"' failed: ",errText;
+    -1 "ERROR: ",messageText;
+    toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags!(
+        enlist `RESQ_FRAMEWORK_ERROR;
+        enlist `$phaseText;
+        enlist `error;
+        enlist messageText;
+        enlist 0Nn;
+        enlist enlist messageText;
+        enlist 0i;
+        enlist "";
+        enlist 0Ni;
+        enlist "";
+        enlist `symbol$());
+    `.resq.state.results upsert toInsert;
+    .tst.app.passed: 0b;
  };
 
 / Aggregate per-spec results into the global pass/fail bit. Any load error
 / or empty-results state forces a failure.
 .tst.runAllPhase.computePassed:{[]
-    resList: $[98h = type .tst.app.results;
-               {[tbl; idx] tbl idx}[.tst.app.results] each til count .tst.app.results;
-               .tst.app.results];
+    rawResults: @[get; `.tst.app.results; ()];
+    resList: $[98h = type rawResults;
+               {[tbl; idx] tbl idx}[rawResults] each til count rawResults;
+               rawResults];
     r: raze { [x] $[99h = type x; $[count x`expectations; x`expectations; ()]; ()] } each resList;
     allResPass:   $[count r; all (.tst.normalizeResultStatus each r[; `result]) in `pass`skip`pending; 1b];
     allStatePass: $[count .resq.state.results; all .resq.state.results[`status] in `pass`skip`pending; 1b];
@@ -616,26 +772,59 @@
     -1 "Coverage outDir: ", outDirStr;
     .utl.ensureDir outDirStr;
 
+    errors: ();
     covLCOV: @[get; `.tst.generateLCOV; {()}];
-    if[0 = count covLCOV; -1 "Coverage LCOV generator not available."];
+    if[0 = count covLCOV; errors,: enlist "Coverage LCOV generator not available."];
     if[0 < count covLCOV;
-        @[covLCOV; outDirStr, "/coverage.lcov"; {[e] -1 "Coverage LCOV generation failed: ", .tst.toString e; :()}];
+        lcovOutcome: @[
+            {[pair] (pair 0) pair 1; (0b;"")};
+            (covLCOV;outDirStr, "/coverage.lcov");
+            {[e] (1b;e)}];
+        if[first lcovOutcome;
+            errors,: enlist "LCOV generation failed: ", .tst.toString last lcovOutcome];
     ];
 
     covHTML: @[get; `.tst.generateHTML; {()}];
-    if[0 = count covHTML; -1 "Coverage HTML generator not available."];
+    if[0 = count covHTML; errors,: enlist "Coverage HTML generator not available."];
     if[0 < count covHTML;
-        @[covHTML; outDirStr, "/coverage.html"; {[e] -1 "Coverage HTML generation failed: ", .tst.toString e; :()}];
+        htmlOutcome: @[
+            {[pair] (pair 0) pair 1; (0b;"")};
+            (covHTML;outDirStr, "/coverage.html");
+            {[e] (1b;e)}];
+        if[first htmlOutcome;
+            errors,: enlist "HTML generation failed: ", .tst.toString last htmlOutcome];
     ];
+
+    summary: @[get; `.tst.lastCoverageSummary; {()!()}];
+    measurable: (99h = type summary) and
+        (`linesFound in key summary) and (`functionsFound in key summary) and
+        (0 < summary`linesFound) or 0 < summary`functionsFound;
+    if[not measurable; errors,: enlist "Coverage measured no executable lines or functions."];
+    if[measurable;
+        primaryPercent: $[0 < summary`linesFound; summary`linePercent; summary`functionPercent];
+        primaryHit: $[0 < summary`linesFound; summary`linesHit; summary`functionsHit];
+        primaryFound: $[0 < summary`linesFound; summary`linesFound; summary`functionsFound];
+        primaryKind: $[0 < summary`linesFound; "lines"; "functions"];
+        .tst.app.coveragePercent: primaryPercent;
+        -1 "Coverage: ", string[primaryPercent], "% ", primaryKind,
+            " (", string[primaryHit], "/", string[primaryFound], "); functions ",
+            string[summary`functionPercent], "% (", string[summary`functionsHit],
+            "/", string[summary`functionsFound], ")";
+        required: @[get; `.tst.app.coverageMin; 0];
+        if[primaryPercent < required;
+            errors,: enlist "Coverage ",string[primaryPercent],"% is below required minimum ",
+                string[required],"% (",string[primaryHit],"/",string[primaryFound]," ",primaryKind,")."];
+    ];
+    if[count errors; '"Coverage failed: ","; " sv errors];
  };
 
 / End-of-run cleanup. Every step is trapped so one bad cleanup does not
 / skip the rest. Sandbox namespaces are removed wholesale.
 .tst.runAllPhase.finalCleanup:{[]
     .tst.app.executionState: `completed;
-    @[.tst.cleanupAllFixtures; (); {[e] -1 "WARNING: Fixture cleanup failed: ", .tst.toString e}];
-    @[.tst.restoreOriginalQ; (); {[e] -1 "WARNING: Original .q restore failed: ", .tst.toString e}];
-    @[.tst.restore; (); {[e] -1 "WARNING: Mock restore failed: ", .tst.toString e}];
+    @[.tst.cleanupAllFixtures; (); {[e] .tst.recordCleanupError[`sessionFixture;e]}];
+    @[.tst.restoreOriginalQ; (); {[e] .tst.recordCleanupError[`qNamespaceRestore;e]}];
+    @[.tst.restore; (); {[e] .tst.recordCleanupError[`mockRestore;e]}];
 
     rootKeys: key `.;
     sandboxKeys: rootKeys where (string rootKeys) like "sandbox_*";
@@ -652,23 +841,36 @@
     fn[]
  };
 
+/ Execute one orchestration phase under a structural outcome tag. The tag is
+/ added outside user/framework code so an ordinary return value cannot imitate
+/ an exception. Returns 1b on success and records a framework error on failure.
+.tst.runAllPhase.runSafely:{[name;fn]
+    outcome: @[
+        {[pair] .tst.runAllPhase.run[pair 0;pair 1]; (0b;"")};
+        (name;fn);
+        {[err] (1b;err)}];
+    if[first outcome; .tst.runAllPhase.recordFrameworkError[name;last outcome]];
+    not first outcome
+ };
+
 / ----------------------------------------------------------------------------
-/ runAll: the public entry point. Pure orchestration of the phases above.
-/ Each step records its name via .tst.runAllPhase.run for debugger context;
-/ the initRun and exit-dispatch lines bookend the sequence.
+/ runAll: the public entry point. Every phase is trapped, and cleanup/reporting
+/ still run after an unexpected framework error. A phase failure stops only the
+/ remaining execution phases; the lifecycle tail is unconditional.
 / ----------------------------------------------------------------------------
 .tst.runAll:{[]
-    .tst.runAllPhase.initRun[];
+    continue: .tst.runAllPhase.runSafely[`initRun; .tst.runAllPhase.initRun];
+    if[continue; continue: .tst.runAllPhase.runSafely[`loadTests; {.tst.loadTests .tst.app.args}]];
+    if[continue; continue: .tst.runAllPhase.runSafely[`filterSpecs; .tst.runAllPhase.filterSpecs]];
+    if[continue; continue: .tst.runAllPhase.runSafely[`runSpecs; .tst.runAllPhase.runDiscoveredSpecs]];
+    if[continue; continue: .tst.runAllPhase.runSafely[`loadErrors; .tst.runAllPhase.injectLoadErrors]];
+    if[continue; continue: .tst.runAllPhase.runSafely[`strictMode; .tst.runAllPhase.applyStrictMode]];
+    if[continue; continue: .tst.runAllPhase.runSafely[`coverage; .tst.runAllPhase.generateCoverage]];
 
-    .tst.runAllPhase.run[`loadTests;       {.tst.loadTests .tst.app.args}];
-    .tst.runAllPhase.run[`filterSpecs;     .tst.runAllPhase.filterSpecs];
-    .tst.runAllPhase.run[`runSpecs;        .tst.runAllPhase.runDiscoveredSpecs];
-    .tst.runAllPhase.run[`loadErrors;      .tst.runAllPhase.injectLoadErrors];
-    .tst.runAllPhase.run[`strictMode;      .tst.runAllPhase.applyStrictMode];
-    .tst.runAllPhase.run[`resultsSummary;  .tst.runAllPhase.computePassed];
-    .tst.runAllPhase.run[`report;          {.tst.printRunAudit[]; .resq.report .resq.state.results}];
-    .tst.runAllPhase.run[`coverage;        .tst.runAllPhase.generateCoverage];
-    .tst.runAllPhase.run[`cleanup;         .tst.runAllPhase.finalCleanup];
-
-    if[1b ~ .tst.app.exit; .tst.die `int$not .tst.app.passed];
+    / These phases deliberately ignore `continue`: they are the finally path.
+    .tst.runAllPhase.runSafely[`cleanup; .tst.runAllPhase.finalCleanup];
+    .tst.runAllPhase.runSafely[`cleanupErrors; .tst.runAllPhase.injectCleanupErrors];
+    .tst.runAllPhase.runSafely[`resultsSummary; .tst.runAllPhase.computePassed];
+    .tst.runAllPhase.runSafely[`report; {.tst.printRunAudit[]; .resq.report .resq.state.results}];
+    ::
  };

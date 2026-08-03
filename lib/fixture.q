@@ -96,7 +96,11 @@ getFixture:{[name]
 teardownFixture:{[name;val]
   if[not name in key .tst.fixtures; :()];
   f: .tst.fixtures name;
-  if[not f[`teardown]~{}; @[f[`teardown]; val; { [name;e] -1 "ERROR cleaning fixture '", string[name], "': ", e }[name]]];
+  if[not f[`teardown]~{};
+    @[f[`teardown]; val; {[fixtureName;err]
+        .tst.recordCleanupError[`sessionFixture;
+            "Fixture '",string[fixtureName],"' teardown failed: ",err]
+      }[name]]];
  }
 
 cleanupAllFixtures:{[]
@@ -231,6 +235,24 @@ findDirVars:{
 / e.g. unlinking a file whose handle the test deliberately leaks.
 if[not `cleanupTasks in key `.tst; cleanupTasks:: ()];
 if[not `specCleanupTasks in key `.tst; specCleanupTasks:: ()];
+if[not `cleanupErrors in key `.tst.app; .tst.app.cleanupErrors: ()];
+
+/ Record cleanup failures as structured run state. They are injected into the
+/ final result set after all cleanup attempts finish, so CI cannot go green when
+/ teardown failed and later cleanup steps still get a chance to run.
+recordCleanupError:{[scope;err]
+    ctx: @[get; `.tst.currentContext; {()!()}];
+    sourcePath: $[(99h = type ctx) and `file in key ctx; .tst.toString ctx`file; ""];
+    suiteName: $[(99h = type ctx) and `suite in key ctx; .tst.toString ctx`suite; ""];
+    testName: $[(99h = type ctx) and `test in key ctx; .tst.toString ctx`test; ""];
+    messageText: .tst.toString err;
+    .tst.app.cleanupErrors,: enlist `scope`file`suite`test`message!(
+        scope;sourcePath;suiteName;testName;messageText);
+    -1 "ERROR: Cleanup failure [", .tst.toString[scope], "]",
+        $[count suiteName; " in ",suiteName; ""],
+        $[count testName; " :: ",testName; ""], ": ", messageText;
+    messageText
+ };
 
 registerCleanup:{[func;args]
     .tst.cleanupTasks,: enlist `func`args!(func;args);
@@ -242,7 +264,14 @@ registerSpecCleanup:{[func;args]
 
 drainQueue:{[q]
     if[0 = count q; :()];
-    {[t] .[t`func; t`args; { [e] -1 "WARNING: Cleanup task failed: ", .tst.toString e }] } each q;
+    outcomes: {[t]
+        $[0 = count t`args;
+          @[{[fn] (0b;fn[])};t`func;{[err] (1b;err)}];
+          @[{[task] (0b;.[task`func;task`args])};t;{[err] (1b;err)}]]
+      } each q;
+    failed: outcomes where 1b ~/: first each outcomes;
+    if[count failed; .tst.recordCleanupError[`cleanupTask;] each last each failed];
+    last each failed
  }
 
 runCleanupTasks:{[]

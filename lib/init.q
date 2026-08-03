@@ -101,20 +101,34 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
     ];
  };
 
+/ Genuine pre-resQ values for export keys must survive end-of-run cleanup so a
+/ later in-process run can reactivate the DSL and still restore those values.
+if[not `qExportOriginals in key `.tst; .tst.qExportOriginals: (`symbol$())!()];
+
+.tst.captureQExportOriginals:{[ks]
+    .tst.saveOriginalQ ks;
+    captured: ks inter key .tst.originalQ;
+    if[0 < count captured;
+        .tst.qExportOriginals: .tst.qExportOriginals, captured # .tst.originalQ];
+    ::
+ };
+
 / Neutralize resq's .q exports. q cannot delete .q members, so resq-added keys
 / that had no genuine pre-resq original are set to (::) ("neutralized"); keys
 / that shadowed a real original are reset to that original value.
 .tst.restoreOriginalQ:{[]
-    if[not `originalQ in key `.tst; :()];
-    / Defensive: bail out if corrupted
-    if[not 99h = type .tst.originalQ; delete originalQ from `.tst; :()];
+    transient: $[`originalQ in key `.tst; .tst.originalQ; (`symbol$())!()];
+    if[not 99h = type transient; transient: (`symbol$())!()];
+    permanent: $[`qExportOriginals in key `.tst; .tst.qExportOriginals; (`symbol$())!()];
+    if[not 99h = type permanent; permanent: (`symbol$())!()];
+    originals: permanent, transient;
 
     / Reset each genuinely-captured original back to its pre-resq value.
-    if[0 < count .tst.originalQ;
+    if[0 < count originals;
         {[k;v]
             qName: ` sv `.q,k;
             @[qName set; v; { [name; e] -1 "ERROR: Failed to reset ",string[name],": ",e }[qName]];
-        }'[key .tst.originalQ; value .tst.originalQ];
+        }'[key originals; value originals];
     ];
 
     / Neutralize EVERY resq-added .q export that had no genuine original.
@@ -123,14 +137,14 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
     / never a partial hardcode. q cannot remove .q members, so we set (::).
     if[`qExports in key `.tst;
         {[k]
-            if[not k in key .tst.originalQ;
+            if[not k in key .tst.qExportOriginals;
                 (` sv `.q,k) set (::);
             ];
         } each key .tst.qExports;
     ];
 
     / Clean up
-    delete originalQ from `.tst;
+    if[`originalQ in key `.tst; delete originalQ from `.tst];
 
     if[.utl.DEBUG; -1 "Neutralized resQ .q exports (q cannot remove .q members)"];
  };
@@ -147,13 +161,20 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
 if[not `qNamespaceExports in key `.tst; .tst.qNamespaceExports: 1b];
 if[not `qExports in key `.tst; .tst.qExports: (`symbol$())!()];
 
+.tst.activateQNamespaceExports:{[]
+    if[not 1b ~ .tst.qNamespaceExports; :()];
+    if[0 = count .tst.qExports; :()];
+    { (` sv `.q,x) set y }'[key .tst.qExports; value .tst.qExports];
+    ::
+ };
+
 .tst.registerQExports:{[exports]
     if[not 99h = type exports; '`type];
     if[.tst.qNamespaceExports;
         / Snapshot the genuine ORIGINAL .q value of each incoming key BEFORE
         / it is added to qExports or overwritten. Doing this first is what keeps
         / the snapshot honest (see saveOriginalQ).
-        .tst.saveOriginalQ[key exports];
+        .tst.captureQExportOriginals[key exports];
     ];
     .tst.qExports: .tst.qExports, exports;
     if[.tst.qNamespaceExports;
@@ -164,14 +185,13 @@ if[not `qExports in key `.tst; .tst.qExports: (`symbol$())!()];
 
 .tst.setQNamespaceExports:{[enabled]
     enabled: 1b ~ enabled;
-    if[enabled ~ .tst.qNamespaceExports; :()];
+    if[enabled ~ .tst.qNamespaceExports;
+        if[enabled; .tst.activateQNamespaceExports[]];
+        :()
+    ];
     .tst.qNamespaceExports: enabled;
     if[enabled;
-        if[0 < count .tst.qExports;
-            / Re-enabling: capture originals of the export keys, then write.
-            .tst.saveOriginalQ[key .tst.qExports];
-            { (` sv `.q,x) set y }'[key .tst.qExports; value .tst.qExports];
-        ];
+        .tst.activateQNamespaceExports[];
         :()
     ];
     .tst.restoreOriginalQ[];

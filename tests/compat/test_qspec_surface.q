@@ -78,9 +78,47 @@
   };
  };
 
+.tst.desc["qspec surface: file fixtures"]{
+  before{ fixture `qspecSurface };
+
+  should["load a fixture into its default name"]{
+    ([]whole:20 40i; word:`foo`bar) mustmatch qspecSurface;
+  };
+
+  should["load the same fixture under an explicit name"]{
+    fixtureAs[`qspecSurface; `qspecSurfaceAlias];
+    qspecSurface mustmatch qspecSurfaceAlias;
+  };
+ };
+
+.tst.desc["qspec surface: legacy runner options"]{
+  should["accept qspec's original option names"]{
+    parsed:.tst.parseCLI ("-performance"; "-pass"; "-fuzz-display-limt"; "17"; "suite.q");
+    parsed[`ok] musteq 1b;
+    parsed[`options; `perf] musteq 1b;
+    parsed[`options; `passOnly] musteq 1b;
+    parsed[`options; `fuzzLimit] musteq 17;
+    parsed[`args] mustmatch enlist "suite.q";
+  };
+
+  should["accept qspec's short fuzz display alias"]{
+    parsed:.tst.parseCLI ("-fdl"; "9"; "suite.q");
+    parsed[`ok] musteq 1b;
+    parsed[`options; `fuzzLimit] musteq 9;
+  };
+ };
+
 .tst.desc["qspec surface: property-based holds"]{
   holds["addition is commutative"; `runs`vars!(20; `a`b!(`int;`int))]{[x]
     (x[`a] + x[`b]) musteq (x[`b] + x[`a])
+  };
+ };
+
+/ qspec's perf verb is registered at load time but executes only when the
+/ runner receives -perf/-performance, exactly like the original framework.
+.tst.desc["qspec surface: performance"]{
+  perf["run a qspec-style performance expectation"; enlist[`runs]!enlist 2]{
+    1 musteq 1
   };
  };
 

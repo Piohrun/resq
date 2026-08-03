@@ -42,13 +42,23 @@
     msg: .tst.output.escapeXml rawMsg;
     t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
     attrs: " classname=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", string[t], "\"";
+    if[`file in key rec;
+        fileStr: .tst.toString rec`file;
+        if[count fileStr; attrs,: " file=\"", .tst.output.escapeXml[fileStr], "\""];
+    ];
+    if[`line in key rec;
+        sourceLine: "i"$rec`line;
+        if[(not null sourceLine) and sourceLine > 0;
+            attrs,: " line=\"", string[sourceLine], "\""];
+    ];
     caseOpen: "    <testcase",attrs,">";
     caseClose: "    </testcase>";
     if[recStatus in `pass;
         :caseOpen,caseClose
     ];
     if[recStatus in `skip`pending;
-        :caseOpen,"    <skipped/>",caseClose
+        reason: $[count rawMsg; msg; "Skipped"];
+        :caseOpen,"    <skipped message=\"",reason,"\">",reason,"</skipped>",caseClose
     ];
     if[(recStatus ~ `error) or recStatus like "*Error";
         :caseOpen,"    <error message=\"",msg,"\">",msg,"</error>",caseClose
@@ -61,7 +71,7 @@
 / otherwise leave .tst.output.top pointing at whichever loaded first.
 .tst.output.junitTop:{[results]
     rows: .tst.output.normalizeRows results;
-    if[0=count rows; :"<testsuites></testsuites>"];
+    if[0=count rows; :"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuites></testsuites>"];
     / normalizeRows may hand back either a list of row dicts or an already
     / assembled table; .tst.resultTable canonicalises both to a 98h table.
     t: .tst.resultTable results;
@@ -90,7 +100,13 @@
         $[0<count body; header,"\n",body,"\n",footer; header,"\n",footer]
     }[t;] each suites;
 
-    "<testsuites>\n",suiteBlocks,"\n</testsuites>"
+    statusNorm: .tst.normalizeResultStatus each t`status;
+    rootOpen: "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuites tests=\"",
+        string[count t], "\" failures=\"", string[sum statusNorm = `fail],
+        "\" errors=\"", string[sum statusNorm = `error], "\" skipped=\"",
+        string[sum statusNorm in `skip`pending], "\" time=\"",
+        string[.tst.output.toSeconds sum t`time], "\">";
+    rootOpen,"\n",suiteBlocks,"\n</testsuites>"
  };
 
 .tst.output.top: .tst.output.junitTop;

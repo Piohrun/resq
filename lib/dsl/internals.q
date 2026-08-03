@@ -20,6 +20,9 @@ if[not `xmlOutput in key `.tst.app; .tst.app.xmlOutput: 0b];
 if[not `runPerformance in key `.tst.app; .tst.app.runPerformance: 0b];
 if[not `runCoverage in key `.tst.app; .tst.app.runCoverage: 0b];
 if[not `exit in key `.tst.app; .tst.app.exit: 0b];
+/ Set only by the explicit -exit CLI flag. End-of-run exit policy belongs to
+/ resq.q; this flag preserves -ff -exit's immediate hard-stop semantics.
+if[not `exitImmediately in key `.tst.app; .tst.app.exitImmediately: 0b];
 if[not `failFast in key `.tst.app; .tst.app.failFast: 0b];
 if[not `failHard in key `.tst.app; .tst.app.failHard: 0b];
 if[not `pollutionGuard in key `.tst.app; .tst.app.pollutionGuard: 1b];
@@ -189,8 +192,8 @@ internals[`specObj]:`result`title`failHard!(`didNotRun;"";0b)
 / (runs/vars/maxFailRate) live in the base too; holds[] overrides them directly.
 / NOTE: before/after are deliberately NOT in the base - fillExpecBA attaches them
 / uniformly and its `not `before in key ex` guard must still fire.
-internals[`defaultExpecObj]:`result`errorText`desc`code`tags`namespace`skipReason`retries`only`props`runs`vars`maxFailRate!(
-    `didNotRun;();"";{};`symbol$();`.;"";0;0b;()!();100;`int;0f)
+internals[`defaultExpecObj]:`result`errorText`desc`code`tags`namespace`line`skipReason`retries`only`props`runs`vars`maxFailRate!(
+    `didNotRun;();"";{};`symbol$();`.;0Ni;"";0;0b;()!();100;`int;0f)
 internals[`testObj]: internals[`defaultExpecObj], ((),`type)!(),`test
 internals[`fuzzObj]: internals[`defaultExpecObj], ((),`type)!(),`fuzz
 internals[`perfObj]: internals[`defaultExpecObj], ((),`type)!(),`perf

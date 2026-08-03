@@ -415,6 +415,10 @@
     must[.tst.golden.anyLike[lines; "<failure"]; "XML should contain <failure"];
     must[.tst.golden.anyLike[lines; "Got 1 — expected 2"];
          "failure message should appear in XML"];
+    must[0 < count ss[xml;"f_fail.q\" line=\"4\""];
+         "JUnit testcase should carry the source file and declaration line"];
+    must[0 < count ss[xml;"f_fail.q\" line=\"5\""];
+         "each JUnit testcase should retain its own declaration line"];
     / Report-message rendering fix: the failure text must be the plain message,
     / NOT the q literal form of a 1-element list (which escapes to `,&quot;` in
     / XML once the leading `,"` is &quot;-escaped).
@@ -470,10 +474,25 @@
     lines: .tst.golden.readFile[r`dir; "test-results.json"];
     must[0 < count lines; "test-results.json should be written"];
     j: .j.k raze lines;
+    must[1 = j`schemaVersion; "JSON schemaVersion should be 1"];
     must[2 = j`testCount; "testCount should be 2"];
+    must[2 = j`assertionCount; "assertionCount should aggregate row assertions"];
+    must[2 = j`passCount; "passCount should be 2"];
     must[0 = j`failCount; "failCount should be 0"];
     st: j[`tests]`status;
     musteq[count st; 2];
     must[all st ~\: "pass"; "both tests should have status pass"];
+  };
+
+  skipIf[not .tst.golden.canQ; "f_fail -json: stable message type and source metadata"]{
+    r: .tst.golden.run .tst.golden.fixtures, "f_fail.q -json -quiet";
+    musteq[r`code; 1];
+    j: .j.k raze .tst.golden.readFile[r`dir; "test-results.json"];
+    failedRows: j[`tests] where j[`tests;`status] ~\: "fail";
+    musteq[count failedRows; 1];
+    must[10h = type first failedRows`message; "failure message must be a JSON string"];
+    must[0 < count first failedRows`failures; "failure details must remain an array"];
+    must[0 < count first failedRows`file; "test source file must reach JSON"];
+    must[0 < count first failedRows`namespace; "test namespace must reach JSON"];
   };
  };

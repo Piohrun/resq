@@ -2,10 +2,10 @@
 
 / Authoritative CLI option schema. Aliases are stored as strings so unknown
 / user input is never interned as a symbol. Every alias accepts both -x and --x.
-.tst.cli.specNames:`perf`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`isolateTimeout`maxTestTime`fuzzLimit`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
-.tst.cli.specAliases:(enlist "perf";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");enlist "isolateTimeout";enlist "maxTestTime";enlist "fuzzLimit";enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
-.tst.cli.specKinds:(18 # `flag), 10 # `value;
-.tst.cli.numericNames: `isolateTimeout`maxTestTime`fuzzLimit;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`isolateTimeout`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");enlist "isolateTimeout";enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
+.tst.cli.specKinds:(19 # `flag), 11 # `value;
+.tst.cli.numericNames: `isolateTimeout`maxTestTime`fuzzLimit`coverageMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
 / one of them ever leaves them misaligned (a silent mislabel otherwise).
@@ -141,11 +141,14 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
 
     invalidRanges: where
         (numericValues < 0) or
-        (numericOptionNames = `isolateTimeout) and numericValues = 0;
+        ((numericOptionNames = `isolateTimeout) and numericValues = 0) or
+        ((numericOptionNames = `coverageMin) and numericValues > 100);
     if[count invalidRanges;
         badIndex: first invalidRanges;
         numericValuePositions: valuePositions where numericMask;
-        requirement: $[numericOptionNames[badIndex] ~ `isolateTimeout; "> 0"; ">= 0"];
+        requirement: $[numericOptionNames[badIndex] ~ `isolateTimeout; "> 0";
+                       numericOptionNames[badIndex] ~ `coverageMin; "between 0 and 100";
+                       ">= 0"];
         :.tst.cli.error "Value must be ", requirement, " for ",
             preTokens[numericValuePositions badIndex], ": ", numericTexts badIndex];
 
@@ -222,8 +225,14 @@ parseModeArgs:{[args]
 initCLI:{[parsed]
     / Apply only normalized values from parseCLI; .z.x is never reparsed here.
     options: parsed`options;
+    reportNames: `junit`xunit`json;
+    .tst.app.reportFormats: reportNames where options reportNames;
     if[options`debug; .utl.DEBUG: 1b];
     if[options`perf; .tst.app.runPerformance: 1b];
+    / qspec's -pass means "run and return the status, but print no result".
+    / quiet also suppresses loading/audit chatter; initReporting installs a
+    / no-op reporter so summaries and file reporters are suppressed as well.
+    if[options`passOnly; .tst.app.passOnly: 1b; .tst.app.quiet: 1b];
     if[options`junit; .resq.config.fmt: `junit; .tst.app.xmlOutput: 1b];
     / -xunit used to force outDir to "test-results", so it alone wrote to a
     / SUBDIRECTORY while -junit and -json wrote to outDir itself. That was
@@ -232,8 +241,9 @@ initCLI:{[parsed]
     / -outDir still wins for all three (applied below).
     if[options`xunit; .resq.config.fmt: `xunit; .tst.app.xmlOutput: 1b];
     if[options`json; .resq.config.fmt: `json; .tst.app.xmlOutput: 0b];
+    .tst.app.exitImmediately: 1b ~ options`exit;
     if[options`noquit; .tst.app.exit: 0b];
-    if[options`exit; .tst.app.exit: 1b];
+    if[options`exit; .tst.app.exit: 1b; .tst.app.exitImmediately: 1b];
     if[options`strict; .tst.app.strict: 1b];
     / Restore qspec's musteq (`=`) and mustne (`<>`) semantics so an unported
     / qspec suite runs unchanged. See docs/MIGRATION.md.
@@ -257,6 +267,10 @@ initCLI:{[parsed]
     / Coverage Support
     .tst.app.runCoverage: 0b;
     if[options`coverage; .tst.app.runCoverage: 1b];
+    if[not 10h = type options`coverageMin;
+        .tst.app.coverageMin: options`coverageMin;
+        .tst.app.runCoverage: 1b];
+    if[0 < @[get; `.tst.app.coverageMin; 0]; .tst.app.runCoverage: 1b];
     
     / Coverage include/exclude filters.
     if[0 < count options`coverageInclude;

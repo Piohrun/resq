@@ -7,6 +7,7 @@
 / Configuration
 .tst.watch.watchDirs: enlist "."
 .tst.watch.fileStates: ()!()
+.tst.watch.deletedFiles: `symbol$()
 / Poll interval in seconds, consumed by the watch loop's sleep. The 1s rescan
 / walks the whole tree via recursive `key` each tick, so raising this trades
 / latency for less churn on large trees.
@@ -120,6 +121,7 @@
 .tst.watch.init:{[dirs]
     .tst.watch.watchDirs:: dirs;
     .tst.watch.fileStates:: .tst.watch.scanFiles[];
+    .tst.watch.deletedFiles:: `symbol$();
     -1 ">> Watch initialized. Tracking ",string[count .tst.watch.fileStates]," files.";
     -1 ">> Directories: ", ", " sv dirs;
  }
@@ -140,9 +142,11 @@
     
     / Update state
     .tst.watch.fileStates:: curr;
-    
-    / Return list of changed/new files (ignore deletes for now)
-    new, changed
+    .tst.watch.deletedFiles:: del;
+
+    / A deletion is a change too. onChanges falls back to the full remaining
+    / suite because a deleted file cannot itself be targeted safely.
+    distinct new, changed, del
  }
 
 / ----------------------------------------------------------------------------
@@ -153,12 +157,18 @@
 / single-star (or star-free) pattern instead.
 / ----------------------------------------------------------------------------
 
-/ A test file is a .q file whose BASENAME matches test_*.q (e.g. test_foo.q).
+.tst.watch.testFilePatterns:{[]
+    patterns: @[get; `.resq.config.testFilePatterns; {("test_*.q"; "*_test.q")}];
+    $[10h = type patterns; enlist patterns; patterns]
+ };
+
+/ A test file is a .q file whose basename matches the same configured patterns
+/ used by normal discovery.
 .tst.watch.isTestFile:{[s]
     s: $[10h = type s; s; string s];
     if[not count s; :0b];
     base: last "/" vs s;
-    (".q" ~ -2 # s) and base like "test_*"
+    (".q" ~ -2 # s) and any base like/: .tst.watch.testFilePatterns[]
  }
 
 / A test-dir file lives under a directory segment named exactly "test"
@@ -179,8 +189,11 @@
     / 1. Is it a test file? Run it.
     / 2. Is it a source file? Find dependent tests?
 
-    testsToRun: distinct raze {[f]
+    deleted: @[get; `.tst.watch.deletedFiles; `symbol$()];
+    patterns: .tst.watch.testFilePatterns[];
+    testsToRun: distinct raze {[deleted; patterns; f]
         s: string f;
+        if[f in deleted; :enlist `ALL];
         $[.tst.watch.isTestFile s;
             enlist f;
             .tst.watch.inTestDir s;
@@ -192,15 +205,18 @@
                 name: base;
                 if[".q" ~ -2 # name; name: (count[name]-2)#name];
 
-                / Search for test_NAME.q. Single `*` at the front only, so
-                / this is a legal one-star pattern.
+                / Map every configured wildcard convention (by default both
+                / test_NAME.q and NAME_test.q) to this source basename.
                 candidates: key .tst.watch.fileStates;
-                matches: candidates where (string candidates) like "*test_",name,".q";
+                wildcardPatterns: patterns where {any x = "*"} each patterns;
+                targetNames: { [n; p] ssr[p; "*"; n] }[name;] each wildcardPatterns;
+                matches: candidates where
+                    {[targets; p] (last "/" vs string p) in targets}[targetNames] each candidates;
 
                 $[0<count matches; matches; enlist `ALL]
             ]
         ]
-    } each files;
+    }[deleted; patterns;] each files;
     
     / Run
     $[(`ALL in testsToRun) or (0=count testsToRun);

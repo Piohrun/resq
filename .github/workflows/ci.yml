@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resq-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    # kdb+/q requires a license-bound runtime. Attach a Linux x64 runner with
+    # q on PATH and these labels; see docs/CI.md. Do not commit a license.
+    runs-on: [self-hosted, linux, x64, kdb]
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify runner prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v q
+          command -v timeout
+          command -v mktemp
+          command -v python3
+          timeout --help | grep -q -- '--kill-after'
+          q -q -e 1 </dev/null
+
+      - name: Strict suite
+        shell: bash
+        run: |
+          ./bin/resq test tests -strict -junit -json \
+            -outDir artifacts/normal
+
+      - name: Strict isolated suite
+        shell: bash
+        run: |
+          ./bin/resq test tests -strict -isolate -isolateTimeout 30 \
+            -junit -json -outDir artifacts/isolate
+
+      - name: Coverage gate
+        shell: bash
+        run: |
+          ./bin/resq cover examples/quickstart/test -strict \
+            -cov-include '*/examples/quickstart/src/*' -cov-min 70 \
+            -junit -json -outDir artifacts/coverage
+
+      - name: Validate machine-readable artifacts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          root = Path("artifacts")
+          expected = {
+              root / mode / name
+              for mode in ("normal", "isolate", "coverage")
+              for name in ("test-results.junit.xml", "test-results.json")
+          }
+          missing = sorted(str(path) for path in expected if not path.is_file())
+          if missing:
+              raise SystemExit("missing report artifacts: " + ", ".join(missing))
+
+          for path in root.rglob("*.xml"):
+              ElementTree.parse(path)
+          for path in root.rglob("*.json"):
+              json.loads(path.read_text(encoding="utf-8"))
+
+          coverage = json.loads(
+              (root / "coverage" / "test-results.json").read_text(encoding="utf-8")
+          )["coverage"]
+          if not coverage["passed"] or coverage["linePercent"] < 70:
+              raise SystemExit(f"coverage gate/report disagreement: {coverage!r}")
+          PY
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-ci-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14

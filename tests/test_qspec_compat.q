@@ -21,6 +21,21 @@
   code: "J"$ last lines;
   out: @[read0; hsym `$wd, "/out.txt"; {()}];
   system "rm -rf -- ", .utl.shellQuote wd;
+ `code`out!(code; out)
+ };
+
+.tst.testState.qcompat.runLauncher:{[fixtureContent; extraFlags]
+  wd: .utl.tempRoot[], "/resq_qspec_launcher_", string[.z.i], "_", string `long$.z.p;
+  fix: wd, "/test_fixture.q";
+  system "mkdir -p ", wd;
+  (hsym `$fix) 0: fixtureContent;
+  launcher: .resq.HOME, "/bin/qspec";
+  cmd: "timeout 60 ", (.utl.shellQuote launcher), " ", (.utl.shellQuote fix),
+       " ", extraFlags, " > ", (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
+  lines: @[system; cmd; {[e] enlist "-1"}];
+  code: "J"$ last lines;
+  out: @[read0; hsym `$wd, "/out.txt"; {()}];
+  system "rm -rf -- ", .utl.shellQuote wd;
   `code`out!(code; out)
  };
 
@@ -36,12 +51,36 @@
   "  should[\"elementwise mustne\"]{ mustne[1 2 3; 4 5 6] };";
   " };");
 
+/ The first mismatch is intentionally discarded so the suite stays green; it
+/ exists solely to prove -pass suppresses assertion diagnostics too.
+.tst.testState.qcompat.silentProbe: (
+  ".tst.desc[\"pass silence\"]{";
+  "  should[\"hide internal mismatch\"]{";
+  "    saved:.tst.assertState; musteq[1;2]; .tst.assertState:saved; 1 musteq 1;";
+  "  };";
+  " };");
+
 .tst.desc["qspec compatibility contract #slow"]{
 
   skipIf[not .tst.testState.qcompat.canQ;
          "a qspec-semantics suite passes under -qspec-compat"]{
     r: .tst.testState.qcompat.run[.tst.testState.qcompat.qspecStyle; "-qspec-compat"];
     musteq[r`code; 0];
+  };
+
+  skipIf[not .tst.testState.qcompat.canQ;
+         "the qspec launcher enables compatibility without source changes"]{
+    r: .tst.testState.qcompat.runLauncher[.tst.testState.qcompat.qspecStyle;
+                                                 "-pass -performance -fdl 12"];
+    musteq[r`code; 0];
+    r[`out] mustmatch ();
+  };
+
+  skipIf[not .tst.testState.qcompat.canQ;
+         "-pass suppresses assertion diffs as well as the reporter"]{
+    r: .tst.testState.qcompat.runLauncher[.tst.testState.qcompat.silentProbe; "-pass"];
+    musteq[r`code; 0];
+    r[`out] mustmatch ();
   };
 
   skipIf[not .tst.testState.qcompat.canQ;

@@ -1,15 +1,18 @@
 \d .tst
 
-/ Run one parametrized case: apply func to args (named by pNames), converting
-/ an assertion failure or signal into an error tagged with the parameter values.
+/ Run one parametrized case: apply func to args (named by pNames). Runtime errors
+/ are re-signalled with parameter context. Assertion failures stay in the normal
+/ failure channel and are annotated in place, allowing every row to run and the
+/ enclosing expectation to finish with status `fail rather than `error.
 runParamCase:{[pNames;args;func]
     params: ", " sv {(.tst.toString x),"=",(-3!y)} ./: flip (pNames; args);
     errHandler: {[params;err] 'err, " (Params: ", params, ")"}[params];
     oldFailList: .tst.assertState.failures;
     @[func .; args; errHandler];
     if[(count .tst.assertState.failures) > count oldFailList;
-        .tst.assertState.failures: oldFailList;
-        '"Assertion failed (Params: ", params, ")"
+        newFailures: (count oldFailList) _ .tst.assertState.failures;
+        newFailures: {[p;msg] msg, " (Params: ", p, ")"}[params;] each newFailures;
+        .tst.assertState.failures: oldFailList, newFailures;
     ];
  };
 

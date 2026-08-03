@@ -99,6 +99,19 @@
     executed: results where statusNorm = `pass;
     if[count executed;
         silent: select from executed where 0 = assertsRun;
+        / A perf block is a measurement, not an assertion test. Its benchmark
+        / result row legitimately carries assertsRun=0, so do not diagnose it
+        / as an empty should block.
+        perfRowsForAudit: @[get; `.tst.app.perfResults; {()}];
+        if[(98h = type perfRowsForAudit) and
+           (0 < count perfRowsForAudit) and
+           0 < count silent;
+            perfKeys: {string[x 0], "|", string x 1} each
+                flip (perfRowsForAudit`suite; perfRowsForAudit`description);
+            silentKeys: {string[x 0], "|", string x 1} each
+                flip (silent`suite; silent`description);
+            silent: silent where not silentKeys in perfKeys;
+        ];
         if[count silent;
             -1 "\n----------------------------------------------------------------";
             -1 .resq.color[`yellow; "TESTS THAT ASSERTED NOTHING: ", string count silent];

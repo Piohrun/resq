@@ -22,9 +22,21 @@
   code: {[a;b] result: a + b; result mustgt 0; result mustlt 20};
   .tst.parametrize[`a`b!(5 10; 2 3); code];
   };
- should["annotate failures with param values"]{
-  code: { .tst.parametrize[`x!(1 2 3 99); {[x] x mustlt 10}] };
-  mustthrow["*Params:*"; code];
+ should["run every row and preserve assertion failures with param values"]{
+  oldFailures: .tst.assertState.failures;
+  oldAsserts: .tst.assertState.assertsRun;
+  .tst.parametrize[`x!(99 1 100 2); {[x] x mustlt 10}];
+  caseAssertions: .tst.assertState.assertsRun - oldAsserts;
+  testedFailures: (count oldFailures) _ .tst.assertState.failures;
+  .tst.assertState.failures: oldFailures;
+
+  / Rows after the first failure must still execute, and both failures retain
+  / the ordinary assertion diagnostic instead of becoming a generic error.
+  caseAssertions musteq 4;
+  count[testedFailures] musteq 2;
+  (first testedFailures) mustlike "*less than 10*";
+  (first testedFailures) mustlike "*Params: x=99*";
+  (last testedFailures) mustlike "*Params: x=100*";
   };
  should["not signal a stale pre-existing failure on first forall row"]{
   / Regression for forall precedence bug (parametrize.q:21).

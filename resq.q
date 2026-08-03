@@ -14,6 +14,11 @@ if[not "/" = first .resq.HOME; .resq.HOME: (system "cd"), "/", .resq.HOME];
 / Always load bootstrap (raw \l so we can pass an absolute path before
 / .utl.require exists).
 system "l ", .resq.HOME, "/lib/bootstrap.q";
+/ Canonicalize once bootstrap makes normalizePath available. This also removes
+/ the trailing "/." produced by the documented `q resq.q ...` invocation.
+.resq.HOME: .utl.normalizePath .resq.HOME;
+.utl.resqHomeAtBoot: .resq.HOME;
+.utl.PKGLOADING: .resq.HOME, "/lib";
 
 / Load Libraries
 .utl.require .resq.HOME,"/lib/init.q"
@@ -93,7 +98,7 @@ if[.resq.mode ~ `test;
     / granular status; this entry point alone owns process exit policy.
     if[1b ~ @[get; `.tst.app.isolate; 0b];
         .resq.isolateExitCode: .tst.isolate.runAll .tst.app.args;
-        if[not .resq.cli[`options; `noquit];
+        if[1b ~ .tst.app.exit;
             exit .resq.isolateExitCode];
     ];
     if[not 1b ~ @[get; `.tst.app.isolate; 0b];
@@ -106,7 +111,7 @@ if[.resq.mode ~ `test;
             .resq.report: .tst.describeReport;
         ];
         .tst.runAll[];
-        if[not .resq.cli[`options; `noquit];
+        if[1b ~ .tst.app.exit;
             / -desc exits cleanly (0) when files loaded without error; a load error
             / still surfaces as LOAD_ERROR so a broken file is never silently listed.
             if[1b ~ @[get; `.tst.app.describeOnly; 0b];

@@ -6,6 +6,22 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- **Production CI gate and deployment guide.** `.github/workflows/ci.yml` runs
+  strict normal and isolated suites, a coverage threshold, and independent
+  JSON/XML parsing on a licensed self-hosted q runner. `docs/CI.md` documents
+  runner prerequisites, reporter filenames, and sharding.
+- **Coverage thresholds** (`-cov-min N` / `-coverage-min N` and
+  `"coverageMin": N`). Coverage now prints exact line/function percentages,
+  includes its decision in JSON, and fails closed when below threshold, when no
+  code was measured, or when reports cannot be generated.
+
+- **A qspec-compatible `bin/qspec` launcher and pinned upstream contract.** The
+  launcher enables qspec comparison semantics automatically and accepts the
+  legacy `-performance`, `-pass`, `-fuzz-display-limt` and `-fdl` options. Seven
+  byte-identical public qspec test files at commit `9b846b6` now run through it
+  in the normal resQ suite, covering assertions, UI, mocks, fuzzing, and file,
+  directory, text, and splayed fixtures.
+
 - **`docs/ASYNC.md`** — the async and promise helpers were shipped
   undocumented. Covers deferreds (`deferred`/`resolve`/`reject`/`await`),
   the polling helpers (`until`/`wait`/`waitEx`/`eventually`) and callback spies,
@@ -41,6 +57,47 @@ All notable changes to the **resQ** project will be documented in this file.
   count, allocation, and the declared budgets), and `.tst.app.perfResults`.
 
 ### Fixed
+
+- Reporters now compose without filename collisions, preserve file/line and skip
+  metadata, expose aggregate JSON `assertionCount`, use stable JSON field types,
+  and fail the run on serialization or
+  write errors after attempting every selected reporter. A requested reporter
+  module that is missing or fails to load also fails closed after the available
+  formats have been written.
+- Parametrized assertions execute every row, retain assertion diffs and parameter
+  values, and remain failures rather than being converted into generic errors.
+- `-maxTestTime` is consistently milliseconds and reports a post-execution
+  budget breach precisely; process isolation remains the preemptive timeout.
+- Isolated children that die after printing `wsfull`, stack overflow, allocation,
+  or crash diagnostics are now labeled as fatal q/runtime failures instead of
+  being misleadingly described as a probable call to `exit`.
+- Process isolation retries a child up to three times only when captured output
+  proves q was rejected by a temporarily unavailable KX license daemon. Test
+  failures and all other process exits remain single-attempt.
+
+- Repeated in-process runs (`watch` and `-noquit`) now reset load errors,
+  benchmark rows, halt/assertion/dependency state, and reactivate compatibility
+  exports without losing genuine pre-resQ `.q` values.
+- `perf` now defaults to ten measured runs with per-iteration GC; the previous
+  `10b` literal was a two-element boolean vector and silently meant one run
+  with GC disabled. Non-positive iteration counts are rejected clearly.
+- Exit policy now has one owner: `resq.json` `"exit": false` is honoured,
+  `-exit` overrides it while retaining granular exit codes, and `-ff -exit`
+  keeps its explicit immediate-stop behavior.
+- The documented relative `q resq.q ...` entrypoint canonicalizes `.resq.HOME`,
+  avoiding `/.` path keys in coverage and other normalized registries.
+- Isolation children receive effective suite/tag filters, fail-fast and qspec
+  compatibility settings. `-pass -isolate` is silent at the parent boundary.
+- `-pass` suppresses assertion diff banners in addition to result reporters.
+- Watch mode now detects deletions and uses the same configurable test-file
+  patterns as discovery, including both `test_*.q` and `*_test.q` by default.
+- An `alt{}` block after ordinary expectations failed while loading with
+  `'mismatch` because q cannot join expectation tables before and after hook
+  columns are attached. The merge now adds placeholder hook columns without
+  changing qspec's late-hook behavior; the original file/splayed fixture test
+  is restored and passing.
+- Performance expectations are again opt-in, matching qspec: they are filtered
+  unless `-perf`/`-performance` or `runPerformance:true` is selected.
 
 - `docs/API_REFERENCE.md` documented the wrong properties for `perf`
   (`iterations`/`warmup`, which belong to the low-level bench API) where the

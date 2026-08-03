@@ -6,6 +6,7 @@
 .tst.coverageEnabled: 0b;
 .tst.trackedFiles: ();
 .tst.origFuncs: ()!();           / name -> original function
+.tst.lastCoverageSummary: `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(0j;0j;0f;0j;0j;0f);
 .tst.covWrappers: ()!();         / name -> installed wrapper (live identity)
 .tst.loadingStack: ();
 .tst._covMissing: `resqCovMissing;
@@ -567,6 +568,26 @@
     1b
  };
 
+/ Aggregate the standard LCOV summary records emitted below. Keeping the gate
+/ based on the artifact itself guarantees that the percentage printed to users
+/ is exactly what downstream coverage services will calculate.
+.tst.lcovTotal:{[lines;prefix]
+    matches: lines where lines like prefix,"*";
+    if[0 = count matches; :0j];
+    sum "J"$ {[n;line] n _ line}[count prefix;] each matches
+ };
+
+.tst.coverageSummaryFromLines:{[lines]
+    linesFound: .tst.lcovTotal[lines;"LF:"];
+    linesHit: .tst.lcovTotal[lines;"LH:"];
+    functionsFound: .tst.lcovTotal[lines;"FNF:"];
+    functionsHit: .tst.lcovTotal[lines;"FNH:"];
+    linePercent: $[0 = linesFound; 0f; 100f * linesHit % linesFound];
+    functionPercent: $[0 = functionsFound; 0f; 100f * functionsHit % functionsFound];
+    `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(
+        linesFound;linesHit;linePercent;functionsFound;functionsHit;functionPercent)
+ };
+
 / Generate LCOV Report
 .tst.generateLCOV:{[outFile]
     if[not .tst.coverageEnabled; '"Coverage not enabled"];
@@ -725,6 +746,7 @@
     ];
     stateH 0: stateLines;
 
+    .tst.lastCoverageSummary: .tst.coverageSummaryFromLines "\n" vs txt;
     outH 0: enlist txt;
     -1 "LCOV report written to: ", outPath;
     / An empty report is the one result that looks like success but measures

@@ -1,43 +1,49 @@
-/ tests/hardening/test_timeout_safety.q
-/ Phase 1: Verify timeout doesn't kill session
+/ End-to-end duration-budget regression. maxTestTime is a post-execution budget
+/ in milliseconds; isolateTimeout is the separate process-kill mechanism.
 
-.tst.desc["Timeout Safety"]{
+.tst.testState.timeoutchk.canRun:
+    (0 < count @[system; "which q 2>/dev/null"; {()}]) and
+    (0 < count @[system; "which timeout 2>/dev/null"; {()}]) and
+    not .utl.isWindows;
 
-    before{
-        / Save original timeout setting
-        `origTimeout mock $[`maxTestTime in key `.tst.app; .tst.app.maxTestTime; 0];
+.tst.testState.timeoutchk.run:{[]
+    wd: .utl.tempRoot[], "/resq_timeout_", string[.z.i], "_", string `long$.z.p;
+    fixturePath: wd, "/test_timeout_fixture.q";
+    system "mkdir -p ", .utl.shellQuote wd;
+    (hsym `$fixturePath) 0: (
+        ".tst.desc[\"duration budget\"]{";
+        "  should[\"slow\"]{ system \"sleep 0.05\"; 1 musteq 1 };";
+        "  should[\"survivor\"]{ 1 musteq 1 };";
+        "};");
+    cmd: "true && timeout -k 2 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
+         " test ", (.utl.shellQuote fixturePath), " -maxTestTime 10 -json -outDir ",
+         (.utl.shellQuote wd), " -quiet > ", (.utl.shellQuote wd, "/out.txt"),
+         " 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    exitCode: "J"$last exitLines;
+    rawJson: @[read0; hsym `$wd, "/test-results.json"; {()}];
+    payload: $[count rawJson; .j.k raze rawJson; ()!()];
+    if[wd like "*/resq_timeout_*"; system "rm -rf -- ", .utl.shellQuote wd];
+    `code`payload!(exitCode;payload)
+ };
+
+.tst.desc["Timeout Safety #slow"]{
+    skipIf[not .tst.testState.timeoutchk.canRun;
+           "millisecond budget reports an error after return and the session survives"]{
+        result: .tst.testState.timeoutchk.run[];
+        result[`code] musteq 1;
+        payload: result`payload;
+        payload[`testCount] musteq 2f;
+        payload[`passCount] musteq 1f;
+        payload[`errorCount] musteq 1f;
+        slowRows: payload[`tests] where payload[`tests;`description] ~\: "slow";
+        count[slowRows] musteq 1;
+        (first slowRows`status) musteq "error";
+        must[(first slowRows`message) like "*duration budget of 10*";
+             "duration message must state the millisecond budget"];
+        must[(first slowRows`message) like "*post-execution*";
+             "duration message must distinguish the check from preemption"];
     };
-    
-    after{
-        / Restore original timeout
-        .tst.app.maxTestTime: origTimeout;
-    };
-
-    should["continue session after slow test"]{
-        / Set a very short timeout (1 second)
-        .tst.app.maxTestTime: 1;
-        
-        / Run a slow operation (2 seconds via sleep)
-        start: .z.p;
-        do[20000000; x: 1+1];  / Busy loop for ~1.5-2s
-        elapsed: `long$(.z.p - start) % 1000000000;
-        
-        / The session should still be alive if we get here
-        / This proves the session wasn't killed
-        1 musteq 1;
-    };
-
-    should["track execution state correctly"]{
-        / Verify execution state is running during test
-        / (would be `running` when inside test execution)
-        1 musteq 1;
-    };
-
-    should["report timeout as failure not session death"]{
-        / If timeout occurred, it should be captured as test failure
-        / not as session termination (which we can't test from inside tests)
-        / This test just verifies the framework is working
-        1 musteq 1;
-    };
-
 };
+
+::
