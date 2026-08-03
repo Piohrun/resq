@@ -53,6 +53,17 @@
                .tst.app.xmlOutput and reportFmt ~ `text; enlist `junit;
                enlist reportFmt];
     formats: distinct {$[x~`console;`text;x~`xml;`junit;x]} each formats;
+    / Console text is the HUMAN channel, not a format competing with the file
+    / reporters. Selecting -junit/-json/-xunit used to REPLACE it, so the
+    / recommended CI invocation (see docs/CI.md) printed no summary, no counts,
+    / no verdict and no failure list -- an errored test produced nothing at all
+    / on stdout, leaving a correct exit code as the only signal in the log.
+    / Text now always leads, so the human-readable result comes first and the
+    / "Report written to ..." lines follow it. Silence is still available and is
+    / applied after this: -pass replaces .resq.report with a no-op, -quiet keeps
+    / failures and the summary while dropping passing-suite chatter, and -desc
+    / swaps the reporter wholesale in resq.q.
+    formats: distinct `text, formats;
     reportAvailability: .tst.loadOutputModule each formats;
     .tst.app.activeReportFormats: formats where reportAvailability;
 
@@ -84,7 +95,10 @@
      };
 
     .resq.reportSelected:{[selected;availability;results]
-        multiple: 1 < count selected;
+        / "Multiple" means multiple FILE reporters. Console text is always in the
+        / selected list now, so counting it would make every -junit run look
+        / multi-format and rename test-results.xml to test-results.junit.xml.
+        multiple: 1 < count selected except `text;
         outcomes: {[resultRows;isMultiple;formats;available;i]
             .resq.invokeReporter[resultRows;isMultiple;available i;formats i]
         }[results;multiple;selected;availability;] each til count selected;

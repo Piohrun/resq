@@ -126,6 +126,35 @@
          "must NOT crash with Error: type"];
   };
 
+  / Selecting a FILE reporter must not silence the console. This used to replace
+  / the text reporter outright, so `resq test ... -junit -json` -- the invocation
+  / docs/CI.md recommends -- printed only two "Report written to" lines: no
+  / summary, no counts, no verdict, no failure list. A CI log showed nothing but
+  / a non-zero exit code.
+  skipIf[not .tst.golden.canQ; "file reporters compose with console text"]{
+    r: .tst.golden.run .tst.golden.fixtures, "f_fail.q -junit -json -quiet";
+    musteq[r`code; 1];
+    must[.tst.golden.anyLike[r`out; "1 passed, 1 failed"];
+         "the summary must survive selecting -junit/-json"];
+    must[.tst.golden.anyLike[r`out; "Got 1 — expected 2"];
+         "the failure detail must survive selecting -junit/-json"];
+    must[.tst.golden.anyLike[r`out; "TOTAL FAILURES"];
+         "the verdict line must survive selecting -junit/-json"];
+    / ...and the artifacts must still be written and announced.
+    must[.tst.golden.anyLike[r`out; "XML Report written to"];
+         "the XML artifact must still be produced"];
+    must[.tst.golden.anyLike[r`out; "JSON Report written to"];
+         "the JSON artifact must still be produced"];
+  };
+
+  / -pass is qspec's silence contract: run, keep the exit status, print nothing.
+  / It must stay silent even with a file reporter selected.
+  skipIf[not .tst.golden.canQ; "-pass stays silent alongside a file reporter"]{
+    r: .tst.golden.run .tst.golden.fixtures, "f_fail.q -pass -junit";
+    musteq[r`code; 1];
+    musteq[0; count r[`out] where 0 < count each r`out];
+  };
+
   / f_error: exit 1, 1 error, signalled message surfaces.
   skipIf[not .tst.golden.canQ; "f_error: exit 1, 1 error, message surfaces"]{
     r: .tst.golden.run .tst.golden.fixtures, "f_error.q -quiet";

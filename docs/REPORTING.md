@@ -15,16 +15,20 @@ resq test tests/ -junit -json -outDir reports
 ```
 
 Explicit `-junit`, `-xunit`, and `-json` flags compose with one another. Once any
-machine reporter is selected, it replaces the final text reporter; the command
-does not also print the text summary. Loading lines, run-audit lines, isolation
-progress, and diagnostics can still go to stdout/stderr. Add `-quiet` when you
-want quieter CI logs. `-quiet` suppresses framework loading/audit and passing-
-suite presentation; it cannot suppress output written directly by test code or
+machine reporter is selected, the console text report is **still printed** and
+the artifact is written in addition to it: the summary, per-suite failures and
+the verdict come first, then the `Report written to ...` lines. A machine
+reporter never silences the human channel, so a CI log always shows why a run
+failed without downloading an artifact.
+
+Loading lines, run-audit lines, isolation progress, and diagnostics also go to
+stdout/stderr. Add `-quiet` when you want quieter CI logs. `-quiet` suppresses
+framework loading/audit and passing-suite presentation while keeping failures
+and the summary; it cannot suppress output written directly by test code or
 benchmark helpers.
 
-There is no `-text` flag to combine with file reporters. If a person needs the
-full console presentation as well as an artifact, run the text form separately
-or use the CI system's report viewer.
+To silence results entirely, use the qspec-compatible `-pass`, which suppresses
+every reporter -- console and file alike -- while preserving the exit status.
 
 When no reporter flag is present, `resq.json` key `fmt` selects one default
 format (`text`, `junit`, `xunit`, or `json`; legacy `console`/`xml` normalize to

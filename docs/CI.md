@@ -55,9 +55,10 @@ and `source-line`. Skip reasons are preserved. JSON schema version 1 keeps
 aggregate `assertionCount`. If one reporter fails, resQ still attempts the
 others and the overall run exits non-zero.
 
-Machine reporter flags replace the final text summary; they do not add a file
-to an otherwise unchanged console report. Some loading, audit, isolation, and
-diagnostic lines can still appear. Add `-quiet` for quieter logs and see
+Machine reporter flags ADD an artifact; they do not replace the console report.
+A `-junit -json` run still prints the failure list, summary and verdict, then
+the paths it wrote — so a failing job is diagnosable from the log alone. Add
+`-quiet` for quieter logs (failures and the summary survive it) and see
 [Test reporting](REPORTING.md) for the full output contract.
 
 ## Runner requirements
