@@ -2,10 +2,13 @@
 
 / Authoritative CLI option schema. Aliases are stored as strings so unknown
 / user input is never interned as a symbol. Every alias accepts both -x and --x.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`isolateTimeout`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");enlist "isolateTimeout";enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
-.tst.cli.specKinds:(19 # `flag), 11 # `value;
-.tst.cli.numericNames: `isolateTimeout`maxTestTime`fuzzLimit`coverageMin;
+/ NOTE: `help` carries no "h" alias. q itself claims -h and errors with '-h before
+/ the script ever sees .z.x, so a short form cannot be honoured here -- bin/resq
+/ rewrites -h to --help before exec'ing q.
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`help`scaffold`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("help";"usage");enlist "scaffold";enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
+.tst.cli.specKinds:(21 # `flag), 12 # `value;
+.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
 / one of them ever leaves them misaligned (a silent mislabel otherwise).
@@ -142,11 +145,12 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     invalidRanges: where
         (numericValues < 0) or
         ((numericOptionNames = `isolateTimeout) and numericValues = 0) or
+        ((numericOptionNames = `isolateWorkers) and numericValues = 0) or
         ((numericOptionNames = `coverageMin) and numericValues > 100);
     if[count invalidRanges;
         badIndex: first invalidRanges;
         numericValuePositions: valuePositions where numericMask;
-        requirement: $[numericOptionNames[badIndex] ~ `isolateTimeout; "> 0";
+        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers; "> 0";
                        numericOptionNames[badIndex] ~ `coverageMin; "between 0 and 100";
                        ">= 0"];
         :.tst.cli.error "Value must be ", requirement, " for ",
@@ -207,6 +211,54 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     -1 "----------------------------------------------------------------------";
  };
 
+/ Usage text. Kept deliberately short: it lists the flags a user reaches for
+/ without docs and points at API_REFERENCE.md for the full set, rather than
+/ drifting into a second, staler copy of that table.
+printUsage:{[]
+    {-1 x;} each (
+        "resQ ", .resq.VERSION, " - testing, benchmarking and discovery for kdb+/q";
+        "";
+        "USAGE";
+        "  resq <mode> [paths...] [options]";
+        "";
+        "MODES";
+        "  test <paths>          Run tests (default when no mode is given)";
+        "  cover <paths>         Run tests with coverage (LCOV + HTML)";
+        "  discover <src> <tst>  Report source functions not referenced by tests;";
+        "                        writes coverage_report.html to -outDir";
+        "  watch <dirs>          Re-run affected tests on file change";
+        "";
+        "COMMON OPTIONS";
+        "  -strict               Fail on no tests, all-skipped, or a test with no assertion";
+        "  -isolate              Run each test FILE in its own q process (survives";
+        "                        exit/hang/wsfull); -isolateTimeout N caps each file (s)";
+        "  -isolateWorkers N     Run N isolated files at once (default 1)";
+        "  -quiet                Suppress per-file and passing-suite output";
+        "  -only PAT / -exclude PAT     Filter suites by title glob";
+        "  -tag T / -exclude-tag T      Filter suites by #tag";
+        "  -desc                 List suites and tests without running them";
+        "  -ff / -fh             Fail fast / fail hard";
+        "";
+        "REPORTS";
+        "  -junit | -xunit | -json      Write a report to -outDir (default '.')";
+        "  -outDir DIR                  Where reports and coverage files go";
+        "  -scaffold                    discover: also write missingTests/ stubs";
+        "";
+        "COVERAGE";
+        "  -cov-statements       Measure per-STATEMENT coverage. Without it coverage";
+        "                        is function-level only and reports no line data";
+        "  -cov-min N            Fail the run below N% coverage (0-100)";
+        "  -cov-include / -cov-exclude PATS   Comma-separated path filters";
+        "";
+        "EXIT CODES";
+        "  0 pass   1 failure   3 no test files   4 load error";
+        "";
+        "  -v/--version    Print version";
+        "  --help          This message";
+        "";
+        "Full reference: docs/API_REFERENCE.md");
+ };
+
 validModes:`test`cover`discover`watch;
 
 parseModeArgs:{[args]
@@ -256,9 +308,13 @@ initCLI:{[parsed]
     / Process-isolation mode: each discovered test FILE runs in its own q
     / subprocess (see lib/isolate.q). -isolateTimeout sets the per-FILE wall
     / clock cap in seconds (default 300), enforced via the `timeout` binary.
+    / -isolateWorkers N runs N files at once. Default 1 (strictly sequential), so
+    / the reliability path everyone already relies on is unchanged unless asked.
     if[options`isolate; .tst.app.isolate: 1b];
     if[0 < count options`isolateTimeout;
         .tst.app.isolateTimeout: options`isolateTimeout];
+    if[0 < count options`isolateWorkers;
+        .tst.app.isolateWorkers: options`isolateWorkers];
     if[0 < count options`maxTestTime;
         .tst.app.maxTestTime: options`maxTestTime];
     if[0 < count options`fuzzLimit;
@@ -280,6 +336,14 @@ initCLI:{[parsed]
 
     / Version check
     if[options`version; -1 "resQ version ", .resq.VERSION; exit 0];
+
+    / Help is checked before anything that could load tests or write artifacts.
+    if[options`help; .tst.printUsage[]; exit 0];
+
+    / discover mode writes a test scaffold only when asked. Generating files into
+    / the caller's tree is not what "scan and report" implies, and it used to
+    / happen with no flag and no prompt.
+    if[options`scaffold; .tst.app.scaffold: 1b];
 
     if[0 < count options`outDir;
         .resq.config.outDir: options`outDir];

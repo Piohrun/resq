@@ -99,6 +99,26 @@ without compatibility only when you want to adopt resQ's stricter comparisons.
 
 ---
 
+## Test compatibility is not output compatibility
+
+The drop-in promise applies to public **test source and runner options**, not to
+qspec's human output bytes or private reporter objects. The same test file can
+run unchanged while resQ produces a different presentation:
+
+- the console includes resQ summaries, run-audit information, richer assertion
+  diagnostics, and optional visual diffs;
+- JUnit and xUnit are resQ's schemas, with suite titles and source locations;
+- JSON is a resQ-native, versioned schema with assertion counts, timings, source
+  metadata, and optional coverage/performance sections;
+- `-pass` retains qspec's silent-run behavior and returns the test status.
+
+If an existing build script parses qspec's console text or calls qspec reporter
+internals, it must be updated. Prefer the documented JSON/JUnit/xUnit contracts
+in [Test reporting](REPORTING.md); console text is for people, not a stable data
+interchange format.
+
+---
+
 ## Assertion Semantics — Read This Before Migrating
 
 The names match; the comparison operators and `must` validation intentionally
@@ -189,9 +209,10 @@ resQ loads each test file into a unique isolated namespace. Consequences:
 - Local variables defined at file top-level are contained within the sandbox.
 - `\l path` inside a test file is supported.
 - `\d .ns` namespace switches work inside test files.
-- Unqualified names (`mock`, `should`, `musteq`) resolve via `.q` namespace
-  fallback (default) or via root aliases. If you set `"qNamespaceExports": false`
-  in `resq.json`, you must use fully-qualified `.tst.*` names.
+- Unqualified names (`mock`, `should`, `musteq`) resolve through `.q` namespace
+  fallback by default. If you set `"qNamespaceExports": false` in `resq.json`,
+  sandboxed tests must use fully-qualified `.tst.*` names; root aliases are for
+  code already executing in the root context.
 
 ---
 

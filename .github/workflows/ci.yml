@@ -39,16 +39,22 @@ jobs:
           ./bin/resq test tests -strict -junit -json \
             -outDir artifacts/normal
 
+      # -isolateWorkers exercises the concurrent path; its verdicts must match
+      # the sequential "Strict suite" step above.
       - name: Strict isolated suite
         shell: bash
         run: |
           ./bin/resq test tests -strict -isolate -isolateTimeout 30 \
+            -isolateWorkers 4 \
             -junit -json -outDir artifacts/isolate
 
+      # -cov-statements is what produces MEASURED line records. Without it the
+      # run is function-level and the gate compares function coverage, which is
+      # a weaker claim than a line percentage implies.
       - name: Coverage gate
         shell: bash
         run: |
-          ./bin/resq cover examples/quickstart/test -strict \
+          ./bin/resq cover examples/quickstart/test -strict -cov-statements \
             -cov-include '*/examples/quickstart/src/*' -cov-min 70 \
             -junit -json -outDir artifacts/coverage
 
@@ -78,8 +84,18 @@ jobs:
           coverage = json.loads(
               (root / "coverage" / "test-results.json").read_text(encoding="utf-8")
           )["coverage"]
-          if not coverage["passed"] or coverage["linePercent"] < 70:
+          # Check the percentage the gate actually used. `basis` is "lines" only
+          # when statements were instrumented; otherwise the run is function-level
+          # and linePercent is absent/zero by design, not a regression.
+          basis = coverage["basis"]
+          measured = coverage["linePercent" if basis == "lines" else "functionPercent"]
+          if not coverage["passed"] or measured < 70:
               raise SystemExit(f"coverage gate/report disagreement: {coverage!r}")
+          if basis != "lines":
+              raise SystemExit(
+                  "expected measured LINE coverage from -cov-statements, "
+                  f"got basis={basis!r}"
+              )
           PY
 
       - name: Upload test and coverage reports

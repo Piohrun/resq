@@ -13,16 +13,54 @@
       suiteName]
  };
 
+/ Marker that separates an assertion's one-line summary from its structural diff
+/ inside a single recorded failure string. The console listing cuts here (the
+/ diff already streamed live, labelled with suite :: test); JSON, JUnit and xUnit
+/ keep the whole thing, so a machine report is no longer strictly poorer than the
+/ terminal a human happened to be watching.
+diffDetailMarker: "\n--- diff ---\n";
+
+/ Render the expected-vs-actual diff as ONE char vector. `.tst.diff` may return a
+/ LIST of lines, which `-1` prints happily but which would turn the failure
+/ message into a mixed list -- and then `ss` on it signals 'type. Returns "" when
+/ it cannot be rendered: a diff problem must never mask the assertion failure.
+renderDiffText:{[expected;actual]
+    @[{ text: .tst.diff[x 0; x 1];
+        $[10h = abs type text; text;
+          0h = type text; "\n" sv {$[10h = abs type y; y; .tst.toString y]}[::;] each text;
+          .tst.toString text] };
+      (expected;actual);
+      {[err] ""}]
+ };
+
+/ Print a already-rendered diff under a labelled banner.
+printDiffText:{[text]
+    if[0 = count text; :()];
+    label: .tst.diffContextLabel[];
+    -1 "";
+    -1 "FAILURE DIFF", $[count label; " [", label, "] "; " "],
+        "---------------------------------------------------";
+    -1 text;
+    -1 "----------------------------------------------------------------";
+ };
+
 / Print expected-vs-actual diff; rendering problems must never mask the assertion failure itself.
 printDiffSafe:{[expected;actual]
-    @[{ label: .tst.diffContextLabel[];
-        -1 "";
-        -1 "FAILURE DIFF", $[count label; " [", label, "] "; " "],
-            "---------------------------------------------------";
-        -1 .tst.diff[x 0; x 1];
-        -1 "----------------------------------------------------------------"; };
-      (expected;actual);
-      {[err] -1 "  (diff rendering failed: ", err, ")"}]
+    .tst.printDiffText .tst.renderDiffText[expected;actual]
+ };
+
+/ Append "(assertion #N in this test)" to the SUMMARY line, not to the end of a
+/ message that already carries a diff section -- the locator belongs beside the
+/ claim it locates, and the diff must stay the last thing in the string so a
+/ reader (and the console listing's cut) can rely on the marker.
+withOrdinalSuffix:{[m]
+    suffix: .tst.assertionOrdinalSuffix[];
+    if[0 = count suffix; :m];
+    at: ss[m; .tst.diffDetailMarker];
+    / NOT named `cut`: that is a q keyword, and assigning to it fails the load.
+    $[count at;
+        [ splitAt: first at; (splitAt # m), suffix, splitAt _ m ];
+        m, suffix]
  };
 
 asserts:()!()
@@ -89,7 +127,7 @@ asserts[`must]:{[val;message];
         / file/line for a failing assertion (nothing throws, and definitions
         / evaluated via `value` carry no source position), so the ordinal is the
         / locator available: in a test with several assertions it says which one.
-        .tst.assertState.failures,: enlist m, .tst.assertionOrdinalSuffix[] ];
+        .tst.assertState.failures,: enlist .tst.withOrdinalSuffix m ];
     (::)];
   }
 
@@ -138,7 +176,13 @@ asserts[`musteq]:{[l;r];
             , " accepted this (scalar broadcast or loose numeric type)."
             , " resQ uses `~`. Run with -qspec-compat, or compare like-for-like"
             , " -- see docs/MIGRATION.md]"];
-   if[not .tst.suppressAssertionDiff; .tst.printDiffSafe[r;l]];
+   / Render the diff ONCE, then use it twice: streamed to the console at failure
+   / time, and appended to the recorded failure so it survives into the machine
+   / reports. Under -pass nothing is reported at all, so skip the work entirely.
+   if[not .tst.suppressAssertionDiff;
+       diffText: .tst.renderDiffText[r;l];
+       .tst.printDiffText diffText;
+       if[count diffText; m,: .tst.diffDetailMarker, diffText]];
    .tst.asserts[`must][0b; m];
   }
 / mustmatch shares musteq's ~-equality semantics; route it through the same body

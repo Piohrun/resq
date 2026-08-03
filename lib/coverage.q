@@ -617,12 +617,15 @@
         / name, otherwise every FNDA stays 0 for system-`d` modules.
         srcLines: @[read0; fHandle; {()}];
         nsAt: .tst.coverageSysDNamespaces srcLines;
-        / DA (line) records are DERIVED: every executable line of a function
-        / inherits that function's hit count. resQ instruments whole functions,
-        / not statements, so this is function coverage projected onto lines --
-        / it makes standard coverage tooling work, but an unexecuted branch
-        / inside a called function still reads as covered. See docs/COVERAGE.md.
-        coverable: .tst.coverableLines srcLines;
+        / DA (line) records are emitted ONLY for functions whose statements were
+        / actually instrumented (-cov-statements). resQ's default mode wraps whole
+        / functions, so it knows "this function ran" and nothing finer. Projecting
+        / that hit count across the function's span used to emit DA records that
+        / read as 100% line coverage for a function whose branches never ran --
+        / a false green in every LCOV consumer, and in -cov-min. Unmeasured lines
+        / now produce no DA record at all, so line totals describe exactly what
+        / was measured and the gate falls back to function coverage.
+        / See docs/COVERAGE.md.
         fnStarts: "j"$ $[`line in cols fns; fns`line; `long$()];
         fnStarts: fnStarts where not null fnStarts;
         / Measured per-line hits for this file, and which functions carry them.
@@ -669,12 +672,10 @@
                           / sIdx already holds.
                           lineHits[sIdx]: lineHits[sIdx] | "j"$fileLines sIdx ];
                     ];
-                    [ idx: (span[0] - 1) + til 1 + span[1] - span[0];
-                      idx: idx where idx < count srcLines;
-                      if[count coverable; idx: idx where coverable idx];
-                      if[count idx;
-                          lineSeen[idx]: 1b;
-                          lineHits[idx]: lineHits[idx] | "j"$hit ];
+                    [ / Not statement-instrumented: this function's lines were
+                      / never measured, so they contribute no DA record. The
+                      / function still reports through FN:/FNDA:.
+                      ::
                     ]];
             ];
 
@@ -700,11 +701,18 @@
             j+: 1;
         ];
 
-        / DA records first (LCOV convention), then the line summary.
+        / DA records first (LCOV convention), then the line summary. With nothing
+        / statement-instrumented in this file there are no measured lines, so the
+        / DA/LF/LH block is omitted entirely rather than written as 0/0 -- an
+        / absent record reads as "not measured", where LF:0 reads as "no code".
+        / Guard the raze too: `txt,: raze ...` on an empty index list would
+        / promote the string to a mixed list.
         daIdx: where lineSeen;
-        txt,: raze {[i; h] "DA:", string[i + 1], ",", string[h], "\n"}'[daIdx; lineHits daIdx];
-        txt,: "LF:", string[count daIdx], "\n";
-        txt,: "LH:", string[sum 0 < lineHits daIdx], "\n";
+        if[count daIdx;
+            txt,: raze {[i; h] "DA:", string[i + 1], ",", string[h], "\n"}'[daIdx; lineHits daIdx];
+            txt,: "LF:", string[count daIdx], "\n";
+            txt,: "LH:", string[sum 0 < lineHits daIdx], "\n";
+        ];
 
         fnfLine: "FNF:";
         fnfLine,: .tst._covNumStr fnCount;

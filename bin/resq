@@ -12,8 +12,15 @@ done
 DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 RESQ_HOME="$(dirname "$DIR")"
 
+# q claims -h for itself and dies with '-h before the script can read .z.x, so
+# the short help flag has to be translated here rather than in the CLI parser.
+args=()
+for a in "$@"; do
+  if [ "$a" = "-h" ]; then args+=("--help"); else args+=("$a"); fi
+done
+
 # Run from the user's CWD so test/discover paths they pass in resolve
 # against THEIR project, not the framework install. resq.q reads
 # RESQ_HOME to find its own modules.
 export RESQ_HOME
-exec q "$RESQ_HOME/resq.q" "$@" -e 1
+exec q "$RESQ_HOME/resq.q" "${args[@]}" -e 1

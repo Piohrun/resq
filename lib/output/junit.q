@@ -11,6 +11,22 @@
     s
  };
 
+/ First line of a message, for use in an XML ATTRIBUTE. Attribute-value
+/ normalization collapses newlines to spaces, so a multi-line message becomes an
+/ unreadable run-on there; the element body keeps the full text. A trailing " ..."
+/ marks that more detail follows rather than implying the message ended.
+.tst.output.firstLine:{[val]
+    s: .tst.toString val;
+    if[0 = count s; :""];
+    lines: "\n" vs s;
+    head: first lines;
+    / Drop a trailing CR from CRLF input so it cannot reach the attribute.
+    if[(count head) and "\r" = last head; head: -1 _ head];
+    rest: 1 _ lines;
+    hasMore: any 0 < count each rest;
+    $[hasMore; head, " ..."; head]
+ };
+
 .tst.output.toSeconds:{[v]
     raw: $[0h = type v; 0N; 98h = type v; first v; v];
     / Null guard FIRST: a null timespan/float (e.g. 0Nn from a synthetic row)
@@ -24,12 +40,17 @@
 
 .tst.output.buildJUnitCase:{[rec]
     recStatus: .tst.normalizeResultStatus $[`status in key rec; rec`status; `pass];
-    / classname fallback chain: namespace -> suite name -> "resq". An empty
-    / namespace would otherwise emit classname="" and group poorly in CI UIs.
+    / classname fallback chain: suite name -> namespace -> "resq". The suite name
+    / leads deliberately. A test's namespace is its generated SANDBOX name, which
+    / embeds the file's absolute path (.sandbox_S_home_user_proj_tests_x_q_a1b2c3):
+    / it changes with the checkout directory, so CI systems that group or trend by
+    / classname fragment across machines and can never match a historical run.
+    / The suite title is stable and is what a human reads in the CI UI. Namespace
+    / survives as a fallback for rows with no suite, and in full in the JSON report.
     recNs:     $[`namespace in key rec; .tst.toString rec`namespace; ""];
     recSuiteName: $[`suite in key rec; .tst.toString rec`suite; ""];
-    recSuite:  $[0 < count recNs; recNs;
-                 0 < count recSuiteName; recSuiteName;
+    recSuite:  $[0 < count recSuiteName; recSuiteName;
+                 0 < count recNs; recNs;
                  "resq"];
     name: .tst.output.escapeXml rec`description;
     statusDesc: $[0=count rec`description; "unspecified"; .tst.toString rec`description];
@@ -40,6 +61,11 @@
     / `,&quot;...`). Fall back to escapeXml directly if the helper isn't loaded.
     rawMsg: $[`renderReportMessage in key `.tst; .tst.renderReportMessage rec`message; rec`message];
     msg: .tst.output.escapeXml rawMsg;
+    / XML attribute-value normalization (XML 1.0 §3.3.3) turns a literal newline
+    / into a space, so a multi-line error crammed into message="..." reaches the
+    / consumer as one run-on line. Put a single-line summary in the attribute and
+    / keep the full text in the element body, which preserves newlines verbatim.
+    msgAttr: .tst.output.escapeXml .tst.output.firstLine rawMsg;
     t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
     attrs: " classname=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", string[t], "\"";
     if[`file in key rec;
@@ -58,12 +84,13 @@
     ];
     if[recStatus in `skip`pending;
         reason: $[count rawMsg; msg; "Skipped"];
-        :caseOpen,"    <skipped message=\"",reason,"\">",reason,"</skipped>",caseClose
+        reasonAttr: $[count rawMsg; msgAttr; "Skipped"];
+        :caseOpen,"    <skipped message=\"",reasonAttr,"\">",reason,"</skipped>",caseClose
     ];
     if[(recStatus ~ `error) or recStatus like "*Error";
-        :caseOpen,"    <error message=\"",msg,"\">",msg,"</error>",caseClose
+        :caseOpen,"    <error message=\"",msgAttr,"\">",msg,"</error>",caseClose
     ];
-    :caseOpen,"    <failure message=\"",msg,"\">",msg,"</failure>",caseClose
+    :caseOpen,"    <failure message=\"",msgAttr,"\">",msg,"</failure>",caseClose
  };
 
 / Named per-format so a later loadOutputModule call can re-select the builder:

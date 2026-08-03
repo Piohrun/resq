@@ -568,7 +568,16 @@ Codes 2 (`CONFIG_ERROR`) and 5 (`PARTIAL`) were removed — no code path emits t
 
 Skipped and pending tests do **not** cause a non-zero exit on their own; only actual failures and errors do.
 
-`resq discover` uses the same codes as a gate on test *presence*, not test outcome: **0** when every discovered source function has a matching test, **1** when any are untested (the count is printed as `Untested: N`). This lets CI fail a build that adds an untested function.
+`resq discover` is a gate on test-source *references*, not test outcomes: **0**
+when every discovered source-function name appears in live test source and **1**
+when any are absent (the count is printed as `Untested: N`). This lets CI flag a
+new function that has no corresponding test reference.
+
+Discovery is a static name-presence scan after q comments are removed. A
+function name in live test code counts even if that branch never executes. Use
+`resq cover` when the question is whether code actually ran. Discovery always
+writes `coverage_report.html` to `outDir`; it writes `missingTests/` stubs only
+with `-scaffold`.
 
 **Default exit behaviour**: resQ exits with the appropriate code by default. Use `-noquit` to suppress the `exit` call (process stays running; useful for interactive sessions). `-exit` is a synonym that explicitly enables exit-on-completion and overrides a `"exit": false` in `resq.json`. Failures exit 1 even without `-exit`.
 
@@ -578,7 +587,7 @@ Skipped and pending tests do **not** cause a non-zero exit on their own; only ac
 
 **Symptom:** Every test in the suite is skipped, but the run exits 0 when `-strict` is expected to catch this.
 
-**Cause:** `-strict` counts only **executed** tests. A suite where every test was skipped has zero executed tests, which fails under `-strict` with "skipped tests do not count under -strict" (exit code 3). If your CI is still green, check that `-strict` is actually being passed.
+**Cause:** `-strict` counts only **executed** tests. A suite where every test was skipped has zero executed tests, which creates a `STRICT_MODE_FAILURE` error row and exits 1. If your CI is still green, check that `-strict` is actually being passed.
 
 Without `-strict`, an all-skipped suite exits 0 — this is intentional.
 
@@ -623,16 +632,31 @@ q resq.q test tests/ -exit
 ```bash
 # Ensure flags are set
 q resq.q test tests/ -junit -outDir reports/ -exit
-
-# Check directory exists
-mkdir -p reports/
 ```
+
+resQ creates a missing output directory. If the file is still absent, check the
+reported absolute output path and the parent directory's write permissions.
 
 When more than one reporter is selected, look for
 `test-results.junit.xml`, `test-results.xunit.xml`, and/or
 `test-results.json`; resQ deliberately does not write an ambiguous
 `test-results.xml` in multi-format mode. A reporter generation or file-write
 error makes the run fail after the other selected reporters have been attempted.
+
+### Machine report exists but the console summary is missing
+
+This is expected. Selecting `-junit`, `-xunit`, or `-json` replaces the final
+text reporter; reporter flags compose with each other, not with the text
+summary. Other progress and diagnostics may still appear unless `-quiet` is
+set. See [Test reporting](REPORTING.md).
+
+### A passing test is followed by a cleanup error
+
+`afterAll`, registered cleanup callbacks, and fixture teardowns are part of the
+test contract. If one throws, resQ records a structured `error` row and exits 1,
+even when the test body passed. This is intentional: leaked resources and failed
+teardown can corrupt later tests. resQ continues attempting the remaining
+cleanup work so all teardown failures are visible in one run.
 
 ### Coverage does not fail the build
 
@@ -657,7 +681,9 @@ cannot be combined with `-isolate`; run it as a separate CI command.
 1. Increase CI timeout
 2. Use `-ff -exit` (fail-fast) to stop on first failure and exit immediately.
    Note: `-ff` alone prints `!!! HALTING FAILURE !!!` but still runs remaining tests unless `-exit` is also present — the hard stop requires the exit call.
-3. Run subsets of tests in parallel jobs
+3. Use `-isolate -isolateWorkers N` for bounded local process concurrency, or
+   run subsets in parallel CI jobs. Each worker consumes memory and a q
+   runtime/licence allocation.
 4. Profile slow tests and optimize
 
 ---

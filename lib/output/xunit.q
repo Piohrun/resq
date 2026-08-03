@@ -36,12 +36,14 @@
 
 .tst.output.buildXunitCase:{[rec;idSeed]
     recStatus: .tst.normalizeResultStatus $[`status in key rec; rec`status; `pass];
-    / type/classname fallback chain: namespace -> suite name -> "resq". An empty
-    / namespace would otherwise emit type="" and group poorly in CI UIs.
+    / type/classname fallback chain: suite name -> namespace -> "resq". The suite
+    / name leads deliberately: a test's namespace is its generated SANDBOX name,
+    / which embeds the file's absolute path, so it changes with the checkout
+    / directory and cannot be matched against a historical run. See junit.q.
     recNs:     $[`namespace in key rec; .tst.toString rec`namespace; ""];
     recSuiteName: $[`suite in key rec; .tst.toString rec`suite; ""];
-    recSuite:  $[0 < count recNs; recNs;
-                 0 < count recSuiteName; recSuiteName;
+    recSuite:  $[0 < count recSuiteName; recSuiteName;
+                 0 < count recNs; recNs;
                  "resq"];
     statusDesc: $[0<count rec`description; .tst.toString rec`description; "unspecified"];
     suite: .tst.output.escapeXml recSuite;

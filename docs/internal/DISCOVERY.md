@@ -1,17 +1,21 @@
 # Automated Test Discovery
 <!-- Internal/contributor reference document. Moved from docs/ to docs/internal/. -->
 
-The `resQ` Discovery Engine scans your codebase to identify untested functions and generates boilerplate test stubs automatically.
+The resQ discovery engine statically compares source-function names with live
+test source. It writes an HTML report and can generate boilerplate stubs on
+request. This is a name-presence audit, not runtime coverage.
 
-## 🌟 Capabilities
+## Capabilities
 
 - **Dependency-Aware**: Parses function bodies to find calls to other namespaces (e.g., detecting that `.order.new` calls `.risk.check`).
-- **Smart Stubs**: Generates test code that includes `.tst.mock` suggestions for identified dependencies.
+- **Smart Stubs**: With `-scaffold`, generates test code that includes `.tst.mock` suggestions for identified dependencies.
 - **Project Tree**: Visualizes code coverage structure in the terminal.
+- **Comment aware**: Removes q line/block comments before checking test source,
+  so a commented-out test does not count as coverage.
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### Interactive Mode
 Run the discovery mode to start the interactive wizard:
@@ -28,16 +32,26 @@ Run in check mode to fail builds if coverage is missing:
 ```bash
 q resq.q discover src/ tests/
 ```
-Returns `exit 1` if untested functions are found.
+This writes `coverage_report.html` to `outDir` (default `.`) and exits 1 when
+unreferenced functions are found. Add `-scaffold` to also write stubs under
+`outDir/missingTests/`:
+
+```bash
+q resq.q discover src/ tests/ -scaffold -outDir artifacts/discovery
+```
 
 ---
 
-## 🛠️ How It Works
+## How It Works
 
 1.  **Static Analysis**: Uses `lib/static_analysis.q` to parse `.q` files.
 2.  **Function Extraction**: Identifies function definitions (including multi-line).
 3.  **Dependency Scanning**: Tokenizes function bodies to find external calls (e.g., `.other.func`).
-4.  **Matching**: Checks if a corresponding test file exists and contains the function name.
+4.  **Matching**: Strips comments from all discovered test files, then checks
+    whether each function name appears anywhere in the remaining test source.
+
+A reference in a branch that never runs still counts. Use `resq cover` to
+measure execution.
 
 ### Example Generated Stub
 

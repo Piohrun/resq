@@ -1,8 +1,11 @@
 # Runtime Code Coverage
 
-resQ provides function coverage, derived line coverage, and opt-in measured
-statement coverage via `resq cover`. It instruments source functions at load
-time and records which functions or injected statement probes execute.
+resQ provides function coverage and opt-in measured statement/line coverage via
+`resq cover`. It instruments source functions at load time and records which
+functions or injected statement probes execute.
+
+**Line coverage requires `-cov-statements`.** Without it resQ reports function
+coverage only and emits no line records at all — see below for why.
 
 ## Usage
 
@@ -11,6 +14,27 @@ resq cover src/ tests/
 ```
 
 Pass source directories first, then test directories. resQ discovers and runs all test files and emits coverage reports when the run completes.
+
+### Include and exclude filters
+
+Coverage filters match each normalized absolute source path using q `like`
+patterns. Pass comma-separated patterns:
+
+```bash
+resq cover tests/ \
+  -cov-include "/work/project/src/*" \
+  -cov-exclude "/work/project/src/generated/*"
+```
+
+An include list admits only matching files; excludes are then removed. Quote
+patterns so the shell does not expand them. q `like` does not support arbitrary
+regular expressions and can signal `nyi` for patterns with several `*`
+wildcards, so prefer an absolute path prefix followed by one `*`.
+
+Without an explicit include, resQ excludes its own `<RESQ_HOME>/lib/*` modules
+while allowing application sources elsewhere (including the bundled examples).
+An explicit include overrides that framework exclusion, which is primarily
+useful when testing resQ itself.
 
 ---
 
@@ -26,9 +50,8 @@ Compiled operators and derived functions (e.g. `+/`, `each`) are skipped — the
 
 ### Statement-level coverage (`-cov-statements`, opt-in)
 
-By default line records are derived from function hits (see below). Pass
-`-cov-statements` — or set `"covStatements": true` — for **measured** per-statement
-coverage:
+By default there are no line records at all (see below). Pass `-cov-statements`
+— or set `"covStatements": true` — for **measured** per-statement coverage:
 
 ```bash
 resq cover tests/ -cov-statements
@@ -57,7 +80,7 @@ lines.
 and re-evaluating them in their original namespace. Each function is attempted
 independently and verified afterwards — the rewritten definition must parse, and
 must keep the same parameters, locals and referenced globals, or the original is
-restored and that function falls back to derived lines.
+restored and that function reports at function level only (no line records).
 
 Behaviour preservation is checked by execution, not by argument:
 `tests/test_coverage_differential.q` generates q functions from a grammar of the
@@ -75,36 +98,49 @@ being rewritten is the code doing the rewriting. Turn statement coverage on
 deliberately, and confirm your suite still passes with it on before trusting the
 numbers.
 
-### Line records are derived, not measured
+### Line records are emitted only where lines were measured
 
-The LCOV output carries `DA:` line records and `LF`/`LH` totals, so standard
-coverage services (Codecov, SonarQube, Coveralls, `genhtml`) accept it and show a
-line percentage. **Read that number correctly:** resQ instruments whole
-functions, not statements. Every executable line of a function inherits that
-function's hit count — blank and comment lines are excluded, but a branch inside
-a called function that never executed still reads as covered.
+Default mode instruments **whole functions**. It knows "this function ran" and
+nothing finer, so it emits `FN`/`FNDA`/`FNF`/`FNH` and **no `DA`/`LF`/`LH`
+records**:
 
 ```
-FN:5,.calc.unused
+SF:/proj/src/calc.q
+FN:1,.calc.classify
+FNDA:1,.calc.classify   <- called; which branches ran is unknown
+FN:15,.calc.unused
 FNDA:0,.calc.unused     <- never called
-DA:5,0                  <- so all its lines report 0
-DA:6,0
-LF:7
-LH:3
+FNF:2
+FNH:1
+end_of_record
 ```
 
-So a line percentage from resQ answers *"how much of the code was reached at
-function granularity?"*, not *"which statements ran?"*. It is a real and useful
-signal — an uncalled function shows as fully uncovered — but it will read higher
-than a statement-level tool would report on the same suite. Treat it as
-directional, and use `FNF`/`FNH` when you want the number resQ actually measures.
+resQ used to derive line records here by giving every line of a called function
+that function's hit count. That was actively misleading: a 13-line function with
+three branches, of which a test exercised one, emitted `LF:13 LH:13` — **100%
+line coverage** in Codecov, Coveralls, SonarQube and `genhtml`, and a *passing*
+`-cov-min 90`. An absent record reads as "not measured"; a fabricated one reads
+as "measured and fine". Only the second can hide a gap.
+
+With `-cov-statements`, line records come from executed statement probes and are
+real measurements:
+
+```
+DA:2,1
+DA:4,0     <- branch not taken
+LF:9
+LH:5
+```
 
 ### Granularity
 
-The default measurement is **function-level**: a function is hit if it was
-called at least once. LCOV line records are derived from those hits and therefore
-do not distinguish an untaken branch inside a called function. With
-`-cov-statements`, line records come from executed statement probes instead.
+| Mode | Measures | LCOV records | `-cov-min` gates on |
+|------|----------|--------------|---------------------|
+| default | function entered at least once | `FN`/`FNDA`/`FNF`/`FNH` | function % |
+| `-cov-statements` | each statement probe | the above plus `DA`/`LF`/`LH` | line % |
+
+A function-level 100% means every function was entered, **not** that every branch
+inside them ran. The console says so explicitly when reporting on that basis.
 
 ---
 
@@ -114,7 +150,7 @@ Reports are written to `outDir` (default: `.`):
 
 | File | Contents |
 |------|----------|
-| `coverage.lcov` | Standard LCOV with SF/FN/FNDA/FNF/FNH and DA/LF/LH records. Consumable by `genhtml`, Codecov, Coveralls, SonarQube. |
+| `coverage.lcov` | Standard LCOV with SF/FN/FNDA/FNF/FNH records, plus DA/LF/LH under `-cov-statements`. Consumable by `genhtml`, Codecov, Coveralls, SonarQube. |
 | `coverage.html` | Per-function HTML report showing hit/miss status for each instrumented function. |
 | `coverage_state.txt` | Human-readable dump of the complete coverage state at run end. |
 
@@ -141,9 +177,10 @@ Gate a build with an integer percentage from 0 through 100:
 resq cover tests/ -strict -cov-min 80 -json -outDir artifacts/coverage
 ```
 
-The console prints both line and function percentages. `-cov-min` compares the
-LCOV line percentage when line records exist and otherwise falls back to the
-function percentage. The run exits 1 when it misses the threshold, measures no
+`-cov-min` compares the LCOV line percentage when line records exist
+(`-cov-statements`) and otherwise the function percentage; the console names
+which basis it used, and says explicitly when statement execution was not
+measured. The run exits 1 when it misses the threshold, measures no
 executable code, or cannot generate its reports. The JSON report includes the
 exact counts, percentage, threshold, basis, and pass/fail decision under its
 `coverage` object. Configuration-file equivalent: `"coverageMin": 80`.
@@ -152,8 +189,10 @@ exact counts, percentage, threshold, basis, and pass/fail decision under its
 
 ## Limitations
 
-- **Default lines are derived** — use `-cov-statements` when branch/statement
-  execution matters, and validate that source transformation against your code.
+- **No line data by default** — default mode is function-level and emits no
+  `DA`/`LF`/`LH` records, so `-cov-min` gates on function coverage. Use
+  `-cov-statements` when branch/statement execution matters, and validate that
+  source transformation against your code.
 - **`\l` / `system "l "` only** — the loader intercepts these two forms. Custom loaders are not auto-detected unless loader hijacking is explicitly enabled (experimental, see below).
 - **Compiled operators skipped** — `+/`, `each`, `':'`, etc. cannot be wrapped.
 

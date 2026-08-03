@@ -274,17 +274,54 @@
     " " sv .utl.shellQuote each argv
  };
 
-.tst.isolate.runFileBody:{[wd; file; timeoutSecs; k; n]
-    / A retry must not decode an artifact left by its preceding attempt.
+/ Clear artifacts a previous attempt may have left, so a retry (or a reused
+/ scratch) can never decode a stale report.
+.tst.isolate.resetScratch:{[wd]
     @[hdel; hsym `$wd, "/out.txt"; {}];
     @[hdel; hsym `$wd, "/test-results.json"; {}];
+    @[hdel; hsym `$wd, "/rc.txt"; {}];
+    ::
+ };
+
+/ The shell command for ONE child. The exit code goes to rc.txt inside the
+/ child's own scratch rather than to stdout: when several of these run
+/ concurrently their stdout is interleaved and cannot be attributed, whereas a
+/ per-scratch file is unambiguous. The trailing `; echo $?` form is kept for the
+/ sequential caller, which still reads the code from stdout.
+/ The trailing `; true` is load-bearing. q's `system` swallows a redirection that
+/ ENDS the command string -- `... ; echo $? > rc.txt` runs with the redirect
+/ stripped, so the code lands on q's stdout and rc.txt is created but left empty.
+/ Any command after the redirect restores normal shell behaviour. Verified: with
+/ the trailing `; true` removed, every file reports "exit -1".
+.tst.isolate.fileCommand:{[wd; file; timeoutSecs]
     childArgv: .tst.isolate.childArgv[file; wd];
     timedArgv: (.tst.isolate.timeoutExe; "-k"; .tst.toString 5; string timeoutSecs), childArgv;
-    outPath: wd, "/out.txt";
-    cmd: .tst.isolate.shellCommand[timedArgv],
-         " < /dev/null > ", .utl.shellQuote[outPath], " 2>&1; echo $?";
-    statusLines: @[system; cmd; {[e] enlist "-1"}];
-    code: "J"$last statusLines;
+    .tst.isolate.shellCommand[timedArgv],
+        " < /dev/null > ", .utl.shellQuote[wd, "/out.txt"], " 2>&1; ",
+        "echo $? > ", .utl.shellQuote[wd, "/rc.txt"], "; true"
+ };
+
+/ Exit code recorded by fileCommand. A missing or unparseable rc.txt means the
+/ child never got far enough to write one, which is itself a failure (-1), not a
+/ success -- defaulting to 0 here would turn a dead child into a green file.
+.tst.isolate.readExitCode:{[wd]
+    lines: @[read0; hsym `$wd, "/rc.txt"; {()}];
+    if[0 = count lines; :-1];
+    text: last lines;
+    if[not .tst.cli.isIntegerText text; :-1];
+    "J"$text
+ };
+
+.tst.isolate.runFileBody:{[wd; file; timeoutSecs; k; n]
+    .tst.isolate.resetScratch wd;
+    @[system; .tst.isolate.fileCommand[wd; file; timeoutSecs]; {[e] ()}];
+    .tst.isolate.interpretFile[wd; file; timeoutSecs; k; n; .tst.isolate.readExitCode wd]
+ };
+
+/ Turn one finished child's artifacts into result rows. Pure with respect to
+/ subprocesses -- it only reads what the child left behind -- so it is shared by
+/ the sequential and parallel paths and both classify a file identically.
+.tst.isolate.interpretFile:{[wd; file; timeoutSecs; k; n; code]
     raw: @[read0; hsym `$wd, "/test-results.json"; {()}];
     decoded: .tst.isolate.decodeReport raw;
     valid: decoded`valid;
@@ -423,6 +460,79 @@
         "Strict mode enabled but no tests were executed (skipped tests do not count under -strict)."]
  };
 
+/ Run ONE group of files concurrently and return their rows in file order.
+/ .
+/ q cannot do this in-process -- secondary threads cannot write globals, which is
+/ why in-process parallelism was removed (docs/PARALLEL.md). But isolation has
+/ already paid for separate processes: each child owns a private scratch and
+/ communicates only through files in it, so running several at once needs no
+/ shared state at all. The shell does the waiting; q stays single-threaded.
+/ .
+/ Determinism is preserved deliberately: children start together, but their
+/ artifacts are interpreted and PRINTED strictly in file order once the whole
+/ group has finished. Two runs of the same suite produce byte-identical output.
+/ `files` and `ks` are PARALLEL LISTS, not a list of dicts: q silently collapses a
+/ list of same-keyed dicts into a table, after which `@\:` and per-row indexing
+/ change meaning and this function fails with 'type. Plain lists keep it obvious.
+.tst.isolate.runGroup:{[files; ks; timeoutSecs; n]
+    wds: {[ignored]
+        @[{[i] .tst.isolate.createScratch[]}; 0; {[err] ""}]
+    } each files;
+    okFlags: 0 < count each wds;
+    {[wd] if[count wd; .tst.isolate.resetScratch wd]} each wds;
+
+    cmds: {[timeoutSecs; wd; file]
+        $[count wd; .tst.isolate.fileCommand[wd; file; timeoutSecs]; ""]
+    }[timeoutSecs]'[wds; files];
+
+    runnable: cmds where okFlags;
+    if[count runnable;
+        / `( cmd ) &` per child, then one `wait`. Each child already redirects its
+        / own stdout/stderr and writes its own rc.txt, so nothing is interleaved.
+        / The leading `true; ` is required: q's `system` rejects a command that
+        / STARTS with "(" ('( invalid) -- the same class of interception that
+        / forces a leading `mkdir` rather than `cd` elsewhere in this suite.
+        batch: "true; ", (" " sv {"( ", x, " ) &"} each runnable), " wait";
+        @[system; batch; {[e] ()}];
+    ];
+
+    raze {[timeoutSecs; n; wd; file; k]
+        if[0 = count wd;
+            :enlist .tst.isolate.errorRow[`ISOLATED_SETUP_ERROR; file;
+                "unable to create private isolation scratch"]];
+        rows: .[
+            .tst.isolate.interpretFile;
+            (wd; file; timeoutSecs; k; n; .tst.isolate.readExitCode wd);
+            {[file; err]
+                enlist .tst.isolate.errorRow[`ISOLATED_HELPER_ERROR; file;
+                    "isolation helper failed: ", err]
+            }[file;]];
+        cleaned: @[.tst.isolate.cleanupScratch; wd;
+            {[file; err]
+                .tst.isolate.print "ERROR: isolation scratch cleanup failed for ", file, ": ", err;
+                0b
+            }[file;]];
+        if[not cleaned;
+            rows,: enlist .tst.isolate.errorRow[
+                `ISOLATED_CLEANUP_ERROR; file; "failed to remove private isolation scratch"]];
+        / A q licence-startup blip is transient and retryable. Rather than
+        / complicate the batch, hand that one file back to the sequential path,
+        / which already owns the retry loop. This is rare enough that losing its
+        / parallelism costs nothing.
+        $[.tst.isolate.retryableStartupFailure rows;
+            [ .tst.isolate.print "  transient q license startup failure; re-running file serially";
+              .tst.isolate.runFile[file; timeoutSecs; k; n] ];
+            rows]
+    }[timeoutSecs; n]'[wds; files; ks]
+ };
+
+/ Effective worker count: >= 1, and never more than the number of files.
+.tst.isolate.workerCount:{[fileCount]
+    requested: "j"$ @[get; `.tst.app.isolateWorkers; 1];
+    if[null requested; requested: 1];
+    1 | requested & fileCount
+ };
+
 / Discover, execute, merge, report, and return one granular exit code.
 .tst.isolate.runAll:{[paths]
     timeoutSecs: @[get; `.tst.app.isolateTimeout; 300];
@@ -452,12 +562,24 @@
     ];
 
     if[(not unavailable) and 0 < n;
+        workers: .tst.isolate.workerCount n;
         .tst.isolate.print "Running ", string[n], " test file(s) in isolated subprocesses (timeout ",
-            string[timeoutSecs], "s each)";
-        {[files; timeoutSecs; n; i]
-            .tst.isolate.upsertRows
-                .tst.isolate.runFile[files i; timeoutSecs; i + 1; n]
-        }[files; timeoutSecs; n] each til n;
+            string[timeoutSecs], "s each",
+            $[workers > 1; ", ", string[workers], " at a time"; ""], ")";
+        $[workers <= 1;
+            / Sequential path, unchanged: one file, one process, in order.
+            {[files; timeoutSecs; n; i]
+                .tst.isolate.upsertRows
+                    .tst.isolate.runFile[files i; timeoutSecs; i + 1; n]
+            }[files; timeoutSecs; n] each til n;
+            / Parallel path: fixed-size groups. A group is fully interpreted and
+            / its scratch removed before the next starts, so the number of live
+            / q processes and scratch directories stays bounded by `workers`.
+            [ fileGroups: workers cut files;
+              kGroups: workers cut 1 + til n;
+              {[timeoutSecs; n; fg; kg]
+                  .tst.isolate.upsertRows .tst.isolate.runGroup[fg; kg; timeoutSecs; n]
+              }[timeoutSecs; n]'[fileGroups; kGroups] ]];
     ];
 
     .tst.isolate.dropChildStrict[];

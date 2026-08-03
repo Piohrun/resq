@@ -69,12 +69,28 @@ should["be fast"]{
 ```
 
 ### `mustAllocLessThan`
-Asserts that the average memory allocation is less than the limit (in bytes).
+Asserts that the average **retained** memory growth is less than the limit (in
+bytes) — see [What the memory numbers mean](#what-the-memory-numbers-mean).
 ```q
 should["be lean"]{
   { generateData[] } mustAllocLessThan 4096; / 4KB limit
 };
 ```
+
+## What the memory numbers mean
+
+q exposes no total-allocated counter, so "allocation" has to be read carefully.
+resQ records two different signals from `.Q.w[]`:
+
+| Key | Is | Blind to |
+|-----|-----|---------|
+| `space` | **retained** bytes: `used` after minus before — memory the code did not give back | anything allocated *and released* during the call. A 160MB temporary vector measures ~192 bytes |
+| `heapGrowth` | growth of q's **heap**, which does catch a large transient | anything below q's allocation block (64MB on x86_64), where it reads 0 — and it over-states what it does catch, since it rounds up to whole blocks |
+
+`mustAllocLessThan` and `spaceLimitBytes` budget on `space`, so they answer *"did
+this leak?"* rather than *"how much did this churn?"*. Watch `heapGrowth` for the
+second question. Neither is floored below zero: code that nets a *free* reports 0,
+not a spurious positive.
 
 ## Which API to use
 
@@ -84,7 +100,7 @@ in what they give you back, not in how they measure:
 | Want | Use | Gives you |
 |------|-----|-----------|
 | Fail the build on a budget | `perf` block, `mustBeFasterThan`, `mustAllocLessThan` | pass/fail + the recorded measurement |
-| Time and **allocation** statistics | `.tst.benchmark.measureOpts[n; code; opts]` | `` `time`space `` each with min/med/max/avg/dev (ms) |
+| Time and **memory** statistics | `.tst.benchmark.measureOpts[n; code; opts]` | `` `time`space`heapGrowth `` each with min/med/max/avg/dev |
 | Percentiles and a distribution | `.tst.bench[func; opts]` | iterations, min/max/avg/std, p50–p99, histogram, raw timings |
 
 `bench` does not record allocation: the `.Q.w[]` calls needed for it would show
@@ -96,7 +112,8 @@ For ad-hoc profiling, access the underlying library directly:
 
 ```q
 res: .tst.benchmark.measure[100; { myFunc[] }];
-/ returns dictionary with `time and `space stats (min/med/max/avg/dev)
+/ returns dictionary with `time, `space (retained) and `heapGrowth stats
+/ (min/med/max/avg/dev); see "What the memory numbers mean" above
 
 .tst.benchmark.hist[res`time; 10]; / Print ASCII histogram of timing
 ```
