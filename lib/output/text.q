@@ -30,6 +30,39 @@
     .tst.fmt.color[c; txt]
  };
 
+/ A test that executed but ran zero assertions proves nothing: in q a bare
+/ `0 < count warnings;` is a value the block discards, not a check, and the test
+/ passes however broken the code is. Reported even under -quiet -- this is a
+/ correctness warning, not a diagnostic trailer -- but silent when there are
+/ none, so an ordinary green run is unchanged.
+.resq.reportSilentTests:{[results; statusNorm]
+    executed: results where statusNorm = `pass;
+    if[0 = count executed; :()];
+    silent: select from executed where 0 = assertsRun;
+    / A perf block is a measurement, not an assertion test. Its benchmark result
+    / row legitimately carries assertsRun=0, so do not diagnose it as an empty
+    / should block.
+    perfRowsForAudit: @[get; `.tst.app.perfResults; {()}];
+    if[(98h = type perfRowsForAudit) and
+       (0 < count perfRowsForAudit) and
+       0 < count silent;
+        perfKeys: {string[x 0], "|", string x 1} each
+            flip (perfRowsForAudit`suite; perfRowsForAudit`description);
+        silentKeys: {string[x 0], "|", string x 1} each
+            flip (silent`suite; silent`description);
+        silent: silent where not silentKeys in perfKeys;
+    ];
+    if[0 = count silent; :()];
+    -1 "\n----------------------------------------------------------------";
+    -1 .resq.color[`yellow; "TESTS THAT ASSERTED NOTHING: ", string count silent];
+    -1 "  These passed without checking anything. In q a bare expression";
+    -1 "  is discarded, so wrap it: must[cond; \"message\"].";
+    { [r] -1 "  - ", string[r`suite], ": ", string[r`description] }
+        each 10 sublist 0!select suite, description from silent;
+    if[10 < count silent;
+        -1 "  ... and ", string[(count silent) - 10], " more"];
+ };
+
 .resq.reportText:{[results]
     results: .tst.resultTable results;
     suites: distinct results`suite;
@@ -98,6 +131,12 @@
     statusNorm: .tst.normalizeResultStatus each results`status;
     allFails: results where statusNorm in `fail`error;
     -1 "\n----------------------------------------------------------------";
+    / Printed BEFORE the verdict, on red runs as well as green. This used to sit
+    / after the "Tests FAILED." early return, so the moment a suite had one real
+    / failure its vacuous tests went unmentioned -- exactly when someone is
+    / working through that suite and would want to know which of its passing
+    / tests prove nothing. Ordering on a green run is unchanged.
+    .resq.reportSilentTests[results; statusNorm];
     if[0<count allFails;
         -1 "TOTAL FAILURES: ",string[count allFails];
         -1 .resq.color[`red; "Tests FAILED."];
@@ -106,39 +145,6 @@
     if[0 = totalTests;
         -1 "No tests ran.";
         :()];
-
-    / A test that executed but ran zero assertions proves nothing: in q a bare
-    / `0 < count warnings;` is a value the block discards, not a check, and the
-    / test passes however broken the code is. Report these even under -quiet --
-    / they are a correctness warning, not a diagnostic trailer -- but print
-    / nothing when there are none, so green output is unchanged.
-    executed: results where statusNorm = `pass;
-    if[count executed;
-        silent: select from executed where 0 = assertsRun;
-        / A perf block is a measurement, not an assertion test. Its benchmark
-        / result row legitimately carries assertsRun=0, so do not diagnose it
-        / as an empty should block.
-        perfRowsForAudit: @[get; `.tst.app.perfResults; {()}];
-        if[(98h = type perfRowsForAudit) and
-           (0 < count perfRowsForAudit) and
-           0 < count silent;
-            perfKeys: {string[x 0], "|", string x 1} each
-                flip (perfRowsForAudit`suite; perfRowsForAudit`description);
-            silentKeys: {string[x 0], "|", string x 1} each
-                flip (silent`suite; silent`description);
-            silent: silent where not silentKeys in perfKeys;
-        ];
-        if[count silent;
-            -1 "\n----------------------------------------------------------------";
-            -1 .resq.color[`yellow; "TESTS THAT ASSERTED NOTHING: ", string count silent];
-            -1 "  These passed without checking anything. In q a bare expression";
-            -1 "  is discarded, so wrap it: must[cond; \"message\"].";
-            { [r] -1 "  - ", string[r`suite], ": ", string[r`description] }
-                each 10 sublist 0!select suite, description from silent;
-            if[10 < count silent;
-                -1 "  ... and ", string[(count silent) - 10], " more"];
-        ];
-    ];
 
     -1 .resq.color[`green; "All tests passed."];
 

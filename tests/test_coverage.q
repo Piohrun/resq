@@ -546,3 +546,66 @@
              "the first body statement must carry a probe"];
     };
  };
+
+/ Fixture for the span tests below. File scope, not a `desc` local: a q lambda
+/ does not close over its enclosing locals, so a `should` block cannot see them.
+/ Lines:  3-6 first_ (multi-line), 8 second (single-line), 9-12 last_,
+/ with a top-level statement on 7 and a `\d .` footer on 13.
+.tst.covSpanSrc: ("\\d .m";
+                  "sideEffect: 1;";
+                  "first_:{[x]";
+                  "  a: x + 1;";
+                  "  a * 2";
+                  " };";
+                  "sideEffect: 2;";
+                  "second:{[y] y - 1};";
+                  "last_:{[z]";
+                  "  b: z * 3;";
+                  "  b + 1";
+                  " };";
+                  "\\d .");
+.tst.covSpanStarts: 3 8 9;
+
+.tst.desc["Coverage: definition spans"]{
+    / .tst.functionLineSpan stops at the line before the next definition, which
+    / is only an upper BOUND. Left untightened it swallowed everything after the
+    / last function (typically `\d .`, which the statement rewriter cannot
+    / `value`, costing that function its line records) and any top-level
+    / statement sitting between two definitions (which then got a probe and was
+    / re-executed at instrumentation time).
+
+    should["end a multi-line definition at its closing brace"]{
+        (.tst.covFunctionSpan[.tst.covSpanSrc; 3; .tst.covSpanStarts]) musteq (3; 6);
+    };
+
+    should["end a single-line definition on its own line"]{
+        (.tst.covFunctionSpan[.tst.covSpanSrc; 8; .tst.covSpanStarts]) musteq (8; 8);
+    };
+
+    should["not let the last definition absorb the file's footer"]{
+        / The bound here is 13 (end of file); the definition closes at 12, so
+        / the `\d .` on 13 stays out of the rewrite.
+        (.tst.covFunctionSpan[.tst.covSpanSrc; 9; .tst.covSpanStarts]) musteq (9; 12);
+    };
+
+    should["exclude a top-level statement that follows a definition"]{
+        span: .tst.covFunctionSpan[.tst.covSpanSrc; 3; .tst.covSpanStarts];
+        must[7 > span 1;
+             "line 7 is a top-level statement, not part of first_: ", -3! span];
+    };
+
+    should["probe only the definition's own lines"]{
+        rw: .tst.covRewriteFunction[.tst.covSpanSrc; 9; 12; `$"/tmp/span.q"];
+        must[2 = count rw; "the rewriter returns (text; probedLines)"];
+        (rw 1) musteq 10 11;
+        must[not (rw 0) like "*d .*";
+             "the trailing namespace directive must not be rewritten"];
+    };
+
+    should["fail open to the bound when brackets never balance"]{
+        / An unterminated definition must behave exactly as it did before, so a
+        / file this cannot parse is never made worse.
+        bad: ("f:{[x]"; "  x + 1");
+        (.tst.covFunctionSpan[bad; 1; enlist 1]) musteq (1; 2);
+    };
+ };

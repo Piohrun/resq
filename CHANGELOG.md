@@ -50,6 +50,22 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- Statement coverage no longer stops at the second-to-last function in a file.
+  A function's line span ran to the line before the *next* definition, so the
+  last one absorbed everything after it — usually a `\d .` footer, which the
+  rewriter cannot `value`, so the rewrite was rejected and that function
+  silently lost its line records while still reporting `FN:`/`FNDA:`. The
+  denominator was correspondingly short, making the line percentage a claim
+  about fewer lines than the file actually has. The same over-reach also
+  swallowed any top-level statement sitting *between* two definitions: it was
+  given a probe and **re-executed** at instrumentation time, so a source file
+  with side effects at top level ran them twice under `-cov-statements`. Spans
+  are now closed by bracket balancing, and fail open to the old bound when a
+  definition's brackets never balance.
+- Tests that asserted nothing are now reported on failing runs too. The list sat
+  after the `Tests FAILED.` early return, so a single real failure hid every
+  vacuous test in the suite — precisely when the reader is working through that
+  suite. The verdict still prints last, and green output is unchanged.
 - A runtime error's backtrace now stops at the test body. The runner's own
   dispatch frames (`.tst.finishFixtureTest`, the `.Q.trp` hops, `runAll`,
   `resq.q`) are always the same and never actionable, but accounted for roughly

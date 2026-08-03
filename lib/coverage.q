@@ -1,5 +1,9 @@
 / coverage.q - runtime coverage instrumentation and LCOV/HTML reporting (load-safe)
 .utl.require .utl.PKGLOADING,"/static_analysis.q"
+/ For .tst.bracketDelta, used to find where a function definition closes.
+/ .utl.require is idempotent, so this is a no-op in a normal run (init.q has
+/ already loaded it) and a real load when coverage.q is pulled in on its own.
+.utl.require .utl.PKGLOADING,"/loader.q"
 
 / State
 .tst.coverageData: ()!();        / file -> func -> count
@@ -204,7 +208,7 @@
     if[1b ~ @[get; `.tst.coverageStatements; 0b];
         {[fs; nsAt; srcLines; starts; row]
             nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
-            span: .tst.functionLineSpan[row`line; starts; count srcLines];
+            span: .tst.covFunctionSpan[srcLines; row`line; starts];
             if[span[1] >= span[0];
                 / Trapped per function: a rewrite that throws must cost only this
                 / function its statement data, never abort instrumentation of the
@@ -360,6 +364,42 @@
     endLine: $[count later; (min later) - 1; totalLines];
     if[endLine > totalLines; endLine: totalLines];
     (st; endLine)
+ };
+
+/ The last line of a function DEFINITION, found by balancing brackets from its
+/ first line. `maxEnd` is the search bound from .tst.functionLineSpan.
+/ .
+/ The bound alone is too generous: it stops at the line before the NEXT
+/ definition, so the last function in a file absorbed everything after it. For
+/ the common `\d .` footer that meant the statement rewriter tried to `value` a
+/ system command, which it cannot -- the rewrite was rejected and the file's last
+/ function silently lost its line records while still reporting FN:/FNDA:. The
+/ same over-reach would have swallowed any top-level statement sitting between
+/ two definitions, probing it and re-running it at instrumentation time.
+/ .
+/ Fails open to `maxEnd` when the brackets never balance (an unterminated
+/ definition, or a body extending past the bound), preserving the old behaviour
+/ for anything this cannot parse.
+.tst.covDefinitionEnd:{[srcLines; startLine; maxEnd]
+    if[startLine < 1; :maxEnd];
+    if[maxEnd > count srcLines; :maxEnd];
+    delta: @[get; `.tst.bracketDelta; {::}];
+    if[not (type delta) within 100 104h; :maxEnd];
+    depth: 0;
+    i: startLine;
+    while[i <= maxEnd;
+        depth+: delta srcLines[i - 1];
+        if[depth <= 0; :i];
+        i+: 1];
+    maxEnd
+ };
+
+/ Span of a function definition: the search bound, tightened to where the
+/ definition actually closes.
+.tst.covFunctionSpan:{[srcLines; startLine; allStarts]
+    span: .tst.functionLineSpan[startLine; allStarts; count srcLines];
+    if[span[1] < span[0]; :span];
+    (span 0; .tst.covDefinitionEnd[srcLines; span 0; span 1])
  };
 
 / ---------------------------------------------------------------------------
@@ -656,7 +696,7 @@
             / Where the function's statements were instrumented, its lines are
             / MEASURED and only probed statements count. Otherwise fall back to
             / projecting the function's hit count across its span (derived).
-            span: .tst.functionLineSpan[row`line; fnStarts; count srcLines];
+            span: .tst.covFunctionSpan[srcLines; row`line; fnStarts];
             measured: nm in stmtNames;
             if[span[1] >= span[0];
                 $[measured;

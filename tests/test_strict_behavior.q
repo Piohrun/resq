@@ -105,6 +105,27 @@
   };
 
   skipIf[not .tst.testState.strictchk.canQ;
+         "a vacuous test is still reported when the run is already red"]{
+    / The report used to sit after the "Tests FAILED." early return, so one real
+    / failure hid every vacuous test in the suite -- exactly when someone is
+    / working through that suite and needs to know which passing tests prove
+    / nothing.
+    src: (
+      ".tst.desc[\"mixed\"]{";
+      "  should[\"real failure\"]{ must[0b; \"boom\"] };";
+      "  should[\"asserts nothing\"]{ 0 < 1 };";
+      " };");
+    r: .tst.testState.strictchk.run[src; ""];
+    musteq[r`code; 1];
+    must[.tst.testState.strictchk.anyLike[r`out; "TESTS THAT ASSERTED NOTHING"];
+         "a red run must still report its vacuous tests"];
+    must[.tst.testState.strictchk.anyLike[r`out; "asserts nothing"];
+         "the vacuous test must be named"];
+    must[.tst.testState.strictchk.anyLike[r`out; "Tests FAILED."];
+         "the verdict must still be printed, and printed last"];
+  };
+
+  skipIf[not .tst.testState.strictchk.canQ;
          "a skipped test does not trip the zero-assertion rule"]{
     src: (
       ".tst.desc[\"skips\"]{";

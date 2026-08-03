@@ -142,6 +142,18 @@ LH:5
 A function-level 100% means every function was entered, **not** that every branch
 inside them ran. The console says so explicitly when reporting on that basis.
 
+### What `-cov-statements` can still miss
+
+A function whose statements cannot be rewritten safely keeps its `FN`/`FNDA`
+records and contributes **no** `DA` lines — it drops out of the line
+denominator rather than being counted as covered. Rewrites are rejected when
+the body cannot be re-evaluated, or when re-evaluating it would change the
+function's parameters, locals, or the globals it binds. So a line percentage is
+always a statement about the code that was actually instrumented; compare `LF`
+against the file's real statement count if you need to know how much that is.
+The function percentage, reported alongside, covers every discovered function
+either way.
+
 ---
 
 ## Output
