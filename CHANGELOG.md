@@ -4,6 +4,8 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-12 - Production Trust, Coverage & Observability
+
 ### Added
 
 - Pinned, offline `strQ` and `reQ` external adoption pilots with exact source
@@ -27,6 +29,16 @@ All notable changes to the **resQ** project will be documented in this file.
   identity, and deprecation policies now define the resQ 1.x compatibility and
   maintenance contract. JSON schema v2 explicitly permits additive fields while
   retaining its required core and invariant validator.
+- Coverage source manifests now inventory unloaded modules at zero hits. One
+  canonical coverage model produces LCOV, detailed JSON, annotated HTML, and a
+  complete state file, with independent function, line, and instrumentation-
+  completeness gates that fail closed on partial line denominators.
+- JSON schema v2 adds stable run/test/case identities, portable source paths,
+  run/VCS/CI metadata, typed diagnostics, retry attempt history, parameter and
+  property-case telemetry, benchmark results, and snapshot lifecycle events.
+- Seeded private-PRNG ordering, stable-ID last-failed/failed-first workflows,
+  deterministic file sharding, repeated/watch-mode contract tests, and thin
+  NDJSON/Allure adapters complete the production developer workflow.
 
 ### Fixed
 
@@ -69,6 +81,11 @@ All notable changes to the **resQ** project will be documented in this file.
   helper, so install/source paths containing spaces work. Isolated groups track
   timeout process groups and reap them on INT/TERM/HUP/EXIT; launcher-owned
   scratch is removed even when the foreground run is interrupted.
+- Linux file-handle leak detection now inspects q's own `/proc` descriptors and
+  maps them to q connection handles before closing them. Cleanup is verified by
+  the following suite and remains visible in structured diagnostics.
+- Default binary and text snapshot paths are anchored to the caller's project
+  root rather than the framework's temporary module-loading directory.
 
 ## [0.4.0] - 2026-08-03 - qspec Drop-in, Measured Coverage & Fail-Closed Runs
 

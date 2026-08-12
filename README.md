@@ -48,7 +48,7 @@ assistance.
 Clone the repo at a release tag and put the launchers on your `PATH`:
 
 ```bash
-git clone --branch v0.4.0 https://github.com/Piohrun/resq.git ~/.local/share/resq
+git clone --branch v1.0.0 https://github.com/Piohrun/resq.git ~/.local/share/resq
 ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq   # adjust to taste
 ln -s ~/.local/share/resq/bin/qspec ~/.local/bin/qspec # drop-in qspec command
 ```

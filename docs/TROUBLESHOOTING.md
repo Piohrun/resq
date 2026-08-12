@@ -960,4 +960,4 @@ q resq.q test tests/ -debug
 
 ---
 
-*Generated for resQ v0.4.0*
+*Generated for resQ v1.0.0*

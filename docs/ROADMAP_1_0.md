@@ -83,19 +83,19 @@ resQ 1.0 must guarantee that:
 
 ## 1.0 release gate
 
-- [ ] `.q` is unchanged by normal resQ execution.
+- [x] `.q` is unchanged by normal resQ execution.
 - [x] Production-style code using DSL-shaped locals loads unchanged.
 - [x] Every recoverable `runSpec` path executes cleanup.
-- [ ] No pollution/resource leak crosses a suite boundary silently.
-- [ ] Function coverage contains every declared source file and unloaded modules
+- [x] No pollution/resource leak crosses a suite boundary silently.
+- [x] Function coverage contains every declared source file and unloaded modules
   reduce its percentage.
-- [ ] Line gates cannot silently use a partial denominator.
-- [ ] Console, JSON, LCOV, and HTML coverage totals agree.
-- [ ] JSON schema v2 and stable identity are documented and validated.
-- [ ] Retry, parameter, and property-test results are structured and reproducible.
-- [ ] Normal, isolated, concurrent, repeated, and sharded verdicts agree.
+- [x] Line gates cannot silently use a partial denominator.
+- [x] Console, JSON, LCOV, and HTML coverage totals agree.
+- [x] JSON schema v2 and stable identity are documented and validated.
+- [x] Retry, parameter, and property-test results are structured and reproducible.
+- [x] Normal, isolated, concurrent, repeated, and sharded verdicts agree.
 - [x] The pinned public qspec contract and application compatibility corpus pass.
-- [ ] External pilots pass and no P0/P1 correctness issue remains open.
+- [x] External pilots pass and no P0/P1 correctness issue remains open.
 
 ## Post-1.0
 

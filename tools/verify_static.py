@@ -62,6 +62,15 @@ def check_package() -> None:
     match = re.search(r'^\.resq\.VERSION:\s*"([^"]+)";', init, re.MULTILINE)
     if not match:
         raise ValueError("lib/init.q does not declare .resq.VERSION")
+    version = match.group(1)
+    version_contracts = {
+        "README.md": f"--branch v{version}",
+        "docs/GETTING_STARTED.md": f"--branch v{version}",
+        "CHANGELOG.md": f"## [{version}]",
+    }
+    for relative, marker in version_contracts.items():
+        if marker not in (ROOT / relative).read_text(encoding="utf-8"):
+            raise ValueError(f"release version {version} missing from {relative}")
 
 
 def link_target(markdown: Path, raw: str) -> Path | None:
@@ -119,6 +128,10 @@ def check_contracts() -> None:
         raise ValueError("report-v2 objects must accept additive minor-version fields")
     report = json.loads((ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8"))
     validate(report)
+    init = (ROOT / "lib/init.q").read_text(encoding="utf-8")
+    version = re.search(r'^\.resq\.VERSION:\s*"([^"]+)";', init, re.MULTILINE).group(1)
+    if report["frameworkVersion"] != version or report["run"]["resqVersion"] != version:
+        raise ValueError("checked-in report contract version differs from .resq.VERSION")
     for name, root_name, row_name in (
         ("junit.xml", "testsuites", "testcase"),
         ("xunit.xml", "assemblies", "test"),

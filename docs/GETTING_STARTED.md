@@ -24,7 +24,7 @@ and execution-mode release gate.
 ## 2. Install the launchers
 
 ```bash
-git clone --branch v0.4.0 https://github.com/Piohrun/resq.git ~/.local/share/resq
+git clone --branch v1.0.0 https://github.com/Piohrun/resq.git ~/.local/share/resq
 ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq
 ln -s ~/.local/share/resq/bin/qspec ~/.local/bin/qspec
 resq --version

@@ -176,6 +176,12 @@ def prepare_output(requested: Path | None) -> tuple[Path, tempfile.TemporaryDire
 
 
 def verify(q_executable: str, requested_output: Path | None) -> Path:
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=ROOT, text=True,
+        capture_output=True, check=True,
+    ).stdout.strip()
+    if status:
+        raise RuntimeError("release audit requires a clean worktree")
     output, temporary = prepare_output(requested_output)
     audit = Audit(q_executable)
     started_at = datetime.now(timezone.utc)
