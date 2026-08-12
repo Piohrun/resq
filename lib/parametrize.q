@@ -6,14 +6,29 @@
 / enclosing expectation to finish with status `fail rather than `error.
 runParamCase:{[pNames;args;func]
     params: ", " sv {(.tst.toString x),"=",(-3!y)} ./: flip (pNames; args);
-    errHandler: {[params;err] 'err, " (Params: ", params, ")"}[params];
     oldFailList: .tst.assertState.failures;
-    @[func .; args; errHandler];
+    oldAsserts:.tst.assertState.assertsRun;
+    caseStart:.z.p;
+    outcome:@[
+        {[pair] (0b;(pair 0) . pair 1)};
+        (func;args);
+        {[err] (1b;err)}];
     if[(count .tst.assertState.failures) > count oldFailList;
         newFailures: (count oldFailList) _ .tst.assertState.failures;
         newFailures: {[p;msg] msg, " (Params: ", p, ")"}[params;] each newFailures;
         .tst.assertState.failures: oldFailList, newFailures;
     ];
+    caseFailures:(count oldFailList) _ .tst.assertState.failures;
+    caseStatus:$[first outcome;`error;count caseFailures;`fail;`pass];
+    caseMessage:$[first outcome;
+        .tst.toString[last outcome]," (Params: ",params,")";
+        count caseFailures;.tst.renderReportMessage caseFailures;""];
+    if[not `currentParameterCases in key `.tst;.tst.currentParameterCases:()];
+    .tst.currentParameterCases,:enlist `parameters`status`message`failures`assertsRun`duration`durationSeconds!(
+        pNames!args;caseStatus;caseMessage;caseFailures;
+        .tst.assertState.assertsRun-oldAsserts;string[.z.p-caseStart];
+        ("f"$.z.p-caseStart)%1000000000);
+    if[first outcome;'caseMessage];
  };
 
 / Parametrized Test Runner

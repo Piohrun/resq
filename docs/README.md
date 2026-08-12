@@ -6,7 +6,8 @@
 1. [Getting Started](GETTING_STARTED.md) — Installation, first test, qspec replacement, and a CI-ready baseline
 2. [API Reference](API_REFERENCE.md) — Complete DSL, assertions cheat-sheet, CLI flags, and config
 3. [Test Reporting](REPORTING.md) — Console output and JSON/JUnit/xUnit contracts
-4. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
+4. [Test observability](OBSERVABILITY.md) — Stable identity, quality signals, and ingestion
+5. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
 
 ### Going deeper
 5. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
@@ -37,6 +38,7 @@
 | `GETTING_STARTED.md` | New users | Installation, first test, migration, and production adoption |
 | `API_REFERENCE.md` | Users | Full API — DSL, assertions, CLI, config |
 | `REPORTING.md` | Users / CI consumers | Console, JSON, JUnit, and xUnit contracts |
+| `OBSERVABILITY.md` | Users / platform teams | Stable identities and external observability ingestion |
 | `ARCHITECTURE.md` | Contributors | Namespace layout, exit codes, file tree |
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
 | `CI.md` | Users | Production CI, coverage gates, reporter artifacts, runner setup |

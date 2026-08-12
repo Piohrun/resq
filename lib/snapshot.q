@@ -8,6 +8,14 @@ updateSnaps: 0b
 setSnapDir:{[d] .tst.snapDir: d}
 setUpdateSnaps:{[b] .tst.updateSnaps: b}
 
+.tst.recordSnapshotEvent:{[backend;name;status;path]
+    if[not `currentSnapshots in key `.tst;.tst.currentSnapshots:()];
+    .tst.currentSnapshots,:enlist `backend`name`status`path`timestamp!(
+        backend;.tst.toString name;status;.tst.repoRelativePath .utl.pathToString path;
+        .tst.isoTimestamp .z.p);
+    ::
+ };
+
 / A snapshot name must be a single path leaf: reject "." / "..", path
 / separators, Windows drive colons, and control characters so a crafted name
 / can never read or write outside snapDir. Dotfile-style names are allowed.
@@ -68,6 +76,7 @@ mustmatchSnap:{[actual;name]
     / Explicit update intent always (re)writes and passes, with a NOTE.
     if[.tst.updateSnaps;
         .tst.saveSnap[name;actual];
+        .tst.recordSnapshotEvent[`binary;n;`updated;validatedPath];
         -1 "NOTE: snapshot created: ", n, " (", .tst.snapDir, ") - review and commit it";
         :1b;
     ];
@@ -77,14 +86,17 @@ mustmatchSnap:{[actual;name]
     / the strict lookup since .tst.app.strict may be undefined in bare sessions.
     if[missing;
         if[1b ~ @[get; `.tst.app.strict; 0b];
+            .tst.recordSnapshotEvent[`binary;n;`missing;validatedPath];
             ' "Snapshot missing under -strict: ", n, " (run without -strict once to create it)";
         ];
         .tst.saveSnap[name;actual];
+        .tst.recordSnapshotEvent[`binary;n;`created;validatedPath];
         -1 "NOTE: snapshot created: ", n, " (", .tst.snapDir, ") - review and commit it";
         :1b;
     ];
 
     if[not actual~stored;
+        .tst.recordSnapshotEvent[`binary;n;`mismatch;validatedPath];
         -1 "Snapshot mismatch for '",n,"'";
         / .tst.diff returns a flat list of plain strings; print each line, but a
         / rendering failure must not mask the snapshot mismatch signal below.
@@ -93,6 +105,7 @@ mustmatchSnap:{[actual;name]
         ' errSym
     ];
     
+    .tst.recordSnapshotEvent[`binary;n;`matched;validatedPath];
     1b
  }
 

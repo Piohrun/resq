@@ -154,7 +154,10 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 / re-typing the schema. Returns a fresh table each call -- it's a builder,
 / not a shared instance, to avoid accidental aliasing.
 .resq.state.emptyResults:{[]
-    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+    columns:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
+        `testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+    flip columns!(
         `symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$();
-        (); `int$(); (); (); ())
+        (); `int$(); (); (); ();
+        (); (); `symbol$(); `int$(); `boolean$(); `boolean$(); (); (); (); (); (); ())
  };

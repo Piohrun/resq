@@ -50,11 +50,13 @@ selected, resQ uses unambiguous names:
 | `-json` | `test-results.json` |
 | any multi-format selection | `test-results.junit.xml`, `test-results.xunit.xml`, and/or `test-results.json` |
 
-JUnit testcases include `file` and `line`; xUnit v2 tests include `source-file`
-and `source-line`. Skip reasons are preserved. JSON schema version 1 keeps
-`message` as a string and `failures` as a list on every row, and exposes an
-aggregate `assertionCount`. If one reporter fails, resQ still attempts the
-others and the overall run exits non-zero.
+JUnit testcases include portable `file` and `line`, run metadata, stable resQ
+identity, and retry/flaky attributes; xUnit v2 tests include the corresponding
+`source-file`/`source-line` and stable UUID. Skip reasons are preserved. JSON
+schema version 2 adds a `run` envelope, `summary`, stable tests/cases, attempt
+history, property seeds, benchmarks/snapshots, and typed diagnostics. Validate
+it with `tools/validate_report.py`. If one reporter fails, resQ still attempts
+the others and the overall run exits non-zero.
 
 Machine reporter flags ADD an artifact; they do not replace the console report.
 A `-junit -json` run still prints the failure list, summary and verdict, then

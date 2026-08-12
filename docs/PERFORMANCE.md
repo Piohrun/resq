@@ -44,12 +44,13 @@ PERFORMANCE (2 benchmarks):
   Algo perf: sort 1k  avg 0.2481ms (min 0.2210 / max 0.4120 / sd 0.0303) over 30 runs, 48 bytes  [limit 500.0000ms]
 ```
 
-**JSON** (`-json`) — a `performance` array alongside `tests`, one object per
+**JSON** (`-json`) — a top-level `performance` array, one object per
 benchmark with `suite`, `description`, `runs`, `avgTimeMs`, `minTimeMs`,
 `maxTimeMs`, `devTimeMs`, `avgSpaceBytes`, `maxSpaceBytes`, and the declared
 `timeLimitMs` / `spaceLimitBytes` (null when no budget was set). This is the
 format to feed a dashboard if you want to chart a function's latency across
-releases.
+releases. The owning test row also has a `benchmark` lifecycle object containing
+its outcome, run count, complete time/space/heap-growth measurement, and limits.
 
 **In-process** — `.tst.app.perfResults`, a table with the same columns.
 

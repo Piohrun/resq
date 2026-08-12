@@ -63,10 +63,14 @@
     resultWord: $[recStatus in `pass;         "Pass";
                   recStatus in `skip`pending; "Skip";
                   "Fail"];
-    testId: .tst.output.xunitUuid idSeed;
+    stableSeed:$[`testId in key rec;.tst.toString rec`testId;idSeed];
+    testId: .tst.output.xunitUuid stableSeed;
     attrs: " id=\"", testId, "\" type=\"", suite, "\" name=\"",
            .tst.output.escapeXml[statusDesc], "\" time=\"", string[t],
            "\" result=\"", resultWord, "\"";
+    if[`attempts in key rec;
+        attrs,:" resq-attempts=\"",string[rec`attempts],"\"";
+        if[1b~rec`flaky;attrs,:" resq-flaky=\"true\""]];
     if[`file in key rec;
         fileStr: .tst.toString rec`file;
         if[count fileStr; attrs,: " source-file=\"", .tst.output.escapeXml[fileStr], "\""];
@@ -97,11 +101,14 @@
 / otherwise leave .tst.output.top pointing at whichever loaded first.
 .tst.output.xunitTop:{[results]
     rows: .tst.output.normalizeRows results;
-    stamp: .tst.output.xunitTimestamp[];
-    runSeed: stamp, "/", string .z.i;
+    runInfo:()!();
+    if[99h=type results;if[`run in key results;runInfo:results`run]];
+    stamp:$[`startedAt in key runInfo;.tst.toString runInfo`startedAt;.tst.output.xunitTimestamp[]];
+    finishStamp:$[`finishedAt in key runInfo;.tst.toString runInfo`finishedAt;stamp];
+    runSeed:$[`id in key runInfo;.tst.toString runInfo`id;stamp,"/",string .z.i];
     rootOpen: "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<assemblies schema-version=\"2\" id=\"",
         .tst.output.xunitUuid[runSeed], "\" start-rtf=\"", stamp,
-        "\" finish-rtf=\"", stamp, "\" timestamp=\"", stamp, "\">";
+        "\" finish-rtf=\"", finishStamp, "\" timestamp=\"", stamp, "\">";
     if[0=count rows; :rootOpen,"\n</assemblies>"];
     / normalizeRows may hand back either a list of row dicts or an already
     / assembled table; .tst.resultTable canonicalises both to a 98h table.
@@ -147,7 +154,9 @@
             "\" time=\"", string[suiteTime], "\" not-run=\"0\">";
         indices: til count suiteRows;
         bodyLines: {[rs;seed;i]
-            .tst.output.buildXunitCase[rs i; seed, "/test/", string i]
+            rec:rs i;
+            identity:$[`testId in key rec;.tst.toString rec`testId;seed,"/test/",string i];
+            .tst.output.buildXunitCase[rec;identity]
           }[suiteRows;collectionId;] each indices;
         body: "\n" sv bodyLines;
         footer: "    </collection>";

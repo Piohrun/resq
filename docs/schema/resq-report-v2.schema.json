@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Piohrun/resq/schemas/resq-report-v2.schema.json",
+  "title": "resQ test report v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics"],
+  "properties": {
+    "schemaVersion": {"const": 2},
+    "framework": {"const": "resQ"},
+    "frameworkVersion": {"type": "string", "minLength": 1},
+    "run": {"$ref": "#/$defs/run"},
+    "summary": {"$ref": "#/$defs/summary"},
+    "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}},
+    "performance": {"type": ["array", "object"]},
+    "coverage": {"type": "object"},
+    "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}}
+  },
+  "$defs": {
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "startedAt", "finishedAt", "durationSeconds", "hostname", "cwd", "qVersion", "qRelease", "os", "resqVersion", "vcs", "ci", "config"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"},
+        "startedAt": {"type": "string", "format": "date-time"},
+        "finishedAt": {"type": "string", "format": "date-time"},
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "hostname": {"type": "string"},
+        "cwd": {"type": "string"},
+        "qVersion": {"type": "string"},
+        "qRelease": {"type": "string"},
+        "os": {"type": "string"},
+        "resqVersion": {"type": "string"},
+        "vcs": {
+          "type": "object",
+          "required": ["sha", "branch", "dirty"],
+          "properties": {
+            "sha": {"type": "string"},
+            "branch": {"type": "string"},
+            "dirty": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "ci": {"type": "object"},
+        "config": {"type": "object"}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["suiteCount", "testCount", "assertionCount", "passCount", "failCount", "errorCount", "skipCount", "duration", "durationSeconds"],
+      "properties": {
+        "suiteCount": {"type": "integer", "minimum": 0},
+        "testCount": {"type": "integer", "minimum": 0},
+        "assertionCount": {"type": "integer", "minimum": 0},
+        "passCount": {"type": "integer", "minimum": 0},
+        "failCount": {"type": "integer", "minimum": 0},
+        "errorCount": {"type": "integer", "minimum": 0},
+        "skipCount": {"type": "integer", "minimum": 0},
+        "duration": {"type": "string"},
+        "durationSeconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["suite", "description", "status", "message", "time", "durationSeconds", "failures", "assertsRun", "file", "line", "namespace", "tags", "output", "testId", "caseId", "kind", "attempts", "retried", "flaky", "attemptHistory", "parameterCases", "property", "diagnostics", "snapshots", "benchmark"],
+      "properties": {
+        "suite": {"type": "string"},
+        "description": {"type": "string"},
+        "status": {"enum": ["pass", "fail", "error", "skip", "pending"]},
+        "message": {"type": "string"},
+        "time": {"type": "string"},
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "failures": {"type": "array", "items": {"type": "string"}},
+        "assertsRun": {"type": "integer", "minimum": 0},
+        "file": {"type": "string"},
+        "line": {"type": ["integer", "null"]},
+        "namespace": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "output": {"type": "string"},
+        "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
+        "caseId": {"type": "string"},
+        "kind": {"enum": ["test", "fuzz", "perf", "load", "cleanup", "framework"]},
+        "attempts": {"type": "integer", "minimum": 1},
+        "retried": {"type": "boolean"},
+        "flaky": {"type": "boolean"},
+        "attemptHistory": {"type": "array", "items": {"$ref": "#/$defs/attempt"}},
+        "parameterCases": {"type": "array", "items": {"$ref": "#/$defs/case"}},
+        "property": {"type": "object"},
+        "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
+        "snapshots": {"type": "array", "items": {"$ref": "#/$defs/snapshot"}},
+        "benchmark": {"type": "object"}
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "required": ["attempt", "status", "duration", "durationSeconds", "message", "failures", "assertsRun"],
+      "properties": {
+        "attempt": {"type": "integer", "minimum": 1},
+        "status": {"enum": ["pass", "fail", "error", "skip", "pending"]},
+        "duration": {"type": "string"},
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "message": {"type": "string"},
+        "failures": {"type": "array", "items": {"type": "string"}},
+        "assertsRun": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "case": {
+      "type": "object",
+      "required": ["caseId", "index", "parameters", "status", "message", "failures", "assertsRun", "duration", "durationSeconds"],
+      "properties": {
+        "caseId": {"type": "string", "pattern": "^case_[0-9a-f]{32}$"},
+        "index": {"type": "integer", "minimum": 0},
+        "parameters": {"type": "object"},
+        "status": {"enum": ["pass", "fail", "error"]},
+        "message": {"type": "string"},
+        "failures": {"type": "array", "items": {"type": "string"}},
+        "assertsRun": {"type": "integer", "minimum": 0},
+        "duration": {"type": "string"},
+        "durationSeconds": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": ["type", "severity", "phase", "message", "data"],
+      "properties": {
+        "type": {"type": "string"},
+        "severity": {"enum": ["info", "warning", "error"]},
+        "phase": {"type": "string"},
+        "message": {"type": "string"},
+        "data": {},
+        "timestamp": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "required": ["backend", "name", "status", "path", "timestamp"],
+      "properties": {
+        "backend": {"enum": ["binary", "text"]},
+        "name": {"type": "string"},
+        "status": {"enum": ["created", "updated", "matched", "missing", "mismatch"]},
+        "path": {"type": "string"},
+        "timestamp": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

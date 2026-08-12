@@ -72,6 +72,12 @@
         ""];
     t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
     attrs: " classname=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", string[t], "\"";
+    if[`testId in key rec;
+        stableId:.tst.toString rec`testId;
+        if[count stableId;attrs,:" resq-test-id=\"",.tst.output.escapeXml[stableId],"\""]];
+    if[`attempts in key rec;
+        attrs,:" resq-attempts=\"",string[rec`attempts],"\"";
+        if[1b~rec`flaky;attrs,:" resq-flaky=\"true\""]];
     if[`file in key rec;
         fileStr: .tst.toString rec`file;
         if[count fileStr; attrs,: " file=\"", .tst.output.escapeXml[fileStr], "\""];
@@ -108,10 +114,21 @@
     t: .tst.resultTable results;
     if[not 98h = type t; :"<testsuites><testsuite name=\"resq\"/></testsuites>"];
 
+    runInfo:()!();
+    if[99h=type results;if[`run in key results;runInfo:results`run]];
+    runStamp:$[`startedAt in key runInfo;.tst.toString runInfo`startedAt;""];
+    runHost:$[`hostname in key runInfo;.tst.toString runInfo`hostname;""];
+    runId:$[`id in key runInfo;.tst.toString runInfo`id;""];
+    runProps:$[count runId;
+        "  <properties><property name=\"resq.runId\" value=\"",
+        .tst.output.escapeXml[runId],"\"/><property name=\"resq.version\" value=\"",
+        .tst.output.escapeXml[$[`VERSION in key `.resq;.resq.VERSION;"unknown"]],
+        "\"/><property name=\"q.version\" value=\"",
+        .tst.output.escapeXml[string .z.K],"\"/></properties>";""];
     suites: distinct t`suite;
     / q lambdas do not close over outer locals, so the per-suite table t is
     / passed in explicitly as the first projected argument.
-    suiteBlocks: raze {[t; x]
+    suiteBlocks: raze {[t;stamp;host; x]
         suiteName: .tst.output.escapeXml x;
         suiteRows: t where (t`suite) = x;
         testCount: count suiteRows;
@@ -124,12 +141,15 @@
         skipCount: sum skipMask;
         suiteTime: sum suiteRows`time;
         suiteTimeSec: .tst.output.toSeconds suiteTime;
-        header: "<testsuite name=\"",suiteName,"\" tests=\"",string[testCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",string[suiteTimeSec],"\">";
+        header: "<testsuite name=\"",suiteName,"\" tests=\"",string[testCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",string[suiteTimeSec],"\"";
+        if[count stamp;header,:" timestamp=\"",.tst.output.escapeXml[stamp],"\""];
+        if[count host;header,:" hostname=\"",.tst.output.escapeXml[host],"\""];
+        header,:">";
         bodyLines: .tst.output.buildJUnitCase each suiteRows;
         body: "\n" sv bodyLines;
         footer: "</testsuite>";
         $[0<count body; header,"\n",body,"\n",footer; header,"\n",footer]
-    }[t;] each suites;
+    }[t;runStamp;runHost;] each suites;
 
     statusNorm: .tst.normalizeResultStatus each t`status;
     rootOpen: "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuites tests=\"",
@@ -137,7 +157,7 @@
         "\" errors=\"", string[sum statusNorm = `error], "\" skipped=\"",
         string[sum statusNorm in `skip`pending], "\" time=\"",
         string[.tst.output.toSeconds sum t`time], "\">";
-    rootOpen,"\n",suiteBlocks,"\n</testsuites>"
+    rootOpen,"\n",runProps,$[count runProps;"\n";""],suiteBlocks,"\n</testsuites>"
  };
 
 .tst.output.top: .tst.output.junitTop;

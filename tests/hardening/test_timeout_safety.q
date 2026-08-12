@@ -33,9 +33,9 @@
         result: .tst.testState.timeoutchk.run[];
         result[`code] musteq 1;
         payload: result`payload;
-        payload[`testCount] musteq 2f;
-        payload[`passCount] musteq 1f;
-        payload[`errorCount] musteq 1f;
+        payload[`summary;`testCount] musteq 2f;
+        payload[`summary;`passCount] musteq 1f;
+        payload[`summary;`errorCount] musteq 1f;
         slowRows: payload[`tests] where payload[`tests;`description] ~\: "slow";
         count[slowRows] musteq 1;
         (first slowRows`status) musteq "error";

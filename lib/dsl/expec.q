@@ -141,6 +141,10 @@ runners:()!()
     .tst.pendingBacktrace: "";
     errorText: $[count pending; pending;
         .tst.toString[err],.tst.stackTraceFor bt];
+    if[`currentParameterCases in key `.tst;
+        expec[`parameterCases]:.tst.currentParameterCases];
+    if[`currentSnapshots in key `.tst;
+        expec[`snapshots]:.tst.currentSnapshots];
     .tst.expecError[expec;errorType;errorText]
  };
 
@@ -266,6 +270,8 @@ finishFixtureTest:{[state]
 
 runners[`test]:{[expec]
  .tst.pendingBacktrace: "";
+ .tst.currentParameterCases:();
+ .tst.currentSnapshots:();
  func:expec`code;
  params:.tst.testFixtureParams func;
  .tst.validateTestFixtures[params;expec`desc];
@@ -276,11 +282,16 @@ runners[`test]:{[expec]
  / completed, then turn it into the ordinary test-error result.
  outcome:.Q.trp[.tst.finishFixtureTest; state; {[err;bt] (`error;err;bt)}];
  .tst.teardownInstalledFixtures installed;
+ expec[`parameterCases]:.tst.currentParameterCases;
+ expec[`snapshots]:.tst.currentSnapshots;
  if[`error~first outcome;
      .tst.pendingBacktrace: (outcome 1), .tst.stackTraceFor outcome 2;
      'outcome 1];
  .tst.pendingBacktrace: "";
- last outcome
+ completed:last outcome;
+ completed[`parameterCases]:.tst.currentParameterCases;
+ completed[`snapshots]:.tst.currentSnapshots;
+ completed
  }
 
 expecError:{[expec;errorType;errorText];
@@ -300,6 +311,8 @@ callExpec:{[expec];
 runExpec:{[spec;expec];
  time:.z.p;
  startExpec:expec;
+ .tst.currentParameterCases:();
+ .tst.currentSnapshots:();
  / Record the current test name for stack-trace context.
  .tst.currentContext[`test]: $[`desc in key expec; .tst.toString expec`desc; ""];
  expec:.tst.setupExpec[spec;expec];
@@ -327,14 +340,23 @@ runExpec:{[spec;expec];
  / keys untouched.
  pristine: expec;
  attempt: 0;
+ attemptHistory: ();
  / `do`-style loop via while; `attempt`-guarded break on pass or halt.
  done: 0b;
  while[(attempt < maxAttempts) and not done;
    attempt+: 1;
+   attemptStart:.z.p;
    res: .tst.runExpecAttempt[spec; expec];
    expec: res`expec;
    beforeBad: res`beforeBad;
-   passed: `pass ~ .tst.normalizeResultStatus expec`result;
+   attemptStatus:.tst.normalizeResultStatus expec`result;
+   passed: `pass ~ attemptStatus;
+   attemptFailures:$[`failures in key expec;(),expec`failures;()];
+   attemptHistory,:enlist `attempt`status`duration`durationSeconds`message`failures`assertsRun!(
+       attempt;attemptStatus;string[.z.p-attemptStart];
+       ("f"$.z.p-attemptStart)%1000000000;
+       $[count attemptFailures;.tst.renderReportMessage attemptFailures;""];
+       attemptFailures;$[`assertsRun in key expec;expec`assertsRun;0i]);
    / Stop if passed, if halt fired, or if no attempts remain.
    done: passed or .tst.halt or (attempt >= maxAttempts);
    / Between attempts: replicate teardownExpec's per-attempt cleanup, then
@@ -346,6 +368,11 @@ runExpec:{[spec;expec];
       expec: pristine;
    ];
  ];
+
+ expec[`attempts]:attempt;
+ expec[`attemptHistory]:attemptHistory;
+ expec[`retried]:attempt>1;
+ expec[`flaky]:(attempt>1) and `pass~.tst.normalizeResultStatus expec`result;
 
  / Annotate retry outcomes so flake debt is visible, not hidden.
  if[maxAttempts > 1;
@@ -393,6 +420,9 @@ runExpecAttempt:{[spec;expec];
      / setup errors and the other expectation runner types.
      res: .Q.trp[.tst.callExpec;expec;
          .tst.trapExpecError[expec;.tst.toString expec`type;;]];
+     if[99h=type res;
+        if[`currentParameterCases in key `.tst;res[`parameterCases]:.tst.currentParameterCases];
+        if[`currentSnapshots in key `.tst;res[`snapshots]:.tst.currentSnapshots]];
      / Post-execution duration budget (milliseconds). This deliberately cannot
      / preempt q code; process isolation owns hard hang termination.
      if[budgetMs > 0;

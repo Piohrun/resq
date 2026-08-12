@@ -207,14 +207,14 @@
 
     should["report passed when all specs and state-results pass"]{
         .tst.app.results: enlist mkPassedSpec[];
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i;"";0Ni;"";();"");
+        .resq.state.results: .resq.state.emptyResults[] upsert .tst.oneResultTable `suite`description`status!(`s;`x;`pass);
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 1b;
     };
 
     should["report failed when any expectation failed"]{
         .tst.app.results: enlist mkFailedSpec[];
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`fail;"";0Nn;();0i;"";0Ni;"";();"");
+        .resq.state.results: .resq.state.emptyResults[] upsert .tst.oneResultTable `suite`description`status!(`s;`x;`fail);
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 0b;
     };
@@ -222,7 +222,7 @@
     should["report failed when load errors exist"]{
         .tst.app.results: enlist mkPassedSpec[];
         .tst.app.loadErrors: flip `file`error`type!(enlist `bad.q; enlist "boom"; enlist `load);
-        .resq.state.results: .resq.state.emptyResults[] upsert (`s;`x;`pass;"";0Nn;();0i;"";0Ni;"";();"");
+        .resq.state.results: .resq.state.emptyResults[] upsert .tst.oneResultTable `suite`description`status!(`s;`x;`pass);
         .tst.runAllPhase.computePassed[];
         .tst.app.passed musteq 0b;
     };

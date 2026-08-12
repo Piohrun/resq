@@ -38,8 +38,8 @@
         result: .tst.testState.cleanupchk.run[];
         result[`code] musteq 1;
         payload: result`payload;
-        payload[`passCount] musteq 1f;
-        payload[`errorCount] musteq 5f;
+        payload[`summary;`passCount] musteq 1f;
+        payload[`summary;`errorCount] musteq 5f;
         cleanupRows: payload[`tests] where payload[`tests;`status] ~\: "error";
         count[cleanupRows] musteq 5;
         allMessages: "\n" sv cleanupRows`message;

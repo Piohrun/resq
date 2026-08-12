@@ -1,6 +1,8 @@
 / End-to-end coverage gate: the percentage shown by resQ, the LCOV artifact,
 / the canonical result row, and the process exit code must all agree.
 
+.utl.require .resq.HOME,"/lib/coverage.q";
+
 .tst.testState.covgate.canRun:
     (0 < count @[system; "which q 2>/dev/null"; {()}]) and
     (0 < count @[system; "which timeout 2>/dev/null"; {()}]);
@@ -206,7 +208,7 @@
              "the console must print the measured percentage and counts"];
         must[0 < count ss[outputText;"Statement/branch execution is NOT measured"];
              "function-level mode must say what it did not measure"];
-        failed[`payload;`errorCount] musteq 1f;
+        failed[`payload;`summary;`errorCount] musteq 1f;
         failed[`payload;`coverage;`functionPercent] musteq 50f;
         failed[`payload;`coverage;`basis] musteq "functions";
         failed[`payload;`coverage;`minimum] musteq 51f;
@@ -221,8 +223,8 @@
 
         passed: .tst.testState.covgate.run 50;
         passed[`code] musteq 0;
-        passed[`payload;`passCount] musteq 1f;
-        passed[`payload;`errorCount] musteq 0f;
+        passed[`payload;`summary;`passCount] musteq 1f;
+        passed[`payload;`summary;`errorCount] musteq 0f;
         passed[`payload;`coverage;`passed] musteq 1b;
     };
 

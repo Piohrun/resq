@@ -93,26 +93,36 @@ structured field in JSON or XML. Machine reports retain the canonical assertion
 or error message and the `failures` list. Keep the console log when the visual
 diff is useful during incident diagnosis.
 
-## JSON schema version 1
+## JSON schema version 2
 
-`test-results.json` is the most complete resQ-native report. Its stable top-level
-fields are:
+`test-results.json` is the most complete resQ-native report. Every format is
+rendered from the same in-memory run model. The published schema is
+[`schema/resq-report-v2.schema.json`](schema/resq-report-v2.schema.json); the
+dependency-free `tools/validate_report.py` command validates artifacts in CI.
+
+Its stable top-level fields are:
 
 | Field | Meaning |
 |-------|---------|
-| `schemaVersion` | Currently `1` |
-| `framework`, `frameworkVersion`, `fmt` | Producer identity |
-| `suiteCount`, `testCount`, `assertionCount` | Aggregate work performed |
-| `passCount`, `failCount`, `errorCount`, `skipCount` | Aggregate outcomes |
-| `duration`, `durationSeconds` | q timespan text and numeric seconds |
+| `schemaVersion` | Currently `2` |
+| `framework`, `frameworkVersion` | Producer identity |
+| `run` | Unique run ID, UTC timestamps, q/resQ/OS/host, VCS/CI context, and effective configuration |
+| `summary` | Counts and total duration |
 | `tests` | Ordered test-result rows |
+| `performance` | Benchmark time/space rows (empty when no benchmark ran) |
+| `coverage` | Canonical coverage summary (empty outside coverage runs) |
+| `diagnostics` | Typed run-level diagnostics |
 
-Each `tests` row contains `suite`, `description`, `status`, `message`, `time`,
-`durationSeconds`, `failures`, `assertsRun`, `file`, `line`, `namespace`, `tags`,
-and `output`. The public statuses are `pass`, `fail`, `error`, `skip`, and
-`pending`. `message` and `output` are always strings and `failures` is always a
-list of strings, including on passing rows. Missing source lines serialize as
-JSON null. `output` is normally empty; under process isolation the first
+Each `tests` row retains those diagnostic fields and additionally contains a
+portable `file`, stable `testId`, `kind`, retry flags and `attemptHistory`,
+independently identified `parameterCases`, structured `property`, `snapshots`,
+`benchmark`, and typed `diagnostics`. The public statuses are `pass`, `fail`,
+`error`, `skip`, and `pending`. `message` and `output` are always strings and
+`failures` is always a list of strings, including on passing rows. Missing
+source lines serialize as JSON null. Paths beneath the invocation directory are
+repository-relative; the checkout root appears once as `run.cwd`. Generated
+sandbox namespaces are suppressed instead of becoming a noisy dashboard
+dimension. `output` is normally empty; under process isolation the first
 failed/error row for a file carries that child's bounded combined stdout/stderr.
 That transcript is the child's **test** output — `show`, `-1`, library chatter,
 and the structural failure diff — and stops where the child's own reporter
@@ -120,24 +130,24 @@ begins. The child's per-suite listing, summary and report-file lines are dropped
 the parent re-renders all of that from the merged rows, and the child's report
 named a private scratch directory that no longer exists by the time you read it.
 
-Two top-level sections are conditional:
-
-- `performance` appears when performance blocks ran and records their measured
-  budgets/statistics.
-- `coverage` appears on coverage runs and records counts, percentage, threshold,
-  gate result, and whether the gate used `functions` or measured `lines`.
-
 Consumers should branch on `schemaVersion`, ignore unknown fields, and use the
 numeric `durationSeconds` for calculations. Do not derive pass/fail from the
 process log; use the process exit code and aggregate counts.
 
+Schema v2 intentionally breaks the flat schema-v1 aggregate layout. Consumers
+must read counts from `summary`, metadata from `run`, and treat `(testId,
+caseId)` as identity. Suite/description remain presentation fields. See
+[`OBSERVABILITY.md`](OBSERVABILITY.md) for ingestion guidance.
+
 ## JUnit XML
 
 JUnit output uses suite titles for `<testsuite name>` and testcase `classname`,
-so identity remains useful across checkout directories. Testcases include
-`file` and `line` when known. Failures, runtime errors, skips, and pending tests
-map to their corresponding JUnit elements. Captured isolated-child output is
-written as `<system-out>` on the row that owns the file transcript.
+so identity remains useful across checkout directories. Suites carry the run
+timestamp/hostname and the root contains resQ/q/run-ID properties. Testcases
+include portable `file`/`line`, `resq-test-id`, retry count, and flaky marker.
+Failures, runtime errors, skips, and pending tests map to their corresponding
+JUnit elements. Captured isolated-child output is written as `<system-out>` on
+the row that owns the file transcript.
 
 For a multiline failure, the element's `message` attribute contains a one-line
 summary while the full newline-preserving message remains in the element body.
@@ -152,8 +162,9 @@ per-test Error result, resQ maps both assertion failures and runtime errors to
 from `resQ.Error`. Captured isolated-child output is written in the test's
 `<output>` element.
 
-Run IDs and timestamps are generated for each report. Do not use them as stable
-test identifiers; use suite plus test name (and source location where needed).
+The assembly ID and timestamps come from the canonical run metadata. Test UUIDs
+derive from `testId`, so they remain stable across checkout directories. A run
+ID identifies one execution and must not be used as a test identity.
 
 ## Size limits and sensitive data
 

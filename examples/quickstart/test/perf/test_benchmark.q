@@ -46,8 +46,11 @@
   / Comparison mode
   should["compare two implementations"; {[]
     result: .tst.benchCompare[
-      "each"; {(+) each 1000 2#1};
-      "vector"; {sum 1000 2#1};
+      / Both candidates compute the same 1000 row sums and return the same
+      / 1000-item vector. Benchmarking different shapes would produce a winner
+      / that says nothing about implementation speed.
+      "each"; {sum each 1000 2#1f};
+      "matrix"; {(1000 2#1f) mmu 2#1f};
       `iterations`warmup!(200; 20)
     ];
     

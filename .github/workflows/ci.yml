@@ -81,6 +81,12 @@ jobs:
           for path in root.rglob("*.json"):
               json.loads(path.read_text(encoding="utf-8"))
 
+          for path in root.rglob("test-results.json"):
+              import subprocess
+              subprocess.run(
+                  ["tools/validate_report.py", str(path)], check=True
+              )
+
           coverage = json.loads(
               (root / "coverage" / "test-results.json").read_text(encoding="utf-8")
           )["coverage"]

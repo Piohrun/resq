@@ -92,8 +92,8 @@
         result: .tst.testState.adoption.runResq[];
         must[result[`code] = 0;
              "valid application source must load under resQ: ", result`output];
-        result[`payload;`passCount] musteq 1f;
-        result[`payload;`errorCount] musteq 0f;
+        result[`payload;`summary;`passCount] musteq 1f;
+        result[`payload;`summary;`errorCount] musteq 0f;
     };
 
     skipIf[not .tst.testState.adoption.canRun;
@@ -101,9 +101,9 @@
         result: .tst.testState.adoption.runCorpus[];
         must[result[`code] = 0;
              "production compatibility corpus must pass unchanged: ", result`output];
-        result[`payload;`testCount] musteq 3f;
-        result[`payload;`passCount] musteq 3f;
-        result[`payload;`errorCount] musteq 0f;
+        result[`payload;`summary;`testCount] musteq 3f;
+        result[`payload;`summary;`passCount] musteq 3f;
+        result[`payload;`summary;`errorCount] musteq 0f;
     };
 
     should["let test locals shadow DSL-shaped names without confusing annotation"]{

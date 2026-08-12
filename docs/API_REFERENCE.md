@@ -353,7 +353,9 @@ tests are reported in the summary but do not cause the run to fail.
 
 ## 2. Assertions
 
-All assertions are available in the root namespace for convenience.
+All assertions are available unqualified in test source. The loader binds those
+tokens to stable `.tst.dsl.*` helpers; resQ does not add reserved members to
+`.q`. Explicit `.tst.musteq`-style calls remain available.
 
 ### Assertion Cheat-Sheet
 
@@ -384,7 +386,7 @@ All assertions are available in the root namespace for convenience.
 camelCase aliases (`mustEqual`, `mustNotEqual`, `mustLessThan`, `mustGreaterThan`,
 `mustMatchSnapshot`, `mustMatchTextSnapshot`, `mustMatchIgnoringOrder`) are
 additive aliases for the lowercase forms — both spellings are identical in
-behaviour and are exported to the root namespace and `.tst.asserts`.
+behaviour and are exposed through test-source binding and `.tst.asserts`.
 
 ### must
 
@@ -1774,9 +1776,11 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 Reporter flags compose. A run with more than one selected format uses
 schema-specific filenames so JUnit and xUnit never overwrite one another.
 JUnit rows carry `file`/`line`; xUnit v2 rows carry
-`source-file`/`source-line`; JSON schema version 1 keeps `message` and `output`
-scalar, keeps `failures` list-valued, and includes the aggregate
-`assertionCount`. Under `-isolate`, the first failed/error row from each file
+`source-file`/`source-line`; JSON schema version 2 keeps `message` and `output`
+scalar, keeps `failures` list-valued, and places aggregate counts under
+`summary`. It also records stable identity, run metadata, retries, cases,
+property seeds, lifecycle data, and typed diagnostics. Under `-isolate`, the
+first failed/error row from each file
 owns its bounded combined child stdout/stderr in `output`; JUnit publishes the
 same value as `<system-out>` and xUnit v2 as `<output>`. A reporter error fails
 the run after every selected reporter has been attempted.
@@ -1941,7 +1945,11 @@ reporters cannot attach declaration lines and resQ cannot detect a constructor
 whose final code argument was accidentally omitted. Use it only to unblock a
 suite while reporting a reproducible loader case.
 
-`pollutionGuard` controls deep namespace snapshot/restore checks around each suite. It defaults to `true`. Set it to `false` for very large sessions where global namespace comparison overhead is too high.
+`pollutionGuard` controls deep namespace snapshot/restore checks around each
+suite. It defaults to `true`. Snapshotting retains references and unchanged
+globals compare by identity, so cost primarily scales with namespace-member
+count; keep it enabled for production runs. Disable it only when you knowingly
+accept cross-suite state leakage and have measured a project-specific need.
 
 `testFilePatterns` is the list of glob patterns the loader matches against base filenames when scanning a directory. Defaults to `test_*.q` / `*_test.q`. Override for codebases that use other conventions (e.g. `["*_spec.q"]` for BDD, `["*Test.q"]` for xUnit). Explicit `.q` file paths passed on the command line are always honoured regardless of patterns.
 

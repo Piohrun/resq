@@ -25,6 +25,22 @@ In resQ, use the `holds` keyword to define a property test.
 };
 ```
 
+Generation is deterministic and does not consume q's global random stream.
+Pass a `seed` property to replay or share a run exactly:
+
+```q
+holds["reverse-reverse is identity"; `runs`seed`vars!(100;4242;`int$())]{[l]
+  reverse[reverse l] mustmatch l
+};
+```
+
+Without an explicit seed, resQ derives a stable seed from the test's portable
+identity. JSON schema v2 records the effective seed, run/pass/failure counts,
+failing inputs, failure rate, and shrunk input under the test row's `property`
+object. Custom generator functions are responsible for their own determinism;
+the private generator contract covers resQ's built-in type/list/dictionary
+generators.
+
 **Important**: each `holds` call in the same `.tst.desc` block must use a
 compatible `vars` type (e.g., all symbol generators or all dict generators). If
 you mix a simple type spec (`` `int ``) with a dict spec (`` `a`b!(`int;`int) ``)

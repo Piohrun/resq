@@ -20,12 +20,12 @@ resQ 1.0 must guarantee that:
 
 ## 0.4.1 — Trust hotfix
 
-- [ ] Add regressions for reserved-name source failures, annotation collisions,
+- [x] Add regressions for reserved-name source failures, annotation collisions,
   skipped cleanup paths, partial line gates, and unloaded coverage sources.
 - [x] Make legacy `-cov-min` gate on complete function coverage rather than
   automatically preferring any available line records.
 - [x] Refactor `runSpec` around one unconditional, trapped finalizer.
-- [ ] Correct coverage, reporting, benchmark, and compatibility documentation.
+- [x] Correct coverage, reporting, benchmark, and compatibility documentation.
 - [x] Make CI assert the expected coverage inventory, not only a percentage.
 
 ## 0.5.0 — Safe adoption
@@ -51,16 +51,16 @@ resQ 1.0 must guarantee that:
 
 ## 0.7.0 — Observability contract
 
-- [ ] Introduce one canonical run/result model.
-- [ ] Publish and validate JSON schema v2.
-- [ ] Add run IDs, timestamps, q/resQ versions, VCS/CI context, and effective config.
-- [ ] Add stable test and parameter-case identities using repository-relative paths.
-- [ ] Record retry attempts and expose late passes as `pass` plus `flaky:true`.
-- [ ] Emit parameter cases independently and property-test seeds/results structurally.
-- [ ] Add typed diagnostics for cleanup, pollution, resources, coverage, loading,
+- [x] Introduce one canonical run/result model.
+- [x] Publish and validate JSON schema v2.
+- [x] Add run IDs, timestamps, q/resQ versions, VCS/CI context, and effective config.
+- [x] Add stable test and parameter-case identities using repository-relative paths.
+- [x] Record retry attempts and expose late passes as `pass` plus `flaky:true`.
+- [x] Emit parameter cases independently and property-test seeds/results structurally.
+- [x] Add typed diagnostics for cleanup, pollution, resources, coverage, loading,
   configuration, snapshots, retries, and reporter failures.
-- [ ] Generate console, JUnit, and xUnit from the canonical model.
-- [ ] Structure benchmark and snapshot lifecycle results.
+- [x] Generate console, JUnit, and xUnit from the canonical model.
+- [x] Structure benchmark and snapshot lifecycle results.
 
 ## 0.8.0 — Developer workflow and scale
 

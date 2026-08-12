@@ -551,10 +551,10 @@
     must[0 < count sJson; "the sequential run must write a JSON report"];
 
     / Counts must agree exactly...
-    musteq[pJson`testCount;  sJson`testCount];
-    musteq[pJson`passCount;  sJson`passCount];
-    musteq[pJson`failCount;  sJson`failCount];
-    musteq[pJson`errorCount; sJson`errorCount];
+    musteq[pJson[`summary;`testCount];  sJson[`summary;`testCount]];
+    musteq[pJson[`summary;`passCount];  sJson[`summary;`passCount]];
+    musteq[pJson[`summary;`failCount];  sJson[`summary;`failCount]];
+    musteq[pJson[`summary;`errorCount]; sJson[`summary;`errorCount]];
 
     / ...and so must each individual verdict, in the same order. Ordering is
     / part of the contract: children start together but are interpreted in file

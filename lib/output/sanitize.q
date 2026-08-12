@@ -68,6 +68,28 @@
     s
  };
 
+/ Machine-report normalization lives in the canonical boundary, not in the JSON
+/ plugin: text-only and XML-only runs build the same model before format dispatch.
+.tst.output.jsonDurationSeconds:{[v]
+    raw:$[0h=type v;0N;98h=type v;first v;v];
+    $[null raw;0f;-16h=type raw;raw%1e9;0f]
+ };
+
+.tst.output.jsonRow:{[row]
+    out:row;
+    rawMsg:$[`message in key row;row`message;""];
+    out[`message]:.tst.renderReportMessage rawMsg;
+    rawFailures:$[`failures in key row;row`failures;()];
+    out[`failures]:$[0=count rawFailures;();10h=type rawFailures;enlist rawFailures;
+        0h=type rawFailures;{[v]$[10h=type v;v;.tst.toString v]} each rawFailures;
+        enlist .tst.toString rawFailures];
+    rawTime:$[`time in key row;row`time;0Nn];
+    out[`time]:string rawTime;
+    out[`durationSeconds]:.tst.output.jsonDurationSeconds rawTime;
+    out[`output]:.tst.stripAnsi .tst.renderReportMessage $[`output in key out;out`output;""];
+    out
+ };
+
 .tst.sanitizeExpectation:{[suite; file; ns; tags; ex]
     if[not 99h = type ex;
         :`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
@@ -157,6 +179,94 @@
     .tst.sanitizeExpectation[suite;file;ns;tags;] each exs
  };
 
+/ Portable path used by every reporter and by the stable test identity. A path
+/ beneath the invocation directory is emitted relative to it; paths outside the
+/ repository remain absolute because fabricating a relative path would be
+/ misleading. Literal prefix comparison avoids q `like metacharacters in paths.
+.tst.repoRelativePath:{[path]
+    p: .utl.pathToString path;
+    if[0 = count p; :""];
+    p: .utl.normalizePath p;
+    root: .utl.normalizePath @[get; `.tst.app.baseDir; {system "cd"}];
+    prefix: root, "/";
+    if[(count p) > count prefix;
+        if[prefix ~ (count prefix) # p; :(count prefix) _ p]];
+    $[p ~ root; "."; p]
+ };
+
+.tst.stableHash:{[input] raze string md5 .tst.toString input};
+
+.tst.stableTestId:{[file;suite;description]
+    "test_", .tst.stableHash[.tst.repoRelativePath[file], "\n",
+        .tst.toString[suite], "\n", .tst.toString description]
+ };
+
+.tst.stableCaseId:{[testId;index;parameters]
+    "case_", .tst.stableHash[testId, "\n", string[index], "\n", .Q.s1 parameters]
+ };
+
+/ Convert the expectation-only execution state into durable telemetry fields.
+/ This is deliberately a helper rather than more locals in expecRan: q limits a
+/ function to 24 locals, and the callback already performs result accounting.
+.tst.expectationTelemetry:{[s;e;fileText]
+    testId: .tst.stableTestId[fileText;s`title;e`desc];
+    attempts: "i"$$[`attempts in key e; e`attempts; 1];
+    history: $[`attemptHistory in key e; e`attemptHistory; ()];
+    cases: $[`parameterCases in key e; e`parameterCases; ()];
+    cases: {[parent;rec;i]
+        out: rec;
+        params: $[`parameters in key out; out`parameters; ()!()];
+        out[`caseId]: .tst.stableCaseId[parent;i;params];
+        out[`index]: i;
+        out
+    }[testId;;]'[cases;til count cases];
+    prop: ()!();
+    if[`fuzz ~ $[`type in key e;e`type;`test];
+        failedInputs:$[`failedFuzz in key e;e`failedFuzz;()];
+        prop: `seed`runs`maxFailRate`failRate`passCount`failCount`failedInputs`shrunkInput!(
+            $[`seed in key e;e`seed;
+              (`props in key e) and 99h=type e`props;
+                $[`seed in key e`props;e[`props;`seed];0Nj];
+              0Nj];
+            "j"$$[`runs in key e;e`runs;0];
+            "f"$$[`maxFailRate in key e;e`maxFailRate;0f];
+            "f"$$[`failRate in key e;e`failRate;0f];
+            "j"$$[`runs in key e;e`runs;0]-count failedInputs;
+            "j"$count failedInputs;
+            failedInputs;
+            $[`shrunkFailure in key e;e`shrunkFailure;(::)])];
+    snaps: $[`snapshots in key e;e`snapshots;()];
+    bench:()!();
+    if[`perf in key e;
+        perfOpts:$[`props in key e;$[99h=type e`props;e`props;()!()];()!()];
+        bench:`status`runs`measurement`limits!(
+            .tst.normalizeResultStatus e`result;
+            "j"$$[`runs in key perfOpts;perfOpts`runs;0];
+            e`perf;
+            `maxTimeMs`maxSpaceBytes!(
+                $[`maxTime in key perfOpts;"f"$perfOpts`maxTime;0nf];
+                $[`maxSpace in key perfOpts;"f"$perfOpts`maxSpace;0nf]))];
+    `testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark!(
+        testId;"";$[`type in key e;e`type;`test];attempts;
+        $[`retried in key e;1b~e`retried;attempts>1];
+        $[`flaky in key e;1b~e`flaky;(attempts>1) and `pass~.tst.normalizeResultStatus e`result];
+        history;cases;prop;.tst.expectationDiagnostics e;snaps;bench)
+ };
+
+.tst.completeResultRow:{[row]
+    fields:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
+        `testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+    defaults:fields!(`;`;`pass;"";0Nn;();0i;"";0Ni;"";`symbol$();"";
+        "";"";`test;1i;0b;0b;();();()!();();();()!());
+    if[99h=type row;defaults[key row]:value row];
+    if[0=count defaults`testId;
+        defaults[`testId]:.tst.stableTestId[defaults`file;defaults`suite;defaults`description]];
+    defaults[`file]:.tst.repoRelativePath defaults`file;
+    defaults
+ };
+
+.tst.oneResultTable:{[row] flip enlist each .tst.completeResultRow row};
+
 .tst.isResultRow:{[x]
     if[not 99h = type x; :0b];
     all `suite`description`status in key x
@@ -178,7 +288,9 @@
  };
 
 .tst.emptyResultTable:{[]
-    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+    columns:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
+        `testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+    flip columns!(
         ();
         ();
         `symbol$();
@@ -190,6 +302,18 @@
         `int$();
         ();
         ();
+        ();
+        ();
+        ();
+        `symbol$();
+        `int$();
+        `boolean$();
+        `boolean$();
+        ();
+        ();
+        ();
+        ();
+        ();
         ())
  };
 
@@ -197,11 +321,157 @@
 / accepts: spec objects, expectation rows, flat result tables, or row dictionaries
 / returns: list of result-row dictionaries
 .tst.resultRows:{[results]
+    if[99h = type results;
+        if[all `run`summary`tests in key results;:results`tests]];
     rows: $[`sanitize in key `.tst; .tst.sanitize results; results];
-    $[0h = type rows; rows;
+    normalized:$[0h = type rows; rows;
       98h = type rows; {[tbl; idx] tbl idx}[rows] each til count rows;
       99h = type rows; enlist rows;
-      enlist rows]
+      enlist rows];
+    .tst.completeResultRow each normalized
+ };
+
+.tst.isoTimestamp:{[ts]
+    s: string ts;
+    $[11 > count s;s;(ssr[10#s;".";"-"]),"T",11 _ s,"Z"]
+ };
+
+.tst.firstCommandLine:{[command]
+    got: @[system; command; {()}];
+    $[(10h = type got) and count got;got;
+      (0h = type got) and count got;.tst.toString first got;
+      ""]
+ };
+
+.tst.selectedConfig:{[]
+    names:`strict`quiet`failFast`failHard`passOnly`describeOnly`pollutionGuard,
+        `runCoverage`coverageStatements`coverageMin`coverageFunctionMin,
+        `coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage,
+        `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
+        `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
+        `tagFilter`excludeTagFilter`coverageSources;
+    appKeys:key `.tst.app;
+    present:names where names in appKeys;
+    cfg:present!(get each {` sv (`.tst.app;x)} each present);
+    rcfg:key `.resq.config;
+    extra:`fmt`outDir inter rcfg;
+    cfg,(extra!(get each {` sv (`.resq.config;x)} each extra))
+ };
+
+.tst.vcsContext:{[root]
+    quoted:.utl.shellQuote root;
+    prefix:"git -C ",quoted," ";
+    sha:.tst.firstCommandLine prefix,"rev-parse HEAD 2>/dev/null";
+    branch:.tst.firstCommandLine prefix,"rev-parse --abbrev-ref HEAD 2>/dev/null";
+    dirty:0<count .tst.firstCommandLine prefix,"status --porcelain 2>/dev/null";
+    `sha`branch`dirty!(sha;branch;dirty)
+ };
+
+.tst.ciContext:{[]
+    names:`CI`CI_JOB_ID`CI_PIPELINE_ID`CI_COMMIT_SHA`CI_COMMIT_BRANCH,
+        `GITHUB_ACTIONS`GITHUB_RUN_ID`GITHUB_RUN_ATTEMPT`GITHUB_SHA,
+        `GITHUB_REF_NAME`BUILD_BUILDID`BUILD_SOURCEVERSION`JENKINS_URL;
+    vals:getenv each names;
+    mask:0<count each vals;
+    (names where mask)!(vals where mask)
+ };
+
+.tst.beginRunMetadata:{[]
+    started:.z.p;
+    root:.utl.normalizePath system "cd";
+    host:getenv `HOSTNAME;
+    if[0=count host;host:.tst.firstCommandLine "hostname 2>/dev/null"];
+    runId:"run_",.tst.stableHash[string[started],"\n",root,"\n",host];
+    .tst.app.runStartedAt:started;
+    .tst.app.runFinishedAt:0Np;
+    metaKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
+        `qVersion`qRelease`os`resqVersion`vcs`ci`config;
+    .tst.app.runMetadata:metaKeys!(
+        runId;.tst.isoTimestamp started;"";0f;host;root;string .z.K;
+        string .z.k;string .z.o;$[`VERSION in key `.resq;.resq.VERSION;"unknown"];
+        .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[]);
+    .tst.app.diagnostics:();
+    ::
+ };
+
+.tst.finishRunMetadata:{[]
+    if[not `runMetadata in key `.tst.app;.tst.beginRunMetadata[]];
+    finished:.z.p;
+    .tst.app.runFinishedAt:finished;
+    runMeta:.tst.app.runMetadata;
+    runMeta[`finishedAt]:.tst.isoTimestamp finished;
+    runMeta[`durationSeconds]:("f"$finished-.tst.app.runStartedAt)%1000000000;
+    runMeta[`config]:.tst.selectedConfig[];
+    .tst.app.runMetadata:runMeta;
+    runMeta
+ };
+
+.tst.recordDiagnostic:{[typeName;severity;phase;message;data]
+    if[not `diagnostics in key `.tst.app;.tst.app.diagnostics:()];
+    .tst.app.diagnostics,:enlist `type`severity`phase`message`data`timestamp!(
+        typeName;severity;phase;.tst.toString message;data;.tst.isoTimestamp .z.p);
+    ::
+ };
+
+.tst.diagnostic:{[typeName;severity;phase;message;data]
+    `type`severity`phase`message`data!(
+        typeName;severity;phase;.tst.toString message;data)
+ };
+
+.tst.expectationDiagnostics:{[e]
+    items:();
+    status:.tst.normalizeResultStatus $[`result in key e;e`result;`pass];
+    failures:$[`failures in key e;(),e`failures;()];
+    if[status in `fail`error;
+        items,:enlist .tst.diagnostic[
+            $[`fuzz~$[`type in key e;e`type;`test];`property;`assertion];
+            `error;`execution;
+            $[count failures;.tst.renderReportMessage failures;
+              `errorText in key e;e`errorText;"Expectation failed"];
+            enlist[`failures]!enlist failures]];
+    if[`retryNote in key e;
+        items,:enlist .tst.diagnostic[`retry;`warning;`execution;e`retryNote;
+            `attempts`flaky!($[`attempts in key e;e`attempts;1];1b)]];
+    snapshotEvents:$[`snapshots in key e;e`snapshots;()];
+    if[count snapshotEvents;
+        items,:{[event]
+            snapStatus:event`status;
+            severity:$[snapStatus in `missing`mismatch;`error;
+                snapStatus in `created`updated;`warning;`info];
+            .tst.diagnostic[`snapshot;severity;`execution;
+                "Snapshot ",.tst.toString[snapStatus],": ",.tst.toString[event`name];event]
+        } each snapshotEvents];
+    items
+ };
+
+/ One in-memory document is the source for JSON, text, JUnit, and xUnit. XML
+/ builders still receive it through resultRows/resultTable, which understand
+/ the model and therefore cannot silently select a different set of tests.
+.tst.canonicalRunModel:{[results]
+    rawRows:.tst.resultRows results;
+    stats:.tst.resultSummary rawRows;
+    rows:rawRows;
+    summaryKeys:`suiteCount`testCount`assertionCount`passCount`failCount`errorCount,
+        `skipCount`duration`durationSeconds;
+    summary:summaryKeys!(
+        stats`suiteCount;stats`testCount;stats`assertsRun;stats`passCount;
+        stats`failCount;stats`errorCount;stats`skipCount;string stats`duration;
+        .tst.output.jsonDurationSeconds stats`duration);
+    performance:@[get;`.tst.app.perfResults;{()}];
+    if[98h=type performance;performance:0!performance];
+    coverage:$[1b~@[get;`.tst.app.runCoverage;0b];
+        @[get;`.tst.lastCoverageSummary;{()!()}];()!()];
+    if[(99h=type coverage) and count coverage;
+        coverage:coverage,`basis`minimum`passed!(
+            @[get;`.tst.app.coverageBasis;"functions"];
+            @[get;`.tst.app.coverageEffectiveMinimum;0];
+            @[get;`.tst.app.coveragePassed;0b])];
+    modelKeys:`schemaVersion`framework`frameworkVersion`run`summary`tests`performance,
+        `coverage`diagnostics;
+    modelKeys!(2;"resQ";
+        $[`VERSION in key `.resq;.resq.VERSION;"unknown"];
+        .tst.finishRunMetadata[];summary;rows;performance;coverage;
+        @[get;`.tst.app.diagnostics;{()}])
  };
 
 / Canonical table form for reporters that need qSQL grouping/filtering.

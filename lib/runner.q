@@ -64,6 +64,9 @@
     / failures and the summary while dropping passing-suite chatter, and -desc
     / swaps the reporter wholesale in resq.q.
     formats: distinct `text, formats;
+    / JSON is the richest observability artifact. Run it after XML so it can
+    / include typed diagnostics recorded by an earlier reporter failure.
+    if[`json in formats;formats:(formats except `json),`json];
     reportAvailability: .tst.loadOutputModule each formats;
     .tst.app.activeReportFormats: formats where reportAvailability;
 
@@ -71,6 +74,9 @@
     / every requested format even when an earlier serializer or file write fails.
     .resq.invokeReporter:{[results;multiple;available;format]
         if[not available;
+            .tst.recordDiagnostic[`reporter;`error;`report;
+                "Requested reporter is unavailable";
+                enlist[`format]!enlist format];
             :(1b;"requested output module unavailable")];
         @[
           {[args]
@@ -91,7 +97,11 @@
             (0b;"")
           };
           (results;multiple;format);
-          {[e] (1b;.tst.toString e)}]
+          {[fmt;e]
+            .tst.recordDiagnostic[`reporter;`error;`report;
+                "Reporter failed: ",.tst.toString e;
+                `format`error!(fmt;.tst.toString e)];
+            (1b;.tst.toString e)}[format;]]
      };
 
     .resq.reportSelected:{[selected;availability;results]
@@ -99,9 +109,16 @@
         / selected list now, so counting it would make every -junit run look
         / multi-format and rename test-results.xml to test-results.junit.xml.
         multiple: 1 < count selected except `text;
-        outcomes: {[resultRows;isMultiple;formats;available;i]
-            .resq.invokeReporter[resultRows;isMultiple;available i;formats i]
-        }[results;multiple;selected;availability;] each til count selected;
+        / Rebuild immediately before each reporter. Reporter N may record a
+        / typed failure diagnostic; reporter N+1 (JSON is ordered last by the
+        / CLI) must see it rather than serializing the pre-dispatch snapshot.
+        outcomes:();
+        i:0;
+        while[i<count selected;
+            runModel:.tst.canonicalRunModel results;
+            outcomes,:enlist .resq.invokeReporter[
+                runModel;multiple;availability i;selected i];
+            i+:1];
         failedAt: where first each outcomes;
         if[count failedAt;
             details: {[fmt;err] string[fmt], ": ", err}'[
@@ -212,6 +229,9 @@
     if[count newNamespaces;
         nonTrivial: newNamespaces where {[n] not (::) ~ @[get; n; ::]} each newNamespaces;
         if[count nonTrivial;
+            .tst.recordDiagnostic[`pollution;`warning;`cleanup;
+                "Suite introduced top-level names";
+                `suite`names!(.tst.toString specTitle;nonTrivial)];
             -1 "WARNING: Test '", .tst.toString[specTitle], "' introduced top-level names: ", .tst.toString nonTrivial;
             { @[set; (x; ::); {}] } each nonTrivial;
             -1 "  -> Cleared values (q retains the bare names).";
@@ -225,6 +245,9 @@
 
             newKeys: (key currentState) except key originalState;
             if[count newKeys;
+                .tst.recordDiagnostic[`pollution;`warning;`cleanup;
+                    "Suite leaked namespace members";
+                    `suite`namespace`members!(.tst.toString title;.tst.toString ns;newKeys)];
                 -1 "WARNING: Test '", .tst.toString[title], "' leaked members in ", string[ns], ": ", .tst.toString newKeys;
                 .tst.deleteVar each newKeys;
                 -1 "  -> Cleaned up leaked members in ", string[ns], ".";
@@ -234,6 +257,9 @@
             modifiedKeys: commonKeys where not {x ~ y}'[
                 originalState commonKeys; currentState commonKeys];
             if[count modifiedKeys;
+                .tst.recordDiagnostic[`pollution;`warning;`cleanup;
+                    "Suite modified globals";
+                    `suite`namespace`members!(.tst.toString title;.tst.toString ns;modifiedKeys)];
                 -1 "WARNING: Test '", .tst.toString[title], "' modified globals in ", string[ns], ": ", .tst.toString modifiedKeys;
                 { [k; v]
                     viewResult: @[{(1b; view x)}; k; {(0b; x)}];
@@ -252,6 +278,9 @@
         key .z.W];
     leakedHandles: currentHandles except origHandles;
     if[count leakedHandles;
+        .tst.recordDiagnostic[`resource;`warning;`cleanup;
+            "Suite leaked handles";
+            `suite`handles!(.tst.toString specTitle;leakedHandles)];
         -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' leaked handles: ", .tst.toString leakedHandles;
         { @[hclose; x; {}] } each leakedHandles;
         -1 "  -> Closed leaked handles.";
@@ -259,6 +288,9 @@
 
     currentTs: @[get; `.z.ts; {::}];
     if[not currentTs ~ origTs;
+        .tst.recordDiagnostic[`resource;`warning;`cleanup;
+            "Suite modified .z.ts";
+            enlist[`suite]!enlist .tst.toString specTitle];
         -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' modified .z.ts. Restoring.";
         .z.ts: origTs;
     ];
@@ -426,28 +458,22 @@
 
         toSym: {`$ .tst.toString x};
         dur: `timespan$ first e[`time];
-        fileText: $[`tstPath in key s; .utl.pathToString s`tstPath; ""];
+        fileText: .tst.repoRelativePath $[`tstPath in key s; .utl.pathToString s`tstPath; ""];
         namespaceText: $[`namespace in key e; .tst.toString e`namespace;
                          `namespace in key s; .tst.toString s`namespace;
                          ""];
+        if[namespaceText like ".sandbox_*";namespaceText:""];
         specTags: $[`tags in key s; (),s`tags; ()];
         expecTags: $[`tags in key e; (),e`tags; ()];
         rowTags: distinct specTags, expecTags;
         sourceLine: $[`line in key e; "i"$e`line; 0Ni];
-        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
-            enlist toSym s[`title];
-            enlist toSym e[`desc];
-            enlist status;
-            enlist messageText;
-            enlist dur;
-            enlist $[`failures in key e; e[`failures]; ()];
-            enlist $[`assertsRun in key e; e[`assertsRun]; 0i];
-            enlist fileText;
-            enlist sourceLine;
-            enlist namespaceText;
-            enlist rowTags;
-            enlist ""
-        );
+        baseRow:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+            toSym s[`title];toSym e[`desc];status;messageText;dur;
+            $[`failures in key e;e`failures;()];
+            $[`assertsRun in key e;e`assertsRun;0i];
+            fileText;sourceLine;namespaceText;rowTags;"");
+        telemetry:.tst.expectationTelemetry[s;e;fileText];
+        toInsert:.tst.oneResultTable baseRow,telemetry;
         / Keep a perf block's measurement. runners[`perf] stores it on the
         / expectation as `perf (time/space stats from benchmark.measureOpts) but
         / nothing downstream read it, so a passing benchmark reported nothing at
@@ -522,6 +548,10 @@
     .tst.app.emptyFiles: ();
     .tst.app.executionState: `notStarted;
     .tst.app.baseDir: system "cd";
+    .tst.beginRunMetadata[];
+    configWarnings:@[get;`.resq.config.validationWarnings;{()}];
+    if[count configWarnings;
+        {.tst.recordDiagnostic[`configuration;`warning;`configuration;x;()!()]} each configWarnings];
     .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
     .tst.app.cleanupErrors: ();
     .tst.app.perfResults: .tst.app.emptyPerfResults[];
@@ -624,20 +654,12 @@
 .tst.runAllPhase.injectLoadErrors:{[]
     if[0 = count .tst.app.loadErrors; :()];
     {[err]
-        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
-            enlist `FILE_LOAD_ERROR;
-            enlist err`file;
-            enlist `error;
-            enlist err`error;
-            enlist 0Nn;
-            enlist enlist err`error;
-            enlist 0i;
-            enlist .utl.pathToString err`file;
-            enlist 0Ni;
-            enlist "";
-            enlist `symbol$();
-            enlist ""
-        );
+        .tst.recordDiagnostic[`loading;`error;`loading;err`error;
+            `file`errorType!(.tst.repoRelativePath err`file;err`type)];
+        baseRow:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output`kind!(
+            `FILE_LOAD_ERROR;err`file;`error;err`error;0Nn;enlist err`error;0i;
+            .utl.pathToString err`file;0Ni;"";`symbol$();"";`load);
+        toInsert:.tst.oneResultTable baseRow;
         `.resq.state.results upsert toInsert;
 
         syntheticExpec: `desc`type`time`result`errorText`failures`code`before`after`assertsRun!(
@@ -690,20 +712,11 @@
 .tst.runAllPhase.applyStrictMode:{[]
     .tst.runAllPhase.applyStrictAssertions[];
     if[not (.tst.app.strict and 0 = .tst.app.expectationsRan); :()];
-    toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
-        enlist `STRICT_MODE_FAILURE;
-        enlist `NO_TESTS_FOUND;
-        enlist `error;
-        enlist "Strict mode enabled but no tests were executed (skipped tests do not count under -strict).";
-        enlist 0Nn;
-        enlist enlist "No tests were executed (skipped tests do not count under -strict).";
-        enlist 0i;
-        enlist "";
-        enlist 0Ni;
-        enlist "";
-        enlist `symbol$();
-        enlist ""
-    );
+    baseRow:`suite`description`status`message`time`failures`assertsRun`kind!(
+        `STRICT_MODE_FAILURE;`NO_TESTS_FOUND;`error;
+        "Strict mode enabled but no tests were executed (skipped tests do not count under -strict).";
+        0Nn;enlist "No tests were executed (skipped tests do not count under -strict).";0i;`framework);
+    toInsert:.tst.oneResultTable baseRow;
     `.resq.state.results upsert toInsert;
  };
 
@@ -719,21 +732,14 @@
         scopeText: $[`scope in key rec; .tst.toString rec`scope; "cleanup"];
         messageText: $[`message in key rec; .tst.toString rec`message; "Cleanup failed"];
         sourcePath: $[`file in key rec; .utl.pathToString rec`file; ""];
+        .tst.recordDiagnostic[`cleanup;`error;`cleanup;messageText;rec];
         suiteSym: `$ $[count suiteText; suiteText; "CLEANUP_ERROR"];
         descSym: `$ "cleanup [",scopeText,"]",$[count testText; " after ",testText; ""];
-        toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
-            enlist suiteSym;
-            enlist descSym;
-            enlist `error;
-            enlist messageText;
-            enlist 0Nn;
-            enlist enlist messageText;
-            enlist 0i;
-            enlist sourcePath;
-            enlist 0Ni;
-            enlist "";
-            enlist `symbol$();
-            enlist "");
+        baseRow:`suite`description`status`message`time`failures`assertsRun`file`kind`diagnostics!(
+            suiteSym;descSym;`error;messageText;0Nn;enlist messageText;0i;sourcePath;
+            `cleanup;enlist `type`severity`phase`message`data!(
+                `cleanup;`error;`cleanup;messageText;rec));
+        toInsert:.tst.oneResultTable baseRow;
         `.resq.state.results upsert toInsert;
       } each records;
     / Injection is a drain operation. Clearing only after every row was added
@@ -750,19 +756,13 @@
     errText: .tst.toString err;
     messageText: "Framework phase '",phaseText,"' failed: ",errText;
     -1 "ERROR: ",messageText;
-    toInsert: flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
-        enlist `RESQ_FRAMEWORK_ERROR;
-        enlist `$phaseText;
-        enlist `error;
-        enlist messageText;
-        enlist 0Nn;
-        enlist enlist messageText;
-        enlist 0i;
-        enlist "";
-        enlist 0Ni;
-        enlist "";
-        enlist `symbol$();
-        enlist "");
+    .tst.recordDiagnostic[`framework;`error;phase;messageText;
+        enlist[`error]!enlist errText];
+    baseRow:`suite`description`status`message`time`failures`assertsRun`kind`diagnostics!(
+        `RESQ_FRAMEWORK_ERROR;`$phaseText;`error;messageText;0Nn;enlist messageText;
+        0i;`framework;enlist `type`severity`phase`message`data!(
+            `framework;`error;phase;messageText;enlist[`error]!enlist errText));
+    toInsert:.tst.oneResultTable baseRow;
     `.resq.state.results upsert toInsert;
     .tst.app.passed: 0b;
  };
@@ -928,11 +928,22 @@
         `gates`allowPartialLines`partialLines!(evaluation`gates;
             evaluation`allowPartialLines;evaluation`partialLines);
     errors,:evaluation`errors;
+    if[evaluation`partialLines;
+        .tst.recordDiagnostic[`coverage;`warning;`coverage;
+            "Statement instrumentation is partial.";
+            `instrumented`eligible`allowPartial!(
+                summary`statementFunctionsInstrumented;
+                summary`statementFunctionsEligible;
+                evaluation`allowPartialLines)]];
+    if[count errors;
+        {[coverageSummary;msg]
+            .tst.recordDiagnostic[`coverage;`error;`coverage;msg;coverageSummary]
+        }[summary;] each errors];
+    .tst.app.coveragePercent:gateDecision`percent;
+    .tst.app.coverageBasis:gateDecision`basis;
+    .tst.app.coverageEffectiveMinimum:evaluation`effectiveFunctionMinimum;
+    .tst.app.coveragePassed:(gateDecision`measurable) and 0=count evaluation`errors;
     if[gateDecision`measurable;
-        .tst.app.coveragePercent: gateDecision`percent;
-        .tst.app.coverageBasis: gateDecision`basis;
-        .tst.app.coverageEffectiveMinimum:evaluation`effectiveFunctionMinimum;
-        .tst.app.coveragePassed:0=count evaluation`errors;
         headline: "Coverage: ", string[gateDecision`percent], "% functions (",
             string[gateDecision`hit], "/", string[gateDecision`found], ")";
         if[(99h = type summary) and (`linesFound in key summary) and 0 < summary`linesFound;
@@ -962,6 +973,7 @@
     @[.tst.restore; (); {[e] .tst.recordCleanupError[`mockRestore;e]}];
 
     .tst.releaseSandboxes[];
+    .tst.finishRunMetadata[];
  };
 
 / Release each sandbox this run created. Kept separate from finalCleanup so it

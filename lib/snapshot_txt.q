@@ -49,6 +49,7 @@ mustmatchTxtSnap:{[actual;name]
     / Explicit update intent always (re)writes and passes, with a NOTE.
     if[@[get;`.tst.updateSnaps;{0b}];
         .tst.saveSnapTxt[n;actual];
+        .tst.recordSnapshotEvent[`text;n;`updated;validatedPath];
         -1 "NOTE: text snapshot created: ", n, " (", .tst.snapTxtDir, ") - review and commit it";
         :1b;
     ];
@@ -58,15 +59,18 @@ mustmatchTxtSnap:{[actual;name]
     / the strict lookup since .tst.app.strict may be undefined in bare sessions.
     if[missing;
         if[1b ~ @[get; `.tst.app.strict; 0b];
+            .tst.recordSnapshotEvent[`text;n;`missing;validatedPath];
             ' "Snapshot missing under -strict: ", n, " (run without -strict once to create it)";
         ];
         .tst.saveSnapTxt[n;actual];
+        .tst.recordSnapshotEvent[`text;n;`created;validatedPath];
         -1 "NOTE: text snapshot created: ", n, " (", .tst.snapTxtDir, ") - review and commit it";
         :1b;
     ];
 
     stored: .tst.loadSnapTxt[n];
     if[not actTxt~stored;
+        .tst.recordSnapshotEvent[`text;n;`mismatch;validatedPath];
         -1 "SNAPSHOT MISMATCH for '",n,"'";
         -1 "----------------------------------------------------------------";
         -1 "Expected (Stored):";
@@ -77,6 +81,7 @@ mustmatchTxtSnap:{[actual;name]
         'snapshotTxtMismatch
     ];
 
+    .tst.recordSnapshotEvent[`text;n;`matched;validatedPath];
     1b
  }
 
