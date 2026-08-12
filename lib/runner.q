@@ -277,9 +277,16 @@
     / q's system[] captures stdout through a temporary pipe owned by q. Inspect
     / the parent q process, then exclude that capture pipe by target; using
     / /proc/self here inspects the helper process and produces false handles.
-    cmd:"capture=$(readlink /proc/self/fd/1); for fd in /proc/$PPID/fd/*; do target=$(readlink \"$fd\"); if [ \"$target\" != \"$capture\" ]; then printf '%s\\n' \"${fd##*/}\"; fi; done";
+    cmd:"exec sh -c 'capture=$(readlink /proc/self/fd/1); printf \"CAPTURE=%s\\n\" \"$capture\"; ls -l /proc/$PPID/fd'";
     lines:@[system;cmd;{()}];
-    $[count lines;"J"$lines;`long$()]
+    if[2>count lines; :`long$()];
+    capture:8 _ first lines;
+    rows:1 _ lines;
+    rows:rows where 0<count each ss[;" -> "] each rows;
+    rows:rows where 0=count each ss[;" -> ",capture] each rows;
+    left:{first " -> " vs x} each rows;
+    names:{last " " vs x} each left;
+    $[count names;"J"$names;`long$()]
  };
 
 .tst.captureResourceState:{[]
@@ -287,6 +294,9 @@
     if[not .utl.isLinux;
         :`osHandles`ipcHandles`fileHandleOffset!(`long$();ipcHandles;0j)];
     osHandles:.tst.linuxOpenDescriptors[];
+    cachedOffset:@[get;`.tst.app.resourceFileHandleOffset;{0Nj}];
+    if[not null cachedOffset;
+        :`osHandles`ipcHandles`fileHandleOffset!(osHandles;ipcHandles;cachedOffset)];
     / q connection-handle integers need not equal Linux descriptor numbers
     / when q owns internal descriptors. A temporary /dev/null handle measures
     / the process-local offset without touching application resources.
@@ -297,6 +307,7 @@
     added:withProbe except osHandles;
     @[hclose;probeHandle;{}];
     offset:$[1=count added;first[added]-"j"$probeHandle;0Nj];
+    .tst.app.resourceFileHandleOffset:offset;
     `osHandles`ipcHandles`fileHandleOffset!(osHandles;ipcHandles;offset)
  };
 
@@ -324,14 +335,16 @@
         -1 "  -> Closed leaked handles.";
     ];
 
-    remainingIpc:(key .z.W) except origResources`ipcHandles;
-    remainingOs:$[.utl.isLinux;
-        .tst.linuxOpenDescriptors[] except origResources`osHandles;
-        `long$()];
-    if[count remainingIpc,remainingOs;
-        .tst.recordCleanupError[`resource;
-            "handles remained open after suite cleanup: ",
-            .tst.toString distinct remainingIpc,remainingOs]];
+    if[count leakedHandles;
+        remainingIpc:(key .z.W) except origResources`ipcHandles;
+        remainingOs:$[.utl.isLinux;
+            .tst.linuxOpenDescriptors[] except origResources`osHandles;
+            `long$()];
+        if[count remainingIpc,remainingOs;
+            .tst.recordCleanupError[`resource;
+                "handles remained open after suite cleanup: ",
+                .tst.toString distinct remainingIpc,remainingOs]];
+    ];
 
     currentTs: @[get; `.z.ts; {::}];
     if[not currentTs ~ origTs;
