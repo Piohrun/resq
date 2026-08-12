@@ -1,0 +1,31 @@
+name: Release gate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  release-gate:
+    runs-on: [self-hosted, linux, x64, kdb]
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify release candidate
+        shell: bash
+        run: tools/verify_release_gate.py --q q --out-dir artifacts/release-audit
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-release-audit-${{ github.run_id }}
+          path: artifacts/release-audit/
+          if-no-files-found: error
+          retention-days: 90

@@ -28,6 +28,7 @@
 
 ### Contributor / internal reference
 - [Road to resQ 1.0](ROADMAP_1_0.md) — Production-readiness delivery ledger and release gates
+- [Release checklist](RELEASE_CHECKLIST.md) — Executable release gate and human sign-off
 - [Hostile-environment audit](HARDENING_AUDIT.md) — Process/filesystem trust-boundary evidence
 - [Support policy](SUPPORT.md) — Supported versions/platforms, support window, and severity
 - [Versioning policy](VERSIONING.md) — Public SemVer surface and deprecation lifecycle
@@ -63,6 +64,7 @@
 | `TROUBLESHOOTING.md` | Users | Debugging, exit codes, CI/CD |
 | `WATCH.md` | Users | Watch mode |
 | `ROADMAP_1_0.md` | Contributors | Production-readiness delivery ledger and release gates |
+| `RELEASE_CHECKLIST.md` | Maintainers | One-command release evidence and manual sign-off |
 | `HARDENING_AUDIT.md` | Users / maintainers | Shell, path, temp, symlink, interrupt, and artifact hardening contract |
 | `SUPPORT.md` | Users | Runtime/release support, issue evidence, and severity policy |
 | `VERSIONING.md` | Users / maintainers | SemVer surface, schema evolution, deprecation, and releases |
