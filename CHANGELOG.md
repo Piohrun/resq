@@ -14,6 +14,10 @@ All notable changes to the **resQ** project will be documented in this file.
   deterministic native-`\l` loader differential and statement-instrumentation
   differential corpora, validates their JSON report, and records the exact seed
   counts needed for reproduction.
+- The v1 process/filesystem boundary now has an executable hostile-environment
+  audit covering shell/path metacharacters, symlinked and spaced installs,
+  explicit-q propagation, relative and blocked artifact destinations, private
+  temp permissions, interruption, child reaping, and launcher cleanup.
 
 ### Fixed
 
@@ -52,6 +56,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - Isolated parent runs now preserve all JSON v2 child telemetry, including
   retry attempts, parameter/property cases, diagnostics, snapshots, and
   benchmarks, instead of merging only the legacy result columns.
+- Framework and application q files now load through a cwd-restoring basename
+  helper, so install/source paths containing spaces work. Isolated groups track
+  timeout process groups and reap them on INT/TERM/HUP/EXIT; launcher-owned
+  scratch is removed even when the foreground run is interrupted.
 
 ## [0.4.0] - 2026-08-03 - qspec Drop-in, Measured Coverage & Fail-Closed Runs
 

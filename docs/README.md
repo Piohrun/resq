@@ -27,6 +27,7 @@
 
 ### Contributor / internal reference
 - [Road to resQ 1.0](ROADMAP_1_0.md) — Production-readiness delivery ledger and release gates
+- [Hostile-environment audit](HARDENING_AUDIT.md) — Process/filesystem trust-boundary evidence
 - `ARCHITECTURE.md` — Namespace layout, file structure, exit codes
 - `internal/DISCOVERY.md` — Discovery engine design notes
 - `internal/DESIGN_SKETCH.md` — Early API sketches
@@ -56,5 +57,6 @@
 | `TROUBLESHOOTING.md` | Users | Debugging, exit codes, CI/CD |
 | `WATCH.md` | Users | Watch mode |
 | `ROADMAP_1_0.md` | Contributors | Production-readiness delivery ledger and release gates |
+| `HARDENING_AUDIT.md` | Users / maintainers | Shell, path, temp, symlink, interrupt, and artifact hardening contract |
 | `internal/DESIGN_SKETCH.md` | Internal | Early API sketches (historical) |
 | `internal/DISCOVERY.md` | Internal | Discovery engine design notes |

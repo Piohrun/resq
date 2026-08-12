@@ -11,9 +11,13 @@
               { p: string x; $[any p = "/"; (last where p = "/") # p; "."] } .z.f];
 if[not "/" = first .resq.HOME; .resq.HOME: (system "cd"), "/", .resq.HOME];
 
-/ Always load bootstrap (raw \l so we can pass an absolute path before
-/ .utl.require exists).
-system "l ", .resq.HOME, "/lib/bootstrap.q";
+/ q's loader splits a path containing spaces. Bootstrap from its directory so
+/ a supported checkout path may contain whitespace, then restore the project
+/ directory before any user/config path is resolved.
+.resq.startCwd: system "cd";
+system "cd ", .resq.HOME, "/lib";
+system "l bootstrap.q";
+system "cd ", .resq.startCwd;
 / Canonicalize once bootstrap makes normalizePath available. This also removes
 / the trailing "/." produced by the documented `q resq.q ...` invocation.
 .resq.HOME: .utl.normalizePath .resq.HOME;

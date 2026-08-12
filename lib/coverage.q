@@ -345,15 +345,7 @@
 / and it does accept a spaced directory) and `\l` the bare basename, then restore
 / the previous working directory. The cwd is restored on BOTH success and error.
 .tst.coverageLoadFile:{[pathStr]
-    slashes: where pathStr = "/";
-    dir: $[count slashes; (last slashes) # pathStr; "."];
-    base: $[count slashes; (1 + last slashes) _ pathStr; pathStr];
-    prevCd: system "cd";
-    / chdir, then load basename; any failure restores cwd before re-raising.
-    @[{[d;b] system "cd ", d; system "l ", b}[dir];
-      base;
-      {[pc;e] system "cd ", pc; 'e}[prevCd]];
-    system "cd ", prevCd;
+    .utl.loadQFile pathStr
  };
 
 / Load and instrument a source file explicitly

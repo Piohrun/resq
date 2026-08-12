@@ -20,7 +20,7 @@
     / Reload runner state to clear previous runs. Anchor at install root
     / so this works no matter where the user invoked resq from.
     home: @[get; `.resq.HOME; {"."}];
-    system "l ", home, "/lib/runner.q";
+    .utl.loadQFile home,"/lib/runner.q";
 
     / Force no exit for watch mode runner
     .tst.app.exit: 0b;

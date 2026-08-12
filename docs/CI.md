@@ -53,6 +53,16 @@ validated (loader 1–5,000; coverage 1–10,000), so a malformed environment va
 fails explicitly instead of silently reducing the corpus. The nightly artifact
 records both configured counts alongside the versioned JSON result.
 
+## Hostile-environment gate
+
+The licensed CI job also runs `tools/verify_hostile_env.py --q q`. It qualifies
+the process/filesystem boundary with a symlinked install and hostile path
+characters, verifies the selected q reaches isolated children, checks live
+temporary-directory permissions, interrupts concurrent unbounded children,
+proves they are reaped, and exercises both successful and failed artifact
+writes. See the [hardening audit](HARDENING_AUDIT.md) for the complete contract
+and deliberate limits.
+
 The production CI baseline is a strict, process-isolated run with at least one
 machine-readable reporter:
 

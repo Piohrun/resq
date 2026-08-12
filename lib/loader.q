@@ -54,7 +54,7 @@
 / absolute); both `system "l"` and instrumentFile resolve it against the CWD the
 / same way, so it is passed through unchanged.
 .tst.sysl:{[path]
-    system "l ", path;
+    .utl.loadQFile path;
     if[1b ~ @[get; `.tst.coverageEnabled; 0b];
         if[`instrumentFile in key `.tst;
             @[.tst.instrumentFile; path; {[p;e]

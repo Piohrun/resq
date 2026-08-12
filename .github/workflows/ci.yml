@@ -62,6 +62,10 @@ jobs:
         shell: bash
         run: tools/verify_execution_matrix.py --q q
 
+      - name: Hostile environment and interruption audit
+        shell: bash
+        run: tools/verify_hostile_env.py --q q
+
       # -isolateWorkers exercises the concurrent path; its verdicts must match
       # the sequential "Strict suite" step above.
       - name: Strict isolated suite

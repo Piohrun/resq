@@ -22,6 +22,7 @@ REQUIRED = {
     "LICENSE", "README.md", "CHANGELOG.md", "resq.q", "bin/resq",
     "bin/qspec", "lib/init.q", "docs/README.md", "docs/API_REFERENCE.md",
     "docs/schema/resq-report-v2.schema.json", "tools/validate_report.py",
+    "tools/verify_hostile_env.py",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
     "tests/contracts/xunit.xml",
 }
@@ -48,7 +49,10 @@ def check_package() -> None:
     leaked = sorted(GENERATED & tracked)
     if leaked:
         raise ValueError("generated artifacts are tracked: " + ", ".join(leaked))
-    for relative in ("bin/resq", "bin/qspec", "tools/validate_report.py", "tools/verify_static.py"):
+    for relative in (
+        "bin/resq", "bin/qspec", "tools/validate_report.py",
+        "tools/verify_static.py", "tools/verify_hostile_env.py",
+    ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
     init = (ROOT / "lib/init.q").read_text(encoding="utf-8")

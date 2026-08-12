@@ -13,7 +13,10 @@
  };
 
 .tst.isolate.timeoutExe: .tst.isolate.commandPath "timeout";
-.tst.isolate.qExe: .tst.isolate.commandPath "q";
+.tst.isolate.requestedQ:getenv `QBIN;
+.tst.isolate.qExe:$[count .tst.isolate.requestedQ;
+    .tst.isolate.requestedQ;
+    .tst.isolate.commandPath "q"];
 .tst.isolate.mktempExe: .tst.isolate.commandPath "mktemp";
 .tst.isolate.chmodExe: .tst.isolate.commandPath "chmod";
 .tst.isolate.rmExe: .tst.isolate.commandPath "rm";
@@ -46,7 +49,8 @@
 / requirements isolation has: the root must exist and be a real directory,
 / because child processes are about to write scratch into it.
 .tst.isolate.tempRoot:{[]
-    root: .utl.tempRoot[];
+    private:getenv `RESQ_ISOLATE_ROOT;
+    root:$[count private;.utl.normalizePath private;.utl.tempRoot[]];
     if[(0 = count root) or not "/" = first root;
         '"TMPDIR must be an absolute directory: ", root];
     if[not .utl.isDir root;
@@ -62,7 +66,7 @@
     root: .tst.isolate.tempRoot[];
     prefix: .tst.isolate.scratchPrefix root;
     suffix: (count prefix) _ wd;
-    (wd like prefix, "*") and
+    (prefix ~ (count prefix) # wd) and
         (0 < count suffix) and
         (not any "/" = suffix) and
         any wd ~/: .tst.isolate.allocated
@@ -79,7 +83,7 @@
     wd: first made;
     prefix: .tst.isolate.scratchPrefix root;
     suffix: (count prefix) _ wd;
-    if[(not wd like prefix, "*") or (0 = count suffix) or any "/" = suffix;
+    if[(not prefix ~ (count prefix) # wd) or (0 = count suffix) or any "/" = suffix;
         '"mktemp returned an unsafe scratch path: ", wd];
     if[not .utl.isDir wd; '"mktemp scratch directory does not exist: ", wd];
     .tst.isolate.allocated,: enlist wd;
@@ -390,24 +394,39 @@
     ::
  };
 
-/ The shell command for ONE child. The exit code goes to rc.txt inside the
-/ child's own scratch rather than to stdout: when several of these run
-/ concurrently their stdout is interleaved and cannot be attributed, whereas a
-/ per-scratch file is unambiguous. The trailing `; echo $?` form is kept for the
-/ sequential caller, which still reads the code from stdout.
+/ The direct shell command for ONE child. It intentionally contains no trailing
+/ shell list: runGroup backgrounds this exact timeout process, records its PID
+/ (also its process-group ID under GNU timeout), and can therefore terminate the
+/ complete child tree if the foreground run is interrupted.
+.tst.isolate.processCommand:{[wd; file; timeoutSecs]
+    childArgv: .tst.isolate.childArgv[file; wd];
+    timedArgv: (.tst.isolate.timeoutExe; "-k"; .tst.toString 5; string timeoutSecs), childArgv;
+    / The parent launcher owns its completion marker. Isolated q children are
+    / already supervised by this module and must not complete the parent's run.
+    "RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
+        " < /dev/null > ", .utl.shellQuote[wd, "/out.txt"], " 2>&1"
+ };
+
+/ The sequential retry helper also needs the exit code in rc.txt. Keeping it in
+/ the child's own scratch prevents concurrent stdout from becoming ambiguous.
 / The trailing `; true` is load-bearing. q's `system` swallows a redirection that
 / ENDS the command string -- `... ; echo $? > rc.txt` runs with the redirect
 / stripped, so the code lands on q's stdout and rc.txt is created but left empty.
 / Any command after the redirect restores normal shell behaviour. Verified: with
 / the trailing `; true` removed, every file reports "exit -1".
 .tst.isolate.fileCommand:{[wd; file; timeoutSecs]
-    childArgv: .tst.isolate.childArgv[file; wd];
-    timedArgv: (.tst.isolate.timeoutExe; "-k"; .tst.toString 5; string timeoutSecs), childArgv;
-    / The parent launcher owns its completion marker. Isolated q children are
-    / already supervised by this module and must not complete the parent's run.
-    "RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
-        " < /dev/null > ", .utl.shellQuote[wd, "/out.txt"], " 2>&1; ",
+    .tst.isolate.processCommand[wd;file;timeoutSecs],"; ",
         "echo $? > ", .utl.shellQuote[wd, "/rc.txt"], "; true"
+ };
+
+.tst.isolate.groupStart:{[index;command]
+    name:"p",string index;
+    command," & ",name,"=$!; pids=\"$pids $",name,"\";"
+ };
+
+.tst.isolate.groupWait:{[index;wd]
+    name:"p",string index;
+    "wait \"$",name,"\"; echo $? > ",.utl.shellQuote[wd,"/rc.txt"],";"
  };
 
 / Exit code recorded by fileCommand. A missing or unparseable rc.txt means the
@@ -599,17 +618,21 @@
     {[wd] if[count wd; .tst.isolate.resetScratch wd]} each wds;
 
     cmds: {[timeoutSecs; wd; file]
-        $[count wd; .tst.isolate.fileCommand[wd; file; timeoutSecs]; ""]
+        $[count wd; .tst.isolate.processCommand[wd; file; timeoutSecs]; ""]
     }[timeoutSecs]'[wds; files];
 
-    runnable: cmds where okFlags;
-    if[count runnable;
-        / `( cmd ) &` per child, then one `wait`. Each child already redirects its
-        / own stdout/stderr and writes its own rc.txt, so nothing is interleaved.
-        / The leading `true; ` is required: q's `system` rejects a command that
-        / STARTS with "(" ('( invalid) -- the same class of interception that
-        / forces a leading `mkdir` rather than `cd` elsewhere in this suite.
-        batch: "true; ", (" " sv {"( ", x, " ) &"} each runnable), " wait";
+    runnableAt:where okFlags;
+    if[count runnableAt;
+        / Background timeout itself (not a wrapper subshell), retain each PID,
+        / then wait and write the corresponding rc file in deterministic order.
+        starts:" " sv .tst.isolate.groupStart'[runnableAt;cmds runnableAt];
+        waits:" " sv .tst.isolate.groupWait'[runnableAt;wds runnableAt];
+        batch:"true; pids=''; cleanup(){ trap - INT TERM HUP EXIT; ",
+            "if [ -n \"$pids\" ]; then for p in $pids; do kill -TERM -$p 2>/dev/null || kill -TERM $p 2>/dev/null || true; done; ",
+            "sleep 1; for p in $pids; do kill -KILL -$p 2>/dev/null || kill -KILL $p 2>/dev/null || true; done; ",
+            "wait $pids 2>/dev/null || true; fi; }; ",
+            "trap cleanup INT TERM HUP EXIT; ",starts,
+            " ",waits," trap - INT TERM HUP EXIT";
         @[system; batch; {[e] ()}];
     ];
 
@@ -685,20 +708,13 @@
         .tst.isolate.print "Running ", string[n], " test file(s) in isolated subprocesses (timeout ",
             string[timeoutSecs], "s each",
             $[workers > 1; ", ", string[workers], " at a time"; ""], ")";
-        $[workers <= 1;
-            / Sequential path, unchanged: one file, one process, in order.
-            {[files; timeoutSecs; n; i]
-                .tst.isolate.upsertRows
-                    .tst.isolate.runFile[files i; timeoutSecs; i + 1; n]
-            }[files; timeoutSecs; n] each til n;
-            / Parallel path: fixed-size groups. A group is fully interpreted and
-            / its scratch removed before the next starts, so the number of live
-            / q processes and scratch directories stays bounded by `workers`.
-            [ fileGroups: workers cut files;
-              kGroups: workers cut 1 + til n;
-              {[timeoutSecs; n; fg; kg]
-                  .tst.isolate.upsertRows .tst.isolate.runGroup[fg; kg; timeoutSecs; n]
-              }[timeoutSecs; n]'[fileGroups; kGroups] ]];
+        / Fixed-size groups are also used for a one-worker run, so sequential
+        / and concurrent isolation share the same interrupt/reaping boundary.
+        fileGroups: workers cut files;
+        kGroups: workers cut 1 + til n;
+        {[timeoutSecs; n; fg; kg]
+            .tst.isolate.upsertRows .tst.isolate.runGroup[fg; kg; timeoutSecs; n]
+        }[timeoutSecs; n]'[fileGroups; kGroups];
     ];
 
     .tst.isolate.dropChildStrict[];

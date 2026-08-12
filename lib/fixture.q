@@ -21,7 +21,7 @@ ensureFixtureRegistry:{[]
  }
 
 currentDirFixture: ` 
-savedDir: `directory`vars`context!("";(`,())!(),(::);`.)
+savedDir: `directory`vars`context`tables!("";(`,())!(),(::);`.;`symbol$())
 
 fixtureAs:{[fixtureName;name]
     / Get directory of current test file (tstPath should be absolute from loader)
@@ -153,7 +153,7 @@ loadFixtureDir:{[f;name]
         tbls: tables[];
         if[count tbls; ![ctx; (); 0b; tbls]];
         / Load fixture data in the current test context (protected)
-        res: @[system; "l ", p; {[p;e] '("Fixture load failed for '", p, "': ", e)}[p]];
+        res: @[.utl.loadQFile; p; {[p;e] '("Fixture load failed for '", p, "': ", e)}[p]];
         system "d ", string origCtx;
         .tst.currentDirFixture: fixtureName
     ];
@@ -196,7 +196,8 @@ saveDir:{
   dirVars: .tst.findDirVars[];
   tbls: tables[];
   if[(not () ~ dirVars) or (0 < count tbls);
-    .tst.savedDir:`directory`vars`context!(system "cd";(!).(::;get each) @\:` sv' `.,'dirVars;ctx);
+    .tst.savedDir:`directory`vars`context`tables!(
+      system "cd";(!).(::;get each) @\:` sv' `.,'dirVars;ctx;tbls);
     if[0 < count tbls; ![ctx; (); 0b; tbls]];
     if[not () ~ dirVars; .tst.removeDirVars dirVars];
   ];
@@ -204,6 +205,16 @@ saveDir:{
  }
 
 removeDirVars:{v:reverse x^.tst.findDirVars[]; if[0<count v; {value "delete ",string[x]," from `."} each v]}
+
+/ A saved in-memory table does not imply the process cwd is a q database. Reload
+/ only when at least one captured table has a corresponding on-disk directory;
+/ this distinguishes a loaded partition/splay from an ordinary project checkout.
+savedDirHasDiskTables:{[]
+ if["" ~ .tst.savedDir.directory;:0b];
+ names:string .tst.savedDir.tables;
+ if[0=count names;:0b];
+ any .utl.isDir each .tst.savedDir.directory,"/",/:names
+ }
 
 restoreDir:{
  origCtx: system "d";
@@ -213,10 +224,13 @@ restoreDir:{
   system "d ", string ctx;
   tbls: tables[];
   if[count tbls; ![ctx; (); 0b; tbls]];
-  system "l ", .tst.savedDir.directory;
+  loadOutcome:(0b;"");
+  if[.tst.savedDirHasDiskTables[];
+   loadOutcome:@[{system "l ",x;(0b;"")};.tst.savedDir.directory;{[e](1b;e)}]];
   (key .tst.savedDir.vars) set' value .tst.savedDir.vars;
   system "d ", string origCtx;
-  .tst.savedDir: `directory`vars`context!("";(`,())!(),(::);`.)]
+  .tst.savedDir: `directory`vars`context`tables!("";(`,())!(),(::);`.;`symbol$());
+  if[first loadOutcome;'last loadOutcome]]
  }
 
 findDirVars:{

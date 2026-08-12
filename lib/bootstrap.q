@@ -37,7 +37,7 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
   if[.utl.DEBUG; -1 "DEBUG: loading ", p];
   
   / Try load
-  res: @[{system "l ", x; 1b}; p; { [p;e]
+  res: @[{.utl.loadQFile x; 1b}; p; { [p;e]
     / Coverage is loaded lazily by the runner only when -cov is passed, so a
     / MISSING coverage.q is expected and stays quiet. One that EXISTS but fails
     / to load is a real defect: suppressing that hid a half-loaded coverage
@@ -93,6 +93,32 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 / Convert any path to hsym (file handle symbol)
 .utl.pathToHsym:{[p] hsym `$.utl.pathToString p};
 
+/ Load a q file/directory through its basename while visiting its parent.
+/ q's `system "l <path>"` splits an absolute path containing spaces, whereas
+/ `system "cd <dir>"` accepts the rest of the command as one directory. Module
+/ and application filenames still follow the normal no-newline q convention.
+/ q source-file loads leave cwd unchanged; directory/database loads deliberately
+/ change it to the loaded root. Preserve that native distinction, and always
+/ restore cwd on error.
+.utl.loadQFile:{[path]
+    s:.utl.pathToString path;
+    if[0=count s;'"cannot load an empty q path"];
+    if[not "/"=first s;s:(system "cd"),"/",s];
+    slashes:where s="/";
+    at:last slashes;
+    dir:$[0=at;"/";at#s];
+    base:(1+at)_s;
+    previous:system "cd";
+    isDirectory:.utl.isDir s;
+    outcome:@[
+        {[pair]system "cd ",pair 0;system "l ",pair 1;(0b;"")};
+        (dir;base);
+        {[e](1b;e)}];
+    if[(first outcome) or not isDirectory;system "cd ",previous];
+    if[first outcome;'last outcome];
+    ::
+ };
+
 / Normalize path - resolve . and .. components
 .utl.normalizePath:{[path]
     s: .utl.pathToString path;
@@ -137,7 +163,7 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
     p: .utl.normalizePath path;
     if[0 = count p; p: "."];
     if[.utl.isDir p; :p];
-    cmd: $[.utl.isWindows; "mkdir ", .utl.shellQuote p; "mkdir -p ", .utl.shellQuote p];
+    cmd: $[.utl.isWindows; "mkdir ", .utl.shellQuote p; "mkdir -p -- ", .utl.shellQuote p];
     @[system; cmd; {[p;e]
         -1 "WARNING: Failed to create directory ", p, ": ", e;
         :()

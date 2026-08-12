@@ -46,14 +46,23 @@ chmod 700 "$guard_dir" || {
   rmdir -- "$guard_dir" 2>/dev/null
   exit 1
 }
+isolate_root="$guard_dir/isolate"
+mkdir -m 700 -- "$isolate_root" || {
+  echo "resQ ERROR: unable to create private isolation root" >&2
+  rm -rf -- "$guard_dir"
+  exit 1
+}
 
 cleanup_guard() {
-  rm -f -- "$guard_dir/armed" "$guard_dir/complete" "$guard_dir/premature"
-  rmdir -- "$guard_dir" 2>/dev/null
+  # guard_dir is the exact absolute path returned by mktemp above. Isolation
+  # scratch lives below it, so an interrupted launcher can reclaim children'
+  # private artifacts without scanning or globbing in the caller's TMPDIR.
+  rm -rf -- "$guard_dir"
 }
 trap cleanup_guard EXIT
 
 export RESQ_RUN_GUARD_DIR="$guard_dir"
+export RESQ_ISOLATE_ROOT="$isolate_root"
 "$q_bin" "$RESQ_HOME/resq.q" "${args[@]}" -e 1
 q_status=$?
 

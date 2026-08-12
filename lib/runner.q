@@ -143,7 +143,7 @@
 
         / Fallback: attempt a direct load if the require path did not register coverage.
         if[not `initCoverage in key `.tst;
-            @[system; "l ", home, "/lib/coverage.q"; {[e]
+            @[.utl.loadQFile; home,"/lib/coverage.q"; {[e]
                 -1 "Coverage module load failed: ", .tst.toString e;
                 :()
             }];

@@ -399,6 +399,7 @@ See `docs/` for detailed guides:
 | `docs/COVERAGE.md` | Coverage instrumentation, LCOV output, HTML report |
 | `docs/CI.md` | Production CI invocation, runner prerequisites, artifacts |
 | `docs/COMPATIBILITY_MATRIX.md` | Supported q runtime and execution-mode parity gate |
+| `docs/HARDENING_AUDIT.md` | Shell, path, temp, interrupt, and artifact hardening contract |
 | `docs/FIXTURES.md` | Fixture scopes, lifecycle hooks, dependency injection |
 | `docs/PARALLEL.md` | CI-level parallelism strategy |
 | `docs/PBT.md` | Property-based testing with `holds` |
