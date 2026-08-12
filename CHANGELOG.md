@@ -6,6 +6,8 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Pinned, offline `strQ` and `reQ` external adoption pilots with exact source
+  provenance and normal/isolated execution parity in the licensed CI gate.
 - CI now has a licence-free GitHub-hosted gate for shell syntax, package layout,
   internal documentation links, JSON v2/schema fixtures, JUnit/xUnit fixtures,
   and the Python observability adapters. Licensed q execution waits for this

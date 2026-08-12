@@ -18,8 +18,9 @@
 11. [Watch mode](WATCH.md) — File-watch mode
 12. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
 13. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
-14. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
-15. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
+14. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
+15. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
+16. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
 
 ### Migration
 - [Async helpers](ASYNC.md) — Deferreds, polling helpers, and callback spies
@@ -51,6 +52,7 @@
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
 | `CI.md` | Users | Production CI, coverage gates, reporter artifacts, runner setup |
 | `COMPATIBILITY_MATRIX.md` | Users / maintainers | Supported q runtime and execution-mode parity gate |
+| `EXTERNAL_PILOTS.md` | Users / maintainers | Pinned third-party adoption evidence and its limits |
 | `FIXTURES.md` | Users | Fixture scopes and lifecycle hooks |
 | `ASYNC.md` | Users | Testing callbacks and deferred results |
 | `MIGRATION.md` | qspec users | Porting guide from qspec |

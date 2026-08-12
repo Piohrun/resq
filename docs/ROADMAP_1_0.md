@@ -79,7 +79,7 @@ resQ 1.0 must guarantee that:
 - [x] Audit shell quoting, temp permissions, symlinks, hostile paths, interrupts,
   child termination, and artifact path handling.
 - [x] Publish support, trust-boundary, SemVer, identity, and deprecation policies.
-- [ ] Complete at least two representative external-codebase pilots.
+- [x] Complete at least two representative external-codebase pilots.
 
 ## 1.0 release gate
 

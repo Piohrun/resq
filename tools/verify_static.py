@@ -23,7 +23,7 @@ REQUIRED = {
     "bin/qspec", "lib/init.q", "docs/README.md", "docs/API_REFERENCE.md",
     "docs/schema/resq-report-v2.schema.json", "docs/SUPPORT.md",
     "docs/VERSIONING.md", "docs/IDENTITY.md", "tools/validate_report.py",
-    "tools/verify_hostile_env.py",
+    "tools/verify_hostile_env.py", "tools/verify_external_pilots.py",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
     "tests/contracts/xunit.xml",
 }
@@ -53,6 +53,7 @@ def check_package() -> None:
     for relative in (
         "bin/resq", "bin/qspec", "tools/validate_report.py",
         "tools/verify_static.py", "tools/verify_hostile_env.py",
+        "tools/verify_external_pilots.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")

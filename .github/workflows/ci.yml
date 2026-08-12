@@ -66,6 +66,10 @@ jobs:
         shell: bash
         run: tools/verify_hostile_env.py --q q
 
+      - name: External adoption pilots
+        shell: bash
+        run: tools/verify_external_pilots.py --q q
+
       # -isolateWorkers exercises the concurrent path; its verdicts must match
       # the sequential "Strict suite" step above.
       - name: Strict isolated suite

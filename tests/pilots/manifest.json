@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "pilots": [
+    {
+      "name": "strQ",
+      "repository": "https://github.com/aa1024/strQ",
+      "commit": "7fa050ffaf385477bc16e946c6ec8ca7955833d7",
+      "license": "MIT",
+      "mode": "adapted-tests",
+      "root": "tests/pilots/vendor/strq",
+      "expectedTests": 3,
+      "expectedAssertions": 21,
+      "normalization": "CRLF-to-LF, trim trailing whitespace, final newline",
+      "upstreamFiles": {
+        "libs/str.q": {
+          "upstreamSha256": "472a9e16f8f7ddd8964e68b4a63b8e05d5c553cb63eb9b6875bd9c8e23cb0911",
+          "vendoredSha256": "39925cc216cd87bd4fc4f45d581ae63095eeaaaf898173bffffb630706874231"
+        },
+        "LICENSE": {
+          "upstreamSha256": "8abbef43b07643fe57dd031aa360a4a2f5b07d3bcf0e76d8e2b99313ea06e781",
+          "vendoredSha256": "8abbef43b07643fe57dd031aa360a4a2f5b07d3bcf0e76d8e2b99313ea06e781"
+        }
+      },
+      "testFile": "tests/test_strq.q"
+    },
+    {
+      "name": "reQ",
+      "repository": "https://github.com/jonathonmcmurray/reQ",
+      "commit": "6728dd50ed767ffb8818940a51579d4abc8c01d9",
+      "license": "MIT",
+      "mode": "unmodified-upstream-test",
+      "root": "tests/pilots/vendor/req",
+      "expectedTests": 2,
+      "expectedAssertions": 2,
+      "normalization": "trim trailing blank lines, final newline",
+      "upstreamFiles": {
+        "req/b64.q": {
+          "upstreamSha256": "5e99460fe4aae84fe7ac2e7dfaceae4c61509dd8154fa3e469a0188348462ab6",
+          "vendoredSha256": "c7aed0564d910494a26b63499005e6615542156e32e2fde14b757e37a3fb34f8"
+        },
+        "tests/test_b64.q": {
+          "upstreamSha256": "53dd718da4dd5ac9f9773950063bd3fe2aa947f5c9e872ab89c95ea3f086362c",
+          "vendoredSha256": "40d51826868070fc6a3e949796f8a959c245fef63c40e2b3f0af7175ff6a06a9"
+        },
+        "LICENSE": {
+          "upstreamSha256": "44c27e340fcef9cee39272e792beb3f3d14322f1d638eb7545f4be5a508ce811",
+          "vendoredSha256": "44c27e340fcef9cee39272e792beb3f3d14322f1d638eb7545f4be5a508ce811"
+        }
+      },
+      "testFile": "tests/test_b64.q"
+    }
+  ]
+}
