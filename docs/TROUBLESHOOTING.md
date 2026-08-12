@@ -837,6 +837,12 @@ helper with that spelling, call it explicitly (for example `.tst.should[...]`
 or `.tst.musteq[...]`). The deprecated `qNamespaceExports` setting does not
 change this behavior and never authorizes writes to `.q`.
 
+If valid test source still triggers an expectation-annotation rewrite error,
+use `-no-line-annotations` (or `"expectationLineAnnotations": false`) as a
+temporary kill switch. The suite will run, but reporter line fields and the
+incomplete-constructor audit are unavailable; keep a minimal reproducer when
+filing the loader issue.
+
 ---
 
 ### Multi-line strings in code blocks

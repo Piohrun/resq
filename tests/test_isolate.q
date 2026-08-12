@@ -126,6 +126,7 @@
     `.tst.app.excludeTagFilter mock (`slow; `$"#slow");
     `.tst.app.failFast        mock 1b;
     `.tst.app.qspecCompat     mock 1b;
+    `.tst.app.expectationLineAnnotations mock 0b;
   };
 
   should["serialize config-derived filters and compatibility flags"]{
@@ -136,6 +137,7 @@
     (argv 1 + argv ? "-exclude-tag") musteq "slow,#slow";
     must["-fail-fast" in argv; "failFast must reach the child"];
     must["-qspec-compat" in argv; "qspec compatibility must reach the child"];
+    must["-no-line-annotations" in argv; "the annotation kill switch must reach the child"];
   };
  };
 

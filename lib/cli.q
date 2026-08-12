@@ -11,9 +11,9 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`help`scaffold`isolateChild`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
-.tst.cli.specKinds:(22 # `flag), 12 # `value;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
+.tst.cli.specKinds:(23 # `flag), 12 # `value;
 .tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
@@ -309,6 +309,7 @@ initCLI:{[parsed]
     / Statement-level coverage rewrites function bodies at load time, so it is
     / opt-in: see docs/COVERAGE.md for what it costs and what it buys.
     if[options`covStatements; .tst.coverageStatements: 1b];
+    if[options`noLineAnnotations; .tst.app.expectationLineAnnotations: 0b];
     if[options`quiet; .tst.app.quiet: 1b];
 
     / Process-isolation mode: each discovered test FILE runs in its own q

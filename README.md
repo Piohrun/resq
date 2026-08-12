@@ -343,6 +343,10 @@ assignment or lambda parameter with the same spelling wins over the DSL.
 The legacy `qNamespaceExports` configuration key is accepted for migration but
 is deprecated and ignored; both values leave `.q` unchanged.
 
+`-no-line-annotations` is the fail-safe for an unsupported constructor-rewrite
+edge case. It preserves DSL execution but removes declaration line metadata and
+the incomplete-constructor audit for that run.
+
 ### Quiet Mode
 Suppress per-file load lines, the RUN AUDIT block, and per-suite output for
 passing suites — failures still print fully:

@@ -33,7 +33,7 @@ resQ 1.0 must guarantee that:
 - [x] Stop exporting the DSL through reserved `.q` during normal execution.
 - [x] Bind test source through a canonical, stable `.tst.dsl` export table.
 - [x] Deprecate the ineffective `qNamespaceExports` configuration.
-- [ ] Make expectation-line annotation collision-safe and add a kill switch.
+- [x] Make expectation-line annotation collision-safe and add a kill switch.
 - [ ] Add a production-style application compatibility corpus.
 - [ ] Publish the exact public qspec compatibility boundary.
 

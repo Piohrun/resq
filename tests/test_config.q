@@ -11,6 +11,7 @@
  cfg[`pollutionGuard] musteq 1b;
  cfg[`fuzzLimit] musteq 100;
   cfg[`qNamespaceExports] musteq 0b;
+  cfg[`expectationLineAnnotations] musteq 1b;
   cfg[`coverageMin] musteq 0;
   };
 
@@ -23,6 +24,14 @@
   .tst.qNamespaceExports musteq 0b;
   must[(qKeysBefore~qKeysAfter) and qValuesBefore~qValuesAfter;
        "the deprecated switch must leave .q byte-for-byte equivalent"];
+  };
+
+ should["apply the expectation-line annotation kill switch"]{
+  previous: @[get;`.tst.app.expectationLineAnnotations;1b];
+  .tst.applyConfig enlist[`expectationLineAnnotations]!enlist 0b;
+  applied: .tst.app.expectationLineAnnotations;
+  .tst.app.expectationLineAnnotations: previous;
+  applied musteq 0b;
   };
  should["load and parse JSON config file"]{
   / Create test config file

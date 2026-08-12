@@ -392,6 +392,8 @@
 
 .tst.preprocessOrdinaryLine:{[lineNo;shadowed;line]
     rewrittenLine: .tst.rewriteSystemLoad line;
+    if[not 1b ~ @[get; `.tst.app.expectationLineAnnotations; 1b];
+        :rewrittenLine];
     .tst.annotateExpectationLineWith[lineNo;rewrittenLine;shadowed]
  };
 

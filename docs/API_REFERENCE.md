@@ -1740,6 +1740,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
+| `-no-line-annotations` | Disable expectation source-line rewriting if a suite hits an unsupported lexical edge case; file/line fields become unavailable and incomplete-constructor auditing is disabled |
 | `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses the complete function inventory (`-cov-statements` line data remains diagnostic) |
 | `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
 | `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
@@ -1849,6 +1850,7 @@ Create `resq.json` in project root:
     "reportLimit": 50000,
     "reportListLimit": 1000,
     "qNamespaceExports": false,
+    "expectationLineAnnotations": true,
     "exit": true,
     "testFilePatterns": ["test_*.q", "*_test.q"],
     "diffLargeTableThreshold": 1000,
@@ -1876,6 +1878,7 @@ Create `resq.json` in project root:
 | `reportLimit` | `50000` | Maximum rendered failure/error message characters |
 | `reportListLimit` | `1000` | Compatibility setting; no separate list cap is currently enforced |
 | `qNamespaceExports` | `false` | Deprecated compatibility key; accepted but ignored, and `.q` is never modified |
+| `expectationLineAnnotations` | `true` | Rewrite expectation constructors to capture source lines and detect incomplete declarations; set `false` as a loader kill switch |
 | `diffLargeTableThreshold` | `1000` | Start adaptive table-diff sampling above this row count |
 | `diffHugeTableThreshold` | `10000` | Add random table-diff sampling above this row count |
 | `testFilePatterns` | `test_*.q`, `*_test.q` | Basename patterns used during directory discovery |
@@ -1899,6 +1902,12 @@ its denominator.
 configuration files continue to load, but both values are safe and equivalent:
 resQ never writes DSL names into reserved `.q`. Bare public DSL names in test
 source are bound to stable `.tst.dsl.*` helpers; explicit `.tst.*` APIs also work.
+
+`expectationLineAnnotations:false` (or `-no-line-annotations`) disables the
+lexical constructor rewrite. Tests and bare DSL bindings still work, but
+reporters cannot attach declaration lines and resQ cannot detect a constructor
+whose final code argument was accidentally omitted. Use it only to unblock a
+suite while reporting a reproducible loader case.
 
 `pollutionGuard` controls deep namespace snapshot/restore checks around each suite. It defaults to `true`. Set it to `false` for very large sessions where global namespace comparison overhead is too high.
 

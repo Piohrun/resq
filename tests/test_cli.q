@@ -93,6 +93,15 @@
         plain[`options; `scaffold] musteq 0b;
     };
 
+    should["parse the expectation-line annotation kill switch"]{
+        single: .tst.parseCLI ("test"; "-no-line-annotations"; "suite.q");
+        camel: .tst.parseCLI ("test"; "--noLineAnnotations"; "suite.q");
+        single[`ok] musteq 1b;
+        single[`options;`noLineAnnotations] musteq 1b;
+        camel[`options;`noLineAnnotations] musteq 1b;
+        single[`args] musteq enlist "suite.q";
+    };
+
     should["validate -isolateWorkers as a positive integer"]{
         ok: .tst.parseCLI ("test"; "-isolateWorkers"; "4"; "suite.q");
         ok[`ok] musteq 1b;

@@ -338,6 +338,8 @@
     argv: .tst.isolate.appendFlag[argv; "-fail-fast"; @[get; `.tst.app.failFast; 0b]];
     argv: .tst.isolate.appendFlag[argv; "-fail-hard"; @[get; `.tst.app.failHard; 0b]];
     argv: .tst.isolate.appendFlag[argv; "-qspec-compat"; @[get; `.tst.app.qspecCompat; 0b]];
+    argv: .tst.isolate.appendFlag[argv; "-no-line-annotations";
+        not @[get; `.tst.app.expectationLineAnnotations; 1b]];
     argv: .tst.isolate.appendValue[argv; "-maxTestTime"; @[get; `.tst.app.maxTestTime; 0]];
     argv: .tst.isolate.appendValue[argv; "-fuzzLimit"; @[get; `.tst.output.fuzzLimit; 0]];
     argv: .tst.isolate.appendFlag[argv; "-quiet"; @[get; `.tst.app.quiet; 0b]];

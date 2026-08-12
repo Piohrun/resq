@@ -101,6 +101,19 @@
     musteq[qualified; "  .tst.retryEntry[43][2;\"flaky\"]{ 1b }"];
   };
 
+  should["line annotation can be disabled without disabling the DSL"]{
+    previous: @[get;`.tst.app.expectationLineAnnotations;1b];
+    .tst.app.expectationLineAnnotations: 0b;
+    rewritten: first .tst.preprocessScript enlist
+      "  should[\"plain\"]{ must[1b;\"ok\"] };";
+    .tst.app.expectationLineAnnotations: previous;
+    must[not .tst.literalIn["Entry[";rewritten];
+         "the kill switch must bypass line-aware entry wrappers"];
+    must[.tst.literalIn[".tst.dsl.should[";rewritten] and
+         .tst.literalIn[".tst.dsl.must[";rewritten];
+         "the ordinary DSL must remain bound when annotation is off"];
+  };
+
   skipIf[(not .tst.procguard.canQ) or not .tst.procguard.canTimeout;
          "an incomplete DSL constructor is a load error"]{
     r: .tst.procguard.run[.tst.procguard.fxArity; "-strict"];

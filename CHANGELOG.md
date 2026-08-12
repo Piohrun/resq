@@ -12,6 +12,11 @@ All notable changes to the **resQ** project will be documented in this file.
   shadow aliases. The deprecated `qNamespaceExports` key is accepted but
   ignored. This restores loading for valid application locals such as
   `before`, `after`, `mock`, `it`, `holds`, `perf`, and `must`.
+- Expectation annotation now respects test-file locals that share DSL names and
+  has an explicit `-no-line-annotations` /
+  `"expectationLineAnnotations":false` kill switch. Isolated children inherit
+  the setting. Disabling it also disables declaration-line metadata and the
+  incomplete-constructor audit, which is documented rather than hidden.
 - Every recoverable `runSpec` path now executes one independently trapped
   finalizer. `beforeAll` failures, fail-hard halts, and unexpected suite-runner
   exceptions restore application globals, close resources, restore runtime
