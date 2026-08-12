@@ -34,7 +34,7 @@ resQ 1.0 must guarantee that:
 - [x] Bind test source through a canonical, stable `.tst.dsl` export table.
 - [x] Deprecate the ineffective `qNamespaceExports` configuration.
 - [x] Make expectation-line annotation collision-safe and add a kill switch.
-- [ ] Add a production-style application compatibility corpus.
+- [x] Add a production-style application compatibility corpus.
 - [ ] Publish the exact public qspec compatibility boundary.
 
 ## 0.6.0 — Trustworthy coverage
@@ -84,7 +84,7 @@ resQ 1.0 must guarantee that:
 ## 1.0 release gate
 
 - [ ] `.q` is unchanged by normal resQ execution.
-- [ ] Production-style code using DSL-shaped locals loads unchanged.
+- [x] Production-style code using DSL-shaped locals loads unchanged.
 - [x] Every recoverable `runSpec` path executes cleanup.
 - [ ] No pollution/resource leak crosses a suite boundary silently.
 - [ ] Function coverage contains every declared source file and unloaded modules
@@ -94,7 +94,7 @@ resQ 1.0 must guarantee that:
 - [ ] JSON schema v2 and stable identity are documented and validated.
 - [ ] Retry, parameter, and property-test results are structured and reproducible.
 - [ ] Normal, isolated, concurrent, repeated, and sharded verdicts agree.
-- [ ] The pinned public qspec contract and application compatibility corpus pass.
+- [x] The pinned public qspec contract and application compatibility corpus pass.
 - [ ] External pilots pass and no P0/P1 correctness issue remains open.
 
 ## Post-1.0

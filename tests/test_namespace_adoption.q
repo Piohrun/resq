@@ -32,6 +32,24 @@
     `code`payload`output!(exitCode;payload;outputText)
  };
 
+.tst.testState.adoption.runCorpus:{[]
+    wd: .utl.tempRoot[], "/resq_adoption_corpus_", string[.z.i], "_", string `long$.z.p;
+    fixturePath: .resq.HOME, "/tests/compat/application/application_suite.q";
+    .utl.ensureDir wd;
+    cmd: "true && cd ", (.utl.shellQuote .resq.HOME), " && timeout -k 2 60 q ",
+         (.utl.shellQuote .resq.HOME, "/resq.q"), " test ",
+         (.utl.shellQuote fixturePath), " -json -strict -outDir ",
+         (.utl.shellQuote wd), " -quiet > ", (.utl.shellQuote wd, "/out.txt"),
+         " 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    exitCode: "J"$last exitLines;
+    rawJson: @[read0; hsym `$wd, "/test-results.json"; {()}];
+    payload: $[count rawJson; .j.k raze rawJson; ()!()];
+    outputText: "\n" sv @[read0; hsym `$wd, "/out.txt"; {()}];
+    if[wd like "*/resq_adoption_corpus_*"; system "rm -rf -- ", .utl.shellQuote wd];
+    `code`payload`output!(exitCode;payload;outputText)
+ };
+
 .tst.testState.adoption.runInitProbe:{[]
     wd: .utl.tempRoot[], "/resq_q_probe_", string[.z.i], "_", string `long$.z.p;
     scriptPath: wd, "/probe.q";
@@ -75,6 +93,16 @@
         must[result[`code] = 0;
              "valid application source must load under resQ: ", result`output];
         result[`payload;`passCount] musteq 1f;
+        result[`payload;`errorCount] musteq 0f;
+    };
+
+    skipIf[not .tst.testState.adoption.canRun;
+           "pass the checked-in production application compatibility corpus"]{
+        result: .tst.testState.adoption.runCorpus[];
+        must[result[`code] = 0;
+             "production compatibility corpus must pass unchanged: ", result`output];
+        result[`payload;`testCount] musteq 3f;
+        result[`payload;`passCount] musteq 3f;
         result[`payload;`errorCount] musteq 0f;
     };
 

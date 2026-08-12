@@ -17,6 +17,11 @@ All notable changes to the **resQ** project will be documented in this file.
   `"expectationLineAnnotations":false` kill switch. Isolated children inherit
   the setting. Disabling it also disables declaration-line metadata and the
   incomplete-constructor audit, which is documented rather than hidden.
+- A checked-in production application corpus now loads documented, indented
+  namespace source through both `system "l"` and native `\l`, using ordinary
+  locals named `before`, `after`, `mock`, `it`, `holds`, `perf`, `must`,
+  `should`, `fixture`, `beforeAll`, and `afterAll`. Its unchanged qspec-shaped
+  tests run as a required subprocess contract.
 - Every recoverable `runSpec` path now executes one independently trapped
   finalizer. `beforeAll` failures, fail-hard halts, and unexpected suite-runner
   exceptions restore application globals, close resources, restore runtime
