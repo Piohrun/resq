@@ -143,6 +143,40 @@
     };
 };
 
+.tst.desc["Coverage: instrumentation completeness"]{
+    before{
+        `.tst.origCompletenessData mock .tst.coverageData;
+        `.tst.origCompletenessLoaded mock .tst.coverageLoadedFiles;
+        `.tst.origCompletenessWrappers mock .tst.covWrappers;
+        `.tst.origCompletenessMeasured mock .tst.stmtInstrumented;
+        `.tst.origCompletenessMode mock @[get;`.tst.coverageStatements;0b];
+        .tst.coverageData:(enlist `a.q)!enlist `a`b`c!0 0 0j;
+        .tst.coverageLoadedFiles:enlist `a.q;
+        .tst.covWrappers:`a`b!({x};{x});
+        .tst.stmtInstrumented:(enlist `a.q)!enlist enlist `a;
+        .tst.coverageStatements:1b;
+    };
+    after{
+        .tst.coverageData:.tst.origCompletenessData;
+        .tst.coverageLoadedFiles:.tst.origCompletenessLoaded;
+        .tst.covWrappers:.tst.origCompletenessWrappers;
+        .tst.stmtInstrumented:.tst.origCompletenessMeasured;
+        .tst.coverageStatements:.tst.origCompletenessMode;
+    };
+
+    should["report eligible, wrapped, measured, and fallback counts"]{
+        s:.tst.coverageInstrumentationSummary[];
+        s[`functionsEligible] musteq 3;
+        s[`functionsInstrumented] musteq 2;
+        s[`functionInstrumentationPercent] musteq 100f*2%3;
+        s[`statementFunctionsInstrumented] musteq 1;
+        s[`statementInstrumentationPercent] musteq 100f%3;
+        s[`statementInstrumentationComplete] musteq 0b;
+        s[`fallbackCounts;`rewrite_rejected] musteq 1;
+        s[`fallbackCounts;`function_wrapper_unavailable] musteq 1;
+    };
+};
+
 .tst.desc["Coverage: safeValue name resolution"]{
     should["resolve a dotted child-namespace name (the bug-1 regression)"]{
         / safeValue used to gate on `nsSym in key \`.`, which is false for a

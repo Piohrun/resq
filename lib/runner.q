@@ -806,6 +806,74 @@
         percentValue >= minimum)
  };
 
+.tst.coverageMetricDecision:{[summary;basis;foundKey;hitKey;percentKey;minimum]
+    emptyDecision:`measurable`basis`percent`hit`found`minimum`passed!(
+        0b;basis;0f;0j;0j;minimum;0b);
+    if[not 99h=type summary;:emptyDecision];
+    if[not all (foundKey;hitKey;percentKey) in key summary;:emptyDecision];
+    foundCount:`long$summary foundKey;
+    if[foundCount<=0;:emptyDecision];
+    hitCount:`long$summary hitKey;
+    percentValue:`float$summary percentKey;
+    `measurable`basis`percent`hit`found`minimum`passed!(
+        1b;basis;percentValue;hitCount;foundCount;minimum;percentValue>=minimum)
+ };
+
+/ Evaluate the three independent coverage dimensions. A line threshold over a
+/ partial statement denominator is rejected unless the user explicitly accepts
+/ that weaker contract with -cov-allow-partial.
+.tst.coverageGateEvaluation:{[summary]
+    legacyMin:@[get;`.tst.app.coverageMin;0];
+    functionMin:max legacyMin,@[get;`.tst.app.coverageFunctionMin;0];
+    lineMin:@[get;`.tst.app.coverageLineMin;0];
+    completeMin:@[get;`.tst.app.coverageCompletenessMin;0];
+    allowPartial:1b~@[get;`.tst.app.allowPartialLineCoverage;0b];
+    functionGate:.tst.coverageGateDecision[summary;functionMin];
+    lineGate:.tst.coverageMetricDecision[
+        summary;"measured_lines";`linesFound;`linesHit;`linePercent;lineMin];
+    completeGate:.tst.coverageMetricDecision[
+        summary;"statement_instrumentation";`statementFunctionsEligible;
+        `statementFunctionsInstrumented;`statementInstrumentationPercent;completeMin];
+    stmtMode:1b~$[`statementMode in key summary;summary`statementMode;0b];
+    if[not stmtMode;completeGate[`measurable]:0b;completeGate[`passed]:0b];
+    partial:stmtMode and (not 1b~$[`statementInstrumentationComplete in key summary;
+        summary`statementInstrumentationComplete;0b]);
+    errors:();
+    if[not functionGate`measurable;
+        errors,:enlist "Coverage measured no executable functions."];
+    if[(functionGate`measurable) and not functionGate`passed;
+        errors,:enlist "Function coverage ",string[functionGate`percent],
+            "% is below required minimum ",string[functionMin],"% (",
+            string[functionGate`hit],"/",string[functionGate`found]," functions)."];
+    if[lineMin>0;
+        $[partial and (not allowPartial);
+            errors,:enlist "Line coverage gate refused partial statement instrumentation (",
+                string[completeGate`hit],"/",string[completeGate`found],
+                " functions instrumented). Use -cov-completeness-min, fix fallbacks,",
+                " or explicitly pass -cov-allow-partial.";
+          not lineGate`measurable;
+            errors,:enlist "Line coverage gate requested but no statements were measured.";
+          not lineGate`passed;
+            errors,:enlist "Measured line coverage ",string[lineGate`percent],
+                "% is below required minimum ",string[lineMin],"% (",
+                string[lineGate`hit],"/",string[lineGate`found]," statements).";
+          ::]
+    ];
+    if[completeMin>0;
+        $[not completeGate`measurable;
+            errors,:enlist "Statement instrumentation completeness gate requested but statement mode is unavailable.";
+          not completeGate`passed;
+            errors,:enlist "Statement instrumentation completeness ",
+                string[completeGate`percent],"% is below required minimum ",
+                string[completeMin],"% (",string[completeGate`hit],"/",
+                string[completeGate`found]," functions).";
+          ::]
+    ];
+    gates:`functions`lines`completeness!(functionGate;lineGate;completeGate);
+    `gates`errors`allowPartialLines`partialLines`effectiveFunctionMinimum!(
+        gates;errors;allowPartial;partial;functionMin)
+ };
+
 .tst.runAllPhase.generateCoverage:{[]
     if[not 1b ~ .tst.app.runCoverage; :()];
 
@@ -842,28 +910,34 @@
     ];
 
     summary: @[get; `.tst.lastCoverageSummary; {()!()}];
-    required: @[get; `.tst.app.coverageMin; 0];
-    gateDecision: .tst.coverageGateDecision[summary; required];
-    if[not gateDecision`measurable;
-        errors,: enlist "Coverage measured no executable functions."];
+    evaluation:.tst.coverageGateEvaluation summary;
+    gateDecision:evaluation[`gates;`functions];
+    .tst.lastCoverageSummary:summary,
+        `gates`allowPartialLines`partialLines!(evaluation`gates;
+            evaluation`allowPartialLines;evaluation`partialLines);
+    errors,:evaluation`errors;
     if[gateDecision`measurable;
         .tst.app.coveragePercent: gateDecision`percent;
         .tst.app.coverageBasis: gateDecision`basis;
+        .tst.app.coverageEffectiveMinimum:evaluation`effectiveFunctionMinimum;
+        .tst.app.coveragePassed:0=count evaluation`errors;
         headline: "Coverage: ", string[gateDecision`percent], "% functions (",
             string[gateDecision`hit], "/", string[gateDecision`found], ")";
         if[(99h = type summary) and (`linesFound in key summary) and 0 < summary`linesFound;
             headline,: "; measured lines ", string[summary`linePercent], "% (",
                 string[summary`linesHit], "/", string[summary`linesFound], ")"];
         -1 headline;
+        if[1b~$[`statementMode in key summary;summary`statementMode;0b];
+            -1 "  Statement instrumentation completeness: ",
+                string[summary`statementInstrumentationPercent],"% (",
+                string[summary`statementFunctionsInstrumented],"/",
+                string[summary`statementFunctionsEligible]," functions)."];
         if[(not `linesFound in key summary) or 0 = summary`linesFound;
             -1 "  (function-level: a function counts as covered once entered.",
                " Statement/branch execution is NOT measured -- add -cov-statements.)"];
-        if[(0 < summary`linesFound) and (0 < required);
+        if[(0 < summary`linesFound) and
+           (0 < evaluation`effectiveFunctionMinimum);
             -1 "  (-cov-min gates on complete function coverage; measured lines are diagnostic.)"];
-        if[not gateDecision`passed;
-            errors,: enlist "Coverage ",string[gateDecision`percent],
-                "% is below required minimum ", string[required], "% (",
-                string[gateDecision`hit], "/", string[gateDecision`found], " functions)."];
     ];
     if[count errors; '"Coverage failed: ","; " sv errors];
  };

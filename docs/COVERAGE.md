@@ -152,10 +152,10 @@ LH:5
 
 ### Granularity
 
-| Mode | Measures | LCOV records | `-cov-min` gates on |
-|------|----------|--------------|---------------------|
-| default | function entered at least once | `FN`/`FNDA`/`FNF`/`FNH` | function % |
-| `-cov-statements` | each safely instrumented statement probe | the above plus `DA`/`LF`/`LH` | function %; lines are diagnostic |
+| Mode | Measures | LCOV records | Available gates |
+|------|----------|--------------|-----------------|
+| default | function entered at least once | `FN`/`FNDA`/`FNF`/`FNH` | `-cov-min`, `-cov-functions-min` |
+| `-cov-statements` | each safely instrumented statement probe | the above plus `DA`/`LF`/`LH` | the above plus `-cov-lines-min`, `-cov-completeness-min` |
 
 A function-level 100% means every function was entered, **not** that every branch
 inside them ran. The console says so explicitly when reporting on that basis.
@@ -171,6 +171,19 @@ always a statement about the code that was actually instrumented; compare `LF`
 against the file's real statement count if you need to know how much that is.
 The function percentage, reported alongside, covers every discovered function
 either way.
+
+resQ reports statement instrumentation completeness as
+`instrumented functions / eligible functions`. Each function that lacks probes
+has one canonical fallback reason:
+
+- `source_not_loaded`: present in `--source`, but never loaded during the run;
+- `function_wrapper_unavailable`: loaded, but no safe callable wrapper exists;
+- `rewrite_rejected`: function coverage works, but the statement rewrite was
+  rejected by parsing or shape-preservation checks.
+
+These counts appear in JSON as `coverage.fallbackCounts`; completeness appears
+as `statementFunctionsInstrumented`, `statementFunctionsEligible`, and
+`statementInstrumentationPercent`.
 
 ---
 
@@ -224,15 +237,39 @@ exact counts, percentage, threshold, basis, and pass/fail decision under its
 `coverage` object. Configuration-file equivalents: `"coverageMin": 80` and
 `"coverageSources": ["src"]`.
 
+### Independent coverage gates
+
+For new CI, prefer the explicit thresholds:
+
+```bash
+resq cover tests/ --source src/ -cov-statements \
+  -cov-functions-min 80 \
+  -cov-lines-min 75 \
+  -cov-completeness-min 95
+```
+
+- `-cov-functions-min N` gates the complete static function inventory.
+- `-cov-lines-min N` gates only statements carrying real probes.
+- `-cov-completeness-min N` gates the percentage of inventoried functions that
+  were safely statement-instrumented.
+
+A line gate fails closed when statement instrumentation is incomplete, even if
+the measured subset exceeds its threshold. This is intentional: the quickstart,
+for example, measures 88.24% of 17 probed statements while only 6 of 20
+functions (30%) contribute statement data. To knowingly gate only that measured
+subset, add `-cov-allow-partial` (configuration:
+`"allowPartialLineCoverage": true`). JSON exposes each decision under
+`coverage.gates.functions`, `.lines`, and `.completeness`, plus the overall
+`coverage.passed` verdict.
+
 ---
 
 ## Limitations
 
 - **Line data is diagnostic** — default mode emits no `DA`/`LF`/`LH` records.
   `-cov-statements` adds measured records for safely rewritten functions, but
-  the legacy `-cov-min` gate stays function-based. Use the line result to find
-  gaps, not as a complete-code threshold until separate completeness-aware line
-  gates are available.
+  the legacy `-cov-min` gate stays function-based. `-cov-lines-min` is available
+  for CI and refuses partial instrumentation unless explicitly acknowledged.
 - **`\l` / `system "l "` only** — the loader intercepts these two forms. Custom loaders are not auto-detected unless loader hijacking is explicitly enabled (experimental, see below).
 - **Compiled operators skipped** — `+/`, `each`, `':'`, etc. cannot be wrapped.
 

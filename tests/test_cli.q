@@ -117,12 +117,16 @@
     should["support both spellings for every value option"]{
         single: .tst.parseCLI ("test"; "-maxTestTime"; "0"; "-fuzzLimit"; "4";
             "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";
-            "-cov-min"; "85"; "-source"; "src,shared";
+            "-cov-min"; "85"; "-cov-functions-min"; "80";
+            "-cov-lines-min"; "70"; "-cov-completeness-min"; "90";
+            "-source"; "src,shared";
             "-outDir"; "reports"; "-exclude"; "slow*"; "-only"; "fast*";
             "-tag"; "smoke"; "-exclude-tag"; "flaky"; "suite.q");
         longForm: .tst.parseCLI ("test"; "--maxTestTime"; "0"; "--fuzzLimit"; "4";
             "--isolateTimeout"; "5"; "--cov-include"; "lib/*"; "--cov-exclude"; "tests/*";
-            "--coverage-min"; "85"; "--coverage-source"; "src,shared";
+            "--coverage-min"; "85"; "--cov-functions-min"; "80";
+            "--cov-lines-min"; "70"; "--cov-completeness-min"; "90";
+            "--coverage-source"; "src,shared";
             "--outDir"; "reports"; "--exclude"; "slow*"; "--only"; "fast*";
             "--tag"; "smoke"; "--exclude-tag"; "flaky"; "suite.q");
         single[`ok] musteq 1b;
@@ -192,6 +196,8 @@
         .tst.cliParseFails[("test"; "-isolateTimeout"; "-1"); "Value must be > 0 for -*"] musteq 1b;
         .tst.cliParseFails[("test"; "-cov-min"; "101"); "Value must be between 0 and 100 for -*"] musteq 1b;
         .tst.cliParseFails[("test"; "-cov-min"; "-1"); "Value must be between 0 and 100 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-cov-lines-min"; "101"); "Value must be between 0 and 100 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-cov-completeness-min"; "-1"); "Value must be between 0 and 100 for -*"] musteq 1b;
     };
 
     should["reject contradictory process-lifecycle flags"]{

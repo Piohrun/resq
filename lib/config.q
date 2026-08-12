@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageSources!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;())
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;())
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -76,9 +76,8 @@ loadConfig:{[path]
     if[10h = type merged`reportListLimit;
         merged[`reportListLimit]: "I"$merged`reportListLimit
     ];
-    if[10h = type merged`coverageMin;
-        merged[`coverageMin]: "I"$merged`coverageMin
-    ];
+    coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
+    {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
     if[`testFilePatterns in key merged;
         if[.tst.validTestFilePatterns merged`testFilePatterns;
             merged[`testFilePatterns]:.tst.normalizeTestFilePatterns merged`testFilePatterns
@@ -181,7 +180,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -194,17 +193,21 @@ validateConfig:{[cfg]
             "qNamespaceExports must be a boolean";
             "expectationLineAnnotations must be a boolean";
             "qspecCompat must be a boolean";
-            "covStatements must be a boolean");
+            "covStatements must be a boolean";
+            "allowPartialLineCoverage must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
   intMsgs:("fuzzLimit must be an integer scalar";
            "maxTestTime must be an integer scalar";
            "reportLimit must be an integer scalar";
            "reportListLimit must be an integer scalar";
            "diffLargeTableThreshold must be an integer scalar";
            "diffHugeTableThreshold must be an integer scalar";
-           "coverageMin must be an integer scalar");
+           "coverageMin must be an integer scalar";
+           "coverageFunctionMin must be an integer scalar";
+           "coverageLineMin must be an integer scalar";
+           "coverageCompletenessMin must be an integer scalar");
   warnings,: raze checkType[cfg;;(-5h;-6h;-7h);]'[intNames; intMsgs];
 
   / Range check: numeric keys must be non-negative. A correctly-typed but
@@ -225,12 +228,23 @@ validateConfig:{[cfg]
              "reportListLimit must be >= 0";
              "diffLargeTableThreshold must be >= 0";
              "diffHugeTableThreshold must be >= 0";
-             "coverageMin must be between 0 and 100");
+             "coverageMin must be between 0 and 100";
+             "coverageFunctionMin must be between 0 and 100";
+             "coverageLineMin must be between 0 and 100";
+             "coverageCompletenessMin must be between 0 and 100");
   warnings,: raze checkNonNeg[cfg;;]'[intNames; rangeMsgs];
   if[`coverageMin in key cfg;
     if[(type cfg`coverageMin) in -5 -6 -7h;
       if[(not null cfg[`coverageMin]) and (cfg[`coverageMin] > 100);
         warnings,: enlist "coverageMin must be between 0 and 100"]]];
+  percentNames:`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
+  checkPercentMax:{[cfg;n]
+      if[not n in key cfg;:()];
+      if[not (type cfg n) in -5 -6 -7h;:()];
+      if[(null cfg n) or cfg[n]<=100;:()];
+      enlist string[n]," must be between 0 and 100"
+  };
+  warnings,:raze checkPercentMax[cfg;] each percentNames;
 
   warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];
 
@@ -274,7 +288,7 @@ invalidConfigKeys:{[cfg]
   ];
 
   / Boolean-typed keys: must be a single boolean.
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
   / Integer-typed keys: must be a single integer-like value, not null, AND
@@ -282,7 +296,7 @@ invalidConfigKeys:{[cfg]
   / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
   / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
   / with a warning, default retained (the warn-and-ignore contract).
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
@@ -291,6 +305,13 @@ invalidConfigKeys:{[cfg]
   if[`coverageMin in key cfg;
     if[(type cfg`coverageMin) in -5 -6 -7h;
       if[(not null cfg[`coverageMin]) and (cfg[`coverageMin] > 100); invalid,:`coverageMin]]];
+  percentNames:`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
+  invalid,:percentNames where {[cfg;n]
+      if[not n in key cfg;:0b];
+      if[not (type cfg n) in -5 -6 -7h;:0b];
+      if[null cfg n;:0b];
+      cfg[n]>100
+    }[cfg] each percentNames;
 
   / outDir: string or symbol.
   if[`outDir in key cfg; if[not (type cfg`outDir) in 10 -10 11h; invalid,: `outDir]];
@@ -347,6 +368,8 @@ applyConfig:{[cfg]
     / qspec source-compatibility switch (musteq `=`, mustne `<>`).
     if[ok`qspecCompat; .tst.app.qspecCompat: cfg`qspecCompat];
     if[ok`covStatements; .tst.coverageStatements: cfg`covStatements];
+    if[ok`allowPartialLineCoverage;
+        .tst.app.allowPartialLineCoverage: cfg`allowPartialLineCoverage];
     if[ok`failFast; .tst.app.failFast: cfg`failFast];
     if[ok`failHard; .tst.app.failHard: cfg`failHard];
     if[ok`pollutionGuard; .tst.app.pollutionGuard: cfg`pollutionGuard];
@@ -358,6 +381,10 @@ applyConfig:{[cfg]
     if[ok`reportLimit; .tst.output.reportLimit: cfg`reportLimit];
     if[ok`reportListLimit; .tst.output.reportListLimit: cfg`reportListLimit];
     if[ok`coverageMin; .tst.app.coverageMin: cfg`coverageMin];
+    if[ok`coverageFunctionMin; .tst.app.coverageFunctionMin: cfg`coverageFunctionMin];
+    if[ok`coverageLineMin; .tst.app.coverageLineMin: cfg`coverageLineMin];
+    if[ok`coverageCompletenessMin;
+        .tst.app.coverageCompletenessMin: cfg`coverageCompletenessMin];
     if[ok`coverageSources;
         .tst.app.coverageSources: .tst.normalizeCoverageSources cfg`coverageSources];
 

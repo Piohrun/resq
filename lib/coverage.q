@@ -12,6 +12,7 @@
 .tst.origFuncs: ()!();           / name -> original function
 .tst.lastCoverageSummary: `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(0j;0j;0f;0j;0j;0f);
 .tst.covWrappers: ()!();         / name -> installed wrapper (live identity)
+.tst.coverageLoadedFiles: `symbol$(); / files observed by the runtime loader
 .tst.loadingStack: ();
 .tst._covMissing: `resqCovMissing;
 
@@ -68,6 +69,43 @@
         home: @[get; `.resq.HOME; {""}];
         if[(0<count home) and absPath like home,"/lib/*"; :0b]];
     1b
+ };
+
+/ Why a discovered function lacks measured statements. This is derived from
+/ canonical runtime state so every reporter uses the same classification.
+.tst.coverageFallbackReason:{[fileSym;name]
+    if[not 1b~@[get;`.tst.coverageStatements;0b]; :`statement_mode_disabled];
+    if[not fileSym in .tst.coverageLoadedFiles; :`source_not_loaded];
+    if[not name in key .tst.covWrappers; :`function_wrapper_unavailable];
+    measured:$[fileSym in key .tst.stmtInstrumented;
+        .tst.stmtInstrumented fileSym;`symbol$()];
+    $[name in measured;`none;`rewrite_rejected]
+ };
+
+/ Aggregate instrumentation eligibility/completeness. Function coverage counts
+/ every static function; statement completeness counts how many of those same
+/ functions were safely rewritten with real probes.
+.tst.coverageInstrumentationSummary:{[]
+    files:key .tst.coverageData;
+    found:sum 0,count each value .tst.coverageData;
+    wrapped:sum 0,{[d] sum (key d) in key .tst.covWrappers} each value .tst.coverageData;
+    measured:sum 0,{[f;d]
+        names:$[f in key .tst.stmtInstrumented;.tst.stmtInstrumented f;`symbol$()];
+        sum (key d) in names
+    }'[files;value .tst.coverageData];
+    loaded:sum 0,files in .tst.coverageLoadedFiles;
+    filesMeasured:sum 0,{[f] $[f in key .tst.stmtInstrumented;
+        0<count .tst.stmtInstrumented f;0b]} each files;
+    stmtMode:1b~@[get;`.tst.coverageStatements;0b];
+    fnPct:$[0=found;0f;100f*wrapped%found];
+    stmtPct:$[0=found;0f;100f*measured%found];
+    reasons:raze {[f;d] .tst.coverageFallbackReason[f;] each key d}'[
+        files;value .tst.coverageData];
+    reasonNames:`source_not_loaded`function_wrapper_unavailable`rewrite_rejected;
+    reasonCounts:reasonNames!{[allReasons;reason] sum 0,allReasons=reason}[
+        reasons;] each reasonNames;
+    `filesFound`filesLoaded`filesWithStatements`functionsEligible`functionsInstrumented`functionInstrumentationPercent`statementMode`statementFunctionsEligible`statementFunctionsInstrumented`statementInstrumentationPercent`statementInstrumentationComplete`fallbackCounts!(
+        count files;loaded;filesMeasured;found;wrapped;fnPct;stmtMode;found;measured;stmtPct;stmtMode and found=measured;reasonCounts)
  };
 
 / Resolve explicit roots to the canonical set of source files. Empty or invalid
@@ -221,6 +259,7 @@
     fns: @[.tst.static.exploreFile; fHandle; {() }];
     if[not 98h = type fns; :()];
     if[0 = count fns; :()];
+    .tst.coverageLoadedFiles: distinct .tst.coverageLoadedFiles,fileSym;
 
     / exploreFile applies `\d <ns>` namespacing, but NOT the runtime
     / `system "d <ns>"` form some sources use to open a namespace - those
@@ -364,6 +403,7 @@
     .tst.coverageData:: ()!();
     .tst.origFuncs:: ()!();
     .tst.covWrappers:: ()!();
+    .tst.coverageLoadedFiles:: `symbol$();
     .tst.loadingStack:: ();
     .tst.lineCoverageData:: ()!();
     .tst.stmtInstrumented:: ()!();
@@ -835,7 +875,8 @@
     ];
     stateH 0: stateLines;
 
-    .tst.lastCoverageSummary: .tst.coverageSummaryFromLines "\n" vs txt;
+    .tst.lastCoverageSummary: (.tst.coverageSummaryFromLines "\n" vs txt),
+        .tst.coverageInstrumentationSummary[];
     outH 0: enlist txt;
     -1 "LCOV report written to: ", outPath;
     / An empty report is the one result that looks like success but measures

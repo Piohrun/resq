@@ -1742,6 +1742,10 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
 | `-no-line-annotations` | Disable expectation source-line rewriting if a suite hits an unsupported lexical edge case; file/line fields become unavailable and incomplete-constructor auditing is disabled |
 | `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses the complete function inventory (`-cov-statements` line data remains diagnostic) |
+| `-cov-functions-min N` | Gate complete static function reachability at N% |
+| `-cov-lines-min N` | Enable statement measurement and gate measured statements at N%; partial instrumentation fails closed |
+| `-cov-completeness-min N` | Enable statement measurement and require N% of eligible functions to be instrumented |
+| `-cov-allow-partial` | Explicitly allow `-cov-lines-min` to use an incomplete statement denominator |
 | `--source PATHS` / `--coverage-source PATHS` | Comma-separated source files/directories forming the coverage inventory; unloaded functions are counted at zero |
 | `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
 | `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
@@ -1847,6 +1851,10 @@ Create `resq.json` in project root:
     "fuzzLimit": 100,
     "maxTestTime": 0,
     "coverageMin": 0,
+    "coverageFunctionMin": 0,
+    "coverageLineMin": 0,
+    "coverageCompletenessMin": 0,
+    "allowPartialLineCoverage": false,
     "coverageSources": ["src"],
     "covStatements": false,
     "reportLimit": 50000,
@@ -1887,6 +1895,10 @@ Create `resq.json` in project root:
 | `qspecCompat` | `false` | Use qspec comparison semantics for `musteq` / `mustne` |
 | `covStatements` | `false` | Enable measured statement/line instrumentation |
 | `coverageMin` | `0` | Coverage gate percentage (`0` disables the threshold) |
+| `coverageFunctionMin` | `0` | Independent complete-function threshold |
+| `coverageLineMin` | `0` | Independent measured-statement threshold |
+| `coverageCompletenessMin` | `0` | Statement-instrumentation completeness threshold |
+| `allowPartialLineCoverage` | `false` | Allow a line gate to use a partial denominator |
 | `coverageSources` | empty | Source files/directories forming the complete coverage inventory |
 
 Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `console` is normalized to `text`.
@@ -1900,6 +1912,11 @@ coverage and applies the same function-based, fail-closed threshold as
 `-cov-min`. Set `covStatements` to `true` to add measured statement probes;
 their line result is diagnostic because unsafe rewrites can be excluded from
 its denominator.
+
+The three independent thresholds are integers from 0 through 100. A positive
+line or completeness threshold enables statement instrumentation. Line gates
+fail when instrumentation completeness is below 100%, regardless of the
+measured line percentage, unless `allowPartialLineCoverage` is explicitly true.
 
 `coverageSources` accepts a path string or list of path strings/symbols. It is
 the configuration equivalent of `--source`: directories are scanned

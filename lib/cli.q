@@ -11,10 +11,11 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
-.tst.cli.specKinds:(23 # `flag), 13 # `value;
-.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
+.tst.cli.specKinds:(24 # `flag), 16 # `value;
+.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
+.tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
 / one of them ever leaves them misaligned (a silent mislabel otherwise).
@@ -152,12 +153,12 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
         (numericValues < 0) or
         ((numericOptionNames = `isolateTimeout) and numericValues = 0) or
         ((numericOptionNames = `isolateWorkers) and numericValues = 0) or
-        ((numericOptionNames = `coverageMin) and numericValues > 100);
+        ((numericOptionNames in .tst.cli.percentNames) and numericValues > 100);
     if[count invalidRanges;
         badIndex: first invalidRanges;
         numericValuePositions: valuePositions where numericMask;
         requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers; "> 0";
-                       numericOptionNames[badIndex] ~ `coverageMin; "between 0 and 100";
+                       numericOptionNames[badIndex] in .tst.cli.percentNames; "between 0 and 100";
                        ">= 0"];
         :.tst.cli.error "Value must be ", requirement, " for ",
             preTokens[numericValuePositions badIndex], ": ", numericTexts badIndex];
@@ -254,6 +255,10 @@ printUsage:{[]
         "  -cov-statements       Measure per-STATEMENT coverage. Without it coverage";
         "                        is function-level only and reports no line data";
         "  -cov-min N            Fail the run below N% coverage (0-100)";
+        "  -cov-functions-min N  Gate complete function reachability";
+        "  -cov-lines-min N      Gate measured statements; partial data fails closed";
+        "  -cov-completeness-min N  Gate statement instrumentation completeness";
+        "  -cov-allow-partial    Allow a line gate to use a partial denominator";
         "  --source PATHS        Source files/directories to inventory (comma-separated)";
         "  -cov-include / -cov-exclude PATS   Comma-separated path filters";
         "";
@@ -310,6 +315,7 @@ initCLI:{[parsed]
     / Statement-level coverage rewrites function bodies at load time, so it is
     / opt-in: see docs/COVERAGE.md for what it costs and what it buys.
     if[options`covStatements; .tst.coverageStatements: 1b];
+    if[options`allowPartialLineCoverage; .tst.app.allowPartialLineCoverage: 1b];
     if[options`noLineAnnotations; .tst.app.expectationLineAnnotations: 0b];
     if[options`quiet; .tst.app.quiet: 1b];
 
@@ -336,6 +342,17 @@ initCLI:{[parsed]
         .tst.app.coverageMin: options`coverageMin;
         .tst.app.runCoverage: 1b];
     if[0 < @[get; `.tst.app.coverageMin; 0]; .tst.app.runCoverage: 1b];
+    if[not 10h=type options`coverageFunctionMin;
+        .tst.app.coverageFunctionMin:options`coverageFunctionMin;
+        .tst.app.runCoverage:1b];
+    if[not 10h=type options`coverageLineMin;
+        .tst.app.coverageLineMin:options`coverageLineMin;
+        .tst.coverageStatements:1b;
+        .tst.app.runCoverage:1b];
+    if[not 10h=type options`coverageCompletenessMin;
+        .tst.app.coverageCompletenessMin:options`coverageCompletenessMin;
+        .tst.coverageStatements:1b;
+        .tst.app.runCoverage:1b];
     
     / Coverage include/exclude filters.
     if[0 < count options`coverageInclude;

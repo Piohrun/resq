@@ -185,6 +185,32 @@
   .tst.app.coverageMin: previous;
   applied musteq 87;
   };
+ should["validate and apply independent coverage thresholds"]{
+  cfg:`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage!(
+      81;72;93;1b);
+  0 musteq count .tst.invalidConfigKeys cfg;
+  priorState:(@[get;`.tst.app.coverageFunctionMin;0];
+        @[get;`.tst.app.coverageLineMin;0];
+        @[get;`.tst.app.coverageCompletenessMin;0];
+        @[get;`.tst.app.allowPartialLineCoverage;0b]);
+  .tst.applyConfig cfg;
+  applied:(.tst.app.coverageFunctionMin;.tst.app.coverageLineMin;
+           .tst.app.coverageCompletenessMin;.tst.app.allowPartialLineCoverage);
+  .tst.app.coverageFunctionMin:priorState 0;
+  .tst.app.coverageLineMin:priorState 1;
+  .tst.app.coverageCompletenessMin:priorState 2;
+  .tst.app.allowPartialLineCoverage:priorState 3;
+  applied mustmatch (81;72;93;1b);
+  };
+ should["reject out-of-range independent coverage thresholds"]{
+  names:`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
+  { [n]
+    cfg:(enlist n)!enlist 101;
+    .tst.invalidConfigKeys[cfg] musteq enlist n;
+    must[any .tst.validateConfig[cfg] like string[n]," must be between 0 and 100*";
+         "each independent coverage threshold must be range checked"]
+  } each names;
+  };
  should["validate, normalize, and apply coverage source roots"]{
   good:("src";`shared);
   0 musteq count .tst.invalidConfigKeys (enlist `coverageSources)!enlist good;

@@ -64,8 +64,10 @@
         if[99h = type coverageStats;
             coverageStats: coverageStats,
                 `minimum`passed`basis!(
-                    @[get; `.tst.app.coverageMin; 0];
-                    @[get; `.tst.app.coveragePercent; 0f] >= @[get; `.tst.app.coverageMin; 0];
+                    @[get; `.tst.app.coverageEffectiveMinimum;
+                        @[get;`.tst.app.coverageMin;0]];
+                    @[get; `.tst.app.coveragePassed;
+                        @[get; `.tst.app.coveragePercent; 0f] >= @[get; `.tst.app.coverageMin; 0]];
                     @[get; `.tst.app.coverageBasis; "functions"]);
             payload: payload, enlist[`coverage]!enlist coverageStats;
         ];

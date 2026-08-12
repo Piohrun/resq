@@ -41,7 +41,7 @@
 / A declared source tree is an inventory, not a hint. This fixture loads one
 / function while leaving a second module completely untouched; all four static
 / functions must still be present in LCOV and in the gate denominator.
-.tst.testState.covgate.runManifest:{[]
+.tst.testState.covgate.runManifestWith:{[extra]
     wd: .utl.tempRoot[], "/resq_covmanifest_", string[.z.i], "_", string `long$.z.p;
     sourceDir: wd, "/src";
     loadedPath: sourceDir, "/loaded.q";
@@ -60,7 +60,7 @@
         "};");
     cmd: "true && timeout -k 2 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
          " cover ", (.utl.shellQuote fixturePath), " --source ",
-         (.utl.shellQuote sourceDir), " -cov-min 26 -json -outDir ",
+         (.utl.shellQuote sourceDir), " ",extra," -json -outDir ",
          (.utl.shellQuote wd), " -quiet > ",
          (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
     exitLines: @[system; cmd; {[err] enlist "-1"}];
@@ -73,6 +73,8 @@
     if[wd like "*/resq_covmanifest_*"; system "rm -rf -- ", .utl.shellQuote wd];
     `code`output`payload`lcov`state!(exitCode;output;payload;lcov;state)
  };
+.tst.testState.covgate.runManifest:{[]
+    .tst.testState.covgate.runManifestWith "-cov-min 26"};
 
 .tst.desc["Coverage gate decision"]{
     should["keep the legacy threshold function-based when partial lines look greener"]{
@@ -106,6 +108,39 @@
         zeroMisses: {(0<count ss[x;"/never_loaded.q "]) and x like "* 0"} each r`state;
         must[3=sum zeroMisses;
              "coverage_state must include each zero-hit function"];
+    };
+
+    skipIf[not .tst.testState.covgate.canRun;
+           "refuse a line gate over partial instrumentation by default"]{
+        r:.tst.testState.covgate.runManifestWith "-cov-lines-min 100";
+        r[`code] musteq 1;
+        text:"\n" sv r`output;
+        must[0<count ss[text;"Line coverage gate refused partial statement instrumentation"];
+             "the console error must explain why the partial line gate was refused"];
+        r[`payload;`coverage;`partialLines] musteq 1b;
+        r[`payload;`coverage;`allowPartialLines] musteq 0b;
+        r[`payload;`coverage;`passed] musteq 0b;
+    };
+
+    skipIf[not .tst.testState.covgate.canRun;
+           "allow an explicitly acknowledged partial line gate"]{
+        r:.tst.testState.covgate.runManifestWith
+            "-cov-lines-min 100 -cov-allow-partial";
+        r[`code] musteq 0;
+        r[`payload;`coverage;`partialLines] musteq 1b;
+        r[`payload;`coverage;`allowPartialLines] musteq 1b;
+        r[`payload;`coverage;`gates;`lines;`passed] musteq 1b;
+        r[`payload;`coverage;`passed] musteq 1b;
+    };
+
+    skipIf[not .tst.testState.covgate.canRun;
+           "gate statement instrumentation completeness independently"]{
+        r:.tst.testState.covgate.runManifestWith "-cov-completeness-min 100";
+        r[`code] musteq 1;
+        r[`payload;`coverage;`statementFunctionsEligible] musteq 4f;
+        r[`payload;`coverage;`statementFunctionsInstrumented] musteq 1f;
+        r[`payload;`coverage;`statementInstrumentationPercent] musteq 25f;
+        r[`payload;`coverage;`gates;`completeness;`passed] musteq 0b;
     };
 
     skipIf[not .tst.testState.covgate.canRun;
