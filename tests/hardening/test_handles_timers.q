@@ -6,6 +6,7 @@
         hsym[`$fn] 0: enlist "dummy";
         / Use a fresh handle each time
         h: hopen hsym `$fn;
+        .tst.testState.handlecheck.leakedHandle:h;
         / Leave h open. resq should warn and close it after the spec.
         must[0 < h; "the handle this test deliberately leaks must actually be open"];
     }];
@@ -26,8 +27,15 @@
   }];
   
   .tst.should["have closed the leaked handle"; {
-      / We don't easily know the handle number here, but we can verify no handles to that file are open
-      / For now, just relying on the fact that if it wasn't closed, we'd have a leak report in previous spec
-      must[1b; "placeholder"];
+      fdCommand:"readlink /proc/",string[.z.i],"/fd/* 2>/dev/null";
+      openTargets:@[system;fdCommand;{()}];
+      leakedHandle:.tst.testState.handlecheck.leakedHandle;
+      handleProbe:@[read1;leakedHandle;{[e] `closed}];
+      must[handleProbe~`closed;
+        "the suite boundary must close logical handle ",string[leakedHandle],
+        "; probe=",.Q.s1[handleProbe],"; targets=",.Q.s1 openTargets];
+      diagnostics:@[get;`.tst.app.diagnostics;{()}];
+      must[`resource in diagnostics`type;
+        "resource restoration must be visible as a structured diagnostic"];
   }];
 }];

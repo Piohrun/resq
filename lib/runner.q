@@ -272,19 +272,66 @@
     ::
  };
 
-.tst.finalizeSpecResources:{[specTitle;origHandles;origTs]
-    currentHandles: $[.utl.isLinux;
-        (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
-        key .z.W];
-    leakedHandles: currentHandles except origHandles;
+.tst.linuxOpenDescriptors:{[]
+    if[not .utl.isLinux; :`long$()];
+    / q's system[] captures stdout through a temporary pipe owned by q. Inspect
+    / the parent q process, then exclude that capture pipe by target; using
+    / /proc/self here inspects the helper process and produces false handles.
+    cmd:"capture=$(readlink /proc/self/fd/1); for fd in /proc/$PPID/fd/*; do target=$(readlink \"$fd\"); if [ \"$target\" != \"$capture\" ]; then printf '%s\\n' \"${fd##*/}\"; fi; done";
+    lines:@[system;cmd;{()}];
+    $[count lines;"J"$lines;`long$()]
+ };
+
+.tst.captureResourceState:{[]
+    ipcHandles:key .z.W;
+    if[not .utl.isLinux;
+        :`osHandles`ipcHandles`fileHandleOffset!(`long$();ipcHandles;0j)];
+    osHandles:.tst.linuxOpenDescriptors[];
+    / q connection-handle integers need not equal Linux descriptor numbers
+    / when q owns internal descriptors. A temporary /dev/null handle measures
+    / the process-local offset without touching application resources.
+    probeHandle:@[hopen;":/dev/null";{[e] -1i}];
+    if[probeHandle<0;
+        :`osHandles`ipcHandles`fileHandleOffset!(osHandles;ipcHandles;0Nj)];
+    withProbe:.tst.linuxOpenDescriptors[];
+    added:withProbe except osHandles;
+    @[hclose;probeHandle;{}];
+    offset:$[1=count added;first[added]-"j"$probeHandle;0Nj];
+    `osHandles`ipcHandles`fileHandleOffset!(osHandles;ipcHandles;offset)
+ };
+
+.tst.finalizeSpecResources:{[specTitle;origResources;origTs]
+    leakedIpc:(key .z.W) except origResources`ipcHandles;
+    / Close IPC handles by their native q handle before re-reading Linux file
+    / descriptors, so they cannot also be mistaken for leaked file handles.
+    if[count leakedIpc;{@[hclose;x;{}]} each leakedIpc];
+    leakedOs:$[.utl.isLinux;
+        .tst.linuxOpenDescriptors[] except origResources`osHandles;
+        `long$()];
+    offset:origResources`fileHandleOffset;
+    if[(count leakedOs) and null offset;
+        .tst.recordCleanupError[`resource;
+            "could not map leaked Linux descriptors to q handles: ",
+            .tst.toString leakedOs]];
+    leakedFiles:$[(count leakedOs) and not null offset;leakedOs-offset;`long$()];
+    leakedHandles:distinct leakedIpc,leakedFiles;
     if[count leakedHandles;
         .tst.recordDiagnostic[`resource;`warning;`cleanup;
             "Suite leaked handles";
             `suite`handles!(.tst.toString specTitle;leakedHandles)];
         -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' leaked handles: ", .tst.toString leakedHandles;
-        { @[hclose; x; {}] } each leakedHandles;
+        { @[hclose;x;{}] } each leakedFiles;
         -1 "  -> Closed leaked handles.";
     ];
+
+    remainingIpc:(key .z.W) except origResources`ipcHandles;
+    remainingOs:$[.utl.isLinux;
+        .tst.linuxOpenDescriptors[] except origResources`osHandles;
+        `long$()];
+    if[count remainingIpc,remainingOs;
+        .tst.recordCleanupError[`resource;
+            "handles remained open after suite cleanup: ",
+            .tst.toString distinct remainingIpc,remainingOs]];
 
     currentTs: @[get; `.z.ts; {::}];
     if[not currentTs ~ origTs;
@@ -312,14 +359,14 @@
 / One finally tail for every recoverable runSpec outcome. Each stage is trapped
 / independently so a broken directory fixture cannot suppress pollution,
 / resource, or registered-cleanup restoration.
-.tst.finalizeSpec:{[runCtx;specTitle;pollutionGuard;namespaces;fullSnapshot;origHandles;origTs]
+.tst.finalizeSpec:{[runCtx;specTitle;pollutionGuard;namespaces;fullSnapshot;origResources;origTs]
     @[.tst.restoreDir; (); {[e]
         .tst.recordCleanupError[`specFinalizer; "restoreDir failed: ", .tst.toString e]}];
     @[.tst.restoreRuntimeContext; runCtx; {[e]
         .tst.recordCleanupError[`specFinalizer; "runtime context restore failed: ", .tst.toString e]}];
     .[.tst.finalizeSpecPollution; (specTitle;pollutionGuard;namespaces;fullSnapshot); {[e]
         .tst.recordCleanupError[`specFinalizer; "pollution restore failed: ", .tst.toString e]}];
-    .[.tst.finalizeSpecResources; (specTitle;origHandles;origTs); {[e]
+    .[.tst.finalizeSpecResources; (specTitle;origResources;origTs); {[e]
         .tst.recordCleanupError[`specFinalizer; "resource restore failed: ", .tst.toString e]}];
     / Spec-scope cleanups run after handles and global state are restored, so a
     / registered probe/file delete observes the clean post-suite environment.
@@ -420,9 +467,7 @@
     fullSnapshot: $[pollutionGuard;
         namespaces!.tst.snapshotNamespaceValues each namespaces;
         ()!()];
-    origHandles: $[.utl.isLinux;
-        (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
-        key .z.W];
+    origResources:.tst.captureResourceState[];
     origTs: @[get; `.z.ts; {::}];
     runAfterAll: not .tst.halt;
 
@@ -432,7 +477,7 @@
             .tst.recordCleanupError[`specFinalizer;
                 "afterAll dispatch failed: ", .tst.toString err]}]];
     .tst.finalizeSpec[
-        runCtx;specTitle;pollutionGuard;namespaces;fullSnapshot;origHandles;origTs];
+        runCtx;specTitle;pollutionGuard;namespaces;fullSnapshot;origResources;origTs];
     if[first runOutcome; 'last runOutcome];
     last runOutcome
  };
