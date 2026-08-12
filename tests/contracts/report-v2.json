@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 2,
+  "framework": "resQ",
+  "frameworkVersion": "1.0.0",
+  "run": {
+    "id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "startedAt": "2026-08-12T12:00:00.000000000Z",
+    "finishedAt": "2026-08-12T12:00:01.000000000Z",
+    "durationSeconds": 1.0,
+    "hostname": "contract-runner",
+    "cwd": "/checkout",
+    "qVersion": "4.1",
+    "qRelease": "2024.01.01",
+    "os": "linux",
+    "resqVersion": "1.0.0",
+    "vcs": {"sha": "deadbeef", "branch": "main", "dirty": false},
+    "ci": {"provider": "contract"},
+    "config": {},
+    "ordering": {"randomized": false, "seed": 0, "algorithm": "md5-counter-v1"},
+    "selection": {
+      "mode": "all",
+      "stateFile": ".resq/last-run.json",
+      "historyStatus": "missing",
+      "priorFailedCount": 0,
+      "applied": false,
+      "selectedTestCount": 1
+    },
+    "shard": {
+      "index": 0,
+      "count": 1,
+      "algorithm": "sorted-index-mod-v1",
+      "allFileCount": 1,
+      "selectedFileCount": 1,
+      "selectedFiles": ["tests/test_contract.q"]
+    }
+  },
+  "summary": {
+    "suiteCount": 1,
+    "testCount": 1,
+    "assertionCount": 1,
+    "passCount": 1,
+    "failCount": 0,
+    "errorCount": 0,
+    "skipCount": 0,
+    "duration": "0D00:00:00.001000000",
+    "durationSeconds": 0.001
+  },
+  "tests": [
+    {
+      "suite": "contract suite",
+      "description": "passes",
+      "status": "pass",
+      "message": "",
+      "time": "0D00:00:00.001000000",
+      "durationSeconds": 0.001,
+      "failures": [],
+      "assertsRun": 1,
+      "file": "tests/test_contract.q",
+      "line": 10,
+      "namespace": "",
+      "tags": ["contract"],
+      "output": "",
+      "testId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "caseId": "",
+      "kind": "test",
+      "attempts": 1,
+      "retried": false,
+      "flaky": false,
+      "attemptHistory": [
+        {
+          "attempt": 1,
+          "status": "pass",
+          "duration": "0D00:00:00.001000000",
+          "durationSeconds": 0.001,
+          "message": "",
+          "failures": [],
+          "assertsRun": 1
+        }
+      ],
+      "parameterCases": [],
+      "property": {},
+      "diagnostics": [],
+      "snapshots": [],
+      "benchmark": {}
+    }
+  ],
+  "performance": [],
+  "coverage": {},
+  "diagnostics": []
+}

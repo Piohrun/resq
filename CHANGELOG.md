@@ -4,6 +4,13 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- CI now has a licence-free GitHub-hosted gate for shell syntax, package layout,
+  internal documentation links, JSON v2/schema fixtures, JUnit/xUnit fixtures,
+  and the Python observability adapters. Licensed q execution waits for this
+  contract gate to pass.
+
 ### Fixed
 
 - resQ no longer exports common DSL names through reserved `.q`. Bare qspec
@@ -38,6 +45,9 @@ All notable changes to the **resQ** project will be documented in this file.
   this could pass CI at 88% measured lines while complete function coverage was
   70%. Measured line results remain in the console, LCOV, and JSON as a
   diagnostic, while JSON `coverage.basis` records `"functions"`.
+- Isolated parent runs now preserve all JSON v2 child telemetry, including
+  retry attempts, parameter/property cases, diagnostics, snapshots, and
+  benchmarks, instead of merging only the legacy result columns.
 
 ## [0.4.0] - 2026-08-03 - qspec Drop-in, Measured Coverage & Fail-Closed Runs
 

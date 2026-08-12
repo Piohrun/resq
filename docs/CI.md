@@ -11,6 +11,26 @@ equivalence:
 tools/verify_execution_matrix.py --q q
 ```
 
+## Licence-free gate
+
+The `static` CI job runs on GitHub-hosted Linux before the licensed q job. It
+checks both launcher scripts with `bash -n`, validates the checked-in JSON v2
+and JUnit/xUnit contract fixtures, parses the public JSON Schema, resolves every
+repository-local documentation link, verifies the distributable file layout
+and executable bits, and runs the Python adapter tests. Run the same gate
+locally without q:
+
+```bash
+bash -n bin/resq bin/qspec
+tools/verify_static.py
+python3 -m unittest discover -s tools/tests -v
+```
+
+This keeps documentation and integration contracts protected on contributors'
+ordinary runners. It does not replace the licensed execution suite; the q job
+depends on it and remains the authority for runtime behavior and generated
+artifacts.
+
 The production CI baseline is a strict, process-isolated run with at least one
 machine-readable reporter:
 

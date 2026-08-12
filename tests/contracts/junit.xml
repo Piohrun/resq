@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="1" failures="0" errors="0" skipped="0" time="0.001">
+  <testsuite name="contract suite" tests="1" failures="0" errors="0" skipped="0" time="0.001" timestamp="2026-08-12T12:00:00Z" hostname="contract-runner">
+    <testcase classname="contract suite" name="passes" time="0.001" file="tests/test_contract.q" line="10" resq-test-id="test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" />
+  </testsuite>
+</testsuites>

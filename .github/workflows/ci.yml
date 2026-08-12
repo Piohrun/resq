@@ -13,10 +13,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  static:
+    name: Licence-free contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell syntax
+        shell: bash
+        run: bash -n bin/resq bin/qspec
+
+      - name: Documentation, schema, XML, and package contracts
+        run: tools/verify_static.py
+
+      - name: Python adapter tests
+        run: python3 -m unittest discover -s tools/tests -v
+
   verify:
     # kdb+/q requires a license-bound runtime. Attach a Linux x64 runner with
     # q on PATH and these labels; see docs/CI.md. Do not commit a license.
     runs-on: [self-hosted, linux, x64, kdb]
+    needs: static
     timeout-minutes: 30
 
     steps:

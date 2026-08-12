@@ -11,6 +11,8 @@ Thumbs.db
 *.swp
 *~
 *.bak
+__pycache__/
+*.py[cod]
 
 # KDB+ / Q Logs and Output
 q.log
