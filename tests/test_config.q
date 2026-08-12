@@ -10,7 +10,19 @@
   cfg[`exit] musteq 1b;
  cfg[`pollutionGuard] musteq 1b;
  cfg[`fuzzLimit] musteq 100;
+  cfg[`qNamespaceExports] musteq 0b;
   cfg[`coverageMin] musteq 0;
+  };
+
+ should["accept but ignore the deprecated qNamespaceExports switch"]{
+  qKeysBefore:key `.q;
+  qValuesBefore:{get .Q.dd[`.q;x]} each qKeysBefore;
+  .tst.setQNamespaceExports 1b;
+  qKeysAfter:key `.q;
+  qValuesAfter:{get .Q.dd[`.q;x]} each qKeysAfter;
+  .tst.qNamespaceExports musteq 0b;
+  must[(qKeysBefore~qKeysAfter) and qValuesBefore~qValuesAfter;
+       "the deprecated switch must leave .q byte-for-byte equivalent"];
   };
  should["load and parse JSON config file"]{
   / Create test config file

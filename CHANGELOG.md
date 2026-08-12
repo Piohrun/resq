@@ -6,6 +6,12 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- resQ no longer exports common DSL names through reserved `.q`. Bare qspec
+  syntax is bound to stable `.tst.dsl.*` helpers during test-source loading,
+  including infix assertions and mocks, while file-declared locals safely
+  shadow aliases. The deprecated `qNamespaceExports` key is accepted but
+  ignored. This restores loading for valid application locals such as
+  `before`, `after`, `mock`, `it`, `holds`, `perf`, and `must`.
 - Every recoverable `runSpec` path now executes one independently trapped
   finalizer. `beforeAll` failures, fail-hard halts, and unexpected suite-runner
   exceptions restore application globals, close resources, restore runtime

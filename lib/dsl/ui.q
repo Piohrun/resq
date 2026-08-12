@@ -369,7 +369,8 @@ uiNames:`before`after`should`it`holds`perf`alt`describe`skip`pending`skipIf
 uiCode:(before;after;should;it;holds;perf;alt;desc;skip;pending;skipIf)
 
 \d .
-/ Expose DSL to root and .q namespaces
+/ Expose DSL in root for direct/root-context compatibility. init.q also captures
+/ the same values under stable .tst.dsl bindings; reserved .q is untouched.
 describe: .tst.desc; should: .tst.should; it: .tst.should;
 before: .tst.before; after: .tst.after;
 beforeAll: .tst.beforeAll; afterAll: .tst.afterAll;
@@ -377,7 +378,7 @@ holds: .tst.holds; perf: .tst.perf; alt: .tst.alt;
 skip: .tst.skip; pending: .tst.pending; skipIf: .tst.skipIf;
 retry: .tst.retry; testOnly: .tst.testOnly;
 
-.tst.uiQExports: `describe`should`it`before`after`beforeAll`afterAll`holds`perf`alt`skip`pending`skipIf`retry`testOnly!(
+.tst.uiExports: `describe`should`it`before`after`beforeAll`afterAll`holds`perf`alt`skip`pending`skipIf`retry`testOnly!(
     .tst.desc;
     .tst.should;
     .tst.should;

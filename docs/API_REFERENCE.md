@@ -1848,7 +1848,7 @@ Create `resq.json` in project root:
     "covStatements": false,
     "reportLimit": 50000,
     "reportListLimit": 1000,
-    "qNamespaceExports": true,
+    "qNamespaceExports": false,
     "exit": true,
     "testFilePatterns": ["test_*.q", "*_test.q"],
     "diffLargeTableThreshold": 1000,
@@ -1875,7 +1875,7 @@ Create `resq.json` in project root:
 | `maxTestTime` | `0` | Post-execution per-test budget in milliseconds (`0` disables) |
 | `reportLimit` | `50000` | Maximum rendered failure/error message characters |
 | `reportListLimit` | `1000` | Compatibility setting; no separate list cap is currently enforced |
-| `qNamespaceExports` | `true` | Export compatibility DSL names through reserved namespace `.q` |
+| `qNamespaceExports` | `false` | Deprecated compatibility key; accepted but ignored, and `.q` is never modified |
 | `diffLargeTableThreshold` | `1000` | Start adaptive table-diff sampling above this row count |
 | `diffHugeTableThreshold` | `10000` | Add random table-diff sampling above this row count |
 | `testFilePatterns` | `test_*.q`, `*_test.q` | Basename patterns used during directory discovery |
@@ -1895,10 +1895,10 @@ coverage and applies the same function-based, fail-closed threshold as
 their line result is diagnostic because unsafe rewrites can be excluded from
 its denominator.
 
-`qNamespaceExports` controls compatibility exports into the reserved `.q`
-namespace. It defaults to `true` for existing suites. With it set to `false`,
-sandboxed test files must use fully qualified `.tst.*` APIs; unqualified root
-aliases do not resolve reliably through a generated test namespace.
+`qNamespaceExports` is deprecated. It remains a validated boolean so existing
+configuration files continue to load, but both values are safe and equivalent:
+resQ never writes DSL names into reserved `.q`. Bare public DSL names in test
+source are bound to stable `.tst.dsl.*` helpers; explicit `.tst.*` APIs also work.
 
 `pollutionGuard` controls deep namespace snapshot/restore checks around each suite. It defaults to `true`. Set it to `false` for very large sessions where global namespace comparison overhead is too high.
 

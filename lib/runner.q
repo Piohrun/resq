@@ -526,7 +526,6 @@
     .tst.pendingBacktrace: "";
     .tst.suppressAssertionDiff: 1b ~ @[get; `.tst.app.passOnly; 0b];
     if[`testDeps in key `.utl; .utl.testDeps: ()!()];
-    if[`activateQNamespaceExports in key `.tst; .tst.activateQNamespaceExports[]];
 
     / On non-Linux, per-spec leak detection only sees IPC handles (.z.W),
     / not file descriptors. Warn once per session if we are using the fallback.
@@ -870,7 +869,6 @@
 .tst.runAllPhase.finalCleanup:{[]
     .tst.app.executionState: `completed;
     @[.tst.cleanupAllFixtures; (); {[e] .tst.recordCleanupError[`sessionFixture;e]}];
-    @[.tst.restoreOriginalQ; (); {[e] .tst.recordCleanupError[`qNamespaceRestore;e]}];
     @[.tst.restore; (); {[e] .tst.recordCleanupError[`mockRestore;e]}];
 
     .tst.releaseSandboxes[];

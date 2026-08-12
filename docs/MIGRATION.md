@@ -209,10 +209,11 @@ resQ loads each test file into a unique isolated namespace. Consequences:
 - Local variables defined at file top-level are contained within the sandbox.
 - `\l path` inside a test file is supported.
 - `\d .ns` namespace switches work inside test files.
-- Unqualified names (`mock`, `should`, `musteq`) resolve through `.q` namespace
-  fallback by default. If you set `"qNamespaceExports": false` in `resq.json`,
-  sandboxed tests must use fully-qualified `.tst.*` names; root aliases are for
-  code already executing in the root context.
+- Unqualified public names (`mock`, `should`, `musteq`) are bound to stable
+  `.tst.dsl.*` helpers while test source is loaded; explicit `.tst.*` names also
+  work. resQ never writes these aliases into reserved `.q`, so application and
+  test locals may use the same spellings. `qNamespaceExports` is now a
+  deprecated, ignored compatibility key.
 
 ---
 

@@ -333,19 +333,15 @@ a file, outside any desc block).
 
 Disable for very large sessions: `"pollutionGuard": false` in `resq.json`.
 
-### Compatibility Exports
-resQ exports DSL helpers in the root namespace and `.tst.*`. For legacy
-compatibility it can also export helpers into `.q`, but `.q` is reserved by kdb+.
-To disable those compatibility exports:
-```json
-{
-  "qNamespaceExports": false
-}
-```
+### Safe DSL Bindings
+resQ keeps the implementation under `.tst.*` and never writes test helpers into
+kdb+'s reserved `.q` namespace. During test-file loading, bare public DSL names
+(`mock`, `fixture`, `should`, `musteq`, etc.) are bound to stable
+`.tst.dsl.*` helpers. Explicit `.tst.*` calls remain supported, and a test-local
+assignment or lambda parameter with the same spelling wins over the DSL.
 
-With `"qNamespaceExports": false`, unqualified DSL names (`mock`, `fixture`,
-`should`, `musteq`, etc.) will **not** resolve inside sandboxed test files.
-Flag-off mode requires fully-qualified `.tst.*` names throughout your test files.
+The legacy `qNamespaceExports` configuration key is accepted for migration but
+is deprecated and ignored; both values leave `.q` unchanged.
 
 ### Quiet Mode
 Suppress per-file load lines, the RUN AUDIT block, and per-suite output for

@@ -368,7 +368,7 @@ asserts[`mustHaveBeenCalledWith]:{[name;args]
 
 / Additive camelCase aliases (compat surface). Assigned AFTER their targets
 / exist so they capture live function values. Added to .tst.asserts so init.q's
-/ registerQExports picks them up for the optional .q namespace too.
+/ canonical test-source export table includes them too.
 asserts[`mustEqual]:                asserts[`musteq];
 asserts[`mustNotEqual]:             asserts[`mustne];
 asserts[`mustLessThan]:             asserts[`mustlt];

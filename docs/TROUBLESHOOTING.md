@@ -820,30 +820,22 @@ limit and cannot be raised. Two fixes, both verified:
 same 150 directly in the `desc` does not.)
 
 
-### Unqualified DSL names not found with `qNamespaceExports: false`
+### A local name collides with a DSL name
 
-**Symptom:**
-```
-'mock
-'should
-'musteq
-```
-or similar `'<name>` errors inside a sandboxed test file when `qNamespaceExports` is set to `false` in `resq.json`.
+resQ does not reserve DSL spellings in `.q`. A bare assignment or explicit
+lambda parameter in a test file therefore shadows the matching DSL alias:
 
-**Cause:** resQ sandboxes each test file into a generated namespace (e.g. `.sandbox_Sabc123`). Inside that namespace, unqualified names like `mock` or `musteq` are resolved via q's namespace fallback chain, which includes `.q`. With `qNamespaceExports: false`, resQ does not write its helpers into `.q`, so the fallback finds nothing.
-
-**Solution:** Use fully-qualified `.tst.*` names throughout your test files when `qNamespaceExports` is off:
 ```q
-/ With qNamespaceExports: false, replace:
-`foo mock 42;
-result musteq 42;
-
-/ With:
-`.foo .tst.mock 42;
-.tst.musteq[result; 42];
+should["indexes a local named it"]{
+  it: 1 2 3;
+  it[1] musteq 2;
+};
 ```
 
-Alternatively, re-enable the flag (`"qNamespaceExports": true`) to restore unqualified name resolution. The flag defaults to `true` for this reason.
+The shadow is conservative and file-wide. If the same file also needs the DSL
+helper with that spelling, call it explicitly (for example `.tst.should[...]`
+or `.tst.musteq[...]`). The deprecated `qNamespaceExports` setting does not
+change this behavior and never authorizes writes to `.q`.
 
 ---
 

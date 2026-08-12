@@ -10,8 +10,10 @@
         / Verify mock exists
         .tst.testMockVar musteq 42;
         
-        / Verify mock state is being tracked (store has more than just null key)
-        (count .tst.mockState.store) mustgt 1;
+        / The target did not exist, so restoration tracks it for deletion rather
+        / than inventing an original value in mockState.store. Older resQ runs
+        / happened to have unrelated .q-export mocks in the store.
+        `.tst.testMockVar mustin .tst.mockState.removeList;
     };
 
     should["restore mocks automatically after test"]{

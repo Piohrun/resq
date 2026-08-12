@@ -69,7 +69,7 @@
 / locations, so this lightweight load-time annotation is the only reliable way
 / to give CI reporters the declaration line. Strings/comments and ordinary q
 / expressions are untouched.
-.tst.annotateExpectationLine:{[lineNo;line]
+.tst.annotateExpectationLineWith:{[lineNo;line;shadowed]
     verbs: ("should";"it";"holds";"perf";"skip";"pending";"skipIf";"retry";"testOnly");
     txt: (),line;
     out: "";
@@ -105,6 +105,7 @@
                 prefix: verb,"[";
                 prefix ~ (count prefix) # at _ source
               }[txt;i;] each verbs;
+            candidates: candidates where not (`$verbs candidates) in shadowed;
             if[boundary and count candidates;
                 verb: verbs first candidates;
                 / Enter through a unary guard before consuming the constructor
@@ -125,8 +126,296 @@
     out
  };
 
+.tst.annotateExpectationLine:{[lineNo;line]
+    .tst.annotateExpectationLineWith[lineNo;line;()]
+ };
+
+/ Mask strings and inline comments while preserving character offsets. This is
+/ intentionally lexical, not a q parser: it only protects the qualification
+/ pass from treating prose/symbol literals as executable identifiers.
+.tst.maskQLine:{[line]
+    txt: (),line;
+    masked: count[txt] # " ";
+    inString: 0b;
+    escaped: 0b;
+    i: 0;
+    while[i < count txt;
+        c: txt i;
+        if[inString;
+            $[escaped; escaped: 0b;
+              c = "\\"; escaped: 1b;
+              c = "\""; [masked[i]: c; inString: 0b];
+              ::];
+            i+: 1;
+        ];
+        if[(i < count txt) and not inString;
+            c: txt i;
+            if[c = "\""; masked[i]: c; inString: 1b; i+: 1];
+        ];
+        if[(i < count txt) and not inString;
+            c: txt i;
+            if[(c = "/") and ((i = 0) or txt[i - 1] in " \t");
+                / A joined continuation statement can contain later physical
+                / lines. Blank only this comment, then resume at its newline.
+                while[(i < count txt) and "\n" <> txt i; i+: 1];
+            ];
+        ];
+        if[(i < count txt) and not inString;
+            masked[i]: txt i;
+            i+: 1;
+        ];
+    ];
+    masked
+ };
+
+.tst.bareTokenAt:{[txt;at;name]
+    n: count name;
+    if[not name ~ n # at _ txt; :0b];
+    leftOk: (0 = at) or not txt[at - 1] in .Q.a,.Q.A,.Q.n,"_.`";
+    rightAt: at + n;
+    rightOk: (rightAt = count txt) or not txt[rightAt] in .Q.a,.Q.A,.Q.n,"_";
+    leftOk and rightOk
+ };
+
+/ A DSL-shaped identifier declared as a bare assignment or explicit lambda
+/ parameter is user code, not framework syntax. Treat that spelling as shadowed
+/ for the whole test file; callers can still use its fully-qualified .tst form.
+.tst.dslLineDeclares:{[masked;name]
+    positions: masked ss name;
+    if[0 = count positions; :0b];
+    any {[txt;token;p]
+        if[not .tst.bareTokenAt[txt;p;token]; :0b];
+        after: p + count token;
+        while[(after < count txt) and txt[after] in " \t"; after+: 1];
+        if[(after < count txt) and ":" = txt after; :1b];
+        if[(after + 1 < count txt) and txt[after] in "+-*%&|<>=~,^#_!?@." and ":" = txt[after + 1]; :1b];
+        opens: (0 # 0j), where "{" = txt;
+        opens: opens where opens < -1 + count txt;
+        opens: opens where "[" = txt[1 + opens];
+        relevant: opens where opens < p;
+        if[0 = count relevant; :0b];
+        openAt: last relevant;
+        closes: (0 # 0j), where "]" = txt;
+        closes: closes where closes > openAt;
+        if[0 = count closes; :0b];
+        p < first closes
+    }[masked;name;] each positions
+ };
+
+.tst.dslShadowedNames:{[lines]
+    names: string key .tst.dslExports;
+    maskedLines: .tst.maskQLine each lines;
+    `$names where {[masked;name]
+        any .tst.dslLineDeclares[;name] each masked
+    }[maskedLines;] each names
+ };
+
+/ Return the source bounds of the expression containing `at`. Semicolons and
+/ the nearest unmatched opener/closer delimit q expressions; strings/comments
+/ are already blanked in `masked`. The end is exclusive.
+.tst.dslExpressionBounds:{[masked;at]
+    start: 0;
+    depth: 0;
+    i: at - 1;
+    done: 0b;
+    while[(i >= 0) and not done;
+        c: masked i;
+        $[c in "])}"; depth+: 1;
+          c in "[({";
+            $[depth > 0; depth-: 1; [start: i + 1; done: 1b]];
+          (c = ";") and 0 = depth; [start: i + 1; done: 1b];
+          ::];
+        i-: 1;
+    ];
+    finish: count masked;
+    depth: 0;
+    i: at;
+    done: 0b;
+    while[(i < count masked) and not done;
+        c: masked i;
+        $[c in "[({"; depth+: 1;
+          c in "])}";
+            $[depth > 0; depth-: 1; [finish: i; done: 1b]];
+          (c = ";") and 0 = depth; [finish: i; done: 1b];
+          ::];
+        i+: 1;
+    ];
+    start,finish
+ };
+
+/ Find the argument on the left of a temporary primitive marker in a q parse
+/ tree. q is right-to-left and has no precedence hierarchy, so asking q's own
+/ parser is materially safer than guessing whether `x+1 musteq y` means
+/ `(x+1) musteq y` (it does not: the assertion's left argument is `1`).
+.tst.dslMarkerLeft:{[tree;marker]
+    if[(0h = type tree) and (3 <= count tree) and marker ~ first tree;
+        :(1b;tree 1)];
+    if[not 0h = type tree; :(0b;::)];
+    found: .tst.dslMarkerLeft[;marker] each tree;
+    hits: where first each found;
+    $[count hits; found first hits; (0b;::)]
+ };
+
+.tst.dslParsedAs:{[source;target]
+    parsed: @[{[s](1b;parse s)};source;{[e](0b;::)}];
+    (first parsed) and target ~ last parsed
+ };
+
+/ Locate the exact source span q binds as the assertion's left argument. The
+/ selected marker is a real dyadic primitive, so it has the same parse binding
+/ as qspec's .q-hosted assertion functions. Candidate suffixes are then parsed
+/ until one reproduces the marker node's left subtree.
+.tst.dslAssertionLeftStart:{[txt;masked;at;width;adverb]
+    bounds: .tst.dslExpressionBounds[masked;at];
+    exprStart: first bounds;
+    markers: ("xexp";"binr";"wavg";"wsum");
+    available: markers where not {[source;word] any .tst.bareTokenAt[source;;word] each til count source}[masked;] each markers;
+    if[0 = count available; :0N];
+    markerName: first available;
+    markerText: markerName,adverb;
+    marker: $[count adverb; first parse markerText,"[0;0]"; value markerName];
+    / Only the completed source to the LEFT is needed. A constant dummy right
+    / operand lets this work when the real operand opens a lambda that continues
+    / on later physical lines (a common qspec mock idiom).
+    marked: ((at - exprStart) # exprStart _ txt), markerText," 0";
+    parsed: @[{[s](1b;parse s)};marked;{[e](0b;::)}];
+    if[not first parsed; :0N];
+    located: .tst.dslMarkerLeft[last parsed;marker];
+    if[not first located; :0N];
+    target: last located;
+    leftText: .tst.rstrip at # txt;
+    leftEnd: count leftText;
+    starts: exprStart + til leftEnd - exprStart;
+    candidates: {[source;finish;start] (finish - start) # start _ source}[txt;leftEnd;] each starts;
+    matches: where .tst.dslParsedAs[;target] each candidates;
+    $[count matches; starts first matches; 0N]
+ };
+
+/ Find the rightmost unqualified infix assertion before `limit`. Prefix calls
+/ (`musteq[a;b]`) are handled by the ordinary qualifier and are not rewritten.
+.tst.rightmostInfixAssertion:{[masked;shadowed;limit]
+    names: string key[.tst.asserts],`mock;
+    names: names iasc neg count each names;
+    i: limit - 1;
+    while[i >= 0;
+        bare: {[source;at;name] .tst.bareTokenAt[source;at;name]}[masked;i;] each names;
+        qualified: {[source;at;name]
+            token: ".tst.",name;
+            rightAt: at + count token;
+            leftOk: (0 = at) or not source[at - 1] in .Q.a,.Q.A,.Q.n,"_`";
+            rightOk: (rightAt = count source) or
+                not source[rightAt] in .Q.a,.Q.A,.Q.n,"_";
+            leftOk and rightOk and token ~ (count token) # at _ source
+        }[masked;i;] each names;
+        candidates: where qualified or (bare and not (`$names) in shadowed);
+        if[count candidates;
+            name: names first candidates;
+            width: count name;
+            if[qualified first candidates; width+: 5];
+            after: i + width;
+            adverb: "";
+            if[(after < count masked) and "'" = masked after;
+                adverb: "'";
+                after+: 1];
+            while[(after < count masked) and masked[after] in " \t\n"; after+: 1];
+            / A qualified helper can also be an ordinary value on the RHS of
+            / another expression (`actual mustmatch .tst.mock`). Only classify
+            / it as infix when a real right operand follows.
+            if[(after < count masked) and not masked[after] in "[;])}";
+                :(i;name;width;adverb;qualified first candidates)];
+        ];
+        i-: 1;
+    ];
+    (-1;"";0;"";0b)
+ };
+
+/ Fully-qualified q functions cannot be used in infix syntax. Rewrite each
+/ assertion as a left-bound projection (`lhs musteq rhs` ->
+/ `.tst.musteq[lhs;] rhs`). This leaves the complete right-hand expression in
+/ q's hands, works across physical lines, and preserves right-to-left binding.
+.tst.rewriteInfixAssertions:{[shadowed;line]
+    txt: (),line;
+    limit: count txt;
+    pair: .tst.rightmostInfixAssertion[.tst.maskQLine txt;shadowed;limit];
+    while[0 <= first pair;
+        at: first pair;
+        name: pair 1;
+        width: pair 2;
+        adverb: pair 3;
+        explicitlyQualified: pair 4;
+        masked: .tst.maskQLine txt;
+        leftStart: .tst.dslAssertionLeftStart[txt;masked;at;width;adverb];
+        if[0N ~ leftStart;
+            '"resQ could not safely bind infix DSL call ",name];
+        rhsStart: at + width + count adverb;
+        lhs: .tst.rstrip leftStart _ at # txt;
+        rhs: rhsStart _ txt;
+        gap: $[(count rhs) and first rhs in " \t"; ""; " "];
+        target: $[explicitlyQualified; ".tst.",name; ".tst.dsl.",name];
+        txt: (leftStart # txt), target,adverb,"[",lhs,";]",gap,rhs;
+        / Re-scan the complete rewritten line: an assertion may live inside the
+        / left operand (for example probe[{1 .tst.musteq 1f}] musteq 1). The
+        / generated prefix call is skipped by rightmostInfixAssertion, so this
+        / still terminates without maintaining fragile shifted offsets.
+        limit: count txt;
+        pair: .tst.rightmostInfixAssertion[.tst.maskQLine txt;shadowed;limit];
+    ];
+    txt
+ };
+
+/ Qualify only bare, executable DSL tokens. Symbols, strings, comments,
+/ already-qualified names, and file-declared shadows are left byte-for-byte.
+.tst.qualifyDslLine:{[shadowed;line]
+    txt: (),line;
+    masked: .tst.maskQLine txt;
+    names: string key .tst.dslExports;
+    names: names iasc neg count each names;
+    out: "";
+    i: 0;
+    while[i < count txt;
+        candidates: where {[source;at;name]
+            .tst.bareTokenAt[source;at;name]
+        }[masked;i;] each names;
+        candidates: candidates where not (`$names candidates) in shadowed;
+        if[count candidates;
+            name: names first candidates;
+            out,: ".tst.dsl.", name;
+            i+: count name;
+        ];
+        if[(i < count txt) and 0 = count candidates;
+            out,: txt i;
+            i+: 1;
+        ];
+    ];
+    out
+ };
+
+.tst.preprocessOrdinaryLine:{[lineNo;shadowed;line]
+    rewrittenLine: .tst.rewriteSystemLoad line;
+    .tst.annotateExpectationLineWith[lineNo;rewrittenLine;shadowed]
+ };
+
+/ Bind DSL across complete q statements so an operator-leading continuation
+/ (`expr` on one line, `musteq expected` on the next) retains its left operand.
+/ Annotation already happened per physical line, preserving declaration lines;
+/ qualification returns to per-line masking after the infix pass.
+.tst.bindDslLines:{[shadowed;lines]
+    statements: .tst.groupStatements lines;
+    out: enlist ();
+    i: 0;
+    while[i < count statements;
+        joined: "\n" sv statements[i;1];
+        rewritten: .tst.rewriteInfixAssertions[shadowed;joined];
+        parts: "\n" vs rewritten;
+        out,: .tst.qualifyDslLine[shadowed;] each parts;
+        i+: 1;
+    ];
+    1 _ out
+ };
+
 .tst.preprocessScript:{[lines]
     lines: .utl.pathToString each lines;
+    shadowed: .tst.dslShadowedNames lines;
     state: 0b;                 / 1b while inside a block comment
     out: enlist ();            / sentinel keeps the accumulator heterogeneous
     i: 0;
@@ -166,10 +455,10 @@
                         out,: enlist ".tst.sysl \"", pEsc, "\";" ];
                       out,: enlist "system \"", esc, "\";" ] ] ];
             / Ordinary line (includes "/ text" line comments).
-            out,: enlist .tst.annotateExpectationLine[i + 1;.tst.rewriteSystemLoad ln] ];
+            out,: enlist .tst.preprocessOrdinaryLine[i + 1;shadowed;ln] ];
         i +: 1;
     ];
-    1 _ out
+    .tst.bindDslLines[shadowed;1 _ out]
  };
 
 / Rewrite a runtime `system "l ", <expr>` load (the form real suites use to load

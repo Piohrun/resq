@@ -362,9 +362,9 @@ no-tests run inserts a synthetic error row and exits **1**, not 3.
 All keys optional; CLI flags win over the file. Common ones:
 `"testFilePatterns": ["*_spec.q"]`, `"strict": true`, `"failFast": true`,
 `"outDir": "reports"`, `"fmt": "text"|"junit"|"json"`,
-`"pollutionGuard": false` (skip namespace snapshotting),
-`"qNamespaceExports": false` (**caveat**: then unqualified DSL names like
-`should`/`musteq` no longer resolve — you must use `.tst.*` everywhere).
+`"pollutionGuard": false` (skip namespace snapshotting). The deprecated
+`qNamespaceExports` boolean is accepted but ignored: bare DSL names still work
+and resQ never writes them into reserved `.q`.
 
 ## 13. Common errors
 

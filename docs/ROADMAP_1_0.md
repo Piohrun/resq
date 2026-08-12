@@ -30,9 +30,9 @@ resQ 1.0 must guarantee that:
 
 ## 0.5.0 — Safe adoption
 
-- [ ] Stop exporting the DSL through reserved `.q` during normal execution.
-- [ ] Populate each test sandbox from the canonical `.tst` export table.
-- [ ] Deprecate/remove the ineffective `qNamespaceExports` configuration.
+- [x] Stop exporting the DSL through reserved `.q` during normal execution.
+- [x] Bind test source through a canonical, stable `.tst.dsl` export table.
+- [x] Deprecate the ineffective `qNamespaceExports` configuration.
 - [ ] Make expectation-line annotation collision-safe and add a kill switch.
 - [ ] Add a production-style application compatibility corpus.
 - [ ] Publish the exact public qspec compatibility boundary.

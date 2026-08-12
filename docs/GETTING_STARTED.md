@@ -162,9 +162,9 @@ Put `resq.json` in the directory where you invoke resQ:
 }
 ```
 
-`qNamespaceExports` defaults to `true` for qspec compatibility. New projects can
-set it to `false` after adopting fully qualified `.tst.*` DSL and assertion
-names rather than unqualified aliases.
+Bare qspec-style DSL names and explicit `.tst.*` calls are both supported.
+resQ binds bare names while loading test source and does not modify reserved
+`.q`. The old `qNamespaceExports` key is accepted but deprecated and ignored.
 
 ## Where to go next
 

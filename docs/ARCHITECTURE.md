@@ -59,7 +59,11 @@ For convenience, key DSL functions are exported:
 - `mock`, `fixture`, `fixtureAs`
 - `skip`, `pending`, `skipIf`
 
-For backward compatibility, resQ can also export these helpers into `.q`. `.q` is reserved by kdb+, so this is controlled by `qNamespaceExports` in `resq.json` and defaults to enabled for existing suites. With the flag off, unqualified DSL names will not resolve inside sandboxed test files (q's namespace fallback goes through `.q`); fully-qualified `.tst.*` names are required throughout.
+Test-source preprocessing binds unqualified public names to stable
+`.tst.dsl.*` helpers. This preserves qspec syntax without writing into reserved
+`.q`, so ordinary application locals such as `before`, `after`, `mock`, or `it`
+remain legal. Explicit `.tst.*` calls stay available and intentionally remain
+mockable. The legacy `qNamespaceExports` key is deprecated and ignored.
 
 ## File Structure
 
