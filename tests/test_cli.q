@@ -123,6 +123,17 @@
         .tst.cliParseFails[("test"; "-seed"; "-1"); "Value must be >= 0 for *"] musteq 1b;
     };
 
+    should["parse stable-ID rerun selection and reject contradictory modes"]{
+        lastRun:.tst.parseCLI ("test"; "--last-failed"; "--state-file"; "cache/run.json"; "suite.q");
+        firstRun:.tst.parseCLI ("test"; "--failed-first"; "suite.q");
+        lastRun[`ok] musteq 1b;
+        lastRun[`options;`lastFailed] musteq 1b;
+        lastRun[`options;`stateFile] musteq "cache/run.json";
+        firstRun[`options;`failedFirst] musteq 1b;
+        .tst.cliParseFails[("test"; "-last-failed"; "-failed-first");
+            "Options -last-failed and -failed-first cannot be used together*"] musteq 1b;
+    };
+
     should["support both spellings for every value option"]{
         single: .tst.parseCLI ("test"; "-maxTestTime"; "0"; "-fuzzLimit"; "4";
             "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";

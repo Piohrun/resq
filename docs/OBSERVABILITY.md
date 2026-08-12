@@ -10,6 +10,8 @@ system you already operate; do not keep history inside the q test process.
   resQ versions, host, and effective config as run dimensions.
 - `run.ordering` records whether execution was randomized, the replay seed, and
   the private PRNG algorithm. It never depends on or advances q's global seed.
+- `run.selection` records all/last-failed/failed-first mode, history health,
+  prior failure count, cache path, and the number of tests selected.
 - `tests[].testId` is the stable test identity. It hashes repository-relative
   file, suite, and description and therefore survives a different checkout root.
 - `parameterCases[].caseId` identifies a parameter case. Use `(testId, caseId)`

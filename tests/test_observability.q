@@ -14,7 +14,7 @@
     .tst.beginRunMetadata[];
     runInfo:.tst.finishRunMetadata[];
     metadataKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
-      `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering;
+      `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection;
     key[runInfo] mustin metadataKeys;
     runInfo[`id] mustlike "run_*";
     count[runInfo`finishedAt] mustgt 0;

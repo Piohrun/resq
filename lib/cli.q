@@ -11,9 +11,9 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "seed";enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
-.tst.cli.specKinds:(25 # `flag), 17 # `value;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "seed";enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile"));
+.tst.cli.specKinds:(27 # `flag), 18 # `value;
 .tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed;
 .tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
 
@@ -176,6 +176,8 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
 
     if[(1b ~ options`exit) and 1b ~ options`noquit;
         :.tst.cli.error "Options -exit and -noquit cannot be used together"];
+    if[(1b~options`lastFailed) and 1b~options`failedFirst;
+        :.tst.cli.error "Options -last-failed and -failed-first cannot be used together"];
 
     positionalPositions: allPositions where
         (not isOption) and
@@ -246,6 +248,7 @@ printUsage:{[]
         "  -desc                 List suites and tests without running them";
         "  -ff / -fh             Fail fast / fail hard";
         "  -random-order -seed N Replayable private-PRNG file/suite/test order";
+        "  -last-failed | -failed-first  Select/prioritize tests from stable-ID history";
         "";
         "REPORTS";
         "  -junit | -xunit | -json      Write a report to -outDir (default '.')";
@@ -321,6 +324,9 @@ initCLI:{[parsed]
     if[options`quiet; .tst.app.quiet: 1b];
     if[options`randomOrder; .tst.app.randomOrder: 1b];
     if[not 10h=type options`seed; .tst.app.executionSeed: "j"$options`seed];
+    if[options`lastFailed; .tst.app.lastFailed: 1b];
+    if[options`failedFirst; .tst.app.failedFirst: 1b];
+    if[0<count options`stateFile; .tst.app.stateFile: options`stateFile];
 
     / Process-isolation mode: each discovered test FILE runs in its own q
     / subprocess (see lib/isolate.q). -isolateTimeout sets the per-FILE wall

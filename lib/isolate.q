@@ -314,7 +314,7 @@
 / the parent still applies the ordinary no-results failure after all files have
 / been aggregated, so a filter that matches nowhere remains non-zero.
 .tst.isolate.filtersActive:{[]
-    any 0 < count each (
+    (1b~@[get;`.tst.app.lastFailed;0b]) or any 0 < count each (
         @[get; `.tst.app.runSpecs; ()];
         @[get; `.tst.app.excludeSpecs; ()];
         @[get; `.tst.app.tagFilter; ()];
@@ -346,6 +346,9 @@
     argv: .tst.isolate.appendFlag[argv; "-random-order"; @[get; `.tst.app.randomOrder; 0b]];
     if[1b~@[get;`.tst.app.randomOrder;0b];
         argv:.tst.isolate.appendValue[argv;"-seed";@[get;`.tst.app.executionSeed;0j]]];
+    argv:.tst.isolate.appendFlag[argv;"-last-failed";@[get;`.tst.app.lastFailed;0b]];
+    argv:.tst.isolate.appendFlag[argv;"-failed-first";@[get;`.tst.app.failedFirst;0b]];
+    argv:.tst.isolate.appendValue[argv;"-state-file";.tst.rerunStatePath[]];
     / Marks where the child's own report starts so readCaptured can forward the
     / test output without the child's duplicate summary and scratch-path
     / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.
@@ -631,6 +634,8 @@
     .resq.state.results: .resq.state.emptyResults[];
     .tst.app.baseDir: system "cd";
     .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
+    .tst.beginRunMetadata[];
+    .tst.loadRerunState[];
 
     files: .tst.selectTestFiles .tst.findTests paths;
     n: count files;
@@ -678,8 +683,6 @@
     .tst.app.expectationsRan: .tst.isolate.executedCount[];
     .tst.isolate.addGlobalStrict[];
 
-    .resq.report .resq.state.results;
-
     status: .tst.normalizeResultStatus each .resq.state.results`status;
     hasLoadError: any (.resq.state.results`suite) in `FILE_LOAD_ERROR;
     anyFailure: any status in `fail`error;
@@ -691,6 +694,9 @@
                 anyFailure; .resq.EXIT.FAIL;
                 .resq.EXIT.PASS];
     .tst.app.passed: exitCode = .resq.EXIT.PASS;
+    .tst.finalizeRerunSelectionMetadata count .resq.state.results;
+    .tst.persistRerunState[];
+    .resq.report .resq.state.results;
     exitCode
  };
 

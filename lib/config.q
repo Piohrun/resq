@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json")
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -183,7 +183,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -198,7 +198,9 @@ validateConfig:{[cfg]
             "qspecCompat must be a boolean";
             "covStatements must be a boolean";
             "allowPartialLineCoverage must be a boolean";
-            "randomOrder must be a boolean");
+            "randomOrder must be a boolean";
+            "lastFailed must be a boolean";
+            "failedFirst must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
   intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed;
@@ -253,6 +255,12 @@ validateConfig:{[cfg]
   warnings,:raze checkPercentMax[cfg;] each percentNames;
 
   warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];
+  warnings,: raze checkType[cfg;;(10h;-10h);]'[enlist `stateFile; enlist "stateFile must be a nonempty string or symbol"];
+  if[`stateFile in key cfg;if[0=count .tst.toString cfg`stateFile;
+      warnings,:enlist "stateFile must be a nonempty string or symbol"]];
+  if[(1b~$[`lastFailed in key cfg;cfg`lastFailed;0b]) and
+     1b~$[`failedFirst in key cfg;cfg`failedFirst;0b];
+      warnings,:enlist "lastFailed and failedFirst cannot both be true"];
 
   specNames:`excludeSpecs`runSpecs;
   specMsgs:("excludeSpecs should be a symbol list or comma-separated string";
@@ -294,7 +302,7 @@ invalidConfigKeys:{[cfg]
   ];
 
   / Boolean-typed keys: must be a single boolean.
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
   / Integer-typed keys: must be a single integer-like value, not null, AND
@@ -321,6 +329,12 @@ invalidConfigKeys:{[cfg]
 
   / outDir: string or symbol.
   if[`outDir in key cfg; if[not (type cfg`outDir) in 10 -10 11h; invalid,: `outDir]];
+  if[`stateFile in key cfg;
+    if[(not (type cfg`stateFile) in 10 -10h) or 0=count .tst.toString cfg`stateFile;
+      invalid,:`stateFile]];
+  if[(1b~$[`lastFailed in key cfg;cfg`lastFailed;0b]) and
+     1b~$[`failedFirst in key cfg;cfg`failedFirst;0b];
+      invalid,:`lastFailed`failedFirst];
 
   / spec lists: symbol list or comma-separated string.
   specNames:`excludeSpecs`runSpecs;
@@ -383,6 +397,9 @@ applyConfig:{[cfg]
         .tst.app.expectationLineAnnotations: cfg`expectationLineAnnotations];
     if[ok`randomOrder; .tst.app.randomOrder: cfg`randomOrder];
     if[ok`seed; .tst.app.executionSeed: "j"$cfg`seed];
+    if[ok`lastFailed; .tst.app.lastFailed: cfg`lastFailed];
+    if[ok`failedFirst; .tst.app.failedFirst: cfg`failedFirst];
+    if[ok`stateFile; .tst.app.stateFile: .tst.toString cfg`stateFile];
 
     if[ok`fuzzLimit; .tst.output.fuzzLimit: cfg`fuzzLimit];
     if[ok`maxTestTime; .tst.app.maxTestTime: cfg`maxTestTime];

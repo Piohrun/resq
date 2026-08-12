@@ -349,7 +349,7 @@
         `coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage,
         `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
         `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
-        `randomOrder`executionSeed,
+        `randomOrder`executionSeed`lastFailed`failedFirst`stateFile,
         `tagFilter`excludeTagFilter`coverageSources;
     appKeys:key `.tst.app;
     present:names where names in appKeys;
@@ -390,11 +390,12 @@
         "j"$@[get;`.tst.app.executionSeed;0j];
         "md5-counter-v1");
     metaKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
-        `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering;
+        `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection;
     .tst.app.runMetadata:metaKeys!(
         runId;.tst.isoTimestamp started;"";0f;host;root;string .z.K;
         string .z.k;string .z.o;$[`VERSION in key `.resq;.resq.VERSION;"unknown"];
-        .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[];ordering);
+        .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[];ordering;
+        .tst.selectionMetadata[]);
     .tst.app.diagnostics:();
     ::
  };
@@ -407,6 +408,7 @@
     runMeta[`finishedAt]:.tst.isoTimestamp finished;
     runMeta[`durationSeconds]:("f"$finished-.tst.app.runStartedAt)%1000000000;
     runMeta[`config]:.tst.selectedConfig[];
+    runMeta[`selection]:.tst.selectionMetadata[];
     .tst.app.runMetadata:runMeta;
     runMeta
  };

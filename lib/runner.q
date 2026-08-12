@@ -553,6 +553,7 @@
     .tst.app.executionState: `notStarted;
     .tst.app.baseDir: system "cd";
     .tst.beginRunMetadata[];
+    .tst.loadRerunState[];
     configWarnings:@[get;`.resq.config.validationWarnings;{()}];
     if[count configWarnings;
         {.tst.recordDiagnostic[`configuration;`warning;`configuration;x;()!()]} each configWarnings];
@@ -631,6 +632,10 @@
         / the same sequence; suites are permuted independently within each file.
         .tst.app.allSpecs:.tst.orderSpecsByFile specsList;
     ];
+    specsList:$[98h=type .tst.app.allSpecs;
+        {[tbl;idx]tbl idx}[.tst.app.allSpecs] each til count .tst.app.allSpecs;
+        .tst.app.allSpecs];
+    .tst.app.allSpecs:.tst.applyRerunSelection specsList;
  };
 
 / Iterate the filtered spec list, running each via .tst.runSpec inside a
@@ -1094,6 +1099,7 @@
     .tst.runAllPhase.runSafely[`cleanup; .tst.runAllPhase.finalCleanup];
     .tst.runAllPhase.runSafely[`cleanupErrors; .tst.runAllPhase.injectCleanupErrors];
     .tst.runAllPhase.runSafely[`resultsSummary; .tst.runAllPhase.computePassed];
+    .tst.runAllPhase.runSafely[`rerunState; .tst.persistRerunState];
     .tst.runAllPhase.runSafely[`report; {.tst.markIsolatedReportBegin[]; .tst.printRunAudit[]; .resq.report .resq.state.results}];
     ::
  };

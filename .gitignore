@@ -55,3 +55,4 @@ missingTests/
 test-results.xml
 test-results.json
 test-results/
+.resq/

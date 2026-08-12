@@ -219,6 +219,10 @@ q resq.q test tests/ -isolate -isolateWorkers 4     # bounded concurrent childre
 
 # Expose order-dependent tests reproducibly (does not touch q's global seed)
 q resq.q test tests/ -random-order -seed 4242
+
+# Tighten the local feedback loop using stable test IDs
+q resq.q test tests/ -last-failed        # alias: -lf
+q resq.q test tests/ -failed-first
 ```
 
 Tags are `#word` tokens embedded in the suite title string:

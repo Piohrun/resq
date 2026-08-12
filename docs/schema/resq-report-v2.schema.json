@@ -53,6 +53,19 @@
             "seed": {"type": "integer", "minimum": 0},
             "algorithm": {"const": "md5-counter-v1"}
           }
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "stateFile", "historyStatus", "priorFailedCount", "applied", "selectedTestCount"],
+          "properties": {
+            "mode": {"enum": ["all", "lastFailed", "failedFirst"]},
+            "stateFile": {"type": "string"},
+            "historyStatus": {"enum": ["ok", "missing", "invalid", "unsupported"]},
+            "priorFailedCount": {"type": "integer", "minimum": 0},
+            "applied": {"type": "boolean"},
+            "selectedTestCount": {"type": "integer", "minimum": 0}
+          }
         }
       }
     },

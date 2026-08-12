@@ -16,6 +16,9 @@
   cfg[`coverageSources] mustmatch ();
   cfg[`randomOrder] musteq 0b;
   cfg[`seed] musteq 0j;
+  cfg[`lastFailed] musteq 0b;
+  cfg[`failedFirst] musteq 0b;
+  cfg[`stateFile] musteq ".resq/last-run.json";
   };
 
  should["accept but ignore the deprecated qNamespaceExports switch"]{
@@ -50,6 +53,14 @@
   appliedSeed musteq 42j;
   badWarnings:.tst.validateConfig (enlist `seed)!enlist -1;
   must[any badWarnings like "seed must be >= 0*";"negative seeds must be rejected"];
+  };
+ should["validate rerun selection settings"]{
+  warnings:.tst.validateConfig `lastFailed`failedFirst`stateFile!(1b;0b;"cache/state.json");
+  warnings mustmatch ();
+  conflict:.tst.invalidConfigKeys `lastFailed`failedFirst!(1b;1b);
+  `lastFailed`failedFirst mustin conflict;
+  emptyPath:.tst.invalidConfigKeys (enlist `stateFile)!enlist "";
+  emptyPath musteq enlist `stateFile;
   };
  should["load and parse JSON config file"]{
   / Create test config file

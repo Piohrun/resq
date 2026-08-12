@@ -34,6 +34,9 @@ if[not `passOnly in key `.tst.app; .tst.app.passOnly: 0b];
 if[not `quiet in key `.tst.app; .tst.app.quiet: 0b];
 if[not `randomOrder in key `.tst.app; .tst.app.randomOrder: 0b];
 if[not `executionSeed in key `.tst.app; .tst.app.executionSeed: 0j];
+if[not `lastFailed in key `.tst.app; .tst.app.lastFailed: 0b];
+if[not `failedFirst in key `.tst.app; .tst.app.failedFirst: 0b];
+if[not `stateFile in key `.tst.app; .tst.app.stateFile: ".resq/last-run.json"];
 if[not `allSpecs in key `.tst.app; .tst.app.allSpecs: ()];
 if[not `passed in key `.tst.app; .tst.app.passed: 1b];
 

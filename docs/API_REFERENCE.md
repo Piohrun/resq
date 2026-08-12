@@ -1755,6 +1755,9 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-fh` / `--fail-hard` | Halt remaining expectations and suites on first failure; mandatory cleanup still runs |
 | `-random-order` / `--randomOrder` | Deterministically permute files, suites, and expectations with resQ's private PRNG |
 | `-seed N` | Non-negative replay seed for `-random-order` (default `0`); recorded in report metadata |
+| `-last-failed` / `-lf` | Run only tests whose stable IDs failed or errored in the previous run; missing/empty history safely falls back to the full selection |
+| `-failed-first` | Run previous failures first, then the rest, preserving the current deterministic order within each cohort |
+| `-state-file PATH` | Override the versioned rerun cache path (default `.resq/last-run.json`) |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
 | `-only PATTERN` | Run only suites whose title matches the `like` glob pattern |
 | `-exclude PATTERN` | Skip suites whose title matches the `like` glob pattern |
@@ -1792,6 +1795,14 @@ summary. Other progress and diagnostic lines can still be written to
 stdout/stderr unless `-quiet` suppresses them. See
 [Test reporting](REPORTING.md) for filenames, the JSON schema, XML mappings, and
 size limits.
+
+Every run that executes at least one real test atomically replaces the
+versioned rerun cache at `stateFile`. Collection/framework-only failures and
+describe-only runs leave prior history intact. `-last-failed` and
+`-failed-first` use the report's stable `testId`; missing, empty, corrupt, or
+unsupported history falls back to the complete current selection and emits a
+typed rerun diagnostic. The default `.resq/` cache directory should remain
+uncommitted.
 
 Coverage runs additionally write `coverage.lcov`, `coverage.json`,
 `coverage.html`, and `coverage_state.txt`. All four are projections of one
@@ -1861,6 +1872,9 @@ Create `resq.json` in project root:
     "failHard": false,
     "randomOrder": false,
     "seed": 0,
+    "lastFailed": false,
+    "failedFirst": false,
+    "stateFile": ".resq/last-run.json",
     "pollutionGuard": true,
     "fuzzLimit": 100,
     "maxTestTime": 0,
@@ -1899,6 +1913,9 @@ Create `resq.json` in project root:
 | `failHard` | `false` | Halt remaining expectations and suites after failure; mandatory cleanup still runs |
 | `randomOrder` | `false` | Deterministically permute files, suites, and expectations |
 | `seed` | `0` | Non-negative replay seed used by randomized execution order |
+| `lastFailed` | `false` | Select only failures from the previous stable-ID state |
+| `failedFirst` | `false` | Prioritize failures from the previous stable-ID state |
+| `stateFile` | `.resq/last-run.json` | Versioned, atomically replaced local rerun cache |
 | `pollutionGuard` | `true` | Detect and restore application-namespace changes per suite |
 | `maxTestTime` | `0` | Post-execution per-test budget in milliseconds (`0` disables) |
 | `reportLimit` | `50000` | Maximum rendered failure/error message characters |
