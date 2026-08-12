@@ -1,6 +1,6 @@
 # resQ
 
-**resQ** is a drop-in, test-source-compatible replacement for
+**resQ** is a much richer, mostly test-source-compatible replacement for
 [`qspec`](https://github.com/nugend/qspec), plus a testing, benchmarking, and
 discovery framework for **kdb+/q**. Existing qspec suites can run through the
 `qspec` launcher without rewriting their DSL, assertions, fixtures, mocks, fuzz
@@ -11,7 +11,8 @@ The compatibility promise is executable: resQ runs a pinned, unmodified copy of
 qspec's seven public test files in its own test suite. qspec's private runner and
 reporter internals are not compatibility APIs; the precise boundary and the few
 intentional correctness differences are documented in
-[Migrating from qspec](docs/MIGRATION.md).
+[qspec compatibility contract](docs/QSPEC_COMPATIBILITY.md) and
+[migration guide](docs/MIGRATION.md).
 
 ## Project Status
 
@@ -392,6 +393,7 @@ See `docs/` for detailed guides:
 | `docs/TROUBLESHOOTING.md` | Common errors, exit codes, debug tips |
 | `docs/WATCH.md` | Watch mode configuration |
 | `docs/MIGRATION.md` | Migrating from qspec to resQ |
+| `docs/QSPEC_COMPATIBILITY.md` | Versioned public qspec compatibility boundary |
 
 See `docs/README.md` for a suggested reading order.
 

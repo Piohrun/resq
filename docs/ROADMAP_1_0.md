@@ -35,7 +35,7 @@ resQ 1.0 must guarantee that:
 - [x] Deprecate the ineffective `qNamespaceExports` configuration.
 - [x] Make expectation-line annotation collision-safe and add a kill switch.
 - [x] Add a production-style application compatibility corpus.
-- [ ] Publish the exact public qspec compatibility boundary.
+- [x] Publish the exact public qspec compatibility boundary.
 
 ## 0.6.0 — Trustworthy coverage
 

@@ -22,6 +22,11 @@ All notable changes to the **resQ** project will be documented in this file.
   locals named `before`, `after`, `mock`, `it`, `holds`, `perf`, `must`,
   `should`, `fixture`, `beforeAll`, and `afterAll`. Its unchanged qspec-shaped
   tests run as a required subprocess contract.
+- The qspec compatibility promise now has an explicit version-1 contract:
+  guaranteed DSL/assertions/options, intentional comparison behavior, private
+  API/output exclusions, upstream commit pin, and SemVer change policy. Project
+  wording now says "mostly test-source-compatible replacement" rather than
+  implying a strict superset.
 - Every recoverable `runSpec` path now executes one independently trapped
   finalizer. `beforeAll` failures, fail-hard halts, and unexpected suite-runner
   exceptions restore application globals, close resources, restore runtime

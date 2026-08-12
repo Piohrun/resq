@@ -1,6 +1,7 @@
 # Migrating from qspec to resQ
 
-resQ is test-source-compatible with qspec's public surface. The recommended
+resQ is mostly test-source-compatible with qspec's public test surface. It is
+not a strict superset of qspec's private APIs or outputs. The recommended
 drop-in path is the `bin/qspec` launcher: it adds test mode and qspec comparison
 semantics automatically, so existing test files and legacy runner options can
 stay unchanged.
@@ -12,7 +13,9 @@ qspec tests/                 # existing qspec invocation, now backed by resQ
 The promise is pinned in the repository: `tests/test_qspec_upstream.q` runs
 byte-identical copies of qspec's seven public test files from commit
 `9b846b68a8d808e472ba504d18c325b14b468087` through that launcher on every full
-resQ test run. This guide covers the intentional boundary beyond that contract.
+resQ test run. The normative, versioned boundary is
+[QSPEC_COMPATIBILITY.md](QSPEC_COMPATIBILITY.md); this guide covers the
+intentional differences and migration workflow.
 
 ---
 

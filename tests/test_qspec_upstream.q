@@ -35,6 +35,20 @@
  };
 
 .tst.desc["Pinned upstream qspec public tests #slow"]{
+  should["publish the exact versioned public compatibility boundary"]{
+    doc:"\n" sv read0 hsym `$ .resq.HOME,"/docs/QSPEC_COMPATIBILITY.md";
+    must[.tst.literalIn["Contract version: **1**";doc];
+         "the compatibility boundary must be explicitly versioned"];
+    must[.tst.literalIn["9b846b68a8d808e472ba504d18c325b14b468087";doc];
+         "the published boundary must name the executable upstream pin"];
+    must[.tst.literalIn["nested `desc` blocks";doc];
+         "known source exclusions must be explicit"];
+    must[.tst.literalIn["reporter callbacks";doc];
+         "private reporter compatibility must not be implied"];
+    must[.tst.literalIn["not a strict superset";doc];
+         "the headline claim must not overstate compatibility"];
+  };
+
   skipIf[not .tst.testState.qspecUpstream.canRun;
          "pass unchanged through the qspec compatibility launcher"]{
     { [entry]

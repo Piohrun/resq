@@ -62,7 +62,8 @@ Before changing the command used in CI:
 4. Adopt native `resq test` only when you want resQ's stricter whole-value
    `musteq`/`mustne` semantics.
 
-The exact compatibility boundary and comparison differences are in
+The normative boundary is [qspec compatibility](QSPEC_COMPATIBILITY.md); the
+comparison differences and adoption steps are in
 [Migrating from qspec](MIGRATION.md).
 
 ## 3B. Write a new resQ test
