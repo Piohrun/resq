@@ -11,10 +11,10 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "seed";enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile"));
-.tst.cli.specKinds:(27 # `flag), 18 # `value;
-.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed`shardIndex`shardCount`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile"));
+.tst.cli.specKinds:(27 # `flag), 20 # `value;
+.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed`shardIndex`shardCount;
 .tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
@@ -152,12 +152,12 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     invalidRanges: where
         (numericValues < 0) or
         ((numericOptionNames = `isolateTimeout) and numericValues = 0) or
-        ((numericOptionNames = `isolateWorkers) and numericValues = 0) or
+        ((numericOptionNames in `isolateWorkers`shardCount) and numericValues = 0) or
         ((numericOptionNames in .tst.cli.percentNames) and numericValues > 100);
     if[count invalidRanges;
         badIndex: first invalidRanges;
         numericValuePositions: valuePositions where numericMask;
-        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers; "> 0";
+        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers`shardCount; "> 0";
                        numericOptionNames[badIndex] in .tst.cli.percentNames; "between 0 and 100";
                        ">= 0"];
         :.tst.cli.error "Value must be ", requirement, " for ",
@@ -178,6 +178,10 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
         :.tst.cli.error "Options -exit and -noquit cannot be used together"];
     if[(1b~options`lastFailed) and 1b~options`failedFirst;
         :.tst.cli.error "Options -last-failed and -failed-first cannot be used together"];
+    shardIndex:$[10h=type options`shardIndex;0j;"j"$options`shardIndex];
+    shardCount:$[10h=type options`shardCount;1j;"j"$options`shardCount];
+    if[shardIndex>=shardCount;
+        :.tst.cli.error "shard-index must be less than shard-count"];
 
     positionalPositions: allPositions where
         (not isOption) and
@@ -249,6 +253,7 @@ printUsage:{[]
         "  -ff / -fh             Fail fast / fail hard";
         "  -random-order -seed N Replayable private-PRNG file/suite/test order";
         "  -last-failed | -failed-first  Select/prioritize tests from stable-ID history";
+        "  -shard-index I -shard-count N  Run zero-based deterministic file shard I/N";
         "";
         "REPORTS";
         "  -junit | -xunit | -json      Write a report to -outDir (default '.')";
@@ -327,6 +332,8 @@ initCLI:{[parsed]
     if[options`lastFailed; .tst.app.lastFailed: 1b];
     if[options`failedFirst; .tst.app.failedFirst: 1b];
     if[0<count options`stateFile; .tst.app.stateFile: options`stateFile];
+    if[not 10h=type options`shardIndex; .tst.app.shardIndex:"j"$options`shardIndex];
+    if[not 10h=type options`shardCount; .tst.app.shardCount:"j"$options`shardCount];
 
     / Process-isolation mode: each discovered test FILE runs in its own q
     / subprocess (see lib/isolate.q). -isolateTimeout sets the per-FILE wall

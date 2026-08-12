@@ -66,7 +66,7 @@ resQ 1.0 must guarantee that:
 
 - [x] Add private-PRNG seeded/randomized execution order.
 - [x] Add last-failed and failed-first execution using stable IDs.
-- [ ] Add deterministic file-level native sharding and shard metadata.
+- [x] Add deterministic file-level native sharding and shard metadata.
 - [ ] Verify watch and repeated in-process runs preserve all new contracts.
 - [ ] Provide thin external observability adapters; keep in-process plugins
   experimental until their failure isolation and versioning are proven.

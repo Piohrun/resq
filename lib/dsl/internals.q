@@ -37,6 +37,9 @@ if[not `executionSeed in key `.tst.app; .tst.app.executionSeed: 0j];
 if[not `lastFailed in key `.tst.app; .tst.app.lastFailed: 0b];
 if[not `failedFirst in key `.tst.app; .tst.app.failedFirst: 0b];
 if[not `stateFile in key `.tst.app; .tst.app.stateFile: ".resq/last-run.json"];
+if[not `shardIndex in key `.tst.app; .tst.app.shardIndex: 0j];
+if[not `shardCount in key `.tst.app; .tst.app.shardCount: 1j];
+if[not `emptyShard in key `.tst.app; .tst.app.emptyShard: 0b];
 if[not `allSpecs in key `.tst.app; .tst.app.allSpecs: ()];
 if[not `passed in key `.tst.app; .tst.app.passed: 1b];
 

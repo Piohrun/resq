@@ -548,6 +548,7 @@
     .tst.app.expectationsErrored: 0;
     .tst.app.discoveredFiles: ();
     .tst.app.allDiscoveredFiles: ();
+    .tst.app.emptyShard: 0b;
     .tst.app.loadedFiles: ();
     .tst.app.emptyFiles: ();
     .tst.app.executionState: `notStarted;
@@ -738,6 +739,7 @@
 
 .tst.runAllPhase.applyStrictMode:{[]
     .tst.runAllPhase.applyStrictAssertions[];
+    if[1b~@[get;`.tst.app.emptyShard;0b];:()];
     if[not (.tst.app.strict and 0 = .tst.app.expectationsRan); :()];
     baseRow:`suite`description`status`message`time`failures`assertsRun`kind!(
         `STRICT_MODE_FAILURE;`NO_TESTS_FOUND;`error;
@@ -797,6 +799,10 @@
 / Aggregate per-spec results into the global pass/fail bit. Any load error
 / or empty-results state forces a failure.
 .tst.runAllPhase.computePassed:{[]
+    if[(1b~@[get;`.tst.app.emptyShard;0b]) and
+       (0=count .tst.app.loadErrors) and 0=count .resq.state.results;
+        .tst.app.passed:1b;
+        :()];
     rawResults: @[get; `.tst.app.results; ()];
     resList: $[98h = type rawResults;
                {[tbl; idx] tbl idx}[rawResults] each til count rawResults;

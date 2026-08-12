@@ -15,8 +15,9 @@ run. The `resq` launcher also supervises whole-run completion, so an unexpected
 `exit 0` cannot turn a non-isolated CI command green. Add `-isolateWorkers N`
 to run N files at once; verdicts, ordering and exit codes are unchanged, only
 wall-clock (see [PARALLEL.md](PARALLEL.md)). Use
-CI matrix jobs to shard beyond one machine. The default is one worker; increase
-it only after accounting for memory and q licence capacity.
+CI matrix jobs with `-shard-index I -shard-count N` to shard beyond one
+machine. The default is one worker; increase it only after accounting for
+memory and q licence capacity.
 
 Coverage must run as a separate, non-isolated command because instrumentation
 and subprocess isolation cannot be combined truthfully:
@@ -104,8 +105,19 @@ memory footprint and KX licence capacity of those concurrent runtimes; start at
 
 ## Parallel jobs
 
-For a large project, shard directories across jobs. Give every shard a distinct
-artifact directory/name and retain `-strict -isolate` in each job. A shard can
-also use `-isolateWorkers N`. CI systems can merge the resulting JUnit
-documents; resQ does not share mutable q state between shards. See
+For a large project, use the native zero-based file shard in each matrix job:
+
+```bash
+resq test tests/ -strict -isolate \
+  -shard-index "$MATRIX_INDEX" -shard-count "$MATRIX_COUNT" \
+  -junit -json -outDir "artifacts/tests-$MATRIX_INDEX"
+```
+
+Assignment uses canonical sorted paths before optional seeded ordering. Shards
+are disjoint and their union is the unsharded file set; an intentionally empty
+shard succeeds even under `-strict`. Each shard gets a separate rerun-state
+suffix, preventing concurrent cache writers. Give every shard a distinct
+artifact directory/name. A shard can also use `-isolateWorkers N`. CI systems
+can merge the resulting JUnit documents; resQ does not share mutable q state
+between shards. See
 [Parallel test execution](PARALLEL.md) for the trade-offs.

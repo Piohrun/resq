@@ -8,6 +8,13 @@
 .tst.rerunStatePath:{[]
     configured:.tst.toString @[get;`.tst.app.stateFile;{".resq/last-run.json"}];
     base:.tst.toString @[get;`.tst.app.baseDir;{system "cd"}];
+    shardCount:"j"$@[get;`.tst.app.shardCount;1j];
+    shardIndex:"j"$@[get;`.tst.app.shardIndex;0j];
+    if[shardCount>1;
+        suffix:".shard-",string[shardIndex],"-of-",string shardCount;
+        configured:$[configured like "*.json";
+            ((count[configured]-5)#configured),suffix,".json";
+            configured,suffix]];
     $[count[configured] and "/"=first configured;
         .utl.normalizePath configured;
         .utl.normalizePath base,"/",configured]

@@ -349,6 +349,10 @@
     argv:.tst.isolate.appendFlag[argv;"-last-failed";@[get;`.tst.app.lastFailed;0b]];
     argv:.tst.isolate.appendFlag[argv;"-failed-first";@[get;`.tst.app.failedFirst;0b]];
     argv:.tst.isolate.appendValue[argv;"-state-file";.tst.rerunStatePath[]];
+    / The parent already owns file selection. A child receives exactly one file
+    / and must not re-apply a shard configured in the shared resq.json.
+    argv:.tst.isolate.appendValue[argv;"-shard-index";0];
+    argv:.tst.isolate.appendValue[argv;"-shard-count";1];
     / Marks where the child's own report starts so readCaptured can forward the
     / test output without the child's duplicate summary and scratch-path
     / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.
@@ -548,6 +552,7 @@
 
 .tst.isolate.addGlobalStrict:{[]
     if[not 1b ~ @[get; `.tst.app.strict; 0b]; :()];
+    if[1b~@[get;`.tst.app.emptyShard;0b];:()];
     if[0 < .tst.app.expectationsRan; :()];
     .tst.isolate.upsertRows enlist .tst.isolate.errorRow[
         `STRICT_MODE_FAILURE;
@@ -688,6 +693,7 @@
     anyFailure: any status in `fail`error;
     noResults: 0 = count .resq.state.results;
     exitCode: $[hasLoadError; .resq.EXIT.LOAD_ERROR;
+                (0=n) and 1b~@[get;`.tst.app.emptyShard;0b]; .resq.EXIT.PASS;
                 0 = n; .resq.EXIT.NO_TESTS;
                 unavailable; .resq.EXIT.FAIL;
                 noResults; .resq.EXIT.FAIL;

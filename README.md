@@ -223,6 +223,9 @@ q resq.q test tests/ -random-order -seed 4242
 # Tighten the local feedback loop using stable test IDs
 q resq.q test tests/ -last-failed        # alias: -lf
 q resq.q test tests/ -failed-first
+
+# Split files across three CI jobs (zero-based)
+q resq.q test tests/ -shard-index 0 -shard-count 3
 ```
 
 Tags are `#word` tokens embedded in the suite title string:

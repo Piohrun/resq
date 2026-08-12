@@ -19,6 +19,8 @@
   cfg[`lastFailed] musteq 0b;
   cfg[`failedFirst] musteq 0b;
   cfg[`stateFile] musteq ".resq/last-run.json";
+  cfg[`shardIndex] musteq 0j;
+  cfg[`shardCount] musteq 1j;
   };
 
  should["accept but ignore the deprecated qNamespaceExports switch"]{
@@ -61,6 +63,14 @@
   `lastFailed`failedFirst mustin conflict;
   emptyPath:.tst.invalidConfigKeys (enlist `stateFile)!enlist "";
   emptyPath musteq enlist `stateFile;
+  };
+ should["validate native shard bounds"]{
+  warnings:.tst.validateConfig `shardIndex`shardCount!(1j;3j);
+  warnings mustmatch ();
+  badCount:.tst.invalidConfigKeys (enlist `shardCount)!enlist 0;
+  badCount musteq enlist `shardCount;
+  badIndex:.tst.invalidConfigKeys `shardIndex`shardCount!(3;3);
+  `shardIndex`shardCount mustin badIndex;
   };
  should["load and parse JSON config file"]{
   / Create test config file

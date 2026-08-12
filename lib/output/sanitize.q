@@ -349,7 +349,7 @@
         `coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage,
         `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
         `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
-        `randomOrder`executionSeed`lastFailed`failedFirst`stateFile,
+        `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount,
         `tagFilter`excludeTagFilter`coverageSources;
     appKeys:key `.tst.app;
     present:names where names in appKeys;
@@ -377,6 +377,18 @@
     (names where mask)!(vals where mask)
  };
 
+.tst.shardMetadata:{[]
+    allFiles:@[get;`.tst.app.allDiscoveredFiles;{()}];
+    selected:@[get;`.tst.app.discoveredFiles;{()}];
+    `index`count`algorithm`allFileCount`selectedFileCount`selectedFiles!(
+        "j"$@[get;`.tst.app.shardIndex;0j];
+        "j"$@[get;`.tst.app.shardCount;1j];
+        "sorted-index-mod-v1";
+        "j"$count allFiles;
+        "j"$count selected;
+        .tst.repoRelativePath each selected)
+ };
+
 .tst.beginRunMetadata:{[]
     started:.z.p;
     root:.utl.normalizePath system "cd";
@@ -390,12 +402,12 @@
         "j"$@[get;`.tst.app.executionSeed;0j];
         "md5-counter-v1");
     metaKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
-        `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection;
+        `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection`shard;
     .tst.app.runMetadata:metaKeys!(
         runId;.tst.isoTimestamp started;"";0f;host;root;string .z.K;
         string .z.k;string .z.o;$[`VERSION in key `.resq;.resq.VERSION;"unknown"];
         .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[];ordering;
-        .tst.selectionMetadata[]);
+        .tst.selectionMetadata[];.tst.shardMetadata[]);
     .tst.app.diagnostics:();
     ::
  };
@@ -409,6 +421,7 @@
     runMeta[`durationSeconds]:("f"$finished-.tst.app.runStartedAt)%1000000000;
     runMeta[`config]:.tst.selectedConfig[];
     runMeta[`selection]:.tst.selectionMetadata[];
+    runMeta[`shard]:.tst.shardMetadata[];
     .tst.app.runMetadata:runMeta;
     runMeta
  };

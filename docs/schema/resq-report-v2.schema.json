@@ -66,6 +66,19 @@
             "applied": {"type": "boolean"},
             "selectedTestCount": {"type": "integer", "minimum": 0}
           }
+        },
+        "shard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["index", "count", "algorithm", "allFileCount", "selectedFileCount", "selectedFiles"],
+          "properties": {
+            "index": {"type": "integer", "minimum": 0},
+            "count": {"type": "integer", "minimum": 1},
+            "algorithm": {"const": "sorted-index-mod-v1"},
+            "allFileCount": {"type": "integer", "minimum": 0},
+            "selectedFileCount": {"type": "integer", "minimum": 0},
+            "selectedFiles": {"type": "array", "items": {"type": "string"}}
+          }
         }
       }
     },

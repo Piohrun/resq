@@ -753,7 +753,16 @@
 .tst.selectTestFiles:{[files]
     ordered:files iasc .utl.pathToString each files;
     .tst.app.allDiscoveredFiles:ordered;
-    .tst.orderItems[ordered;"files"]
+    shardIndex:"j"$@[get;`.tst.app.shardIndex;0j];
+    shardCount:"j"$@[get;`.tst.app.shardCount;1j];
+    if[1>shardCount;'"shardCount must be > 0"];
+    if[(0>shardIndex) or shardIndex>=shardCount;
+        '"shardIndex must be >= 0 and less than shardCount"];
+    selected:ordered where shardIndex=(til count ordered) mod shardCount;
+    .tst.app.shardAllFileCount:"j"$count ordered;
+    .tst.app.shardSelectedFileCount:"j"$count selected;
+    .tst.app.emptyShard:(0<count ordered) and 0=count selected;
+    .tst.orderItems[selected;"files"]
  };
 
 .tst.findTests:{[paths]

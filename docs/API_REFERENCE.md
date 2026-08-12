@@ -1758,6 +1758,8 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-last-failed` / `-lf` | Run only tests whose stable IDs failed or errored in the previous run; missing/empty history safely falls back to the full selection |
 | `-failed-first` | Run previous failures first, then the rest, preserving the current deterministic order within each cohort |
 | `-state-file PATH` | Override the versioned rerun cache path (default `.resq/last-run.json`) |
+| `-shard-index I` | Select zero-based native file shard `I` |
+| `-shard-count N` | Partition canonical test files across `N > 0` shards (default `1`) |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
 | `-only PATTERN` | Run only suites whose title matches the `like` glob pattern |
 | `-exclude PATTERN` | Skip suites whose title matches the `like` glob pattern |
@@ -1802,7 +1804,14 @@ describe-only runs leave prior history intact. `-last-failed` and
 `-failed-first` use the report's stable `testId`; missing, empty, corrupt, or
 unsupported history falls back to the complete current selection and emits a
 typed rerun diagnostic. The default `.resq/` cache directory should remain
-uncommitted.
+uncommitted. Multi-shard runs suffix this cache per shard to avoid concurrent
+writers.
+
+Sharding sorts canonical file paths, assigns file position `mod shardCount`,
+and only then applies optional seeded ordering. Shards therefore never overlap,
+their union is the unsharded file set, and normal/isolated runs select the same
+files. A valid empty shard exits successfully even under `-strict`; a globally
+empty discovery still returns the ordinary no-tests exit code.
 
 Coverage runs additionally write `coverage.lcov`, `coverage.json`,
 `coverage.html`, and `coverage_state.txt`. All four are projections of one
@@ -1875,6 +1884,8 @@ Create `resq.json` in project root:
     "lastFailed": false,
     "failedFirst": false,
     "stateFile": ".resq/last-run.json",
+    "shardIndex": 0,
+    "shardCount": 1,
     "pollutionGuard": true,
     "fuzzLimit": 100,
     "maxTestTime": 0,
@@ -1916,6 +1927,8 @@ Create `resq.json` in project root:
 | `lastFailed` | `false` | Select only failures from the previous stable-ID state |
 | `failedFirst` | `false` | Prioritize failures from the previous stable-ID state |
 | `stateFile` | `.resq/last-run.json` | Versioned, atomically replaced local rerun cache |
+| `shardIndex` | `0` | Zero-based native file shard index |
+| `shardCount` | `1` | Number of deterministic file shards |
 | `pollutionGuard` | `true` | Detect and restore application-namespace changes per suite |
 | `maxTestTime` | `0` | Post-execution per-test budget in milliseconds (`0` disables) |
 | `reportLimit` | `50000` | Maximum rendered failure/error message characters |

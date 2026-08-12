@@ -165,7 +165,8 @@ if[.resq.mode ~ `test;
                 exit $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR; .resq.EXIT.PASS];
             ];
             / Granular exit codes for CI/CD
-            noTestsFound: (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
+            noTestsFound: (not 1b~@[get;`.tst.app.emptyShard;0b]) and
+                (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
             exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
                         noTestsFound; .resq.EXIT.NO_TESTS;
                         not .tst.app.passed; .resq.EXIT.FAIL;

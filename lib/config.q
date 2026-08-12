@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json")
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j)
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -79,6 +79,8 @@ loadConfig:{[path]
     if[10h = type merged`seed;
         merged[`seed]: "J"$merged`seed
     ];
+    if[10h = type merged`shardIndex;merged[`shardIndex]:"J"$merged`shardIndex];
+    if[10h = type merged`shardCount;merged[`shardCount]:"J"$merged`shardCount];
     coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
     {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
     if[`testFilePatterns in key merged;
@@ -203,7 +205,7 @@ validateConfig:{[cfg]
             "failedFirst must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed`shardIndex`shardCount;
   intMsgs:("fuzzLimit must be an integer scalar";
            "maxTestTime must be an integer scalar";
            "reportLimit must be an integer scalar";
@@ -214,7 +216,9 @@ validateConfig:{[cfg]
            "coverageFunctionMin must be an integer scalar";
            "coverageLineMin must be an integer scalar";
            "coverageCompletenessMin must be an integer scalar";
-           "seed must be an integer scalar");
+           "seed must be an integer scalar";
+           "shardIndex must be an integer scalar";
+           "shardCount must be an integer scalar");
   warnings,: raze checkType[cfg;;(-5h;-6h;-7h);]'[intNames; intMsgs];
 
   / Range check: numeric keys must be non-negative. A correctly-typed but
@@ -239,7 +243,9 @@ validateConfig:{[cfg]
              "coverageFunctionMin must be between 0 and 100";
              "coverageLineMin must be between 0 and 100";
              "coverageCompletenessMin must be between 0 and 100";
-             "seed must be >= 0");
+             "seed must be >= 0";
+             "shardIndex must be >= 0";
+             "shardCount must be > 0");
   warnings,: raze checkNonNeg[cfg;;]'[intNames; rangeMsgs];
   if[`coverageMin in key cfg;
     if[(type cfg`coverageMin) in -5 -6 -7h;
@@ -253,6 +259,16 @@ validateConfig:{[cfg]
       enlist string[n]," must be between 0 and 100"
   };
   warnings,:raze checkPercentMax[cfg;] each percentNames;
+  if[`shardCount in key cfg;
+    if[(type cfg`shardCount) in -5 -6 -7h;
+      if[(not null cfg`shardCount) and 1>cfg`shardCount;
+        warnings,:enlist "shardCount must be > 0"]]];
+  if[all `shardIndex`shardCount in key cfg;
+    if[(type cfg`shardIndex) in -5 -6 -7h;
+      if[(type cfg`shardCount) in -5 -6 -7h;
+        if[(not null cfg`shardIndex) and (not null cfg`shardCount) and
+           cfg[`shardIndex]>=cfg`shardCount;
+          warnings,:enlist "shardIndex must be less than shardCount"]]]];
 
   warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];
   warnings,: raze checkType[cfg;;(10h;-10h);]'[enlist `stateFile; enlist "stateFile must be a nonempty string or symbol"];
@@ -310,7 +326,7 @@ invalidConfigKeys:{[cfg]
   / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
   / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
   / with a warning, default retained (the warn-and-ignore contract).
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed`shardIndex`shardCount;
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
@@ -326,6 +342,15 @@ invalidConfigKeys:{[cfg]
       if[null cfg n;:0b];
       cfg[n]>100
     }[cfg] each percentNames;
+  if[`shardCount in key cfg;
+    if[(type cfg`shardCount) in -5 -6 -7h;
+      if[(not null cfg`shardCount) and 1>cfg`shardCount;invalid,:`shardCount]]];
+  if[all `shardIndex`shardCount in key cfg;
+    if[(type cfg`shardIndex) in -5 -6 -7h;
+      if[(type cfg`shardCount) in -5 -6 -7h;
+        if[(not null cfg`shardIndex) and (not null cfg`shardCount) and
+           cfg[`shardIndex]>=cfg`shardCount;
+          invalid,:`shardIndex`shardCount]]]];
 
   / outDir: string or symbol.
   if[`outDir in key cfg; if[not (type cfg`outDir) in 10 -10 11h; invalid,: `outDir]];
@@ -400,6 +425,8 @@ applyConfig:{[cfg]
     if[ok`lastFailed; .tst.app.lastFailed: cfg`lastFailed];
     if[ok`failedFirst; .tst.app.failedFirst: cfg`failedFirst];
     if[ok`stateFile; .tst.app.stateFile: .tst.toString cfg`stateFile];
+    if[ok`shardIndex; .tst.app.shardIndex:"j"$cfg`shardIndex];
+    if[ok`shardCount; .tst.app.shardCount:"j"$cfg`shardCount];
 
     if[ok`fuzzLimit; .tst.output.fuzzLimit: cfg`fuzzLimit];
     if[ok`maxTestTime; .tst.app.maxTestTime: cfg`maxTestTime];
