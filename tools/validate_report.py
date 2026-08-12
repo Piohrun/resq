@@ -61,10 +61,40 @@ def validate_test(row: Any, index: int) -> None:
         raise ValueError(f"{where}: flaky requires a late pass")
     if len(row["attemptHistory"]) not in (0, row["attempts"]):
         raise ValueError(f"{where}: attempt history must be empty or complete")
+    if row["retried"] != (row["attempts"] > 1):
+        raise ValueError(f"{where}: retried must agree with attempts")
+    for attempt_index, attempt in enumerate(row["attemptHistory"], start=1):
+        attempt_where = f"{where}.attemptHistory[{attempt_index - 1}]"
+        require(
+            attempt,
+            {"attempt", "status", "duration", "durationSeconds", "message", "failures", "assertsRun"},
+            attempt_where,
+        )
+        if attempt["attempt"] != attempt_index:
+            raise ValueError(f"{attempt_where}.attempt: expected {attempt_index}")
+        if attempt["status"] not in STATUSES:
+            raise ValueError(f"{attempt_where}.status: unknown value")
+    case_ids: list[str] = []
+    case_indices: list[int] = []
     for case_index, case in enumerate(row["parameterCases"]):
         require(case, {"caseId", "index", "parameters", "status"}, f"{where}.parameterCases[{case_index}]")
         if not HEX_ID.fullmatch(case["caseId"]):
             raise ValueError(f"{where}.parameterCases[{case_index}].caseId: invalid")
+        if case["status"] not in STATUSES:
+            raise ValueError(f"{where}.parameterCases[{case_index}].status: unknown value")
+        case_ids.append(case["caseId"])
+        case_indices.append(case["index"])
+    if len(case_ids) != len(set(case_ids)) or len(case_indices) != len(set(case_indices)):
+        raise ValueError(f"{where}.parameterCases: identities and indices must be unique")
+    property_data = row["property"]
+    if property_data:
+        require(
+            property_data,
+            {"seed", "runs", "maxFailRate", "failRate", "passCount", "failCount", "failedInputs", "shrunkInput"},
+            f"{where}.property",
+        )
+        if property_data["passCount"] + property_data["failCount"] != property_data["runs"]:
+            raise ValueError(f"{where}.property: pass/fail totals must equal runs")
     for snap_index, snapshot in enumerate(row["snapshots"]):
         require(snapshot, {"backend", "name", "status", "path", "timestamp"}, f"{where}.snapshots[{snap_index}]")
         iso8601(snapshot["timestamp"], f"{where}.snapshots[{snap_index}].timestamp")
@@ -87,13 +117,23 @@ def validate(document: Any) -> None:
     iso8601(run["startedAt"], "run.startedAt")
     iso8601(run["finishedAt"], "run.finishedAt")
     summary = document["summary"]
+    if run["resqVersion"] != document["frameworkVersion"]:
+        raise ValueError("run.resqVersion does not match frameworkVersion")
     require(summary, {"suiteCount", "testCount", "assertionCount", "passCount", "failCount", "errorCount", "skipCount", "duration", "durationSeconds"}, "summary")
     if summary["testCount"] != len(document["tests"]):
         raise ValueError("summary.testCount does not match tests length")
     if summary["testCount"] != sum(summary[k] for k in ("passCount", "failCount", "errorCount", "skipCount")):
         raise ValueError("summary status counts do not add up")
+    test_ids: list[str] = []
+    case_ids: list[str] = []
     for index, row in enumerate(document["tests"]):
         validate_test(row, index)
+        test_ids.append(row["testId"])
+        case_ids.extend(case["caseId"] for case in row["parameterCases"])
+    if len(test_ids) != len(set(test_ids)):
+        raise ValueError("tests: duplicate testId")
+    if len(case_ids) != len(set(case_ids)):
+        raise ValueError("tests: duplicate parameter caseId")
 
 
 def main() -> int:

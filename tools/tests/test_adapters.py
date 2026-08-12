@@ -5,10 +5,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
+from validate_report import validate  # noqa: E402
 
 
 def test_row(name: str, status: str, suffix: str) -> dict:
@@ -87,6 +90,27 @@ def report() -> dict:
 
 
 class AdapterTests(unittest.TestCase):
+    def test_validator_rejects_duplicate_stable_ids(self) -> None:
+        duplicate = report()
+        duplicate["tests"][1]["testId"] = duplicate["tests"][0]["testId"]
+        with self.assertRaisesRegex(ValueError, "duplicate testId"):
+            validate(duplicate)
+
+    def test_validator_rejects_inconsistent_retry_and_property_telemetry(self) -> None:
+        bad_retry = report()
+        bad_retry["tests"][0]["retried"] = True
+        with self.assertRaisesRegex(ValueError, "retried must agree"):
+            validate(bad_retry)
+
+        bad_property = deepcopy(report())
+        bad_property["tests"][0]["property"] = {
+            "seed": 42, "runs": 10, "maxFailRate": 0,
+            "failRate": 0, "passCount": 8, "failCount": 1,
+            "failedInputs": [], "shrunkInput": None,
+        }
+        with self.assertRaisesRegex(ValueError, "totals must equal runs"):
+            validate(bad_property)
+
     def test_ndjson_preserves_run_and_stable_test_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
