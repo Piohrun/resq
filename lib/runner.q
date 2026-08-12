@@ -148,8 +148,12 @@
         ];
 
         covInit: @[get; `.tst.initCoverage; {::}];
+        covSources: @[get; `.tst.app.coverageSources; {()}];
         .tst._covInitOk: 1b;
-        @[covInit; (); {[e]
+        @[{[initFn;sources]
+            manifest: $[count sources; .tst.coverageManifest sources; ()];
+            initFn manifest
+          }[covInit]; covSources; {[e]
             .tst._covInitOk: 0b;
             -1 "Coverage init failed: ", .tst.toString e;
             :()

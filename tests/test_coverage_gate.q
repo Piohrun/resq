@@ -38,6 +38,42 @@
 
 .tst.testState.covgate.run:{[minimum] .tst.testState.covgate.runWith[minimum; ""]};
 
+/ A declared source tree is an inventory, not a hint. This fixture loads one
+/ function while leaving a second module completely untouched; all four static
+/ functions must still be present in LCOV and in the gate denominator.
+.tst.testState.covgate.runManifest:{[]
+    wd: .utl.tempRoot[], "/resq_covmanifest_", string[.z.i], "_", string `long$.z.p;
+    sourceDir: wd, "/src";
+    loadedPath: sourceDir, "/loaded.q";
+    missedPath: sourceDir, "/never_loaded.q";
+    fixturePath: wd, "/test_manifest.q";
+    .utl.ensureDir sourceDir;
+    (hsym `$loadedPath) 0: enlist ".manifest.hit:{[x] x+1};";
+    (hsym `$missedPath) 0: (
+        ".manifest.missA:{[x] x-1};";
+        ".manifest.missB:{[x] x*2};";
+        ".manifest.missC:{[x] x%2};");
+    (hsym `$fixturePath) 0: (
+        "system \"l \", \"",loadedPath,"\";";
+        ".tst.desc[\"manifest denominator\"]{";
+        "  should[\"loads one module\"]{ .manifest.hit[1] musteq 2 };";
+        "};");
+    cmd: "true && timeout -k 2 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
+         " cover ", (.utl.shellQuote fixturePath), " --source ",
+         (.utl.shellQuote sourceDir), " -cov-min 26 -json -outDir ",
+         (.utl.shellQuote wd), " -quiet > ",
+         (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    exitCode: "J"$last exitLines;
+    output: @[read0; hsym `$wd,"/out.txt"; {()}];
+    rawJson: @[read0; hsym `$wd,"/test-results.json"; {()}];
+    payload: $[count rawJson; .j.k raze rawJson; ()!()];
+    lcov: @[read0; hsym `$wd,"/coverage.lcov"; {()}];
+    state: @[read0; hsym `$wd,"/coverage_state.txt"; {()}];
+    if[wd like "*/resq_covmanifest_*"; system "rm -rf -- ", .utl.shellQuote wd];
+    `code`output`payload`lcov`state!(exitCode;output;payload;lcov;state)
+ };
+
 .tst.desc["Coverage gate decision"]{
     should["keep the legacy threshold function-based when partial lines look greener"]{
         / Mirrors the quickstart failure mode: statement data covers only part of
@@ -56,6 +92,22 @@
 };
 
 .tst.desc["Coverage minimum gate #slow"]{
+    skipIf[not .tst.testState.covgate.canRun;
+           "include unloaded modules from an explicit source manifest"]{
+        r: .tst.testState.covgate.runManifest[];
+        r[`code] musteq 1;
+        r[`payload;`coverage;`functionsFound] musteq 4f;
+        r[`payload;`coverage;`functionsHit] musteq 1f;
+        r[`payload;`coverage;`functionPercent] musteq 25f;
+        must[any r[`lcov] like "SF:*/never_loaded.q";
+             "LCOV must contain a record for an entirely unloaded module"];
+        must[any r[`lcov] like "FNF:3";
+             "the unloaded module must contribute all three functions"];
+        zeroMisses: {(0<count ss[x;"/never_loaded.q "]) and x like "* 0"} each r`state;
+        must[3=sum zeroMisses;
+             "coverage_state must include each zero-hit function"];
+    };
+
     skipIf[not .tst.testState.covgate.canRun;
            "fail below the measured percentage and pass at the boundary"]{
         / Default mode measures FUNCTIONS, not lines: one of two functions is

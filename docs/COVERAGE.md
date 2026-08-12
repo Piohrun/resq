@@ -10,10 +10,24 @@ coverage only and emits no line records at all — see below for why.
 ## Usage
 
 ```bash
-resq cover src/ tests/
+resq cover tests/ --source src/
 ```
 
-Pass source directories first, then test directories. resQ discovers and runs all test files and emits coverage reports when the run completes.
+Test paths remain positional. Declare the production source inventory separately
+with `--source` (or `-source`); pass multiple files/directories as a comma-separated
+value. resQ recursively inventories every `.q` file below those roots before it
+runs tests. Statically discoverable functions in modules that are never loaded
+are seeded at zero and therefore remain in the denominator and every coverage
+artifact.
+
+Configuration-file equivalent:
+
+```json
+{"coverageSources": ["src", "shared"]}
+```
+
+An explicit source declaration that resolves to no `.q` files is an error. This
+fail-closed behavior prevents a misspelled path from producing a green 0/0 run.
 
 ### Include and exclude filters
 
@@ -42,7 +56,11 @@ useful when testing resQ itself.
 
 ### Instrumentation
 
-When a test file loads a source file via `\l path` or `system "l ", path`, the coverage-aware loader intercepts the load, instruments every named function defined in that file (wrapping it to record a hit), then makes the function available as normal. The test file does not need to be modified.
+Before loading tests, `--source` builds the static function inventory. When a
+test file then loads a source file via `\l path` or `system "l ", path`, the
+coverage-aware loader intercepts the load, instruments every named function
+defined in that file (wrapping it to record a hit), then makes the function
+available as normal. The test file does not need to be modified.
 
 Files loaded by other mechanisms (e.g. `\l` inside a helper that is itself loaded outside the watched path, or `value` calls that eval source strings) are not instrumented.
 
@@ -189,6 +207,12 @@ Gate a build with an integer percentage from 0 through 100:
 resq cover tests/ -strict -cov-min 80 -json -outDir artifacts/coverage
 ```
 
+For a trustworthy project-wide gate, add the source inventory:
+
+```bash
+resq cover tests/ --source src/ -strict -cov-min 80 -json -outDir artifacts/coverage
+```
+
 `-cov-min` compares the complete function percentage, including when
 `-cov-statements` produces line records. Statement instrumentation can reject
 unsafe rewrites, so its denominator may cover only part of the function
@@ -197,7 +221,8 @@ false green. The console reports measured lines as a diagnostic and names the
 function basis used by the gate. The run exits 1 when it misses the threshold, measures no
 executable code, or cannot generate its reports. The JSON report includes the
 exact counts, percentage, threshold, basis, and pass/fail decision under its
-`coverage` object. Configuration-file equivalent: `"coverageMin": 80`.
+`coverage` object. Configuration-file equivalents: `"coverageMin": 80` and
+`"coverageSources": ["src"]`.
 
 ---
 

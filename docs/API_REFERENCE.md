@@ -1742,6 +1742,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
 | `-no-line-annotations` | Disable expectation source-line rewriting if a suite hits an unsupported lexical edge case; file/line fields become unavailable and incomplete-constructor auditing is disabled |
 | `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses the complete function inventory (`-cov-statements` line data remains diagnostic) |
+| `--source PATHS` / `--coverage-source PATHS` | Comma-separated source files/directories forming the coverage inventory; unloaded functions are counted at zero |
 | `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
 | `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
 | `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
@@ -1818,8 +1819,8 @@ q resq.q test tests/ -junit -outDir reports/
 # Run only integration tests
 q resq.q test tests/ -only "*integration*"
 
-# Run with coverage
-q resq.q cover src/ tests/
+# Run with coverage over a complete source inventory
+q resq.q cover tests/ --source src/
 
 # Watch mode
 q resq.q watch src/ tests/
@@ -1846,6 +1847,7 @@ Create `resq.json` in project root:
     "fuzzLimit": 100,
     "maxTestTime": 0,
     "coverageMin": 0,
+    "coverageSources": ["src"],
     "covStatements": false,
     "reportLimit": 50000,
     "reportListLimit": 1000,
@@ -1885,6 +1887,7 @@ Create `resq.json` in project root:
 | `qspecCompat` | `false` | Use qspec comparison semantics for `musteq` / `mustne` |
 | `covStatements` | `false` | Enable measured statement/line instrumentation |
 | `coverageMin` | `0` | Coverage gate percentage (`0` disables the threshold) |
+| `coverageSources` | empty | Source files/directories forming the complete coverage inventory |
 
 Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `console` is normalized to `text`.
 
@@ -1897,6 +1900,12 @@ coverage and applies the same function-based, fail-closed threshold as
 `-cov-min`. Set `covStatements` to `true` to add measured statement probes;
 their line result is diagnostic because unsafe rewrites can be excluded from
 its denominator.
+
+`coverageSources` accepts a path string or list of path strings/symbols. It is
+the configuration equivalent of `--source`: directories are scanned
+recursively, every `.q` file is represented in the artifacts, and statically
+discoverable functions in unloaded modules count as zero hits. A nonempty
+declaration that resolves to no `.q` files fails coverage initialization.
 
 `qNamespaceExports` is deprecated. It remains a validated boolean so existing
 configuration files continue to load, but both values are safe and equivalent:

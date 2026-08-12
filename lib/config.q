@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageSources!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;())
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -127,6 +127,24 @@ loadConfig:{[path]
     $[10h=type patterns;enlist patterns;patterns]
  };
 
+/ Coverage source roots accept one path or a list of string/symbol paths. Keep
+/ them as strings so filesystem discovery never interns user-controlled text.
+.tst.validCoverageSources:{[sources]
+    if[10h=type sources; :0<count sources];
+    if[-11h=type sources; :0<count string sources];
+    if[11h=type sources; :0<count sources];
+    if[not 0h=type sources; :0b];
+    all {[x] ((10h=type x) or -11h=type x) and 0<count string x} each sources
+ };
+
+.tst.normalizeCoverageSources:{[sources]
+    $[10h=type sources; enlist sources;
+      -11h=type sources; enlist string sources;
+      11h=type sources; string each sources;
+      0h=type sources; {$[10h=type x;x;string x]} each sources;
+      ()]
+ };
+
 / True only for finite, non-null integer atoms accepted by config.
 .tst.validConfigInteger:{[v]
     if[not (type v) in -5 -6 -7h; :0b];
@@ -227,6 +245,12 @@ validateConfig:{[cfg]
     ];
   ];
 
+  if[`coverageSources in key cfg;
+    if[not .tst.validCoverageSources cfg`coverageSources;
+      warnings,:enlist "coverageSources must be a nonempty path string/symbol or list of paths"
+    ];
+  ];
+
   warnings
  }
 
@@ -277,6 +301,9 @@ invalidConfigKeys:{[cfg]
 
   if[`testFilePatterns in key cfg;
     if[not .tst.validTestFilePatterns cfg`testFilePatterns; invalid,:`testFilePatterns]];
+
+  if[`coverageSources in key cfg;
+    if[not .tst.validCoverageSources cfg`coverageSources; invalid,:`coverageSources]];
 
   distinct invalid
  }
@@ -331,6 +358,8 @@ applyConfig:{[cfg]
     if[ok`reportLimit; .tst.output.reportLimit: cfg`reportLimit];
     if[ok`reportListLimit; .tst.output.reportListLimit: cfg`reportListLimit];
     if[ok`coverageMin; .tst.app.coverageMin: cfg`coverageMin];
+    if[ok`coverageSources;
+        .tst.app.coverageSources: .tst.normalizeCoverageSources cfg`coverageSources];
 
     if[ok`qNamespaceExports;
         if[`setQNamespaceExports in key `.tst;

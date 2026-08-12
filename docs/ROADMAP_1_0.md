@@ -39,8 +39,8 @@ resQ 1.0 must guarantee that:
 
 ## 0.6.0 — Trustworthy coverage
 
-- [ ] Add explicit `--source`/`coverageSources` source manifests.
-- [ ] Seed unloaded files and functions at zero hits.
+- [x] Add explicit `--source`/`coverageSources` source manifests.
+- [x] Seed unloaded files and functions at zero hits.
 - [ ] Track file/function/statement eligibility, completeness, and fallback reasons.
 - [ ] Add independent function, line, and instrumentation-completeness gates.
 - [ ] Make partial line measurement fail closed unless explicitly allowed.

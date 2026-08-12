@@ -56,6 +56,60 @@
     ];
  };
 
+/ Apply include/exclude rules consistently to both statically inventoried files
+/ and files observed at runtime. `explicit` means the user named a source root;
+/ that is authoritative and may intentionally include resQ's own lib directory.
+.tst.coveragePathIncluded:{[absPath;explicit]
+    includes: @[get; `.tst.app.coverageInclude; {()}];
+    excludes: @[get; `.tst.app.coverageExclude; {()}];
+    if[count includes; if[not any absPath like/: includes; :0b]];
+    if[count excludes; if[any absPath like/: excludes; :0b]];
+    if[(not explicit) and 0=count includes;
+        home: @[get; `.resq.HOME; {""}];
+        if[(0<count home) and absPath like home,"/lib/*"; :0b]];
+    1b
+ };
+
+/ Resolve explicit roots to the canonical set of source files. Empty or invalid
+/ declarations fail closed: a typo must not produce a green 0/0 coverage run.
+.tst.coverageManifest:{[roots]
+    rs: $[10h=type roots; enlist roots;
+          -11h=type roots; enlist string roots;
+          11h=type roots; string each roots;
+          0h=type roots; {$[10h=type x;x;string x]} each roots;
+          ()];
+    if[0=count rs; '"Coverage source manifest is empty"];
+    discovered: raze {[root]
+        absRoot: .tst.resolvePath root;
+        .tst.static.findSources absRoot
+    } each rs;
+    paths: distinct .tst.resolvePath each string each discovered;
+    paths: paths where .tst.coveragePathIncluded[;1b] each paths;
+    if[0=count paths;
+        '"Coverage source manifest matched 0 .q files: ", ", " sv rs];
+    `$paths
+ };
+
+/ Seed every statically discoverable function at zero before tests load code.
+/ Runtime wrappers increment these same keys, making the source manifest the
+/ denominator rather than the accidental set of modules a test happened to load.
+.tst.seedCoverageFile:{[file]
+    absPath: .tst.resolvePath file;
+    fileSym: `$absPath;
+    .tst.ensureCoverageEntry fileSym;
+    fHandle: hsym (`$":" , absPath);
+    fns: @[.tst.static.exploreFile; fHandle; {([] name:`$(); line:`int$())}];
+    if[not 98h=type fns; :()];
+    srcLines: @[read0; fHandle; {()}];
+    nsAt: .tst.coverageSysDNamespaces srcLines;
+    {[fs;namespaces;row]
+        nm: .tst.coverageQualifyName[namespaces;row`line;row`name];
+        if[not nm in key .tst.coverageData fs;
+            .tst.coverageData[fs;nm]: 0j]
+    }[fileSym;nsAt] each fns;
+    ::
+ };
+
 / Record execution (called by wrappers)
 .tst.recordExecution:{[file;funcName]
     if[not .tst.coverageEnabled; :()];
@@ -155,28 +209,7 @@
 
     absPath: .tst.resolvePath pathStr;
     
-    / Apply --cov-include / --cov-exclude filters.
-    if[`coverageInclude in key `.tst.app;
-        if[0 < count .tst.app.coverageInclude;
-            if[not any absPath like/: .tst.app.coverageInclude; :()]
-        ]
-    ];
-    if[`coverageExclude in key `.tst.app;
-        if[any absPath like/: .tst.app.coverageExclude; :()]
-    ];
-
-    / Never instrument resQ's own modules by default. Now that .utl.require
-    / actually reaches instrumentation, the framework's internals would
-    / otherwise be wrapped on every `resq cover` run: that slows the run and
-    / buries the user's own functions in the report. An explicit -cov-include
-    / overrides this, which is how resQ measures coverage of itself.
-    / Scope this to <HOME>/lib specifically, NOT all of <HOME>: a project can
-    / legitimately keep its own sources under the install root (the bundled
-    / examples do), and excluding those would silently report nothing for them.
-    if[0 = count @[get; `.tst.app.coverageInclude; ()];
-        home: @[get; `.resq.HOME; {""}];
-        if[(0 < count home) and absPath like home, "/lib/*"; :()];
-    ];
+    if[not .tst.coveragePathIncluded[absPath;0b]; :()];
 
 
     fileSym: `$absPath;
@@ -321,15 +354,23 @@
 
 / Initialize coverage and instrument already-loaded files
 .tst.initCoverage:{[files]
-    fs: $[10h = type files; enlist `$files; files];
-    .tst.trackedFiles:: fs;
+    raw: $[10h=type files; enlist files;
+           -11h=type files; enlist string files;
+           11h=type files; string each files;
+           0h=type files; {$[10h=type x;x;string x]} each files;
+           ()];
+    fs: `$distinct .tst.resolvePath each raw;
+    .tst.trackedFiles:: `symbol$();
     .tst.coverageData:: ()!();
     .tst.origFuncs:: ()!();
     .tst.covWrappers:: ()!();
     .tst.loadingStack:: ();
+    .tst.lineCoverageData:: ()!();
+    .tst.stmtInstrumented:: ()!();
+    .tst.stmtProbeLines:: ()!();
     .tst.coverageEnabled:: 1b;
 
-    {[f] .tst.ensureCoverageEntry f} each fs;
+    .tst.seedCoverageFile each fs;
 
     / Wrap what is already loaded so coverage has a chance to observe calls
     .tst.instrumentLoadedFiles[];

@@ -13,6 +13,7 @@
   cfg[`qNamespaceExports] musteq 0b;
   cfg[`expectationLineAnnotations] musteq 1b;
   cfg[`coverageMin] musteq 0;
+  cfg[`coverageSources] mustmatch ();
   };
 
  should["accept but ignore the deprecated qNamespaceExports switch"]{
@@ -183,6 +184,22 @@
   applied: .tst.app.coverageMin;
   .tst.app.coverageMin: previous;
   applied musteq 87;
+  };
+ should["validate, normalize, and apply coverage source roots"]{
+  good:("src";`shared);
+  0 musteq count .tst.invalidConfigKeys (enlist `coverageSources)!enlist good;
+  previous:@[get;`.tst.app.coverageSources;{()}];
+  .tst.applyConfig[(enlist `coverageSources)!enlist good];
+  applied:.tst.app.coverageSources;
+  .tst.app.coverageSources:previous;
+  applied mustmatch ("src";"shared");
+  };
+ should["reject malformed coverage source roots"]{
+  cfg:(enlist `coverageSources)!enlist ("src";42);
+  .tst.invalidConfigKeys[cfg] musteq enlist `coverageSources;
+  warnings:.tst.validateConfig cfg;
+  must[any warnings like "coverageSources must be*";
+       "malformed coverageSources must produce a config warning"];
   };
  should["warn for a negative fuzzLimit"]{
   warnings: .tst.validateConfig (enlist `fuzzLimit)!enlist -5;

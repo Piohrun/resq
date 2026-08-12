@@ -11,9 +11,9 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`outDir`exclude`only`tag`excludeTag;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
-.tst.cli.specKinds:(23 # `flag), 12 # `value;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`noLineAnnotations`help`scaffold`isolateChild`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag");
+.tst.cli.specKinds:(23 # `flag), 13 # `value;
 .tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
@@ -254,6 +254,7 @@ printUsage:{[]
         "  -cov-statements       Measure per-STATEMENT coverage. Without it coverage";
         "                        is function-level only and reports no line data";
         "  -cov-min N            Fail the run below N% coverage (0-100)";
+        "  --source PATHS        Source files/directories to inventory (comma-separated)";
         "  -cov-include / -cov-exclude PATS   Comma-separated path filters";
         "";
         "EXIT CODES";
@@ -341,6 +342,9 @@ initCLI:{[parsed]
         .tst.app.coverageInclude: "," vs options`coverageInclude];
     if[0 < count options`coverageExclude;
         .tst.app.coverageExclude: "," vs options`coverageExclude];
+    if[0 < count options`coverageSources;
+        .tst.app.coverageSources: "," vs options`coverageSources;
+        .tst.app.runCoverage: 1b];
 
     / Version check
     if[options`version; -1 "resQ version ", .resq.VERSION; exit 0];

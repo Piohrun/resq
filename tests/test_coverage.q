@@ -64,6 +64,47 @@
     };
 };
 
+.tst.desc["Coverage: explicit source manifest"]{
+    should["inventory nested q files and seed every function at zero"]{
+        root: .utl.tempRoot[], "/resq_coverage_manifest_", string[.z.i], "_",
+              string `long$.z.p;
+        nested: root, "/nested";
+        .utl.ensureDir nested;
+        (hsym `$root,"/loaded.q") 0: enlist ".manifest.loaded:{[x] x+1};";
+        (hsym `$nested,"/never_loaded.q") 0: (
+            ".manifest.missA:{[x] x-1};";
+            ".manifest.missB:{[x] x*2};");
+        (hsym `$root,"/README.txt") 0: enlist "not q source";
+        .tst.registerCleanup[{[p]
+            if[p like .utl.tempRoot[],"/resq_coverage_manifest_*";
+                system "rm -rf -- ", .utl.shellQuote p]
+        };enlist root];
+
+        manifest: .tst.coverageManifest enlist root;
+        (count manifest) musteq 2;
+        must[any (string manifest) like "*/loaded.q";
+             "the root-level source must be inventoried"];
+        must[any (string manifest) like "*/nested/never_loaded.q";
+             "nested source discovery must be recursive"];
+
+        `.tst.coverageData mock ()!();
+        `.tst.trackedFiles mock `symbol$();
+        .tst.seedCoverageFile each manifest;
+        allNames: raze key each value .tst.coverageData;
+        must[all `.manifest.loaded`.manifest.missA`.manifest.missB in allNames;
+             "the manifest must seed loaded and unloaded functions"];
+        allHits: raze value each value .tst.coverageData;
+        allHits mustmatch 3#0j;
+    };
+
+    should["fail closed when an explicit source root matches no q files"]{
+        missing: .utl.tempRoot[], "/resq_manifest_missing_", string `long$.z.p;
+        err: @[.tst.coverageManifest;enlist missing;{[e] e}];
+        must[.tst.toString[err] like "Coverage source manifest matched 0 .q files:*";
+             "an empty manifest must name the coverage source error"];
+    };
+};
+
 .tst.desc["Coverage: accounting"]{
     before{
         / Snapshot and reset state so this suite is hermetic.

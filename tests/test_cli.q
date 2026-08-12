@@ -117,18 +117,26 @@
     should["support both spellings for every value option"]{
         single: .tst.parseCLI ("test"; "-maxTestTime"; "0"; "-fuzzLimit"; "4";
             "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";
-            "-cov-min"; "85";
+            "-cov-min"; "85"; "-source"; "src,shared";
             "-outDir"; "reports"; "-exclude"; "slow*"; "-only"; "fast*";
             "-tag"; "smoke"; "-exclude-tag"; "flaky"; "suite.q");
         longForm: .tst.parseCLI ("test"; "--maxTestTime"; "0"; "--fuzzLimit"; "4";
             "--isolateTimeout"; "5"; "--cov-include"; "lib/*"; "--cov-exclude"; "tests/*";
-            "--coverage-min"; "85";
+            "--coverage-min"; "85"; "--coverage-source"; "src,shared";
             "--outDir"; "reports"; "--exclude"; "slow*"; "--only"; "fast*";
             "--tag"; "smoke"; "--exclude-tag"; "flaky"; "suite.q");
         single[`ok] musteq 1b;
         longForm[`ok] musteq 1b;
         single[`options] mustmatch longForm`options;
         single[`args] mustmatch longForm`args;
+    };
+
+    should["treat --source as a value option rather than a test path"]{
+        parsed: .tst.parseCLI ("cover"; "tests"; "--source"; "src,shared");
+        parsed[`ok] musteq 1b;
+        parsed[`mode] musteq `cover;
+        parsed[`args] mustmatch enlist "tests";
+        parsed[`options;`coverageSources] musteq "src,shared";
     };
 
     should["normalize qspec's legacy runner aliases"]{
