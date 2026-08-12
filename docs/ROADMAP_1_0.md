@@ -75,7 +75,7 @@ resQ 1.0 must guarantee that:
 
 - [x] Test the supported q-version and execution-mode matrix.
 - [x] Add licence-free docs/schema/XML/shell/package CI.
-- [ ] Run extended differential corpora nightly.
+- [x] Run extended differential corpora nightly.
 - [ ] Audit shell quoting, temp permissions, symlinks, hostile paths, interrupts,
   child termination, and artifact path handling.
 - [ ] Publish support, trust-boundary, SemVer, identity, and deprecation policies.

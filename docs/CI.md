@@ -31,6 +31,28 @@ ordinary runners. It does not replace the licensed execution suite; the q job
 depends on it and remains the authority for runtime behavior and generated
 artifacts.
 
+## Nightly differential corpus
+
+The [nightly workflow](../.github/workflows/nightly.yml) runs the two riskiest
+source transformations against deterministic extended corpora on the licensed
+runner: the resQ test loader is compared with native `\l`, and statement
+instrumentation is compared with uninstrumented execution including side
+effects. Scheduled defaults are 400 loader seeds and 2,000 coverage seeds;
+manual dispatch can override either count.
+
+Each failure names its exact seed. Reproduce a nightly run locally with:
+
+```bash
+RESQ_LOADER_DIFF_SEEDS=400 RESQ_COVERAGE_DIFF_SEEDS=2000 \
+  resq test tests/test_loader_differential.q \
+    tests/test_coverage_differential.q -strict
+```
+
+The normal suite retains 40 and 75 seeds respectively. Values are bounded and
+validated (loader 1–5,000; coverage 1–10,000), so a malformed environment value
+fails explicitly instead of silently reducing the corpus. The nightly artifact
+records both configured counts alongside the versioned JSON result.
+
 The production CI baseline is a strict, process-isolated run with at least one
 machine-readable reporter:
 

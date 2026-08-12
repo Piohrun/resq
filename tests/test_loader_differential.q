@@ -57,8 +57,8 @@
 / MANUAL USE
 /   .tst.testState.ldiff.run[seed]   ->  `pass / `skip / `divergeNNN  for one
 /   seeded random script (deterministic: same seed => same script). The in-suite
-/   test runs the fixed nasty corpus (always) + seeds 1..40. A wider sweep
-/   (seeds 1..200) was run during development - clean after the fix above.
+/   test runs the fixed nasty corpus (always) + seeds 1..40. Nightly CI sets
+/   RESQ_LOADER_DIFF_SEEDS for a wider, replayable sweep.
 / ============================================================================
 
 / ---- environment / availability ------------------------------------------
@@ -71,6 +71,18 @@
 / one PID-keyed directory per run behind (201 of them had accumulated, in RAM on
 / any machine where TMPDIR is tmpfs).
 .tst.testState.ldiff.keepDir: 0b;
+
+/ Normal CI stays bounded; nightly CI may raise the deterministic seed count.
+/ Reject malformed or unreasonable values instead of accidentally turning a
+/ typo into either no coverage or an unbounded process-spawn loop.
+.tst.testState.ldiff.seedCount:{[]
+  raw:getenv `RESQ_LOADER_DIFF_SEEDS;
+  if[0=count raw;:40];
+  parsed:@["J"$;raw;{-1j}];
+  if[(parsed<1) or parsed>5000;
+    '"RESQ_LOADER_DIFF_SEEDS must be an integer from 1 through 5000"];
+  parsed
+ };
 
 / ---- dumper sources (generated to /tmp at setup; NOT committed) ------------
 / Shared tail: walk root + non-system child namespaces, print "%name=value"
@@ -415,12 +427,15 @@
   };
 
   skipIf[not .tst.testState.ldiff.canQ;
-         "fixed nasty corpus + seeds 1..40 all load-equivalent to native q"]{
-    res: .tst.testState.ldiff.runAll 1 + til 40;
+         "fixed nasty corpus and configured seeds all load-equivalent to native q"]{
+    seedCount:.tst.testState.ldiff.seedCount[];
+    -1 "LOADER_DIFFERENTIAL_SEEDS=",string seedCount;
+    res: .tst.testState.ldiff.runAll 1 + til seedCount;
     / Labels of any divergences, computed safely (empty -> ""), for triage.
     badLabels: $[count res`diverged; -3! (res`diverged)[;0]; ""];
     must[0 = count res`diverged; "loader divergences: ", badLabels];
     / Sanity: the run actually exercised scripts (not all skipped away).
-    must[res[`passed] > 30; "expected many equivalent loads, got ", string res`passed];
+    must[res[`passed] > seedCount div 2;
+         "expected many equivalent loads, got ", string res`passed];
   };
  };

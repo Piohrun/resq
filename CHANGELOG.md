@@ -10,6 +10,10 @@ All notable changes to the **resQ** project will be documented in this file.
   internal documentation links, JSON v2/schema fixtures, JUnit/xUnit fixtures,
   and the Python observability adapters. Licensed q execution waits for this
   contract gate to pass.
+- A scheduled, manually configurable nightly workflow now expands the
+  deterministic native-`\l` loader differential and statement-instrumentation
+  differential corpora, validates their JSON report, and records the exact seed
+  counts needed for reproduction.
 
 ### Fixed
 

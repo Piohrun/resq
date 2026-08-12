@@ -24,7 +24,8 @@
 / case `condExprWithNestedIf` fail with "return values differ". Swept clean to
 / seed 400 during development (400 generated functions, 0 divergences, 0 falling
 / back to uninstrumented); the in-suite run uses seeds 1..75 and exercises the
-/ full instrumentation pipeline, not only the low-level source rewrite.
+/ full instrumentation pipeline, not only the low-level source rewrite. Nightly
+/ CI raises the deterministic count through RESQ_COVERAGE_DIFF_SEEDS.
 / ============================================================================
 
 .utl.require .utl.PKGLOADING, "/coverage.q";
@@ -32,6 +33,15 @@
 .tst.testState.cdiff.dir: .utl.tempRoot[], "/resq_cdiff_", string .z.i;
 .tst.testState.cdiff.keepDir: 0b;
 .tst.testState.cdiff.sideEffects: 0;
+
+.tst.testState.cdiff.seedCount:{[]
+  raw:getenv `RESQ_COVERAGE_DIFF_SEEDS;
+  if[0=count raw;:75];
+  parsed:@["J"$;raw;{-1j}];
+  if[(parsed<1) or parsed>10000;
+    '"RESQ_COVERAGE_DIFF_SEEDS must be an integer from 1 through 10000"];
+  parsed
+ };
 
 / Snapshot all mutable coverage state: this suite now drives the same public
 / instrumentFile pipeline a real coverage run uses (rewrite + wrapper + model).
@@ -265,11 +275,13 @@
   };
 
   should["preserve behaviour across seeded random functions"]{
-    res: .tst.testState.cdiff.summarise .tst.testState.cdiff.runSeeds 1 + til 75;
+    seedCount:.tst.testState.cdiff.seedCount[];
+    -1 "COVERAGE_DIFFERENTIAL_SEEDS=",string seedCount;
+    res: .tst.testState.cdiff.summarise .tst.testState.cdiff.runSeeds 1 + til seedCount;
     bad: $[count res`diverged; -3! (res`diverged)[;0]; ""];
     must[0 = count res`diverged;
          "instrumentation changed behaviour for: ", bad];
-    must[50 <= count res`passed;
+    must[(2*seedCount) div 3 <= count res`passed;
          "expected most seeds to instrument, got ", string count res`passed];
   };
  };

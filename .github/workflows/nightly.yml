@@ -1,0 +1,63 @@
+name: Nightly differential corpus
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      loader_seeds:
+        description: Deterministic loader differential seeds
+        required: false
+        default: "400"
+      coverage_seeds:
+        description: Deterministic coverage differential seeds
+        required: false
+        default: "2000"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resq-nightly-differential
+  cancel-in-progress: false
+
+jobs:
+  differential:
+    runs-on: [self-hosted, linux, x64, kdb]
+    timeout-minutes: 60
+    env:
+      RESQ_LOADER_DIFF_SEEDS: ${{ inputs.loader_seeds || '400' }}
+      RESQ_COVERAGE_DIFF_SEEDS: ${{ inputs.coverage_seeds || '2000' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify runner prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v q
+          command -v python3
+          q -q -e 1 </dev/null
+
+      - name: Extended loader and coverage differentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/differential
+          printf 'loaderSeeds=%s\ncoverageSeeds=%s\n' \
+            "$RESQ_LOADER_DIFF_SEEDS" "$RESQ_COVERAGE_DIFF_SEEDS" \
+            > artifacts/differential/corpus.txt
+          ./bin/resq test tests/test_loader_differential.q \
+            tests/test_coverage_differential.q -strict -json \
+            -outDir artifacts/differential
+          tools/validate_report.py artifacts/differential/test-results.json
+
+      - name: Upload differential report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-nightly-differential-${{ github.run_id }}
+          path: artifacts/differential/
+          if-no-files-found: warn
+          retention-days: 30
