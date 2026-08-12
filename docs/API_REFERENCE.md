@@ -1787,6 +1787,12 @@ stdout/stderr unless `-quiet` suppresses them. See
 [Test reporting](REPORTING.md) for filenames, the JSON schema, XML mappings, and
 size limits.
 
+Coverage runs additionally write `coverage.lcov`, `coverage.json`,
+`coverage.html`, and `coverage_state.txt`. All four are projections of one
+canonical coverage model. `coverage.json` contains aggregate measurement and
+instrumentation totals plus per-file, per-function, and measured-statement
+records; see [Runtime code coverage](COVERAGE.md).
+
 **Filtering examples:**
 ```bash
 # Run only matching suites (glob on title)

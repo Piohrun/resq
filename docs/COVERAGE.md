@@ -176,6 +176,7 @@ resQ reports statement instrumentation completeness as
 `instrumented functions / eligible functions`. Each function that lacks probes
 has one canonical fallback reason:
 
+- `statement_mode_disabled`: statement instrumentation was not requested;
 - `source_not_loaded`: present in `--source`, but never loaded during the run;
 - `function_wrapper_unavailable`: loaded, but no safe callable wrapper exists;
 - `rewrite_rejected`: function coverage works, but the statement rewrite was
@@ -194,8 +195,15 @@ Reports are written to `outDir` (default: `.`):
 | File | Contents |
 |------|----------|
 | `coverage.lcov` | Standard LCOV with SF/FN/FNDA/FNF/FNH records, plus DA/LF/LH under `-cov-statements`. Consumable by `genhtml`, Codecov, Coveralls, SonarQube. |
-| `coverage.html` | Per-function HTML report showing hit/miss status for each instrumented function. |
-| `coverage_state.txt` | Human-readable dump of the complete coverage state at run end. |
+| `coverage.json` | Detailed canonical model: aggregate totals, eligibility/completeness, fallback counts, files, functions, and measured statement records. |
+| `coverage.html` | Annotated per-file source and function tables, including measured/unmeasured status and fallback reasons. |
+| `coverage_state.txt` | Grep-friendly complete function state (`path function hits instrumentation fallback`). |
+
+LCOV, detailed JSON, HTML, and state are rendered from the same in-memory
+coverage snapshot. The self-suite parses their outputs and requires function
+and measured-line totals to agree. `test-results.json` embeds the same aggregate
+summary and independent gate decisions; `coverage.json` carries the detailed
+file/function/statement model.
 
 ### Generating HTML locally
 

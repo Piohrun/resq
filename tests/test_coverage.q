@@ -177,6 +177,41 @@
     };
 };
 
+.tst.desc["Coverage: canonical model"]{
+    should["project one model into public per-file and per-function detail"]{
+        src:.tst.tempFile ".q";
+        (hsym `$src) 0:(
+            ".model.hit:{[x] x+1};";
+            ".model.miss:{[x] x-1};");
+        fs:`$src;
+        `.tst.canonicalData mock .tst.coverageData;
+        `.tst.canonicalLoaded mock .tst.coverageLoadedFiles;
+        `.tst.canonicalWrappers mock .tst.covWrappers;
+        `.tst.canonicalMode mock @[get;`.tst.coverageStatements;0b];
+        .tst.coverageData:(enlist fs)!enlist (`$(".model.hit";".model.miss"))!2 0j;
+        .tst.coverageLoadedFiles:enlist fs;
+        .tst.covWrappers:(enlist `$".model.hit")!enlist {x};
+        .tst.coverageStatements:1b;
+
+        model:.tst.coverageModel[];
+        public:.tst.coveragePublicModel model;
+        model[`summary;`functionsFound] musteq 2;
+        model[`summary;`functionsHit] musteq 1;
+        (count public`files) musteq 1;
+        publicFile:(public`files) 0;
+        must[not `sourceLines in key publicFile;
+             "public coverage JSON must omit embedded source text"];
+        funcs:publicFile`functions;
+        (count funcs) musteq 2;
+        funcs[0;`name] musteq ".model.hit";
+
+        .tst.coverageData:.tst.canonicalData;
+        .tst.coverageLoadedFiles:.tst.canonicalLoaded;
+        .tst.covWrappers:.tst.canonicalWrappers;
+        .tst.coverageStatements:.tst.canonicalMode;
+    };
+};
+
 .tst.desc["Coverage: safeValue name resolution"]{
     should["resolve a dotted child-namespace name (the bug-1 regression)"]{
         / safeValue used to gate on `nsSym in key \`.`, which is false for a

@@ -11,6 +11,7 @@
 .tst.trackedFiles: ();
 .tst.origFuncs: ()!();           / name -> original function
 .tst.lastCoverageSummary: `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(0j;0j;0f;0j;0j;0f);
+.tst.lastCoverageModel: ()!();
 .tst.covWrappers: ()!();         / name -> installed wrapper (live identity)
 .tst.coverageLoadedFiles: `symbol$(); / files observed by the runtime loader
 .tst.loadingStack: ();
@@ -101,7 +102,7 @@
     stmtPct:$[0=found;0f;100f*measured%found];
     reasons:raze {[f;d] .tst.coverageFallbackReason[f;] each key d}'[
         files;value .tst.coverageData];
-    reasonNames:`source_not_loaded`function_wrapper_unavailable`rewrite_rejected;
+    reasonNames:`statement_mode_disabled`source_not_loaded`function_wrapper_unavailable`rewrite_rejected;
     reasonCounts:reasonNames!{[allReasons;reason] sum 0,allReasons=reason}[
         reasons;] each reasonNames;
     `filesFound`filesLoaded`filesWithStatements`functionsEligible`functionsInstrumented`functionInstrumentationPercent`statementMode`statementFunctionsEligible`statementFunctionsInstrumented`statementInstrumentationPercent`statementInstrumentationComplete`fallbackCounts!(
@@ -404,6 +405,7 @@
     .tst.origFuncs:: ()!();
     .tst.covWrappers:: ()!();
     .tst.coverageLoadedFiles:: `symbol$();
+    .tst.lastCoverageModel:: ()!();
     .tst.loadingStack:: ();
     .tst.lineCoverageData:: ()!();
     .tst.stmtInstrumented:: ()!();
@@ -709,241 +711,235 @@
         linesFound;linesHit;linePercent;functionsFound;functionsHit;functionPercent)
  };
 
-/ Generate LCOV Report
+/ ---------------------------------------------------------------------------
+/ Canonical coverage model and renderers.
+/ Every artifact below consumes this one immutable snapshot. This prevents an
+/ LCOV denominator, JSON total, HTML table, or state dump from independently
+/ rediscovering the source and silently disagreeing with another artifact.
+/ ---------------------------------------------------------------------------
+
+.tst.coverageStatementModel:{[hitMap;lineNo]
+    hits:$[lineNo in key hitMap;"j"$hitMap lineNo;0j];
+    `line`hits`covered!("j"$lineNo;hits;hits>0)
+ };
+
+.tst.coverageFunctionModel:{[fileSym;fData;srcLines;nsAt;starts;row]
+    nm:.tst.coverageQualifyName[nsAt;row`line;row`name];
+    hits:$[nm in key fData;"j"$fData nm;0j];
+    measuredNames:$[fileSym in key .tst.stmtInstrumented;
+        .tst.stmtInstrumented fileSym;`symbol$()];
+    measured:nm in measuredNames;
+    span:.tst.covFunctionSpan[srcLines;row`line;starts];
+    probes:$[fileSym in key .tst.stmtProbeLines;
+        .tst.stmtProbeLines fileSym;`long$()];
+    inSpan:$[measured and span[1]>=span[0];
+        probes where probes within (span 0;span 1);`long$()];
+    hitMap:$[fileSym in key .tst.lineCoverageData;
+        .tst.lineCoverageData fileSym;(`long$())!`long$()];
+    statements:.tst.coverageStatementModel[hitMap;] each inSpan;
+    statementHits:sum 0,{x`covered} each statements;
+    reason:.tst.coverageFallbackReason[fileSym;nm];
+    `name`line`hits`covered`functionEligible`functionInstrumented`statementEligible`statementInstrumented`fallbackReason`statementFound`statementHit`statements!(
+        .tst._covNameStr[nm];"j"$row`line;hits;hits>0;1b;
+        nm in key .tst.covWrappers;1b;measured;string reason;
+        count statements;statementHits;statements)
+ };
+
+.tst.coverageFileModel:{[fileSym]
+    path:string fileSym;
+    if[path like ":*";path:1 _ path];
+    fHandle:hsym (`$":" , path);
+    staticFns:@[.tst.static.exploreFile;fHandle;{([] name:`$();line:`int$())}];
+    if[not 98h=type staticFns;staticFns:([] name:`$();line:`int$())];
+    srcLines:@[read0;fHandle;{()}];
+    nsAt:.tst.coverageSysDNamespaces srcLines;
+    starts:"j"$$[`line in cols staticFns;staticFns`line;`long$()];
+    starts:starts where not null starts;
+    fData:.tst.coverageData fileSym;
+    fnRows:.tst.coverageFunctionModel[fileSym;fData;srcLines;nsAt;starts;] each staticFns;
+    lineRows:raze {x`statements} each fnRows;
+    functionHit:sum 0,{x`covered} each fnRows;
+    lineHit:sum 0,{x`covered} each lineRows;
+    measuredFns:sum 0,{x`statementInstrumented} each fnRows;
+    `path`loaded`functionFound`functionHit`statementFunctionsInstrumented`lineFound`lineHit`functions`lines`sourceLines!(
+        path;fileSym in .tst.coverageLoadedFiles;count fnRows;functionHit;
+        measuredFns;count lineRows;lineHit;fnRows;lineRows;srcLines)
+ };
+
+.tst.coverageModel:{[]
+    fileRows:.tst.coverageFileModel each key .tst.coverageData;
+    fnFound:sum 0,{x`functionFound} each fileRows;
+    fnHit:sum 0,{x`functionHit} each fileRows;
+    lineFound:sum 0,{x`lineFound} each fileRows;
+    lineHit:sum 0,{x`lineHit} each fileRows;
+    base:`linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(
+        lineFound;lineHit;$[0=lineFound;0f;100f*lineHit%lineFound];
+        fnFound;fnHit;$[0=fnFound;0f;100f*fnHit%fnFound]);
+    instrumentation:.tst.coverageInstrumentationSummary[];
+    `summary`files!(base,instrumentation;fileRows)
+ };
+
+.tst.coveragePublicFile:{[fileRow]
+    publicKeys:(key fileRow) except `sourceLines;
+    publicKeys!fileRow publicKeys
+ };
+
+.tst.coveragePublicModel:{[model]
+    `summary`files!(model`summary;.tst.coveragePublicFile each model`files)
+ };
+
+.tst.coverageStateLines:{[model]
+    lines:("# resQ coverage state v2";
+        "# path function hits functionInstrumented statementInstrumented fallback");
+    fileRows:model`files;
+    i:0;
+    do[count fileRows;
+        fileRow:fileRows i;
+        filePath:fileRow`path;
+        funcs:fileRow`functions;
+        j:0;
+        do[count funcs;
+            fn:funcs j;
+            lines,:enlist filePath," ",(fn`name)," ",string[fn`hits]," ",
+                string[fn`functionInstrumented]," ",
+                string[fn`statementInstrumented]," ",fn`fallbackReason;
+            j+:1];
+        i+:1];
+    lines
+ };
+
+.tst.writeCoverageState:{[model;outPath]
+    idx:(count outPath)-(reverse outPath)?"/";
+    dir:$[idx=0;".";idx#outPath];
+    (hsym `$dir,"/coverage_state.txt") 0:.tst.coverageStateLines model;
+    ::
+ };
+
 .tst.generateLCOV:{[outFile]
-    if[not .tst.coverageEnabled; '"Coverage not enabled"];
-
-    outPath: .tst.resolvePath outFile;
-    outH: hsym (`$":" , outPath);
-
-    / Ultra-defensive LCOV writer: avoid adverbs and build line-by-line.
-    txt: "TN:resq\n";
-    files: key .tst.coverageData;
-
-    i: 0;
-    do[count files;
-        fileSym: files i;
-        pathStr: string fileSym;
-        if[pathStr like ":*"; pathStr: 1 _ pathStr];
-
-        fData: .tst.coverageData[fileSym];
-        fHandle: hsym (`$":" , pathStr);
-        fns: @[.tst.static.exploreFile; fHandle; {([] name:`$(); line:`int$())}];
-        if[not 98h = type fns; fns: ([] name:`$(); line:`int$())];
-
-        / exploreFile reports BARE names for functions opened with a runtime
-        / `system "d <ns>"` (it only honours `\d`); hits, however, were recorded
-        / under the QUALIFIED name (see instrumentFile). Re-derive the same
-        / namespace map so the FN:/FNDA: lines and the hit lookup use the loaded
-        / name, otherwise every FNDA stays 0 for system-`d` modules.
-        srcLines: @[read0; fHandle; {()}];
-        nsAt: .tst.coverageSysDNamespaces srcLines;
-        / DA (line) records are emitted ONLY for functions whose statements were
-        / actually instrumented (-cov-statements). resQ's default mode wraps whole
-        / functions, so it knows "this function ran" and nothing finer. Projecting
-        / that hit count across the function's span used to emit DA records that
-        / read as 100% line coverage for a function whose branches never ran --
-        / a false green in every LCOV consumer, and in -cov-min. Unmeasured lines
-        / now produce no DA record at all, so line totals describe exactly what
-        / was measured and the gate falls back to function coverage.
-        / See docs/COVERAGE.md.
-        fnStarts: "j"$ $[`line in cols fns; fns`line; `long$()];
-        fnStarts: fnStarts where not null fnStarts;
-        / Measured per-line hits for this file, and which functions carry them.
-        stmtNames: $[fileSym in key .tst.stmtInstrumented; .tst.stmtInstrumented fileSym; `symbol$()];
-        measuredMap: $[fileSym in key .tst.lineCoverageData; .tst.lineCoverageData fileSym; (`long$())!`long$()];
-        fileLines: {[m;n] $[n in key m; m n; 0j]}[measuredMap;] each 1 + til count srcLines;
-        probeLines: $[fileSym in key .tst.stmtProbeLines; .tst.stmtProbeLines fileSym; `long$()];
-        lineHits: (count srcLines) # 0j;
-        lineSeen: (count srcLines) # 0b;
-
-        sfLine: "SF:";
-        sfLine,: pathStr;
-        sfLine,: "\n";
-        txt,: sfLine;
-
-        fnCount: count fns;
-        hitFn: 0;
-        j: 0;
-        do[fnCount;
-            row: fns j;
-            nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
-            ln: row`line;
-
-            hit: 0;
-            if[nm in key fData; hit: fData[nm]];
-            if[hit > 0; hitFn+: 1];
-
-            / Where the function's statements were instrumented, its lines are
-            / MEASURED and only probed statements count. Otherwise fall back to
-            / projecting the function's hit count across its span (derived).
-            span: .tst.covFunctionSpan[srcLines; row`line; fnStarts];
-            measured: nm in stmtNames;
-            if[span[1] >= span[0];
-                $[measured;
-                    [ / Only statement starts are countable; a continuation line
-                      / or a `];` is not an independently executable statement.
-                      bodyIdx: (span[0] - 1) + til 1 + span[1] - span[0];
-                      bodyIdx: bodyIdx where bodyIdx < count srcLines;
-                      inSpan: probeLines where probeLines within (span 0; span 1);
-                      sIdx: (inSpan - 1) where (inSpan - 1) < count srcLines;
-                      if[count sIdx;
-                          lineSeen[sIdx]: 1b;
-                          / fileLines is 0-indexed by (line - 1), which is what
-                          / sIdx already holds.
-                          lineHits[sIdx]: lineHits[sIdx] | "j"$fileLines sIdx ];
-                    ];
-                    [ / Not statement-instrumented: this function's lines were
-                      / never measured, so they contribute no DA record. The
-                      / function still reports through FN:/FNDA:.
-                      ::
-                    ]];
-            ];
-
-            nmStr: .tst._covNameStr nm;
-            lnStr: .tst._covNumStr ln;
-            hitStr: .tst._covNumStr hit;
-
-            fnLine: "FN:";
-            fnLine,: lnStr;
-            fnLine,: ",";
-            fnLine,: nmStr;
-            fnLine,: "\n";
-
-            fndaLine: "FNDA:";
-            fndaLine,: hitStr;
-            fndaLine,: ",";
-            fndaLine,: nmStr;
-            fndaLine,: "\n";
-
-            txt,: fnLine;
-            txt,: fndaLine;
-
-            j+: 1;
-        ];
-
-        / DA records first (LCOV convention), then the line summary. With nothing
-        / statement-instrumented in this file there are no measured lines, so the
-        / DA/LF/LH block is omitted entirely rather than written as 0/0 -- an
-        / absent record reads as "not measured", where LF:0 reads as "no code".
-        / Guard the raze too: `txt,: raze ...` on an empty index list would
-        / promote the string to a mixed list.
-        daIdx: where lineSeen;
-        if[count daIdx;
-            txt,: raze {[i; h] "DA:", string[i + 1], ",", string[h], "\n"}'[daIdx; lineHits daIdx];
-            txt,: "LF:", string[count daIdx], "\n";
-            txt,: "LH:", string[sum 0 < lineHits daIdx], "\n";
-        ];
-
-        fnfLine: "FNF:";
-        fnfLine,: .tst._covNumStr fnCount;
-        fnfLine,: "\n";
-
-        fnhLine: "FNH:";
-        fnhLine,: .tst._covNumStr hitFn;
-        fnhLine,: "\n";
-
-        txt,: fnfLine;
-        txt,: fnhLine;
-        txt,: "end_of_record\n";
-
-        i+: 1;
-    ];
-
-    / Persist raw coverage state alongside the LCOV file.
-    idx: (count outPath) - (reverse outPath) ? "/";
-    dir: $[idx=0; "."; idx # outPath];
-    stateFile: dir, "/coverage_state.txt";
-    stateH: hsym (`$":" , stateFile);
-    / Persist the FULL coverage dict, one "file func count" line per record.
-    / `-3!` of the whole dict was truncated by q's display width ("..."), losing
-    / data; an explicit per-entry dump is complete and grep-friendly.
-    stateLines: ();
-    sf: 0;
-    do[count files;
-        fsym: files sf;
-        fpath: string fsym;
-        if[fpath like ":*"; fpath: 1 _ fpath];
-        fd: .tst.coverageData[fsym];
-        fnames: key fd;
-        k: 0;
-        do[count fnames;
-            stateLines,: enlist fpath, " ", (.tst._covNameStr fnames k), " ", .tst._covNumStr fd fnames k;
-            k+: 1;
-        ];
-        sf+: 1;
-    ];
-    stateH 0: stateLines;
-
-    .tst.lastCoverageSummary: (.tst.coverageSummaryFromLines "\n" vs txt),
-        .tst.coverageInstrumentationSummary[];
-    outH 0: enlist txt;
-    -1 "LCOV report written to: ", outPath;
-    / An empty report is the one result that looks like success but measures
-    / nothing. The usual cause is loading the code under test with a loader the
-    / instrumenting hook does not see -- only `\l` and `system "l "` are
-    / intercepted (docs/COVERAGE.md) -- which otherwise yields a silently blank
-    / LCOV and a green run.
-    if[0 = count files;
+    if[not .tst.coverageEnabled;'"Coverage not enabled"];
+    outPath:.tst.resolvePath outFile;
+    model:.tst.coverageModel[];
+    .tst.lastCoverageModel:model;
+    txt:"TN:resq\n";
+    fileRows:model`files;
+    i:0;
+    do[count fileRows;
+        fileRow:fileRows i;
+        filePath:fileRow`path;
+        txt,:"SF:",filePath,"\n";
+        funcs:fileRow`functions;
+        j:0;
+        do[count funcs;
+            fn:funcs j;
+            fnName:fn`name;
+            txt,:"FN:",string[fn`line],",",fnName,"\n";
+            txt,:"FNDA:",string[fn`hits],",",fnName,"\n";
+            j+:1];
+        lineRows:fileRow`lines;
+        j:0;
+        do[count lineRows;
+            ln:lineRows j;
+            txt,:"DA:",string[ln`line],",",string[ln`hits],"\n";
+            j+:1];
+        if[count lineRows;
+            txt,:"LF:",string[fileRow`lineFound],"\n";
+            txt,:"LH:",string[fileRow`lineHit],"\n"];
+        txt,:"FNF:",string[fileRow`functionFound],"\n";
+        txt,:"FNH:",string[fileRow`functionHit],"\nend_of_record\n";
+        i+:1];
+    .tst.writeCoverageState[model;outPath];
+    .tst.lastCoverageSummary:model`summary;
+    (hsym (`$":" , outPath)) 0:enlist txt;
+    -1 "LCOV report written to: ",outPath;
+    if[0=count fileRows;
         -1 "WARNING: coverage instrumented 0 functions - this report is empty.";
-        -1 "         Source must be loaded with `\\l path` or `system \"l \", path`;";
-        -1 "         other loaders (including .utl.require) are not intercepted.";
+        -1 "         Declare the source inventory with --source src/.";
     ];
     outPath
  };
 
-/ Generate a simple HTML summary
+.tst.generateCoverageJSON:{[outFile]
+    if[not .tst.coverageEnabled;'"Coverage not enabled"];
+    outPath:.tst.resolvePath outFile;
+    model:$[(99h=type .tst.lastCoverageModel) and `files in key .tst.lastCoverageModel;
+        .tst.lastCoverageModel;.tst.coverageModel[]];
+    public:.tst.coveragePublicModel model;
+    payload:`schemaVersion`framework`frameworkVersion`summary`files!(
+        1;"resQ";.tst.toString @[get;`.resq.VERSION;{"unknown"}];
+        public`summary;public`files);
+    (hsym (`$":" , outPath)) 0:enlist .j.j payload;
+    -1 "Coverage JSON written to: ",outPath;
+    outPath
+ };
+
+.tst.coverageHtmlEscape:{[text]
+    s:.tst.toString text;
+    s:ssr[s;"&";"&amp;"];
+    s:ssr[s;"<";"&lt;"];
+    s:ssr[s;">";"&gt;"];
+    s:ssr[s;"\"";"&quot;"];
+    s
+ };
+
+.tst.coverageFunctionHtml:{[fn]
+    cls:$[fn`covered;"covered";"uncovered"];
+    "<tr class=\"",cls,"\"><td>",.tst.coverageHtmlEscape[fn`name],
+    "</td><td>",string[fn`line],"</td><td>",string[fn`hits],
+    "</td><td>",string[fn`functionInstrumented],"</td><td>",
+    string[fn`statementHit]," / ",string[fn`statementFound],
+    "</td><td>",string[fn`statementInstrumented],"</td><td>",
+    .tst.coverageHtmlEscape[fn`fallbackReason],"</td></tr>"
+ };
+
+.tst.coverageSourceHtml:{[fileRow]
+    lineRows:fileRow`lines;
+    numbers:{x`line} each lineRows;
+    html:"<details><summary>Annotated source</summary><table><thead><tr><th>Line</th><th>Hits</th><th>Source</th></tr></thead><tbody>";
+    i:0;
+    do[count fileRow`sourceLines;
+        lineNo:i+1;
+        measured:lineNo in numbers;
+        hits:$[measured;lineRows[numbers?lineNo]`hits;0j];
+        cls:$[not measured;"unmeasured";hits>0;"covered";"uncovered"];
+        hitText:$[measured;string hits;"not measured"];
+        html,:"<tr class=\"",cls,"\"><td>",string[lineNo],"</td><td>",
+            hitText,"</td><td><pre>",
+            .tst.coverageHtmlEscape[(fileRow`sourceLines) i],"</pre></td></tr>";
+        i+:1];
+    html,"</tbody></table></details>"
+ };
+
 .tst.generateHTML:{[outFile]
-    if[not .tst.coverageEnabled; '"Coverage not enabled"];
-
-    outPath: .tst.resolvePath outFile;
-    outH: hsym (`$":" , outPath);
-
-    html: "<!DOCTYPE html><html><head><title>resQ Coverage</title></head><body>";
-    html,: "<h1>resQ Coverage</h1>";
-
-    / Render a real per-file table of functions and their hit counts (covered =
-    / hits>0, otherwise uncovered) rather than a placeholder. Names and lookups
-    / use the same `system "d"`/`\d` qualification as the LCOV writer.
-    files: key .tst.coverageData;
-    f: 0;
-    do[count files;
-        fileSym: files f;
-        pathStr: string fileSym;
-        if[pathStr like ":*"; pathStr: 1 _ pathStr];
-        fData: .tst.coverageData[fileSym];
-        fHandle: hsym (`$":" , pathStr);
-        fns: @[.tst.static.exploreFile; fHandle; {([] name:`$(); line:`int$())}];
-        if[not 98h = type fns; fns: ([] name:`$(); line:`int$())];
-        srcLines: @[read0; fHandle; {()}];
-        nsAt: .tst.coverageSysDNamespaces srcLines;
-
-        covered: 0;
-        rowsHtml: "";
-        j: 0;
-        do[count fns;
-            row: fns j;
-            nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
-            hit: $[nm in key fData; fData[nm]; 0];
-            if[hit > 0; covered+: 1];
-            cls: $[hit > 0; "covered"; "uncovered"];
-            rowsHtml,: "<tr class=\"", cls, "\"><td>", (.tst._covNameStr nm),
-                "</td><td>", (.tst._covNumStr row`line),
-                "</td><td>", (.tst._covNumStr hit), "</td></tr>";
-            j+: 1;
-        ];
-
-        html,: "<h2>", pathStr, "</h2>";
-        html,: "<p>", (.tst._covNumStr covered), " / ", (.tst._covNumStr count fns), " functions covered</p>";
-        html,: "<table border=\"1\"><thead><tr><th>Function</th><th>Line</th><th>Hits</th></tr></thead><tbody>";
-        html,: rowsHtml;
-        html,: "</tbody></table>";
-        f+: 1;
-    ];
-
-    html,: "<p>Raw coverage state written to coverage_state.txt</p>";
-    html,: "</body></html>";
-    outH 0: enlist html;
-    -1 "HTML report written to: ", outPath;
+    if[not .tst.coverageEnabled;'"Coverage not enabled"];
+    outPath:.tst.resolvePath outFile;
+    model:$[(99h=type .tst.lastCoverageModel) and `files in key .tst.lastCoverageModel;
+        .tst.lastCoverageModel;.tst.coverageModel[]];
+    s:model`summary;
+    html:"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>resQ Coverage</title>";
+    html,:"<style>body{font-family:sans-serif;margin:2rem}table{border-collapse:collapse;width:100%;margin-bottom:1rem}th,td{border:1px solid #ccc;padding:.35rem;text-align:left}.covered{background:#e7f7ea}.uncovered{background:#fde8e8}.unmeasured{background:#f3f3f3;color:#666}pre{margin:0;white-space:pre-wrap}</style></head><body>";
+    html,:"<h1>resQ Coverage</h1><p><strong>Functions:</strong> ",
+        string[s`functionsHit]," / ",string[s`functionsFound]," (",
+        string[s`functionPercent],"%)</p><p><strong>Measured statements:</strong> ",
+        string[s`linesHit]," / ",string[s`linesFound]," (",string[s`linePercent],
+        "%)</p><p><strong>Statement instrumentation completeness:</strong> ",
+        string[s`statementFunctionsInstrumented]," / ",
+        string[s`statementFunctionsEligible]," (",
+        string[s`statementInstrumentationPercent],"%)</p>";
+    fileRows:model`files;
+    i:0;
+    do[count fileRows;
+        fileRow:fileRows i;
+        html,:"<section><h2>",.tst.coverageHtmlEscape[fileRow`path],"</h2>";
+        html,:"<p>",string[fileRow`functionHit]," / ",
+            string[fileRow`functionFound]," functions covered; ",
+            string[fileRow`lineHit]," / ",string[fileRow`lineFound],
+            " measured statements covered; loaded=",string[fileRow`loaded],"</p>";
+        html,:"<table><thead><tr><th>Function</th><th>Line</th><th>Hits</th><th>Function instrumented</th><th>Statements</th><th>Statement instrumented</th><th>Fallback</th></tr></thead><tbody>";
+        html,:raze .tst.coverageFunctionHtml each fileRow`functions;
+        html,:"</tbody></table>",.tst.coverageSourceHtml[fileRow],"</section>";
+        i+:1];
+    html,:"<p>Machine-readable detail: coverage.json. Raw state: coverage_state.txt.</p></body></html>";
+    (hsym (`$":" , outPath)) 0:enlist html;
+    -1 "HTML report written to: ",outPath;
     outPath
  };

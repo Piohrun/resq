@@ -41,13 +41,13 @@ resQ 1.0 must guarantee that:
 
 - [x] Add explicit `--source`/`coverageSources` source manifests.
 - [x] Seed unloaded files and functions at zero hits.
-- [ ] Track file/function/statement eligibility, completeness, and fallback reasons.
+- [x] Track file/function/statement eligibility, completeness, and fallback reasons.
 - [x] Add independent function, line, and instrumentation-completeness gates.
 - [x] Make partial line measurement fail closed unless explicitly allowed.
-- [ ] Generate LCOV, detailed coverage JSON, annotated HTML, and state output
+- [x] Generate LCOV, detailed coverage JSON, annotated HTML, and state output
   from one canonical model.
 - [ ] Extend loader and instrumentation differential verification.
-- [ ] Document the exact function/statement measurement contract.
+- [x] Document the exact function/statement measurement contract.
 
 ## 0.7.0 — Observability contract
 

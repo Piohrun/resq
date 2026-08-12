@@ -138,7 +138,7 @@
         / initCoverage present but generateLCOV absent, surfacing much later as a
         / vague "LCOV generator not available". Check the module's entry points
         / explicitly and say exactly what is missing.
-        covExports: `initCoverage`instrumentFile`generateLCOV`generateHTML;
+        covExports: `initCoverage`instrumentFile`generateLCOV`generateCoverageJSON`generateHTML;
         covMissing: covExports where not covExports in key `.tst;
         if[count covMissing;
             -1 "Coverage module loaded INCOMPLETELY - missing: ",
@@ -907,6 +907,18 @@
             {[e] (1b;e)}];
         if[first htmlOutcome;
             errors,: enlist "HTML generation failed: ", .tst.toString last htmlOutcome];
+    ];
+
+    covJSON:@[get;`.tst.generateCoverageJSON;{()}];
+    if[0=count covJSON;errors,:enlist "Coverage JSON generator not available."];
+    if[0<count covJSON;
+        jsonOutcome:@[
+            {[pair] (pair 0) pair 1;(0b;"")};
+            (covJSON;outDirStr,"/coverage.json");
+            {[e] (1b;e)}];
+        if[first jsonOutcome;
+            errors,:enlist "Coverage JSON generation failed: ",
+                .tst.toString last jsonOutcome];
     ];
 
     summary: @[get; `.tst.lastCoverageSummary; {()!()}];

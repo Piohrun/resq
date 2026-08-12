@@ -70,11 +70,15 @@
     payload: $[count rawJson; .j.k raze rawJson; ()!()];
     lcov: @[read0; hsym `$wd,"/coverage.lcov"; {()}];
     state: @[read0; hsym `$wd,"/coverage_state.txt"; {()}];
+    rawCoverage: @[read0; hsym `$wd,"/coverage.json"; {()}];
+    coverageJson:$[count rawCoverage;.j.k raze rawCoverage;()!()];
+    coverageHtml:"\n" sv @[read0;hsym `$wd,"/coverage.html";{()}];
     if[wd like "*/resq_covmanifest_*"; system "rm -rf -- ", .utl.shellQuote wd];
-    `code`output`payload`lcov`state!(exitCode;output;payload;lcov;state)
+    `code`output`payload`lcov`state`coverageJson`coverageHtml!(
+        exitCode;output;payload;lcov;state;coverageJson;coverageHtml)
  };
 .tst.testState.covgate.runManifest:{[]
-    .tst.testState.covgate.runManifestWith "-cov-min 26"};
+    .tst.testState.covgate.runManifestWith "-cov-min 26 -cov-statements"};
 
 .tst.desc["Coverage gate decision"]{
     should["keep the legacy threshold function-based when partial lines look greener"]{
@@ -105,9 +109,54 @@
              "LCOV must contain a record for an entirely unloaded module"];
         must[any r[`lcov] like "FNF:3";
              "the unloaded module must contribute all three functions"];
-        zeroMisses: {(0<count ss[x;"/never_loaded.q "]) and x like "* 0"} each r`state;
+        zeroMisses: {(0<count ss[x;"/never_loaded.q "]) and
+            0<count ss[x;" 0 "]} each r`state;
         must[3=sum zeroMisses;
              "coverage_state must include each zero-hit function"];
+        detailCoverage:r`coverageJson;
+        detailCoverage[`summary;`functionsFound] musteq 4f;
+        detailCoverage[`summary;`functionsHit] musteq 1f;
+        detailCoverage[`summary;`functionPercent] musteq 25f;
+        (count detailCoverage`files) musteq 2;
+        unloadedRows:detailCoverage[`files] where not detailCoverage[`files;`loaded];
+        unloaded:unloadedRows 0;
+        unloaded[`functionFound] musteq 3f;
+        unloadedFunctions:unloaded`functions;
+        fallbackReasons:unloadedFunctions`fallbackReason;
+        must[all {x~"source_not_loaded"} each fallbackReasons;
+             "detailed JSON must classify every unloaded function: ",
+             .Q.s1 fallbackReasons];
+        must[0<count ss[r`coverageHtml;"never_loaded.q"];
+             "annotated HTML must include the unloaded module"];
+        fallbackAt:ss[r`coverageHtml;"source_not_loaded"];
+        must[0<count fallbackAt;
+             "HTML must show the canonical fallback reason"];
+    };
+
+    skipIf[not .tst.testState.covgate.canRun;
+           "keep LCOV, JSON, HTML, state, and test JSON totals consistent"]{
+        r:.tst.testState.covgate.runManifestWith "-cov-statements";
+        lcovSummary:.tst.coverageSummaryFromLines r`lcov;
+        detailSummary:r[`coverageJson;`summary];
+        reportCoverage:r[`payload;`coverage];
+        detailFunctionFound:"j"$detailSummary`functionsFound;
+        detailFunctionHit:"j"$detailSummary`functionsHit;
+        detailLineFound:"j"$detailSummary`linesFound;
+        detailLineHit:"j"$detailSummary`linesHit;
+        detailFunctionFound musteq lcovSummary`functionsFound;
+        detailFunctionHit musteq lcovSummary`functionsHit;
+        detailLineFound musteq lcovSummary`linesFound;
+        detailLineHit musteq lcovSummary`linesHit;
+        reportCoverage[`functionsFound] musteq detailSummary`functionsFound;
+        reportCoverage[`functionsHit] musteq detailSummary`functionsHit;
+        reportCoverage[`linesFound] musteq detailSummary`linesFound;
+        reportCoverage[`linesHit] musteq detailSummary`linesHit;
+        must[0<count ss[r`coverageHtml;
+             string[detailSummary`functionsHit]," / ",string[detailSummary`functionsFound]];
+             "HTML summary must render the canonical function totals"];
+        stateFunctions:r[`state] where not r[`state] like "#*";
+        stateFunctionCount:"f"$count stateFunctions;
+        stateFunctionCount musteq detailSummary`functionsFound;
     };
 
     skipIf[not .tst.testState.covgate.canRun;
