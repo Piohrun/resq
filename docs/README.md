@@ -23,6 +23,7 @@
 - [Migrating from qspec](MIGRATION.md) — Compatibility boundary and adoption sequence
 
 ### Contributor / internal reference
+- [Road to resQ 1.0](ROADMAP_1_0.md) — Production-readiness delivery ledger and release gates
 - `ARCHITECTURE.md` — Namespace layout, file structure, exit codes
 - `internal/DISCOVERY.md` — Discovery engine design notes
 - `internal/DESIGN_SKETCH.md` — Early API sketches
@@ -48,5 +49,6 @@
 | `SNAPSHOTS.md` | Users | Binary and text snapshot testing |
 | `TROUBLESHOOTING.md` | Users | Debugging, exit codes, CI/CD |
 | `WATCH.md` | Users | Watch mode |
+| `ROADMAP_1_0.md` | Contributors | Production-readiness delivery ledger and release gates |
 | `internal/DESIGN_SKETCH.md` | Internal | Early API sketches (historical) |
 | `internal/DISCOVERY.md` | Internal | Discovery engine design notes |
