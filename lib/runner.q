@@ -389,6 +389,9 @@
     / Per-suite testOnly focus: if any expectation is focused, convert the rest
     / to skipped (they flow through runExpec's terminal skip path unchanged).
     exList: .tst.applyTestOnlyFocus[specTitle; exList];
+    orderStream:"expectations/",.tst.toString[.tst.currentContext`file],"/",
+        .tst.toString specTitle;
+    exList:.tst.orderItems[exList;orderStream];
 
     res: {[s; ex] if[.tst.halt; :()]; .tst.runExpec[s; ex]}[spec] each exList;
     / Remove skipped expectations (halt)
@@ -544,6 +547,7 @@
     .tst.app.expectationsFailed: 0;
     .tst.app.expectationsErrored: 0;
     .tst.app.discoveredFiles: ();
+    .tst.app.allDiscoveredFiles: ();
     .tst.app.loadedFiles: ();
     .tst.app.emptyFiles: ();
     .tst.app.executionState: `notStarted;
@@ -575,6 +579,16 @@
 / Apply runSpecs / excludeSpecs / tagFilter / excludeTagFilter to the
 / loaded spec list. failHard is also propagated into each spec dict here
 / so individual expecs can see it without re-reading .tst.app.
+.tst.orderSpecsByFile:{[specs]
+    if[2>count specs;:specs];
+    paths:{[s].tst.toString $[`tstPath in key s;s`tstPath;""]} each specs;
+    groupPaths:distinct paths;
+    groups:{[allSpecs;allPaths;p]
+        .tst.orderItems[allSpecs where allPaths~\:p;"specs/",p]
+    }[specs;paths;] each groupPaths;
+    raze groups
+ };
+
 .tst.runAllPhase.filterSpecs:{[]
     if[0 = count .tst.app.allSpecs; :()];
     if[1b ~ .tst.app.failHard; .tst.app.allSpecs[; `failHard]: 1b];
@@ -608,6 +622,14 @@
             .tst.app.allSpecs: .tst.app.allSpecs where
                 {[spec;tags] not any tags in $[`tags in key spec; spec`tags; ()]}[; .tst.app.excludeTagFilter] each .tst.app.allSpecs
         ]
+    ];
+    if[1b~@[get;`.tst.app.randomOrder;0b];
+        specsList:$[98h=type .tst.app.allSpecs;
+            {[tbl;idx] tbl idx}[.tst.app.allSpecs] each til count .tst.app.allSpecs;
+            .tst.app.allSpecs];
+        / Preserve randomized FILE groups so isolated and in-process runs replay
+        / the same sequence; suites are permuted independently within each file.
+        .tst.app.allSpecs:.tst.orderSpecsByFile specsList;
     ];
  };
 

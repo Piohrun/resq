@@ -216,6 +216,9 @@ q resq.q test tests/ -desc
 q resq.q test tests/ -isolate
 q resq.q test tests/ -isolate -isolateTimeout 120   # per-file wall-clock cap (s)
 q resq.q test tests/ -isolate -isolateWorkers 4     # bounded concurrent children
+
+# Expose order-dependent tests reproducibly (does not touch q's global seed)
+q resq.q test tests/ -random-order -seed 4242
 ```
 
 Tags are `#word` tokens embedded in the suite title string:

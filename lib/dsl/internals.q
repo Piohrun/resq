@@ -32,6 +32,8 @@ if[not `pollutionGuard in key `.tst.app; .tst.app.pollutionGuard: 1b];
 if[not `maxTestTime in key `.tst.app; .tst.app.maxTestTime: 0];
 if[not `passOnly in key `.tst.app; .tst.app.passOnly: 0b];
 if[not `quiet in key `.tst.app; .tst.app.quiet: 0b];
+if[not `randomOrder in key `.tst.app; .tst.app.randomOrder: 0b];
+if[not `executionSeed in key `.tst.app; .tst.app.executionSeed: 0j];
 if[not `allSpecs in key `.tst.app; .tst.app.allSpecs: ()];
 if[not `passed in key `.tst.app; .tst.app.passed: 1b];
 

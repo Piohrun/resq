@@ -43,7 +43,17 @@
           "additionalProperties": false
         },
         "ci": {"type": "object"},
-        "config": {"type": "object"}
+        "config": {"type": "object"},
+        "ordering": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["randomized", "seed", "algorithm"],
+          "properties": {
+            "randomized": {"type": "boolean"},
+            "seed": {"type": "integer", "minimum": 0},
+            "algorithm": {"const": "md5-counter-v1"}
+          }
+        }
       }
     },
     "summary": {

@@ -14,7 +14,7 @@
     .tst.beginRunMetadata[];
     runInfo:.tst.finishRunMetadata[];
     metadataKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
-      `qVersion`qRelease`os`resqVersion`vcs`ci`config;
+      `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering;
     key[runInfo] mustin metadataKeys;
     runInfo[`id] mustlike "run_*";
     count[runInfo`finishedAt] mustgt 0;
@@ -62,6 +62,27 @@
     expectedRandom:8?1000;
     system "S 991";
     ignored:.tst.pickFuzzSeeded[`int;100;77;"private"];
+    actualRandom:8?1000;
+    system "S ",string oldSeed;
+    actualRandom musteq expectedRandom;
+  };
+
+  should["replay execution permutations without consuming q random state"]{
+    items:`a`b`c`d`e`f`g`h;
+    firstOrder:.tst.seededPermutation[items;2026;"tests"];
+    replayOrder:.tst.seededPermutation[items;2026;"tests"];
+    otherOrder:.tst.seededPermutation[items;2027;"tests"];
+    firstOrder musteq replayOrder;
+    firstOrder mustne otherOrder;
+    sortedOrder:asc firstOrder;
+    sortedItems:asc items;
+    sortedOrder musteq sortedItems;
+
+    oldSeed:system "S";
+    system "S 712";
+    expectedRandom:8?1000;
+    system "S 712";
+    ignored:.tst.seededPermutation[items;99;"private-order"];
     actualRandom:8?1000;
     system "S ",string oldSeed;
     actualRandom musteq expectedRandom;

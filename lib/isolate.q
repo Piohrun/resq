@@ -343,6 +343,9 @@
     argv: .tst.isolate.appendValue[argv; "-maxTestTime"; @[get; `.tst.app.maxTestTime; 0]];
     argv: .tst.isolate.appendValue[argv; "-fuzzLimit"; @[get; `.tst.output.fuzzLimit; 0]];
     argv: .tst.isolate.appendFlag[argv; "-quiet"; @[get; `.tst.app.quiet; 0b]];
+    argv: .tst.isolate.appendFlag[argv; "-random-order"; @[get; `.tst.app.randomOrder; 0b]];
+    if[1b~@[get;`.tst.app.randomOrder;0b];
+        argv:.tst.isolate.appendValue[argv;"-seed";@[get;`.tst.app.executionSeed;0j]]];
     / Marks where the child's own report starts so readCaptured can forward the
     / test output without the child's duplicate summary and scratch-path
     / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.
@@ -629,7 +632,7 @@
     .tst.app.baseDir: system "cd";
     .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
 
-    files: .tst.findTests paths;
+    files: .tst.selectTestFiles .tst.findTests paths;
     n: count files;
     .tst.app.discoveredFiles: files;
     .tst.isolate.upsertRows .tst.isolate.parentLoadRows[];

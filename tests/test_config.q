@@ -14,6 +14,8 @@
   cfg[`expectationLineAnnotations] musteq 1b;
   cfg[`coverageMin] musteq 0;
   cfg[`coverageSources] mustmatch ();
+  cfg[`randomOrder] musteq 0b;
+  cfg[`seed] musteq 0j;
   };
 
  should["accept but ignore the deprecated qNamespaceExports switch"]{
@@ -33,6 +35,21 @@
   applied: .tst.app.expectationLineAnnotations;
   .tst.app.expectationLineAnnotations: previous;
   applied musteq 0b;
+  };
+ should["validate and apply replayable ordering settings"]{
+  warnings:.tst.validateConfig `randomOrder`seed!(1b;42j);
+  warnings mustmatch ();
+  previousOrder:.tst.app.randomOrder;
+  previousSeed:.tst.app.executionSeed;
+  .tst.applyConfig `randomOrder`seed!(1b;42j);
+  appliedOrder:.tst.app.randomOrder;
+  appliedSeed:.tst.app.executionSeed;
+  .tst.app.randomOrder:previousOrder;
+  .tst.app.executionSeed:previousSeed;
+  appliedOrder musteq 1b;
+  appliedSeed musteq 42j;
+  badWarnings:.tst.validateConfig (enlist `seed)!enlist -1;
+  must[any badWarnings like "seed must be >= 0*";"negative seeds must be rejected"];
   };
  should["load and parse JSON config file"]{
   / Create test config file

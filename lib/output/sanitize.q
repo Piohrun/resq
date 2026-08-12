@@ -349,6 +349,7 @@
         `coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage,
         `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
         `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
+        `randomOrder`executionSeed,
         `tagFilter`excludeTagFilter`coverageSources;
     appKeys:key `.tst.app;
     present:names where names in appKeys;
@@ -384,12 +385,16 @@
     runId:"run_",.tst.stableHash[string[started],"\n",root,"\n",host];
     .tst.app.runStartedAt:started;
     .tst.app.runFinishedAt:0Np;
+    ordering:`randomized`seed`algorithm!(
+        1b~@[get;`.tst.app.randomOrder;0b];
+        "j"$@[get;`.tst.app.executionSeed;0j];
+        "md5-counter-v1");
     metaKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
-        `qVersion`qRelease`os`resqVersion`vcs`ci`config;
+        `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering;
     .tst.app.runMetadata:metaKeys!(
         runId;.tst.isoTimestamp started;"";0f;host;root;string .z.K;
         string .z.k;string .z.o;$[`VERSION in key `.resq;.resq.VERSION;"unknown"];
-        .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[]);
+        .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[];ordering);
     .tst.app.diagnostics:();
     ::
  };

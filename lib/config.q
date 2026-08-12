@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;())
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j)
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -75,6 +75,9 @@ loadConfig:{[path]
     ];
     if[10h = type merged`reportListLimit;
         merged[`reportListLimit]: "I"$merged`reportListLimit
+    ];
+    if[10h = type merged`seed;
+        merged[`seed]: "J"$merged`seed
     ];
     coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
     {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
@@ -180,7 +183,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -194,10 +197,11 @@ validateConfig:{[cfg]
             "expectationLineAnnotations must be a boolean";
             "qspecCompat must be a boolean";
             "covStatements must be a boolean";
-            "allowPartialLineCoverage must be a boolean");
+            "allowPartialLineCoverage must be a boolean";
+            "randomOrder must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed;
   intMsgs:("fuzzLimit must be an integer scalar";
            "maxTestTime must be an integer scalar";
            "reportLimit must be an integer scalar";
@@ -207,7 +211,8 @@ validateConfig:{[cfg]
            "coverageMin must be an integer scalar";
            "coverageFunctionMin must be an integer scalar";
            "coverageLineMin must be an integer scalar";
-           "coverageCompletenessMin must be an integer scalar");
+           "coverageCompletenessMin must be an integer scalar";
+           "seed must be an integer scalar");
   warnings,: raze checkType[cfg;;(-5h;-6h;-7h);]'[intNames; intMsgs];
 
   / Range check: numeric keys must be non-negative. A correctly-typed but
@@ -231,7 +236,8 @@ validateConfig:{[cfg]
              "coverageMin must be between 0 and 100";
              "coverageFunctionMin must be between 0 and 100";
              "coverageLineMin must be between 0 and 100";
-             "coverageCompletenessMin must be between 0 and 100");
+             "coverageCompletenessMin must be between 0 and 100";
+             "seed must be >= 0");
   warnings,: raze checkNonNeg[cfg;;]'[intNames; rangeMsgs];
   if[`coverageMin in key cfg;
     if[(type cfg`coverageMin) in -5 -6 -7h;
@@ -288,7 +294,7 @@ invalidConfigKeys:{[cfg]
   ];
 
   / Boolean-typed keys: must be a single boolean.
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
   / Integer-typed keys: must be a single integer-like value, not null, AND
@@ -296,7 +302,7 @@ invalidConfigKeys:{[cfg]
   / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
   / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
   / with a warning, default retained (the warn-and-ignore contract).
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed;
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
@@ -375,6 +381,8 @@ applyConfig:{[cfg]
     if[ok`pollutionGuard; .tst.app.pollutionGuard: cfg`pollutionGuard];
     if[ok`expectationLineAnnotations;
         .tst.app.expectationLineAnnotations: cfg`expectationLineAnnotations];
+    if[ok`randomOrder; .tst.app.randomOrder: cfg`randomOrder];
+    if[ok`seed; .tst.app.executionSeed: "j"$cfg`seed];
 
     if[ok`fuzzLimit; .tst.output.fuzzLimit: cfg`fuzzLimit];
     if[ok`maxTestTime; .tst.app.maxTestTime: cfg`maxTestTime];

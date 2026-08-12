@@ -21,6 +21,25 @@ privateIndex:{[seed;counter;stream;bound]
     $[bound<=0;0j;.tst.privateWord[seed;counter;stream] mod "j"$bound]
  };
 
+/ Return a replayable permutation without touching q's process-global random
+/ stream. Equal hash words retain their input order through iasc, so even the
+/ (vanishingly unlikely) collision case is deterministic.
+seededPermutation:{[items;seed;stream]
+    n:count items;
+    if[2>n;:items];
+    ranks:.tst.privateWord["j"$seed;;stream] each til n;
+    items iasc ranks
+ };
+
+/ Apply execution ordering only when explicitly enabled. Keeping the switch in
+/ one helper prevents file, suite and expectation ordering from drifting apart.
+orderItems:{[items;stream]
+    enabled:1b~@[get;`.tst.app.randomOrder;0b];
+    if[not enabled;:items];
+    seed:"j"$@[get;`.tst.app.executionSeed;0j];
+    .tst.seededPermutation[items;seed;stream]
+ };
+
 privateGuid:{[seed;counter;stream]
     hex:raze string md5 raze (
         .tst.toString[seed];"/";.tst.toString[counter];"/";.tst.toString stream);

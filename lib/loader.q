@@ -607,7 +607,7 @@
  };
 
 .tst.loadTests:{[paths]
-    tests: .tst.findTests paths;
+    tests: .tst.selectTestFiles .tst.findTests paths;
     .tst.app.discoveredFiles: tests;
     .tst.app.loadedFiles: ();
     .tst.app.emptyFiles: ();
@@ -746,6 +746,14 @@
         .tst.restoreRuntimeContext loadCtx;
         
     } each tests;
+ };
+
+/ Canonical file selection boundary. Sharding extends this function later; all
+/ callers already share it so normal and isolated execution cannot diverge.
+.tst.selectTestFiles:{[files]
+    ordered:files iasc .utl.pathToString each files;
+    .tst.app.allDiscoveredFiles:ordered;
+    .tst.orderItems[ordered;"files"]
  };
 
 .tst.findTests:{[paths]

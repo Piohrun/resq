@@ -1753,6 +1753,8 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
 | `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
 | `-fh` / `--fail-hard` | Halt remaining expectations and suites on first failure; mandatory cleanup still runs |
+| `-random-order` / `--randomOrder` | Deterministically permute files, suites, and expectations with resQ's private PRNG |
+| `-seed N` | Non-negative replay seed for `-random-order` (default `0`); recorded in report metadata |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
 | `-only PATTERN` | Run only suites whose title matches the `like` glob pattern |
 | `-exclude PATTERN` | Skip suites whose title matches the `like` glob pattern |
@@ -1857,6 +1859,8 @@ Create `resq.json` in project root:
     "strict": false,
     "failFast": false,
     "failHard": false,
+    "randomOrder": false,
+    "seed": 0,
     "pollutionGuard": true,
     "fuzzLimit": 100,
     "maxTestTime": 0,
@@ -1893,6 +1897,8 @@ Create `resq.json` in project root:
 | `fuzzLimit` | `100` | Maximum displayed fuzz failures |
 | `failFast` | `false` | Enable fail-fast behavior |
 | `failHard` | `false` | Halt remaining expectations and suites after failure; mandatory cleanup still runs |
+| `randomOrder` | `false` | Deterministically permute files, suites, and expectations |
+| `seed` | `0` | Non-negative replay seed used by randomized execution order |
 | `pollutionGuard` | `true` | Detect and restore application-namespace changes per suite |
 | `maxTestTime` | `0` | Post-execution per-test budget in milliseconds (`0` disables) |
 | `reportLimit` | `50000` | Maximum rendered failure/error message characters |

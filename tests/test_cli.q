@@ -114,6 +114,15 @@
         .tst.cliParseFails[("test"; "-isolateWorkers"; "two"); "Invalid integer for *"] musteq 1b;
     };
 
+    should["parse replayable randomized ordering options"]{
+        parsed: .tst.parseCLI ("test"; "--random-order"; "--seed"; "4242"; "suite.q");
+        parsed[`ok] musteq 1b;
+        parsed[`options;`randomOrder] musteq 1b;
+        parsed[`options;`seed] musteq 4242j;
+        parsed[`args] musteq enlist "suite.q";
+        .tst.cliParseFails[("test"; "-seed"; "-1"); "Value must be >= 0 for *"] musteq 1b;
+    };
+
     should["support both spellings for every value option"]{
         single: .tst.parseCLI ("test"; "-maxTestTime"; "0"; "-fuzzLimit"; "4";
             "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";
