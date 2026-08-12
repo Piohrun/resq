@@ -181,8 +181,8 @@ afterAll[code]
 Define suite-level setup and teardown for the current `desc` block. `beforeAll`
 runs once before its expectations. If it throws, the suite records an error and
 does not execute those expectations; later suites still run. `afterAll` runs
-once after the suite, including after a failed `beforeAll` unless fail-hard has
-halted cleanup.
+once after every suite that started, including after a failed `beforeAll`, a
+fail-hard stop, or another recoverable suite-runner error.
 
 A throwing `afterAll` is a structured cleanup error and fails the run. The
 runner continues with the remaining cleanup work so one teardown error does not
@@ -1744,7 +1744,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
 | `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
 | `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
-| `-fh` / `--fail-hard` | Hard stop and skip cleanup on first failure |
+| `-fh` / `--fail-hard` | Halt remaining expectations and suites on first failure; mandatory cleanup still runs |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
 | `-only PATTERN` | Run only suites whose title matches the `like` glob pattern |
 | `-exclude PATTERN` | Skip suites whose title matches the `like` glob pattern |
@@ -1870,7 +1870,7 @@ Create `resq.json` in project root:
 | `strict` | `false` | Fail empty, all-skipped, and assertion-free runs/tests |
 | `fuzzLimit` | `100` | Maximum displayed fuzz failures |
 | `failFast` | `false` | Enable fail-fast behavior |
-| `failHard` | `false` | Halt immediately and skip cleanup after failure |
+| `failHard` | `false` | Halt remaining expectations and suites after failure; mandatory cleanup still runs |
 | `pollutionGuard` | `true` | Detect and restore application-namespace changes per suite |
 | `maxTestTime` | `0` | Post-execution per-test budget in milliseconds (`0` disables) |
 | `reportLimit` | `50000` | Maximum rendered failure/error message characters |

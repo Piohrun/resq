@@ -197,28 +197,105 @@
     }'[onlyFlags; exList; nTotal # enlist skipReason]
  };
 
-/ Lifecycle of a single spec: snapshot pollution-guard state, switch into
-/ the spec's context, run before/each/after hooks, then detect and clean up
-/ any state the spec leaked (namespaces, mutated globals, open handles,
-/ modified .z.ts). Returns the spec dict with results populated.
-.tst.runSpec:{[spec]
-    runCtx: .tst.captureRuntimeContext[];
-    specTitle: $[`title in key spec; spec`title; `];
-    pollutionGuard: $[`pollutionGuard in key `.tst.app; .tst.app.pollutionGuard; 1b];
-    / Deep snapshot: all top-level namespaces and their keys AND values
-    namespaces: $[pollutionGuard; key `; `symbol$()];
-    / Skip system namespaces and .tst/.resq internals
-    if[pollutionGuard; namespaces: namespaces except `q`Q`j`h`o`s`v`z`tst`resq`utl];
-
-    fullSnapshot: $[pollutionGuard; namespaces!.tst.snapshotNamespaceValues each namespaces; ()!()];
-
-    / Resource snapshot (cross-platform). Used to detect handles/timers a
-    / spec leaks so the runner can warn and clean them up at spec end.
-    origHandles: $[.utl.isLinux;
-        (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
-        key .z.W  / Fallback: IPC handles on macOS/Windows
+/ Restore application namespaces after a spec. Kept separate from resource and
+/ runtime cleanup so each stage can be trapped independently by the finalizer.
+.tst.finalizeSpecPollution:{[specTitle;pollutionGuard;namespaces;fullSnapshot]
+    if[not pollutionGuard; :()];
+    currentNamespaces: (key `) except `q`Q`j`h`o`s`v`z`tst`resq`utl;
+    newNamespaces: currentNamespaces except namespaces;
+    / q retains a top-level identifier after deletion, so clear non-trivial
+    / values to :: and avoid warning forever about already-empty names.
+    if[count newNamespaces;
+        nonTrivial: newNamespaces where {[n] not (::) ~ @[get; n; ::]} each newNamespaces;
+        if[count nonTrivial;
+            -1 "WARNING: Test '", .tst.toString[specTitle], "' introduced top-level names: ", .tst.toString nonTrivial;
+            { @[set; (x; ::); {}] } each nonTrivial;
+            -1 "  -> Cleared values (q retains the bare names).";
+        ];
     ];
-    origTs: @[get; `.z.ts; {::}];
+
+    checkNs: namespaces inter currentNamespaces;
+    if[count checkNs;
+        { [title; ns; originalState]
+            currentState: .tst.snapshotNamespaceValues ns;
+
+            newKeys: (key currentState) except key originalState;
+            if[count newKeys;
+                -1 "WARNING: Test '", .tst.toString[title], "' leaked members in ", string[ns], ": ", .tst.toString newKeys;
+                .tst.deleteVar each newKeys;
+                -1 "  -> Cleaned up leaked members in ", string[ns], ".";
+            ];
+
+            commonKeys: (key currentState) inter key originalState;
+            modifiedKeys: commonKeys where not {x ~ y}'[
+                originalState commonKeys; currentState commonKeys];
+            if[count modifiedKeys;
+                -1 "WARNING: Test '", .tst.toString[title], "' modified globals in ", string[ns], ": ", .tst.toString modifiedKeys;
+                { [k; v]
+                    viewResult: @[{(1b; view x)}; k; {(0b; x)}];
+                    if[not first viewResult; k set v];
+                }'[modifiedKeys; originalState modifiedKeys];
+                -1 "  -> Restored modified globals in ", string[ns], ".";
+            ];
+        }[specTitle]'[checkNs; fullSnapshot checkNs];
+    ];
+    ::
+ };
+
+.tst.finalizeSpecResources:{[specTitle;origHandles;origTs]
+    currentHandles: $[.utl.isLinux;
+        (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
+        key .z.W];
+    leakedHandles: currentHandles except origHandles;
+    if[count leakedHandles;
+        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' leaked handles: ", .tst.toString leakedHandles;
+        { @[hclose; x; {}] } each leakedHandles;
+        -1 "  -> Closed leaked handles.";
+    ];
+
+    currentTs: @[get; `.z.ts; {::}];
+    if[not currentTs ~ origTs;
+        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' modified .z.ts. Restoring.";
+        .z.ts: origTs;
+    ];
+    ::
+ };
+
+.tst.finalizeSpecAfterAll:{[spec]
+    if[not `afterAll in key spec; :()];
+    specTitle: $[`title in key spec; spec`title; `];
+    afterAllResult: .tst.runHook spec`afterAll;
+    if[not afterAllResult ~ `ok;
+        .tst.recordCleanupError[`afterAll;
+            "afterAll hook failed for suite '", .tst.toString[specTitle], "': ",
+            .tst.toString afterAllResult 1];
+    ];
+    ::
+ };
+
+/ One finally tail for every recoverable runSpec outcome. Each stage is trapped
+/ independently so a broken directory fixture cannot suppress pollution,
+/ resource, or registered-cleanup restoration.
+.tst.finalizeSpec:{[runCtx;specTitle;pollutionGuard;namespaces;fullSnapshot;origHandles;origTs]
+    @[.tst.restoreDir; (); {[e]
+        .tst.recordCleanupError[`specFinalizer; "restoreDir failed: ", .tst.toString e]}];
+    @[.tst.restoreRuntimeContext; runCtx; {[e]
+        .tst.recordCleanupError[`specFinalizer; "runtime context restore failed: ", .tst.toString e]}];
+    .[.tst.finalizeSpecPollution; (specTitle;pollutionGuard;namespaces;fullSnapshot); {[e]
+        .tst.recordCleanupError[`specFinalizer; "pollution restore failed: ", .tst.toString e]}];
+    .[.tst.finalizeSpecResources; (specTitle;origHandles;origTs); {[e]
+        .tst.recordCleanupError[`specFinalizer; "resource restore failed: ", .tst.toString e]}];
+    / Spec-scope cleanups run after handles and global state are restored, so a
+    / registered probe/file delete observes the clean post-suite environment.
+    @[.tst.runSpecCleanupTasks; (); {[e]
+        .tst.recordCleanupError[`specFinalizer; "spec cleanup dispatch failed: ", .tst.toString e]}];
+    ::
+ };
+
+/ Execute the user-visible part of a spec. Cleanup belongs exclusively to the
+/ wrapper below; early returns here are therefore safe.
+.tst.runSpecBody:{[spec]
+    specTitle: $[`title in key spec; spec`title; `];
 
     / Switch to spec context if defined (default to root)
     ctx: $[`namespace in key spec; spec`namespace; `context in key spec; spec`context; `.`];
@@ -231,8 +308,9 @@
     .tst.currentContext[`file]: .tst.toString .tst.tstPath;
     .tst.currentContext[`suite]: .tst.toString specTitle;
 
-    / If halting prior to running, skip hooks/expectations and leave context/path as-is
-    if[.tst.halt; .tst.restoreRuntimeContext runCtx; :spec];
+    / If halting prior to running, skip hooks/expectations. The wrapper still
+    / executes the same finalizer as every other path.
+    if[.tst.halt; :spec];
 
     / Run suite-level beforeAll hook (once per spec, before any expectation).
     beforeAllResult: $[`beforeAll in key spec; .tst.runHook spec`beforeAll; `ok];
@@ -255,18 +333,6 @@
         .tst.callbacks.expecRan[spec; syntheticExpec];
         spec[`expectations]: enlist syntheticExpec;
         spec[`result]: `fail;
-        / Run afterAll for cleanup even though beforeAll failed (unless halting).
-        if[not .tst.halt;
-            if[`afterAll in key spec;
-                afterAllResult: .tst.runHook spec`afterAll;
-                if[not afterAllResult ~ `ok;
-                    .tst.recordCleanupError[`afterAll;
-                        "afterAll hook failed for suite '", .tst.toString[specTitle], "': ",
-                        .tst.toString afterAllResult 1];
-                ];
-            ];
-        ];
-        .tst.restoreRuntimeContext runCtx;
         :spec;
     ];
 
@@ -292,108 +358,44 @@
     / Remove skipped expectations (halt)
     res: res where not (::)~/: res;
 
-    / Run suite-level afterAll hook (skip if halting). Cleanup failures are
-    / recorded now and injected as error rows after all cleanup attempts finish.
-    if[not .tst.halt;
-        if[`afterAll in key spec;
-            afterAllResult: .tst.runHook spec`afterAll;
-            if[not afterAllResult ~ `ok;
-                .tst.recordCleanupError[`afterAll;
-                    "afterAll hook failed for suite '", .tst.toString[specTitle], "': ",
-                    .tst.toString afterAllResult 1];
-            ];
-        ];
-    ];
-
     / Set spec result
     specResult: $[count res; $[all (.tst.normalizeResultStatus each res[;`result]) in `pass`skip`pending; `pass; `fail]; `pass];
     spec[`expectations]: res;
     spec[`result]: specResult;
 
-    if[.tst.halt; .tst.restoreRuntimeContext runCtx; :spec];
-
-    .tst.restoreDir[];
-    .tst.restoreRuntimeContext runCtx;
-
-    / Check for Global/Deep Pollution
-    currentNamespaces: $[pollutionGuard; key `; `symbol$()];
-    if[pollutionGuard; currentNamespaces: currentNamespaces except `q`Q`j`h`o`s`v`z`tst`resq`utl];
-    
-    newNamespaces: currentNamespaces except namespaces;
-    / Only warn if the new top-level name actually holds state. q does not
-    / let you remove a top-level identifier once defined, so we clear its
-    / value (set to ::) instead -- a name with :: is functionally empty and
-    / not worth pestering the test author about every run.
-    if[count newNamespaces;
-        nonTrivial: newNamespaces where {[n] not (::) ~ @[get; n; ::]} each newNamespaces;
-        if[count nonTrivial;
-            -1 "WARNING: Test '", .tst.toString[specTitle], "' introduced top-level names: ", .tst.toString nonTrivial;
-            { @[set; (x; ::); {}] } each nonTrivial;
-            -1 "  -> Cleared values (q retains the bare names).";
-        ];
-    ];
-
-    / Check existing namespaces for new keys AND modified values
-    / Check existing namespaces for new keys AND modified values
-    checkNs: namespaces inter currentNamespaces;
-    
-    if[count checkNs;
-        { [title; ns; originalState]
-            currentState: .tst.snapshotNamespaceValues ns;
-            
-            / 1. Detect New Keys (Pollution)
-            newKeys: (key currentState) except (key originalState);
-            if[count newKeys;
-                -1 "WARNING: Test '", .tst.toString[title], "' leaked members in ", string[ns], ": ", .tst.toString newKeys;
-                .tst.deleteVar each newKeys;
-                 -1 "  -> Cleaned up leaked members in ", string[ns], ".";
-            ];
-            
-            / 2. Detect Modified Values (Mutation)
-            commonKeys: (key currentState) inter (key originalState);
-            / Filter out views or functions that might be tricky? For now check all.
-            modifiedKeys: commonKeys where not { x ~ y }'[originalState commonKeys; currentState commonKeys];
-            
-            if[count modifiedKeys;
-                -1 "WARNING: Test '", .tst.toString[title], "' modified globals in ", string[ns], ": ", .tst.toString modifiedKeys;
-                 / Restore values
-                { [k; v] 
-                    / Check if view by attempting to get definition
-                    / Wrap result in (isView; result) to distinguish success/fail
-                    r: @[{ (1b; view x) }; k; { (0b; x) }];
-                    isView: r 0;
-                    
-                    if[not isView; k set v];
-                }'[modifiedKeys; originalState modifiedKeys];
-                -1 "  -> Restored modified globals in ", string[ns], ".";
-            ];
-            
-        }[specTitle]'[checkNs; fullSnapshot checkNs];
-    ];
-
-    / Resource teardown: close handles the spec left open, restore .z.ts.
-    currentHandles: $[.utl.isLinux;
-        (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
-        key .z.W  / Fallback: IPC handles on macOS/Windows
-    ];
-    leaked: currentHandles except origHandles;
-    if[count leaked;
-        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' leaked handles: ", .tst.toString leaked;
-        { @[hclose; x; {}] } each leaked;
-        -1 "  -> Closed leaked handles.";
-    ];
-
-    currentTs: @[get; `.z.ts; {::}];
-    if[not currentTs ~ origTs;
-        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' modified .z.ts. Restoring.";
-        .z.ts: origTs;
-    ];
-
-    / Spec-scope cleanups fire now that handles are closed, so file
-    / deletes registered alongside a leaked handle succeed cross-platform.
-    @[.tst.runSpecCleanupTasks; (); {[e] -1 "WARNING: Spec cleanup failed: ", .tst.toString e}];
+    if[.tst.halt; :spec];
 
     spec
+ };
+
+/ Lifecycle wrapper: snapshot once, execute under a structural outcome tag,
+/ always finalize, then preserve the original result or re-signal the original
+/ exception for runDiscoveredSpecs to turn into a canonical error row.
+.tst.runSpec:{[spec]
+    runCtx: .tst.captureRuntimeContext[];
+    specTitle: $[`title in key spec; spec`title; `];
+    pollutionGuard: $[`pollutionGuard in key `.tst.app; .tst.app.pollutionGuard; 1b];
+    namespaces: $[pollutionGuard; key `; `symbol$()];
+    if[pollutionGuard;
+        namespaces: namespaces except `q`Q`j`h`o`s`v`z`tst`resq`utl];
+    fullSnapshot: $[pollutionGuard;
+        namespaces!.tst.snapshotNamespaceValues each namespaces;
+        ()!()];
+    origHandles: $[.utl.isLinux;
+        (), "J"$ raze " " vs/: @[system; "ls /proc/self/fd"; {""}];
+        key .z.W];
+    origTs: @[get; `.z.ts; {::}];
+    runAfterAll: not .tst.halt;
+
+    runOutcome: @[{[s] (0b; .tst.runSpecBody s)}; spec; {[err] (1b; err)}];
+    if[runAfterAll;
+        @[.tst.finalizeSpecAfterAll; spec; {[err]
+            .tst.recordCleanupError[`specFinalizer;
+                "afterAll dispatch failed: ", .tst.toString err]}]];
+    .tst.finalizeSpec[
+        runCtx;specTitle;pollutionGuard;namespaces;fullSnapshot;origHandles;origTs];
+    if[first runOutcome; 'last runOutcome];
+    last runOutcome
  };
 
 / Per-expectation callback. Records the result row in .resq.state.results

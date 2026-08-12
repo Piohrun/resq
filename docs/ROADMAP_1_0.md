@@ -24,7 +24,7 @@ resQ 1.0 must guarantee that:
   skipped cleanup paths, partial line gates, and unloaded coverage sources.
 - [x] Make legacy `-cov-min` gate on complete function coverage rather than
   automatically preferring any available line records.
-- [ ] Refactor `runSpec` around one unconditional, trapped finalizer.
+- [x] Refactor `runSpec` around one unconditional, trapped finalizer.
 - [ ] Correct coverage, reporting, benchmark, and compatibility documentation.
 - [x] Make CI assert the expected coverage inventory, not only a percentage.
 
@@ -85,7 +85,7 @@ resQ 1.0 must guarantee that:
 
 - [ ] `.q` is unchanged by normal resQ execution.
 - [ ] Production-style code using DSL-shaped locals loads unchanged.
-- [ ] Every recoverable `runSpec` path executes cleanup.
+- [x] Every recoverable `runSpec` path executes cleanup.
 - [ ] No pollution/resource leak crosses a suite boundary silently.
 - [ ] Function coverage contains every declared source file and unloaded modules
   reduce its percentage.

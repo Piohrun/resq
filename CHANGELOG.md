@@ -6,6 +6,11 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- Every recoverable `runSpec` path now executes one independently trapped
+  finalizer. `beforeAll` failures, fail-hard halts, and unexpected suite-runner
+  exceptions restore application globals, close resources, restore runtime
+  context, run `afterAll`, and drain registered spec cleanup before the next
+  suite or reporter observes state.
 - `-cov-min` now always gates on the complete discovered-function inventory.
   Previously, enabling `-cov-statements` made any available line records take
   precedence even when safe instrumentation covered only part of the source;

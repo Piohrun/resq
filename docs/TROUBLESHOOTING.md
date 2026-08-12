@@ -254,12 +254,16 @@ should["test something"]{
 
 **Symptom:** Mock value persists after test, affecting other tests.
 
-**Cause:** Test may have failed before `.tst.restore[]` was called, or manual restore was forgotten.
+**Cause:** A manually installed mock or direct assignment bypassed resQ's mock
+registry, or the target was changed outside the test lifecycle.
 
 **Solution:** resQ automatically restores mocks after each test. If you see this issue:
-1. Check if test is using `failHard` mode
-2. Manually call `.tst.restore[]` if needed
-3. Ensure mock names use correct namespace prefix
+1. Ensure mocks are installed through `mock`/`.tst.mock` rather than assignment.
+2. Manually call `.tst.restore[]` if the mock was created outside a test.
+3. Ensure mock names use the correct namespace prefix.
+
+Fail-hard, hook errors, and recoverable runner exceptions all execute mandatory
+mock, pollution, resource, and registered cleanup before reporting.
 
 ---
 
