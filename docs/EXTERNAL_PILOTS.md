@@ -12,7 +12,7 @@ project has been certified.
 | [reQ](https://github.com/jonathonmcmurray/reQ) | `6728dd50ed767ffb8818940a51579d4abc8c01d9` | A modular HTTP library whose public test already uses the qspec DSL and `.utl.require` | The upstream base64 implementation and qspec test run directly; only trailing blank-line/final-newline normalization is applied |
 
 Both projects are MIT-licensed. Their licence files are retained beside the
-vendored slices. [`tests/pilots/manifest.json`](../tests/pilots/manifest.json)
+vendored slices. [`pilots/manifest.json`](../pilots/manifest.json)
 records repository URLs, exact commit SHAs, upstream hashes, vendored hashes,
 and any line-ending/whitespace normalization. The verifier is entirely offline,
 so an upstream branch movement cannot change a release result.

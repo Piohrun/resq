@@ -15,7 +15,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "tests/pilots/manifest.json"
+MANIFEST = ROOT / "pilots/manifest.json"
 sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
 
@@ -31,7 +31,7 @@ def sha256(path: Path) -> str:
 def verify_vendor(pilot: dict[str, Any]) -> Path:
     root = (ROOT / pilot["root"]).resolve()
     try:
-        root.relative_to(ROOT / "tests/pilots/vendor")
+        root.relative_to(ROOT / "pilots/vendor")
     except ValueError as exc:
         raise RuntimeError(f"{pilot['name']}: vendor root escapes pilot tree") from exc
     if pilot.get("license") != "MIT" or not (root / "LICENSE").is_file():
