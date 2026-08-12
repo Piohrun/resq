@@ -2,7 +2,8 @@
 \d .tst
 
 / Snapshot configuration
-snapDir: (system "cd"),"/tests/snapshots"
+snapRoot: @[get;`.resq.startCwd;{system "cd"}]
+snapDir: snapRoot,"/tests/snapshots"
 updateSnaps: 0b
 
 setSnapDir:{[d] .tst.snapDir: d}

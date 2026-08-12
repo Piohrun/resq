@@ -6,7 +6,8 @@
 / DIFFERENT directory + extension convention than binary snapshots (snapshot.q
 / stores tests/snapshots/<name>.snap). Both conventions are kept as-is for
 / backward compatibility.
-snapTxtDir: (system "cd"),"/tests/__snapshots__"
+snapTxtRoot: @[get;`.resq.startCwd;{system "cd"}]
+snapTxtDir: snapTxtRoot,"/tests/__snapshots__"
 
 setSnapTxtDir:{[d] .tst.snapTxtDir: d}
 

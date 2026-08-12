@@ -392,6 +392,8 @@
     musteq[r`code; 0];
     must[.tst.golden.anyLike[r`out; "NOTE: snapshot created"];
          "first-run snapshot creation should print a review NOTE"];
+    must[not .utl.pathExists .resq.HOME,"/lib/tests/snapshots/golden_create_firstrun.snap";
+         "framework module loading must not redirect snapshots under lib/"];
   };
 
   / Banner-comment idiom: a file opening with `/ ...` line comments, then a lone
