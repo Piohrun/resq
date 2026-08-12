@@ -46,7 +46,7 @@ resQ 1.0 must guarantee that:
 - [x] Make partial line measurement fail closed unless explicitly allowed.
 - [x] Generate LCOV, detailed coverage JSON, annotated HTML, and state output
   from one canonical model.
-- [ ] Extend loader and instrumentation differential verification.
+- [x] Extend loader and instrumentation differential verification.
 - [x] Document the exact function/statement measurement contract.
 
 ## 0.7.0 — Observability contract

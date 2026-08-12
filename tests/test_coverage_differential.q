@@ -23,7 +23,8 @@
 / Proven to work: reintroducing the line-start insertion defect makes the corpus
 / case `condExprWithNestedIf` fail with "return values differ". Swept clean to
 / seed 400 during development (400 generated functions, 0 divergences, 0 falling
-/ back to uninstrumented); the in-suite run uses seeds 1..40 to stay quick.
+/ back to uninstrumented); the in-suite run uses seeds 1..75 and exercises the
+/ full instrumentation pipeline, not only the low-level source rewrite.
 / ============================================================================
 
 .utl.require .utl.PKGLOADING, "/coverage.q";
@@ -31,6 +32,28 @@
 .tst.testState.cdiff.dir: .utl.tempRoot[], "/resq_cdiff_", string .z.i;
 .tst.testState.cdiff.keepDir: 0b;
 .tst.testState.cdiff.sideEffects: 0;
+
+/ Snapshot all mutable coverage state: this suite now drives the same public
+/ instrumentFile pipeline a real coverage run uses (rewrite + wrapper + model).
+.tst.testState.cdiff.coverageKeys:`$((
+  ".tst.coverageData";".tst.coverageEnabled";".tst.trackedFiles";
+  ".tst.origFuncs";".tst.covWrappers";".tst.coverageLoadedFiles";
+  ".tst.lineCoverageData";".tst.stmtInstrumented";".tst.stmtProbeLines";
+  ".tst.coverageStatements";".tst.lastCoverageModel"));
+
+.tst.testState.cdiff.resetCoverage:{[]
+  .tst.coverageData:()!();
+  .tst.coverageEnabled:1b;
+  .tst.trackedFiles:`symbol$();
+  .tst.origFuncs:()!();
+  .tst.covWrappers:()!();
+  .tst.coverageLoadedFiles:`symbol$();
+  .tst.lineCoverageData:()!();
+  .tst.stmtInstrumented:()!();
+  .tst.stmtProbeLines:()!();
+  .tst.coverageStatements:1b;
+  .tst.lastCoverageModel:()!();
+ };
 
 / ---- seeded RNG (same idiom as the loader harness) -------------------------
 .tst.testState.cdiff.seedRng:{[s] .tst.testState.cdiff.lcg: "j"$ 1 + s; };
@@ -102,10 +125,16 @@
   if[baseVals ~ `callFail; :`callFail];
   baseFx: .tst.testState.cdiff.sideEffects;
 
-  / Instrument, then exercise identically.
-  srcLines: read0 hsym `$path;
-  applied: @[.tst.covInstrumentStatements[name; `$path; srcLines; 1;]; count srcLines; {[e] 0b}];
-  if[not 1b ~ applied; :`notInstrumented];
+  / Instrument through the production file pipeline. This verifies namespace
+  / qualification, statement rewriting, wrapper installation, hit accounting,
+  / and the canonical model as one composed behavior.
+  fileSym:`$.tst.resolvePath path;
+  applied:@[{[p] .tst.instrumentFile p;1b};path;{[e] 0b}];
+  if[not applied; :`notInstrumented];
+  measured:$[fileSym in key .tst.stmtInstrumented;
+    .tst.stmtInstrumented fileSym;`symbol$()];
+  if[(not name in key .tst.covWrappers) or (not name in measured);
+    :`notInstrumented];
 
   .tst.testState.cdiff.sideEffects: 0;
   instVals: @[{[n;xs] {[n;v] @[value n; v; {[e] `$"ERR:", e}]}[n;] each xs}[name;]; inputs; {[e] `callFail}];
@@ -118,6 +147,17 @@
   if[not baseFx ~ instFx;
       .tst.testState.cdiff.report[label; src; baseFx; instFx; "side-effect counts differ"];
       :`divergeEffects];
+  fileModel:.tst.coverageFileModel fileSym;
+  fnModels:fileModel`functions;
+  modelOk:1=count fnModels;
+  if[modelOk;modelOk:1b~fnModels[0;`functionInstrumented]];
+  if[modelOk;modelOk:1b~fnModels[0;`statementInstrumented]];
+  if[modelOk;modelOk:"none"~fnModels[0;`fallbackReason]];
+  if[modelOk;modelOk:0<fnModels[0;`statementFound]];
+  if[not modelOk;
+      .tst.testState.cdiff.report[label;src;"instrumented function";fnModels;
+        "canonical model lost instrumentation state"];
+      :`divergeModel];
   `pass
  };
 
@@ -197,12 +237,20 @@
 
 / ============================================================================
 .tst.desc["statement instrumentation: differential vs uninstrumented (#slow)"]{
+  beforeAll{
+    .tst.testState.cdiff.savedCoverage:
+      .tst.testState.cdiff.coverageKeys!
+      {@[get;x;{[e] ::}]} each .tst.testState.cdiff.coverageKeys;
+    .tst.testState.cdiff.resetCoverage[];
+  };
   afterAll{
     d: .tst.testState.cdiff.dir;
     $[.tst.testState.cdiff.keepDir;
         -1 "NOTE: differential sources kept for post-mortem: ", d;
         if[(d like "*/resq_cdiff_*") and .utl.pathExists d;
             @[system; "rm -rf -- ", .utl.shellQuote d; {[e] }]]];
+    saved:.tst.testState.cdiff.savedCoverage;
+    {[n;v] set[n;v]}'[key saved;value saved];
   };
 
   should["preserve behaviour across the dangerous-construct corpus"]{
@@ -217,11 +265,11 @@
   };
 
   should["preserve behaviour across seeded random functions"]{
-    res: .tst.testState.cdiff.summarise .tst.testState.cdiff.runSeeds 1 + til 40;
+    res: .tst.testState.cdiff.summarise .tst.testState.cdiff.runSeeds 1 + til 75;
     bad: $[count res`diverged; -3! (res`diverged)[;0]; ""];
     must[0 = count res`diverged;
          "instrumentation changed behaviour for: ", bad];
-    must[25 <= count res`passed;
+    must[50 <= count res`passed;
          "expected most seeds to instrument, got ", string count res`passed];
   };
  };

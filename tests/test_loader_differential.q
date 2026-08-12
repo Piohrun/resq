@@ -57,7 +57,7 @@
 / MANUAL USE
 /   .tst.testState.ldiff.run[seed]   ->  `pass / `skip / `divergeNNN  for one
 /   seeded random script (deterministic: same seed => same script). The in-suite
-/   test runs the fixed nasty corpus (always) + seeds 1..25. A wider sweep
+/   test runs the fixed nasty corpus (always) + seeds 1..40. A wider sweep
 /   (seeds 1..200) was run during development - clean after the fix above.
 / ============================================================================
 
@@ -415,12 +415,12 @@
   };
 
   skipIf[not .tst.testState.ldiff.canQ;
-         "fixed nasty corpus + seeds 1..25 all load-equivalent to native q"]{
-    res: .tst.testState.ldiff.runAll 1 + til 25;
+         "fixed nasty corpus + seeds 1..40 all load-equivalent to native q"]{
+    res: .tst.testState.ldiff.runAll 1 + til 40;
     / Labels of any divergences, computed safely (empty -> ""), for triage.
     badLabels: $[count res`diverged; -3! (res`diverged)[;0]; ""];
     must[0 = count res`diverged; "loader divergences: ", badLabels];
     / Sanity: the run actually exercised scripts (not all skipped away).
-    must[res[`passed] > 20; "expected many equivalent loads, got ", string res`passed];
+    must[res[`passed] > 30; "expected many equivalent loads, got ", string res`passed];
   };
  };

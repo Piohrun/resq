@@ -105,9 +105,11 @@ Behaviour preservation is checked by execution, not by argument:
 constructs that make instrumentation hard — guards with early return, loops,
 conditional expressions, nested lambdas, strings holding semicolons, comments,
 multi-line brackets — then calls each one before and after instrumenting it and
-requires identical return values *and* identical side effects. It runs a fixed
-corpus plus seeded random functions on every suite run, and was swept clean to
-seed 400. Reintroducing the line-start insertion defect makes it fail, so it
+requires identical return values *and* identical side effects. Each generated
+function goes through the full file pipeline: statement rewrite, function
+wrapper, hit accounting, and canonical-model projection must all succeed. It
+runs a fixed corpus plus 75 seeded random functions on every suite run, and was
+swept clean to seed 400. Reintroducing the line-start insertion defect makes it fail, so it
 demonstrably catches the class of bug it exists for.
 
 Even with that, it remains a transformation of the code under test. **resQ cannot instrument itself**: with
