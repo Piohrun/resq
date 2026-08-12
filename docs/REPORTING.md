@@ -134,6 +134,11 @@ Consumers should branch on `schemaVersion`, ignore unknown fields, and use the
 numeric `durationSeconds` for calculations. Do not derive pass/fail from the
 process log; use the process exit code and aggregate counts.
 
+Optional fields may be added within schema v2 in a minor release. The published
+schema and dependency-free validator therefore accept unknown object members
+while continuing to enforce every required v2 field/type/invariant; see the
+[versioning policy](VERSIONING.md).
+
 Schema v2 intentionally breaks the flat schema-v1 aggregate layout. Consumers
 must read counts from `summary`, metadata from `run`, and treat `(testId,
 caseId)` as identity. Suite/description remain presentation fields. See

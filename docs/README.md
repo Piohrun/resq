@@ -28,6 +28,10 @@
 ### Contributor / internal reference
 - [Road to resQ 1.0](ROADMAP_1_0.md) — Production-readiness delivery ledger and release gates
 - [Hostile-environment audit](HARDENING_AUDIT.md) — Process/filesystem trust-boundary evidence
+- [Support policy](SUPPORT.md) — Supported versions/platforms, support window, and severity
+- [Versioning policy](VERSIONING.md) — Public SemVer surface and deprecation lifecycle
+- [Identity contract](IDENTITY.md) — Stable test/case algorithms and change rules
+- [Security policy](../SECURITY.md) — Private reporting and execution trust boundary
 - `ARCHITECTURE.md` — Namespace layout, file structure, exit codes
 - `internal/DISCOVERY.md` — Discovery engine design notes
 - `internal/DESIGN_SKETCH.md` — Early API sketches
@@ -58,5 +62,8 @@
 | `WATCH.md` | Users | Watch mode |
 | `ROADMAP_1_0.md` | Contributors | Production-readiness delivery ledger and release gates |
 | `HARDENING_AUDIT.md` | Users / maintainers | Shell, path, temp, symlink, interrupt, and artifact hardening contract |
+| `SUPPORT.md` | Users | Runtime/release support, issue evidence, and severity policy |
+| `VERSIONING.md` | Users / maintainers | SemVer surface, schema evolution, deprecation, and releases |
+| `IDENTITY.md` | Platform teams | Stable test/case identity algorithms and lifecycle |
 | `internal/DESIGN_SKETCH.md` | Internal | Early API sketches (historical) |
 | `internal/DISCOVERY.md` | Internal | Discovery engine design notes |

@@ -19,9 +19,10 @@ from validate_report import validate  # noqa: E402
 
 
 REQUIRED = {
-    "LICENSE", "README.md", "CHANGELOG.md", "resq.q", "bin/resq",
+    "LICENSE", "README.md", "CHANGELOG.md", "SECURITY.md", "resq.q", "bin/resq",
     "bin/qspec", "lib/init.q", "docs/README.md", "docs/API_REFERENCE.md",
-    "docs/schema/resq-report-v2.schema.json", "tools/validate_report.py",
+    "docs/schema/resq-report-v2.schema.json", "docs/SUPPORT.md",
+    "docs/VERSIONING.md", "docs/IDENTITY.md", "tools/validate_report.py",
     "tools/verify_hostile_env.py",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
     "tests/contracts/xunit.xml",
@@ -110,6 +111,10 @@ def check_contracts() -> None:
         raise ValueError("report schema must declare JSON Schema draft 2020-12")
     if schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
         raise ValueError("report schema does not describe schemaVersion 2")
+    definitions = schema.get("$defs", {})
+    extensible = [schema, *(definitions[name] for name in ("run", "summary", "test", "attempt", "case", "diagnostic", "snapshot"))]
+    if not all(item.get("additionalProperties") is True for item in extensible):
+        raise ValueError("report-v2 objects must accept additive minor-version fields")
     report = json.loads((ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8"))
     validate(report)
     for name, root_name, row_name in (

@@ -78,7 +78,7 @@ resQ 1.0 must guarantee that:
 - [x] Run extended differential corpora nightly.
 - [x] Audit shell quoting, temp permissions, symlinks, hostile paths, interrupts,
   child termination, and artifact path handling.
-- [ ] Publish support, trust-boundary, SemVer, identity, and deprecation policies.
+- [x] Publish support, trust-boundary, SemVer, identity, and deprecation policies.
 - [ ] Complete at least two representative external-codebase pilots.
 
 ## 1.0 release gate

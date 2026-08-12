@@ -18,6 +18,10 @@ All notable changes to the **resQ** project will be documented in this file.
   audit covering shell/path metacharacters, symlinked and spaced installs,
   explicit-q propagation, relative and blocked artifact destinations, private
   temp permissions, interruption, child reaping, and launcher cleanup.
+- Public support, security/trust-boundary, SemVer/schema evolution, stable
+  identity, and deprecation policies now define the resQ 1.x compatibility and
+  maintenance contract. JSON schema v2 explicitly permits additive fields while
+  retaining its required core and invariant validator.
 
 ### Fixed
 

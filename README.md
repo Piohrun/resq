@@ -400,6 +400,10 @@ See `docs/` for detailed guides:
 | `docs/CI.md` | Production CI invocation, runner prerequisites, artifacts |
 | `docs/COMPATIBILITY_MATRIX.md` | Supported q runtime and execution-mode parity gate |
 | `docs/HARDENING_AUDIT.md` | Shell, path, temp, interrupt, and artifact hardening contract |
+| `docs/SUPPORT.md` | Supported runtime/releases and defect severity |
+| `docs/VERSIONING.md` | Public SemVer and deprecation policy |
+| `docs/IDENTITY.md` | Stable test/case identity contract |
+| `SECURITY.md` | Vulnerability reporting and execution trust boundary |
 | `docs/FIXTURES.md` | Fixture scopes, lifecycle hooks, dependency injection |
 | `docs/PARALLEL.md` | CI-level parallelism strategy |
 | `docs/PBT.md` | Property-based testing with `holds` |

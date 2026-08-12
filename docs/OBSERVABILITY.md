@@ -21,6 +21,9 @@ system you already operate; do not keep history inside the q test process.
 - `suite` and `description` are labels, not database keys. `namespace` is empty
   for generated sandboxes so path-derived runtime noise cannot fragment trends.
 
+The exact algorithms, uniqueness requirement, and identity-changing edits are
+the public [stable identity contract](IDENTITY.md).
+
 ## Useful quality signals
 
 | Signal | Source |
