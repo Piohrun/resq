@@ -66,7 +66,7 @@
                 `minimum`passed`basis!(
                     @[get; `.tst.app.coverageMin; 0];
                     @[get; `.tst.app.coveragePercent; 0f] >= @[get; `.tst.app.coverageMin; 0];
-                    $[0 < coverageStats`linesFound; "lines"; "functions"]);
+                    @[get; `.tst.app.coverageBasis; "functions"]);
             payload: payload, enlist[`coverage]!enlist coverageStats;
         ];
     ];

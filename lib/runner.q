@@ -780,6 +780,27 @@
 / Coverage report writers. Skipped entirely unless -cov / -coverage was
 / set. Both LCOV and HTML are individually trapped so a failure in one
 / does not block the other.
+.tst.coverageGateDecision:{[summary;minimum]
+    emptyDecision: `measurable`basis`percent`hit`found`minimum`passed!(
+        0b; "functions"; 0f; 0j; 0j; minimum; 0b);
+    if[not 99h = type summary; :emptyDecision];
+    requiredKeys: `functionsFound`functionsHit`functionPercent;
+    if[not all requiredKeys in key summary; :emptyDecision];
+
+    foundCount: `long$summary`functionsFound;
+    if[0 >= foundCount; :emptyDecision];
+    hitCount: `long$summary`functionsHit;
+    percentValue: `float$summary`functionPercent;
+    `measurable`basis`percent`hit`found`minimum`passed!(
+        1b;
+        "functions";
+        percentValue;
+        hitCount;
+        foundCount;
+        minimum;
+        percentValue >= minimum)
+ };
+
 .tst.runAllPhase.generateCoverage:{[]
     if[not 1b ~ .tst.app.runCoverage; :()];
 
@@ -816,35 +837,28 @@
     ];
 
     summary: @[get; `.tst.lastCoverageSummary; {()!()}];
-    measurable: (99h = type summary) and
-        (`linesFound in key summary) and (`functionsFound in key summary) and
-        (0 < summary`linesFound) or 0 < summary`functionsFound;
-    if[not measurable; errors,: enlist "Coverage measured no executable lines or functions."];
-    if[measurable;
-        primaryPercent: $[0 < summary`linesFound; summary`linePercent; summary`functionPercent];
-        primaryHit: $[0 < summary`linesFound; summary`linesHit; summary`functionsHit];
-        primaryFound: $[0 < summary`linesFound; summary`linesFound; summary`functionsFound];
-        primaryKind: $[0 < summary`linesFound; "lines"; "functions"];
-        .tst.app.coveragePercent: primaryPercent;
-        / Only append the function figure when lines are the primary signal;
-        / otherwise it repeats the headline verbatim ("100% functions; functions 100%").
-        headline: "Coverage: ", string[primaryPercent], "% ", primaryKind,
-            " (", string[primaryHit], "/", string[primaryFound], ")";
-        if[not primaryKind ~ "functions";
-            headline,: "; functions ", string[summary`functionPercent], "% (",
-                string[summary`functionsHit], "/", string[summary`functionsFound], ")"];
+    required: @[get; `.tst.app.coverageMin; 0];
+    gateDecision: .tst.coverageGateDecision[summary; required];
+    if[not gateDecision`measurable;
+        errors,: enlist "Coverage measured no executable functions."];
+    if[gateDecision`measurable;
+        .tst.app.coveragePercent: gateDecision`percent;
+        .tst.app.coverageBasis: gateDecision`basis;
+        headline: "Coverage: ", string[gateDecision`percent], "% functions (",
+            string[gateDecision`hit], "/", string[gateDecision`found], ")";
+        if[(99h = type summary) and (`linesFound in key summary) and 0 < summary`linesFound;
+            headline,: "; measured lines ", string[summary`linePercent], "% (",
+                string[summary`linesHit], "/", string[summary`linesFound], ")"];
         -1 headline;
-        / Say plainly which signal the number -- and any -cov-min gate -- is built
-        / on. Default mode wraps whole functions, so "100%" means every function
-        / was entered, NOT that every branch inside them ran. Naming that here is
-        / what stops a green gate from being read as a stronger claim than it is.
-        if[0 = summary`linesFound;
+        if[(not `linesFound in key summary) or 0 = summary`linesFound;
             -1 "  (function-level: a function counts as covered once entered.",
                " Statement/branch execution is NOT measured -- add -cov-statements.)"];
-        required: @[get; `.tst.app.coverageMin; 0];
-        if[primaryPercent < required;
-            errors,: enlist "Coverage ",string[primaryPercent],"% is below required minimum ",
-                string[required],"% (",string[primaryHit],"/",string[primaryFound]," ",primaryKind,")."];
+        if[(0 < summary`linesFound) and (0 < required);
+            -1 "  (-cov-min gates on complete function coverage; measured lines are diagnostic.)"];
+        if[not gateDecision`passed;
+            errors,: enlist "Coverage ",string[gateDecision`percent],
+                "% is below required minimum ", string[required], "% (",
+                string[gateDecision`hit], "/", string[gateDecision`found], " functions)."];
     ];
     if[count errors; '"Coverage failed: ","; " sv errors];
  };

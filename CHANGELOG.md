@@ -4,6 +4,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- `-cov-min` now always gates on the complete discovered-function inventory.
+  Previously, enabling `-cov-statements` made any available line records take
+  precedence even when safe instrumentation covered only part of the source;
+  this could pass CI at 88% measured lines while complete function coverage was
+  70%. Measured line results remain in the console, LCOV, and JSON as a
+  diagnostic, while JSON `coverage.basis` records `"functions"`.
+
 ## [0.4.0] - 2026-08-03 - qspec Drop-in, Measured Coverage & Fail-Closed Runs
 
 A minor bump: new capabilities and fixes, no removals. Several of the fixes

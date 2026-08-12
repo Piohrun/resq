@@ -1740,7 +1740,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
-| `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses LCOV line percentage, falling back to functions when no line records exist |
+| `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses the complete function inventory (`-cov-statements` line data remains diagnostic) |
 | `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
 | `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
 | `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
@@ -1890,9 +1890,10 @@ Supported `fmt` values are `text`, `console`, `junit`, `xunit`, and `json`. `con
 reporters do not enforce a separate list-element limit.
 
 `coverageMin` is an integer from 0 through 100. A positive value enables
-coverage and applies the same fail-closed threshold as `-cov-min`. Set
-`covStatements` to `true` for measured statement probes instead of function-level
-records.
+coverage and applies the same function-based, fail-closed threshold as
+`-cov-min`. Set `covStatements` to `true` to add measured statement probes;
+their line result is diagnostic because unsafe rewrites can be excluded from
+its denominator.
 
 `qNamespaceExports` controls compatibility exports into the reserved `.q`
 namespace. It defaults to `true` for existing suites. With it set to `false`,

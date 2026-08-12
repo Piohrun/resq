@@ -26,18 +26,17 @@ resq cover tests/ -strict -cov-statements -cov-min 80 \
   -junit -json -outDir artifacts/coverage
 ```
 
-**Include `-cov-statements` when you gate on coverage.** Without it the run is
-function-level: it records that a function was entered, emits no line records,
-and `-cov-min` therefore compares the *function* percentage. That is a real
-signal — an uncalled function still shows as uncovered — but it is a weaker
-claim than a line percentage implies, since a branch that never ran inside a
-called function is invisible to it.
+**Include `-cov-statements` when line diagnostics are useful.** The run still
+uses the complete function inventory for `-cov-min`: statement instrumentation
+can reject unsafe rewrites, so a line denominator may represent only part of
+the code. Function coverage is a real signal — an uncalled discovered function
+shows as uncovered — but it is weaker than branch coverage, since a branch that
+never ran inside a called function is invisible to it.
 
-`-cov-min N` accepts an integer from 0 through 100 and exits 1 when the measured
-percentage is below the threshold. The JSON report's `coverage.basis` field says
-which percentage was used (`"lines"` or `"functions"`); assert on that field
-rather than assuming. A run that cannot measure code or write its coverage
-reports also fails closed.
+`-cov-min N` accepts an integer from 0 through 100 and exits 1 when function
+coverage is below the threshold. The JSON report's `coverage.basis` field is
+`"functions"`; line counts remain available alongside it when requested. A run
+that cannot measure code or write its coverage reports also fails closed.
 
 ## Reporter artifacts
 

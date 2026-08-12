@@ -37,7 +37,7 @@ assistance.
   - **Parametrized Tests**: Run tests against a table of scenarios with `.tst.forall`.
   - **Async Testing**: Robust wait-for-condition and sleep utilities.
   - **Snapshot Testing**: Binary and text snapshots for complex data structures; text snapshots produce readable `git diff` output.
-- **Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV, a per-function HTML report (`coverage.html`), and `coverage_state.txt`. Coverage is function-level by default and emits no line records; `-cov-statements` enables measured statement/line coverage, and `-cov-min N` gates CI on whichever basis was measured. Compiled operators and derived functions are skipped.
+- **Coverage** (`resq cover`): Instruments functions loaded via `\l` or `system "l "` and emits LCOV, a per-function HTML report (`coverage.html`), and `coverage_state.txt`. Coverage is function-level by default and emits no line records; `-cov-statements` adds measured statement/line diagnostics. The legacy `-cov-min N` gate deliberately uses the complete function inventory. Compiled operators and derived functions are skipped.
 - **Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change.
 
 ---

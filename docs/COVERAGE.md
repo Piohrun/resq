@@ -137,7 +137,7 @@ LH:5
 | Mode | Measures | LCOV records | `-cov-min` gates on |
 |------|----------|--------------|---------------------|
 | default | function entered at least once | `FN`/`FNDA`/`FNF`/`FNH` | function % |
-| `-cov-statements` | each statement probe | the above plus `DA`/`LF`/`LH` | line % |
+| `-cov-statements` | each safely instrumented statement probe | the above plus `DA`/`LF`/`LH` | function %; lines are diagnostic |
 
 A function-level 100% means every function was entered, **not** that every branch
 inside them ran. The console says so explicitly when reporting on that basis.
@@ -189,10 +189,12 @@ Gate a build with an integer percentage from 0 through 100:
 resq cover tests/ -strict -cov-min 80 -json -outDir artifacts/coverage
 ```
 
-`-cov-min` compares the LCOV line percentage when line records exist
-(`-cov-statements`) and otherwise the function percentage; the console names
-which basis it used, and says explicitly when statement execution was not
-measured. The run exits 1 when it misses the threshold, measures no
+`-cov-min` compares the complete function percentage, including when
+`-cov-statements` produces line records. Statement instrumentation can reject
+unsafe rewrites, so its denominator may cover only part of the function
+inventory; using that partial denominator for a legacy gate could produce a
+false green. The console reports measured lines as a diagnostic and names the
+function basis used by the gate. The run exits 1 when it misses the threshold, measures no
 executable code, or cannot generate its reports. The JSON report includes the
 exact counts, percentage, threshold, basis, and pass/fail decision under its
 `coverage` object. Configuration-file equivalent: `"coverageMin": 80`.
@@ -201,10 +203,11 @@ exact counts, percentage, threshold, basis, and pass/fail decision under its
 
 ## Limitations
 
-- **No line data by default** — default mode is function-level and emits no
-  `DA`/`LF`/`LH` records, so `-cov-min` gates on function coverage. Use
-  `-cov-statements` when branch/statement execution matters, and validate that
-  source transformation against your code.
+- **Line data is diagnostic** — default mode emits no `DA`/`LF`/`LH` records.
+  `-cov-statements` adds measured records for safely rewritten functions, but
+  the legacy `-cov-min` gate stays function-based. Use the line result to find
+  gaps, not as a complete-code threshold until separate completeness-aware line
+  gates are available.
 - **`\l` / `system "l "` only** — the loader intercepts these two forms. Custom loaders are not auto-detected unless loader hijacking is explicitly enabled (experimental, see below).
 - **Compiled operators skipped** — `+/`, `each`, `':'`, etc. cannot be wrapped.
 

@@ -22,11 +22,11 @@ resQ 1.0 must guarantee that:
 
 - [ ] Add regressions for reserved-name source failures, annotation collisions,
   skipped cleanup paths, partial line gates, and unloaded coverage sources.
-- [ ] Make legacy `-cov-min` gate on complete function coverage rather than
+- [x] Make legacy `-cov-min` gate on complete function coverage rather than
   automatically preferring any available line records.
 - [ ] Refactor `runSpec` around one unconditional, trapped finalizer.
 - [ ] Correct coverage, reporting, benchmark, and compatibility documentation.
-- [ ] Make CI assert the expected coverage inventory, not only a percentage.
+- [x] Make CI assert the expected coverage inventory, not only a percentage.
 
 ## 0.5.0 — Safe adoption
 

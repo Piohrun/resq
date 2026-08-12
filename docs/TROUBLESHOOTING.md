@@ -714,7 +714,9 @@ resq cover tests/ -strict -cov-min 80 -json -outDir reports/
 
 The threshold is an integer percentage from 0 through 100. The run also fails
 when coverage measures no executable code or cannot write its reports. Coverage
-cannot be combined with `-isolate`; run it as a separate CI command.
+cannot be combined with `-isolate`; run it as a separate CI command. The legacy
+gate uses function coverage even with `-cov-statements`; measured lines are
+reported as a diagnostic until completeness-aware line thresholds are available.
 
 ---
 

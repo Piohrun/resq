@@ -38,6 +38,23 @@
 
 .tst.testState.covgate.run:{[minimum] .tst.testState.covgate.runWith[minimum; ""]};
 
+.tst.desc["Coverage gate decision"]{
+    should["keep the legacy threshold function-based when partial lines look greener"]{
+        / Mirrors the quickstart failure mode: statement data covers only part of
+        / the source and reports 88.24%, while complete function reachability is
+        / 70%. The legacy gate must use the conservative complete signal.
+        summary: `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(
+            17; 15; 88.23529f; 20; 14; 70f);
+        decision: .tst.coverageGateDecision[summary; 85];
+        decision[`measurable] musteq 1b;
+        decision[`basis] musteq "functions";
+        decision[`percent] musteq 70f;
+        decision[`hit] musteq 14;
+        decision[`found] musteq 20;
+        decision[`passed] musteq 0b;
+    };
+};
+
 .tst.desc["Coverage minimum gate #slow"]{
     skipIf[not .tst.testState.covgate.canRun;
            "fail below the measured percentage and pass at the boundary"]{
@@ -74,17 +91,18 @@
     };
 
     skipIf[not .tst.testState.covgate.canRun;
-           "gate on MEASURED lines under -cov-statements"]{
-        / Same fixture, statement mode: now real line records exist and the gate
-        / must switch to them. Both functions are single-statement, so lines and
-        / functions agree at 50% here -- what is pinned is that line data is
-        / present and drives the verdict, not the specific figure.
+           "retain MEASURED lines but gate functions under -cov-statements"]{
+        / Same fixture, statement mode: real line records remain available as a
+        / diagnostic, but the legacy threshold stays on the complete function
+        / inventory. Separate line thresholds require a completeness contract.
         r: .tst.testState.covgate.runWith[51; "-cov-statements"];
         r[`code] musteq 1;
         outputText: "\n" sv r`output;
-        must[0 < count ss[outputText;"lines (1/2)"];
-             "statement mode must report in lines"];
-        r[`payload;`coverage;`basis] musteq "lines";
+        must[0 < count ss[outputText;"functions (1/2); measured lines 50% (1/2)"];
+             "statement mode must report the gate and measured-line diagnostic"];
+        must[0 < count ss[outputText;"-cov-min gates on complete function coverage"];
+             "the console must make the legacy threshold basis explicit"];
+        r[`payload;`coverage;`basis] musteq "functions";
         r[`payload;`coverage;`linePercent] musteq 50f;
         must[any r[`lcov] like "LF:2"; "LCOV must carry a measured line denominator"];
         must[any r[`lcov] like "LH:1"; "LCOV must carry a measured line numerator"];

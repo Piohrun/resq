@@ -48,9 +48,9 @@ jobs:
             -isolateWorkers 4 \
             -junit -json -outDir artifacts/isolate
 
-      # -cov-statements is what produces MEASURED line records. Without it the
-      # run is function-level and the gate compares function coverage, which is
-      # a weaker claim than a line percentage implies.
+      # -cov-statements adds diagnostic line records. The legacy -cov-min gate
+      # deliberately remains on the complete function inventory until line
+      # instrumentation completeness has its own enforceable contract.
       - name: Coverage gate
         shell: bash
         run: |
@@ -84,18 +84,14 @@ jobs:
           coverage = json.loads(
               (root / "coverage" / "test-results.json").read_text(encoding="utf-8")
           )["coverage"]
-          # Check the percentage the gate actually used. `basis` is "lines" only
-          # when statements were instrumented; otherwise the run is function-level
-          # and linePercent is absent/zero by design, not a regression.
-          basis = coverage["basis"]
-          measured = coverage["linePercent" if basis == "lines" else "functionPercent"]
-          if not coverage["passed"] or measured < 70:
+          if coverage["basis"] != "functions":
+              raise SystemExit(f"legacy gate must use functions: {coverage!r}")
+          if coverage["functionsFound"] != 20:
+              raise SystemExit(f"quickstart function inventory drifted: {coverage!r}")
+          if coverage["linesFound"] != 17:
+              raise SystemExit(f"quickstart measured-line inventory drifted: {coverage!r}")
+          if not coverage["passed"] or coverage["functionPercent"] < 70:
               raise SystemExit(f"coverage gate/report disagreement: {coverage!r}")
-          if basis != "lines":
-              raise SystemExit(
-                  "expected measured LINE coverage from -cov-statements, "
-                  f"got basis={basis!r}"
-              )
           PY
 
       - name: Upload test and coverage reports
