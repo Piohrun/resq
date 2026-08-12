@@ -392,6 +392,8 @@ See `docs/` for detailed guides:
 | `docs/GETTING_STARTED.md` | Installation, first test, qspec replacement, production adoption |
 | `docs/API_REFERENCE.md` | Complete API — all DSL, assertions, CLI flags, config keys |
 | `docs/REPORTING.md` | Console, JSON schema, JUnit/xUnit mappings, artifact names |
+| `docs/OBSERVABILITY.md` | Stable dimensions and dashboard/ingestion guidance |
+| `docs/ADAPTERS.md` | Stateless NDJSON and Allure 2 report adapters |
 | `docs/ARCHITECTURE.md` | Namespace layout, file structure, exit codes (contributor reference) |
 | `docs/COVERAGE.md` | Coverage instrumentation, LCOV output, HTML report |
 | `docs/CI.md` | Production CI invocation, runner prerequisites, artifacts |

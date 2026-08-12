@@ -192,6 +192,10 @@ if[.resq.mode ~ `discover;
 if[.resq.mode ~ `watch;
     dirs: enlist ".";
     if[0<count .tst.app.args; dirs: .tst.app.args];
+    / Watch owns repeated full runAll invocations in this process. Install the
+    / same composed reporter used by test mode so -json/-junit/-xunit and their
+    / diagnostics remain effective on every rerun.
+    .tst.initReporting[];
     / lib/watch.q's default runnerCmd already anchors at .resq.HOME, so
     / there is no need to override it here.
     .tst.watch.init[dirs];

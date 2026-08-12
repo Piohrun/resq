@@ -34,7 +34,7 @@ test-results.xml
 test-results.json
 # .tst.tempFile writes scratch into the CWD; cover every suffix a test may ask
 # for, so a run killed mid-flight cannot leave untracked files in the project.
-resq_*
+/resq_*
 repro_*.q
 test_dummy*
 qfunc.*.q

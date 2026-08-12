@@ -322,17 +322,47 @@
         (hsym `$fix) 0: ("\\d .repeat_probe";
             "describe[\"repeat suite\"]{ should[\"passes\"]{ 1 musteq 1 } };";
             "\\d .");
-        (hsym `$stdinPath) 0: (".tst.runAll[]"; enlist "\\");
+        summaryPath:wd,"/repeat-summary.json";
+        statePath:wd,"/.resq/last-run.json";
+        (hsym `$stdinPath) 0: (
+            "firstIds:.resq.state.results`testId";
+            "firstRunId:.tst.app.runMetadata`id";
+            "firstCount:count .resq.state.results";
+            "firstDiagnostics:count .tst.app.diagnostics";
+            "firstShard:.tst.shardMetadata[]";
+            ".tst.runAll[]";
+            "secondIds:.resq.state.results`testId";
+            "secondRunId:.tst.app.runMetadata`id";
+            "doc:`firstIds`secondIds`firstRunId`secondRunId`firstCount`secondCount`firstDiagnostics`secondDiagnostics`allSpecs`sandboxes`firstShard`secondShard!(firstIds;secondIds;firstRunId;secondRunId;firstCount;count .resq.state.results;firstDiagnostics;count .tst.app.diagnostics;count .tst.app.allSpecs;count .tst.app.sandboxNamespaces;firstShard;.tst.shardMetadata[])";
+            "(hsym `$\"",summaryPath,"\") 0:enlist .j.j doc";
+            enlist "\\");
         cmd: "true && cd ", .utl.shellQuote[wd], " && timeout -k 5 30 q ",
              .utl.shellQuote[.resq.HOME, "/resq.q"], " test ",
-             .utl.shellQuote[fix], " -quiet -noquit < ", .utl.shellQuote[stdinPath],
+             .utl.shellQuote[fix], " -quiet -noquit -state-file ",.utl.shellQuote[statePath]," < ", .utl.shellQuote[stdinPath],
              " > ", .utl.shellQuote[outPath], " 2>&1; echo $?";
         status: "J"$last @[system; cmd; {[e] enlist "-1"}];
         out: @[read0; hsym `$outPath; {()}];
+        rawSummary:@[read0;hsym `$summaryPath;{()}];
+        repeatSummary:$[count rawSummary;.j.k "\n" sv rawSummary;()!()];
         system "rm -rf -- ", .utl.shellQuote wd;
         status musteq 0;
         (sum out like "*1 total (1 passed*") musteq 2i;
         must[not any out like "*LOAD ERROR*"; "the second load must stay clean"];
+        repeatSummary[`firstIds] musteq repeatSummary`secondIds;
+        repeatSummary[`firstRunId] mustne repeatSummary`secondRunId;
+        firstCountValue:"j"$repeatSummary`firstCount;
+        secondCountValue:"j"$repeatSummary`secondCount;
+        allSpecsValue:"j"$repeatSummary`allSpecs;
+        sandboxCount:"j"$repeatSummary`sandboxes;
+        firstDiagnosticCount:"j"$repeatSummary`firstDiagnostics;
+        secondDiagnosticCount:"j"$repeatSummary`secondDiagnostics;
+        firstCountValue musteq 1j;
+        secondCountValue musteq 1j;
+        allSpecsValue musteq 1j;
+        sandboxCount musteq 0j;
+        firstDiagnosticCount musteq 0j;
+        secondDiagnosticCount musteq 0j;
+        repeatSummary[`firstShard] musteq repeatSummary`secondShard;
     };
  };
 

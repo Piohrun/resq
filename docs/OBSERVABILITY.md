@@ -52,3 +52,6 @@ warehouse outside q. Thin adapters should be stateless transforms: preserve
 reconstructing identity from display names. The JUnit/xUnit artifacts remain
 useful for CI-native test tabs, but JSON is the authoritative observability
 contract.
+
+The checked-in [external adapters](ADAPTERS.md) provide NDJSON events and
+Allure 2 result files without adding dependencies to the q runner.

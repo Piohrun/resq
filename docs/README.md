@@ -7,17 +7,18 @@
 2. [API Reference](API_REFERENCE.md) — Complete DSL, assertions cheat-sheet, CLI flags, and config
 3. [Test Reporting](REPORTING.md) — Console output and JSON/JUnit/xUnit contracts
 4. [Test observability](OBSERVABILITY.md) — Stable identity, quality signals, and ingestion
-5. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
+5. [External adapters](ADAPTERS.md) — NDJSON and Allure 2 transforms
+6. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
 
 ### Going deeper
-5. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
-6. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
-7. [Property-based testing](PBT.md) — Generative tests with `holds`
-8. [Coverage](COVERAGE.md) — Instrumenting coverage and reading LCOV output
-9. [Watch mode](WATCH.md) — File-watch mode
-10. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
-11. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
-12. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
+7. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
+8. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
+9. [Property-based testing](PBT.md) — Generative tests with `holds`
+10. [Coverage](COVERAGE.md) — Instrumenting coverage and reading LCOV output
+11. [Watch mode](WATCH.md) — File-watch mode
+12. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
+13. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
+14. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
 
 ### Migration
 - [Async helpers](ASYNC.md) — Deferreds, polling helpers, and callback spies
@@ -39,6 +40,7 @@
 | `API_REFERENCE.md` | Users | Full API — DSL, assertions, CLI, config |
 | `REPORTING.md` | Users / CI consumers | Console, JSON, JUnit, and xUnit contracts |
 | `OBSERVABILITY.md` | Users / platform teams | Stable identities and external observability ingestion |
+| `ADAPTERS.md` | Platform teams | Stateless NDJSON and Allure 2 adapters |
 | `ARCHITECTURE.md` | Contributors | Namespace layout, exit codes, file tree |
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
 | `CI.md` | Users | Production CI, coverage gates, reporter artifacts, runner setup |

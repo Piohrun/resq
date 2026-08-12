@@ -197,21 +197,27 @@
   / command reaches the shell. All paths are absolute.
   / timeout needs -k: q's watch loop survives plain SIGTERM (same lesson as
   / isolate.q), and an unkilled child holds this test's pipes open forever.
+  reportDir:wd,"/report";
   cmd: "mkdir -p ", wd, " && ( timeout -k 2 9 q ", .resq.HOME, "/resq.q watch ", wd,
+       " -json -outDir ",reportDir,
        " < /dev/null > ", out, " 2>&1 & echo started )",
        " && sleep 2 && echo '/ touched' >> ", tf,
        " && sleep 4 ; true";
   @[system; cmd; {[e] e}];
   o: @[read0; hsym `$out; {()}];
+  reportExists:.utl.pathExists reportDir,"/test-results.json";
+  rawReport:@[read0;hsym `$reportDir,"/test-results.json";{()}];
+  schemaVersion:$[count rawReport;"j"$(.j.k "\n" sv rawReport)`schemaVersion;0j];
   system "rm -rf ", wd;
-  o
+  `out`reportExists`schemaVersion!(o;reportExists;schemaVersion)
  };
 
 .tst.desc["watch: subprocess stays alive + detects change (#slow, regression)"]{
 
   skipIf[not .tst.testState.watchchk.canQ;
          "non-TTY watch keeps running, detects a change, reruns, no 'nyi"]{
-    o: .tst.testState.watchchk.run[];
+    watchResult: .tst.testState.watchchk.run[];
+    o:watchResult`out;
     / Banner proves the process did NOT instant-exit before the loop started.
     must[.tst.testState.watchchk.anyLike[o; "Watch mode active"];
          "watch banner should be printed"];
@@ -229,5 +235,7 @@
          "onChanges must not throw 'nyi (two-star like bug)"];
     must[not .tst.testState.watchchk.anyLike[o; "Error during test run"];
          "the internal rerun must not error"];
+    must[watchResult`reportExists;"watch must honor the selected JSON reporter"];
+    watchResult[`schemaVersion] musteq 2j;
   };
  };

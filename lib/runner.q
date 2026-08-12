@@ -542,6 +542,7 @@
     if[not `pollutionGuard in key `.tst.app; .tst.app.pollutionGuard: 1b];
 
     .tst.app.allSpecs: ();
+    .tst.app.results: ();
     .tst.app.expectationsRan: 0;
     .tst.app.expectationsPassed: 0;
     .tst.app.expectationsFailed: 0;
@@ -549,6 +550,12 @@
     .tst.app.discoveredFiles: ();
     .tst.app.allDiscoveredFiles: ();
     .tst.app.emptyShard: 0b;
+    .tst.app.shardAllFileCount: 0j;
+    .tst.app.shardSelectedFileCount: 0j;
+    .tst.app.rerunMode: `all;
+    .tst.app.rerunApplied: 0b;
+    .tst.app.priorFailedCount: 0j;
+    .tst.app.selectedTestCount: 0j;
     .tst.app.loadedFiles: ();
     .tst.app.emptyFiles: ();
     .tst.app.executionState: `notStarted;
