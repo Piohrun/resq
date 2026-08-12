@@ -274,18 +274,12 @@
 
 .tst.linuxOpenDescriptors:{[]
     if[not .utl.isLinux; :`long$()];
-    / q's system[] captures stdout through a temporary pipe owned by q. Inspect
-    / the parent q process, then exclude that capture pipe by target; using
-    / /proc/self here inspects the helper process and produces false handles.
-    cmd:"exec sh -c 'capture=$(readlink /proc/self/fd/1); printf \"CAPTURE=%s\\n\" \"$capture\"; ls -l /proc/$PPID/fd'";
-    lines:@[system;cmd;{()}];
-    if[2>count lines; :`long$()];
-    capture:8 _ first lines;
-    rows:1 _ lines;
-    rows:rows where 0<count each ss[;" -> "] each rows;
-    rows:rows where 0=count each ss[;" -> ",capture] each rows;
-    left:{first " -> " vs x} each rows;
-    names:{last " " vs x} each left;
+    / Read q's own proc directory with q-native directory enumeration. Calling
+    / `system "ls /proc/self/fd"` inspects the helper process, and shell probing
+    / once per suite adds minutes to a large run. `key` opens/closes the
+    / directory internally and returns only the q process's live descriptors.
+    path:hsym `$":/proc/",string[.z.i],"/fd";
+    names:string @[key;path;{`symbol$()}];
     $[count names;"J"$names;`long$()]
  };
 
