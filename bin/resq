@@ -24,6 +24,10 @@ done
 # RESQ_HOME to find its own modules.
 export RESQ_HOME
 
+# Release qualification can select an explicit q binary; ordinary invocations
+# retain the familiar PATH lookup.
+q_bin="${QBIN:-q}"
+
 # q honours `exit 0` immediately, even from test/application code, and its
 # .z.exit callback cannot change that status. Supervise test-mode completion
 # with a private marker directory so an early exit cannot make CI green.
@@ -50,7 +54,7 @@ cleanup_guard() {
 trap cleanup_guard EXIT
 
 export RESQ_RUN_GUARD_DIR="$guard_dir"
-q "$RESQ_HOME/resq.q" "${args[@]}" -e 1
+"$q_bin" "$RESQ_HOME/resq.q" "${args[@]}" -e 1
 q_status=$?
 
 if [ "$q_status" -eq 0 ] && [ -f "$guard_dir/armed" ] &&

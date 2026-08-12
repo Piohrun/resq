@@ -73,7 +73,7 @@ resQ 1.0 must guarantee that:
 
 ## 0.9.0 — Release-candidate hardening
 
-- [ ] Test the supported q-version and execution-mode matrix.
+- [x] Test the supported q-version and execution-mode matrix.
 - [ ] Add licence-free docs/schema/XML/shell/package CI.
 - [ ] Run extended differential corpora nightly.
 - [ ] Audit shell quoting, temp permissions, symlinks, hostile paths, interrupts,

@@ -141,6 +141,23 @@
   };
  };
 
+.tst.desc["Isolate: schema-v2 child telemetry"]{
+  should["survive child JSON decoding into the parent result table"]{
+    history:enlist `attempt`status`duration`durationSeconds`message`failures`assertsRun!(
+      1j;"pass";"0D00:00:00.001";0.001;"";();1j);
+    core:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+      "suite";"test";"pass";"";"0D00:00:00.001";();1j;"tests/test_x.q";7j;".sandbox";enlist "fast";"");
+    telemetry:`testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark!(
+      "test_fixed";"";"test";1j;0b;0b;history;();()!();();();()!());
+    child:core,telemetry;
+    rows:.tst.isolate.rowsFromJson enlist child;
+    first[rows`testId] musteq "test_fixed";
+    first[rows`attempts] musteq 1i;
+    count[first rows`attemptHistory] musteq 1;
+    first[rows`kind] musteq `test;
+  };
+ };
+
 .tst.desc["Isolate: dead-child diagnostics"]{
   after{.tst.isotest.cleanupBase[]};
 

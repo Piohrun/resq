@@ -68,11 +68,12 @@ test or loaded application is forced to a failing status. You can set
 but q does not let `.z.exit` change an already-requested exit code, so direct
 invocation cannot provide that status guard.
 
-The tested production baseline is kdb+/q 4.x on Linux. The launchers require
+The supported production baseline is kdb+/q 4.1.x on Linux x86-64. The launchers require
 Bash plus `mktemp`, `chmod`, `rm`, and `rmdir` for their completion guard;
 process isolation has additional command-line dependencies. See
 [Getting Started](docs/GETTING_STARTED.md) for the supported path and a
-CI-ready adoption sequence.
+CI-ready adoption sequence, and the
+[compatibility matrix](docs/COMPATIBILITY_MATRIX.md) for the release gate.
 
 ---
 
@@ -397,6 +398,7 @@ See `docs/` for detailed guides:
 | `docs/ARCHITECTURE.md` | Namespace layout, file structure, exit codes (contributor reference) |
 | `docs/COVERAGE.md` | Coverage instrumentation, LCOV output, HTML report |
 | `docs/CI.md` | Production CI invocation, runner prerequisites, artifacts |
+| `docs/COMPATIBILITY_MATRIX.md` | Supported q runtime and execution-mode parity gate |
 | `docs/FIXTURES.md` | Fixture scopes, lifecycle hooks, dependency injection |
 | `docs/PARALLEL.md` | CI-level parallelism strategy |
 | `docs/PBT.md` | Property-based testing with `holds` |
@@ -413,7 +415,7 @@ See `docs/README.md` for a suggested reading order.
 
 ## Dependencies
 
-- **Core in-process runner:** kdb+/q 4.x; the tested CI baseline is Linux x64.
+- **Core in-process runner:** kdb+/q 4.1.x on Linux x86-64.
 - **Launchers:** Bash plus `mktemp`, `chmod`, `rm`, and `rmdir` for the private
   completion marker.
 - **Process isolation:** GNU `timeout` with `-k` and `sh` in addition to the

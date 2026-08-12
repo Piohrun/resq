@@ -17,8 +17,9 @@
 10. [Coverage](COVERAGE.md) — Instrumenting coverage and reading LCOV output
 11. [Watch mode](WATCH.md) — File-watch mode
 12. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
-13. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
-14. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
+13. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
+14. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
+15. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
 
 ### Migration
 - [Async helpers](ASYNC.md) — Deferreds, polling helpers, and callback spies
@@ -44,6 +45,7 @@
 | `ARCHITECTURE.md` | Contributors | Namespace layout, exit codes, file tree |
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
 | `CI.md` | Users | Production CI, coverage gates, reporter artifacts, runner setup |
+| `COMPATIBILITY_MATRIX.md` | Users / maintainers | Supported q runtime and execution-mode parity gate |
 | `FIXTURES.md` | Users | Fixture scopes and lifecycle hooks |
 | `ASYNC.md` | Users | Testing callbacks and deferred results |
 | `MIGRATION.md` | qspec users | Porting guide from qspec |

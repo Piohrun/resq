@@ -1,5 +1,16 @@
 # Continuous Integration
 
+## Production baseline
+
+The release-gated runtime is q 4.1.x on Linux x86-64. The
+[compatibility matrix](COMPATIBILITY_MATRIX.md) defines that support boundary
+and verifies normal, isolated, concurrent, randomized, and sharded result
+equivalence:
+
+```bash
+tools/verify_execution_matrix.py --q q
+```
+
 The production CI baseline is a strict, process-isolated run with at least one
 machine-readable reporter:
 
@@ -70,7 +81,7 @@ the paths it wrote — so a failing job is diagnosable from the log alone. Add
 The checked-in [workflow](../.github/workflows/ci.yml) expects a self-hosted
 Linux x64 runner labeled `kdb`. The runner needs:
 
-- kdb+/q 4.x on `PATH`, with its valid KX license available through `QHOME` or
+- kdb+/q 4.1.x on `PATH`, with its valid KX license available through `QHOME` or
   `QLIC`;
 - Bash, `mktemp`, `chmod`, `rm`, and `rmdir` for the supervised launcher;
 - GNU `timeout` with `--kill-after` plus `sh` for process isolation;

@@ -6,7 +6,7 @@ not need to be rewritten first.
 
 ## 1. Check the runtime
 
-The supported production baseline is kdb+/q 4.x on Linux. Put `q` on `PATH` and
+The supported production baseline is kdb+/q 4.1.x on Linux x86-64. Put `q` on `PATH` and
 make its licence available through your normal KX setup (`QHOME` or `QLIC`).
 
 ```bash
@@ -18,6 +18,8 @@ launchers need Bash, `mktemp`, `chmod`, `rm`, and `rmdir` for their private
 completion marker. Process isolation additionally needs GNU `timeout` with
 `-k` support and `sh`; see
 [Continuous Integration](CI.md#runner-requirements).
+See the [compatibility matrix](COMPATIBILITY_MATRIX.md) for the exact runtime
+and execution-mode release gate.
 
 ## 2. Install the launchers
 
@@ -172,5 +174,6 @@ resQ binds bare names while loading test source and does not modify reserved
 - [API reference](API_REFERENCE.md) — DSL, assertions, CLI, and configuration
 - [Test reporting](REPORTING.md) — console, JSON, JUnit, and xUnit contracts
 - [Continuous Integration](CI.md) — runner prerequisites and production gates
+- [Compatibility matrix](COMPATIBILITY_MATRIX.md) — supported runtime and mode parity
 - [Fixtures](FIXTURES.md) — setup, injection, teardown, and cleanup
 - [Troubleshooting](TROUBLESHOOTING.md) — common failures and diagnostics

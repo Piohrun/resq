@@ -39,6 +39,10 @@ jobs:
           ./bin/resq test tests -strict -junit -json \
             -outDir artifacts/normal
 
+      - name: Supported execution matrix
+        shell: bash
+        run: tools/verify_execution_matrix.py --q q
+
       # -isolateWorkers exercises the concurrent path; its verdicts must match
       # the sequential "Strict suite" step above.
       - name: Strict isolated suite

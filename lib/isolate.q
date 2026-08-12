@@ -124,6 +124,22 @@
       enlist .tst.toString v]
  };
 
+/ Preserve the schema-v2 telemetry emitted by an isolated child. The parent
+/ still normalizes the legacy/core columns below, but it must not collapse a
+/ retry, parameter/property case, diagnostic, snapshot, or benchmark back to
+/ the pre-v2 row shape while merging processes.
+.tst.isolate.telemetryFromJson:{[t;base]
+    fields:`testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+    out:.tst.completeResultRow base;
+    present:fields inter key t;
+    if[count present;out[present]:t present];
+    if[`kind in present;out[`kind]:`$.tst.toString out`kind];
+    if[`attempts in present;out[`attempts]:"i"$out`attempts];
+    if[`retried in present;out[`retried]:1b~out`retried];
+    if[`flaky in present;out[`flaky]:1b~out`flaky];
+    out
+ };
+
 .tst.isolate.rowWithMeta:{[suite;dsc;status;message;tm;failures;asserts;rowMeta]
     flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
         enlist suite;
@@ -277,7 +293,8 @@
         sourceLine: $[`line in key t; "i"$t`line; 0Ni];
         sourceOutput: $[`output in key t; .tst.toString t`output; ""];
         rowMeta: `file`line`namespace`tags`output!(sourcePath;sourceLine;sourceNs;rowTags;sourceOutput);
-        .tst.isolate.rowWithMeta[suite;dsc;status;msg;tm;fails;asserts;rowMeta]
+        base:first .tst.isolate.rowWithMeta[suite;dsc;status;msg;tm;fails;asserts;rowMeta];
+        .tst.oneResultTable .tst.isolate.telemetryFromJson[t;base]
     } each tests
  };
 
