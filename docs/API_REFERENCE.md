@@ -1626,6 +1626,32 @@ report mustmatchst "monthly_report";
 
 Enable/disable snapshot update mode.
 
+### Snapshot inventory and gate
+
+```bash
+resq test tests -strict -snapshot-audit -json -outDir artifacts
+resq test tests -strict -snapshot-gate  -json -outDir artifacts
+```
+
+`-snapshot-audit` writes a versioned `snapshot-manifest.json` and the identical
+top-level JSON `snapshotInventory`. It classifies both backends as referenced,
+missing, obsolete, or unverified. Filtered, selected, sharded, failed,
+interrupted, and describe-only runs are partial and cannot label files
+obsolete. `-snapshot-gate` implies audit and rejects partial, missing, obsolete,
+or unsafe inventories.
+
+Declare dynamically generated identities explicitly:
+
+```q
+.resq.snapshot.declare[`text; ("region-eu"; "region-us")]
+.resq.snapshot.declare[`binary; "risk-grid"]
+```
+
+Preview obsolete moves with
+`tools/prune_snapshots.py artifacts/snapshot-manifest.json`; add `--write` only
+after review. Files move under `.resq/trash/snapshots` and remain recoverable.
+Runtime and pruning both refuse symlink roots/leaves and escaping paths.
+
 ---
 
 ### loadSnap / saveSnap
@@ -1858,6 +1884,8 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-flake-window N` | Maximum observations retained per stable test ID (default 20) |
 | `-flake-proposals` | Write suspect proposals without changing the quarantine manifest |
 | `-quarantine-non-blocking` | Let active, unexpired quarantines not block; raw failures remain visible |
+| `-snapshot-audit` | Publish complete/partial snapshot inventory without changing the verdict |
+| `-snapshot-gate` | Imply audit and fail on partial, missing, obsolete, or unsafe inventory |
 | `-shard-index I` | Select zero-based native shard `I` |
 | `-shard-count N` | Partition the selected shard unit across `N > 0` shards (default `1`) |
 | `-shard-unit U` | Select `file` (default), `test`, or declarative `case` assignment |
@@ -2017,6 +2045,8 @@ Create `resq.json` in project root:
     "flakeWindow": 20,
     "flakeProposals": false,
     "quarantineNonBlocking": false,
+    "snapshotAudit": false,
+    "snapshotGate": false,
     "shardIndex": 0,
     "shardCount": 1,
     "shardUnit": "file",
@@ -2074,6 +2104,8 @@ Create `resq.json` in project root:
 | `flakeWindow` | `20` | Maximum observations retained per stable ID |
 | `flakeProposals` | `false` | Emit proposals without mutating policy |
 | `quarantineNonBlocking` | `false` | Let active, unexpired quarantine failures not block the exit code |
+| `snapshotAudit` | `false` | Publish the versioned snapshot inventory |
+| `snapshotGate` | `false` | Fail closed on incomplete or unhealthy snapshot topology |
 | `shardIndex` | `0` | Zero-based native shard index |
 | `shardCount` | `1` | Number of deterministic shards |
 | `shardUnit` | `"file"` | Assignment unit: `file`, `test`, or declarative `case` |

@@ -624,6 +624,8 @@
     .tst.app.loadedFiles: ();
     .tst.app.emptyFiles: ();
     .tst.app.executionState: `notStarted;
+    .tst.app.snapshotDeclarations:();
+    .tst.app.snapshotInventory:.tst.emptySnapshotInventory 0b;
     .tst.app.baseDir: system "cd";
     .tst.beginRunMetadata[];
     .tst.loadFlakeState[];
@@ -1323,6 +1325,8 @@
     / Strict plugin failures append canonical error rows. Recompute before state
     / persistence and reporting so every downstream verdict agrees.
     .tst.runAllPhase.runSafely[`pluginResultsSummary; .tst.runAllPhase.computePassed];
+    .tst.runAllPhase.runSafely[`snapshotAudit; .tst.applySnapshotAudit];
+    .tst.runAllPhase.runSafely[`snapshotManifest; .tst.writeSnapshotInventory];
     .tst.runAllPhase.runSafely[`flakePersistence; .tst.persistFlakeState];
     .tst.runAllPhase.runSafely[`rerunState; .tst.persistRerunState];
     .tst.runAllPhase.runSafely[`report; {.tst.markIsolatedReportBegin[]; .tst.printRunAudit[]; .resq.report .resq.state.results}];

@@ -541,12 +541,13 @@
             @[get;`.tst.app.coverageEffectiveMinimum;0];
             @[get;`.tst.app.coveragePassed;0b])];
     modelKeys:`schemaVersion`framework`frameworkVersion`run`summary`tests`performance,
-        `coverage`diagnostics`flake;
+        `coverage`diagnostics`flake`snapshotInventory;
     model:modelKeys!(2;"resQ";
         $[`VERSION in key `.resq;.resq.VERSION;"unknown"];
         .tst.finishRunMetadata[];summary;rows;performance;coverage;
         @[get;`.tst.app.diagnostics;{()}];
-        $[`flakeMetadata in key `.tst;.tst.flakeMetadata[];()!()]);
+        $[`flakeMetadata in key `.tst;.tst.flakeMetadata[];()!()];
+        @[get;`.tst.app.snapshotInventory;{.tst.emptySnapshotInventory 0b}]);
     manifest:.tst.executionManifest model;
     events:.tst.lifecycleEvents[model;manifest];
     complete:model,`manifest`events!(manifest;events);

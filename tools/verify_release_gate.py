@@ -223,6 +223,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         audit.run("distributed shard merge matrix", [str(ROOT / "tools/verify_shard_merge.py"), "--q", q_executable])
         audit.run("property generator and shrink protocol", [str(ROOT / "tools/verify_property_protocol.py"), "--q", q_executable])
         audit.run("flake evidence and quarantine policy", [str(ROOT / "tools/verify_quarantine.py"), "--q", q_executable])
+        audit.run("snapshot inventory and recoverable pruning", [str(ROOT / "tools/verify_snapshot_inventory.py"), "--q", q_executable])
         audit.run("hostile environment audit", [str(ROOT / "tools/verify_hostile_env.py"), "--q", q_executable])
         audit.run("external adoption pilots", [str(ROOT / "tools/verify_external_pilots.py"), "--q", q_executable])
 

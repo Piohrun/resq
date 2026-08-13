@@ -110,6 +110,18 @@
     "insufficient": 0,
     "proposalCount": 0
   },
+  "snapshotInventory": {
+    "schemaVersion": 1,
+    "kind": "resq-snapshot-inventory",
+    "enabled": false,
+    "generatedAt": "2026-08-12T12:00:01.000000000Z",
+    "complete": false,
+    "completenessReasons": ["disabled"],
+    "roots": [],
+    "entries": [],
+    "counts": {"referenced": 0, "missing": 0, "obsolete": 0, "unverified": 0, "unsafe": 0, "stored": 0, "declared": 0},
+    "gate": {"enabled": false, "passed": true, "reasons": []}
+  },
   "manifest": {
     "schemaVersion": 2,
     "kind": "resq-execution-manifest",

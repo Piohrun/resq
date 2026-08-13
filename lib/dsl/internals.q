@@ -46,6 +46,8 @@ if[not `lastFailed in key `.tst.app; .tst.app.lastFailed: 0b];
 if[not `failedFirst in key `.tst.app; .tst.app.failedFirst: 0b];
 if[not `quarantineNonBlocking in key `.tst.app; .tst.app.quarantineNonBlocking:0b];
 if[not `flakeProposalsEnabled in key `.tst.app; .tst.app.flakeProposalsEnabled:0b];
+if[not `snapshotAudit in key `.tst.app; .tst.app.snapshotAudit:0b];
+if[not `snapshotGate in key `.tst.app; .tst.app.snapshotGate:0b];
 if[not `flakeHistoryFile in key `.tst.app; .tst.app.flakeHistoryFile:".resq/flake-history.json"];
 if[not `quarantineFile in key `.tst.app; .tst.app.quarantineFile:".resq/quarantine.json"];
 if[not `flakeProposalFile in key `.tst.app; .tst.app.flakeProposalFile:".resq/quarantine-proposals.json"];

@@ -85,7 +85,27 @@
       } each interesting;
  };
 
+.resq.reportSnapshotInventory:{[inventory]
+    if[not 99h=type inventory;:()];
+    if[not 1b~inventory`enabled;:()];
+    counts:inventory`counts;
+    -1 "\n----------------------------------------------------------------";
+    -1 "SNAPSHOT INVENTORY: ",$[inventory`complete;"complete";"partial"],
+        " (",string[count inventory`entries]," identities)";
+    -1 "  referenced=",string[counts`referenced],
+        " missing=",string[counts`missing],
+        " obsolete=",string[counts`obsolete],
+        " unverified=",string[counts`unverified],
+        " unsafe=",string[counts`unsafe];
+    if[not inventory`complete;
+        -1 "  incomplete because: ",", " sv inventory`completenessReasons];
+    if[1b~inventory[`gate;`enabled];
+        -1 "  gate: ",$[inventory[`gate;`passed];"PASS";"FAIL (",", " sv inventory[`gate;`reasons],")"]];
+ };
+
 .resq.reportText:{[results]
+    snapshotInventory:$[(99h=type results) and `snapshotInventory in key results;
+        results`snapshotInventory;.tst.emptySnapshotInventory 0b];
     results: .tst.resultTable results;
     suites: distinct results`suite;
     quiet: $[`quiet in key `.tst.app; .tst.app.quiet; 0b];
@@ -160,6 +180,7 @@
     / tests prove nothing. Ordering on a green run is unchanged.
     .resq.reportSilentTests[results; statusNorm];
     .resq.reportFlakeStates results;
+    .resq.reportSnapshotInventory snapshotInventory;
     blockingFails:allFails;
     if[count allFails;
         failRows:{[table;i]table i}[allFails] each til count allFails;
@@ -172,6 +193,11 @@
         -1 "QUARANTINED FAILURES: ",string[count allFails],
             " (raw results retained; non-blocking policy explicitly enabled)";
         -1 .resq.color[`yellow; "Run passed with quarantined failures."];
+        :()];
+    if[(99h=type snapshotInventory) and 1b~snapshotInventory[`gate;`enabled] and
+       not 1b~snapshotInventory[`gate;`passed];
+        -1 "TOTAL FAILURES: snapshot inventory gate";
+        -1 .resq.color[`red;"Tests FAILED."];
         :()];
 
     if[0 = totalTests;

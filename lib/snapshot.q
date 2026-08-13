@@ -6,13 +6,50 @@ snapRoot: @[get;`.resq.startCwd;{system "cd"}]
 snapDir: snapRoot,"/tests/snapshots"
 updateSnaps: 0b
 
-setSnapDir:{[d] .tst.snapDir: d}
+setSnapDir:{[d] .tst.snapDir: .utl.pathToString d}
 setUpdateSnaps:{[b] .tst.updateSnaps: b}
+
+.tst.snapshotAbsolutePath:{[path]
+    p:.utl.normalizePath .utl.pathToString path;
+    if[count p;
+      if[not "/"=first p;
+        base:.utl.pathToString @[get;`.tst.app.baseDir;{system "cd"}];
+        p:.utl.normalizePath base,"/",p]];
+    p
+ };
+
+/ A safe leaf is not enough when the root or existing leaf is a symlink: an
+/ update could otherwise escape the reviewed snapshot tree.
+.tst.snapshotIsSymlink:{[path]
+    if[.utl.isWindows;:0b];
+    p:.tst.snapshotAbsolutePath path;
+    cmd:"p=",.utl.shellQuote[p],"; while [ \"$p\" != / ]; do ",
+        "if [ -L \"$p\" ]; then echo 0; exit; fi; ",
+        "p=${p%/*}; [ -n \"$p\" ] || p=/; done; echo 1";
+    out:@[system;cmd;{enlist "1"}];
+    if[0=count out;:0b];
+    "0"~last out
+ };
+
+.tst.validateSnapshotTarget:{[root;target]
+    r:.tst.snapshotAbsolutePath root;
+    p:.tst.snapshotAbsolutePath target;
+    prefix:r,$["/"=last r;"";"/"];
+    if[not prefix~(count prefix)#p;
+        '"Snapshot path escapes validated root: ",p];
+    if[.tst.snapshotIsSymlink r;
+        '"Snapshot root must not be a symlink: ",r];
+    if[.tst.snapshotIsSymlink p;
+        '"Snapshot file must not be a symlink: ",p];
+    p
+ };
 
 .tst.recordSnapshotEvent:{[backend;name;status;path]
     if[not `currentSnapshots in key `.tst;.tst.currentSnapshots:()];
-    .tst.currentSnapshots,:enlist `backend`name`status`path`timestamp!(
+    root:$[backend~`binary;.tst.snapDir;.tst.snapTxtDir];
+    .tst.currentSnapshots,:enlist `backend`name`status`path`root`timestamp!(
         backend;.tst.toString name;status;.tst.repoRelativePath .utl.pathToString path;
+        .tst.repoRelativePath .tst.snapshotAbsolutePath root;
         .tst.isoTimestamp .z.p);
     ::
  };
@@ -36,7 +73,8 @@ snapPath:{[name]
     if[not .tst.validSnapLeaf n;
         '"Invalid snapshot name '", n, "': must be a bare file name (no path separators, no leading dot)"];
     n: $[n like "*.snap"; n; n, ".snap"];
-    .utl.pathToHsym .tst.snapDir, "/", n
+    target:.tst.snapDir,"/",n;
+    .utl.pathToHsym .tst.validateSnapshotTarget[.tst.snapDir;target]
  };
 
 ensureDir:{[path]

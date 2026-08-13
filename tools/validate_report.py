@@ -141,6 +141,7 @@ def validate_test(row: Any, index: int) -> None:
             raise ValueError(f"{where}.property: failure signature presence must match failures")
     for snap_index, snapshot in enumerate(row["snapshots"]):
         require(snapshot, {"backend", "name", "status", "path", "timestamp"}, f"{where}.snapshots[{snap_index}]")
+        require(snapshot, {"root"}, f"{where}.snapshots[{snap_index}]")
         iso8601(snapshot["timestamp"], f"{where}.snapshots[{snap_index}].timestamp")
     quarantine = row["quarantine"]
     if quarantine:
@@ -341,7 +342,7 @@ def validate(document: Any) -> None:
         raise ValueError("report: expected object")
     require(
         document,
-        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake"},
+        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake", "snapshotInventory"},
         "report",
     )
     if document["schemaVersion"] != 2 or document["framework"] != "resQ":
@@ -387,6 +388,27 @@ def validate(document: Any) -> None:
         raise ValueError("flake.manifestStatus: invalid")
     if flake["evidenceMin"] < 2 or flake["failureMin"] < 1 or flake["window"] < flake["evidenceMin"]:
         raise ValueError("flake: invalid evidence thresholds")
+    snapshots = document["snapshotInventory"]
+    require(
+        snapshots,
+        {"schemaVersion", "kind", "enabled", "generatedAt", "complete", "completenessReasons", "roots", "entries", "counts", "gate"},
+        "snapshotInventory",
+    )
+    if snapshots["schemaVersion"] != 1 or snapshots["kind"] != "resq-snapshot-inventory":
+        raise ValueError("snapshotInventory: unsupported schema")
+    iso8601(snapshots["generatedAt"], "snapshotInventory.generatedAt")
+    if not isinstance(snapshots["complete"], bool) or not isinstance(snapshots["enabled"], bool):
+        raise ValueError("snapshotInventory: enabled/complete must be boolean")
+    if not snapshots["complete"] and not snapshots["completenessReasons"]:
+        raise ValueError("snapshotInventory: partial inventory requires reasons")
+    require(snapshots["gate"], {"enabled", "passed", "reasons"}, "snapshotInventory.gate")
+    for index, entry in enumerate(snapshots["entries"]):
+        where = f"snapshotInventory.entries[{index}]"
+        require(entry, {"backend", "name", "path", "root", "absoluteRoot", "absolutePath", "status", "referenced", "declared", "dynamic", "exists", "unsafe", "executionIds", "observedStatuses"}, where)
+        if entry["status"] not in {"referenced", "missing", "obsolete", "unverified"}:
+            raise ValueError(f"{where}.status: invalid")
+        if entry["backend"] not in {"binary", "text"}:
+            raise ValueError(f"{where}.backend: invalid")
     execution_ids: list[str] = []
     case_ids: list[str] = []
     for index, row in enumerate(document["tests"]):
@@ -401,6 +423,12 @@ def validate(document: Any) -> None:
         require(document, {"manifest", "events"}, "report lifecycle extension")
         validate_manifest(document["manifest"], document)
         validate_events(document["events"], document)
+        audited = [event for event in document["events"] if event["type"] == "snapshots.audited"]
+        expected_audits = 1 if document["snapshotInventory"]["enabled"] else 0
+        if len(audited) != expected_audits:
+            raise ValueError("events: snapshots.audited presence disagrees with snapshot inventory")
+        if audited and audited[0]["payload"] != document["snapshotInventory"]:
+            raise ValueError("events: snapshots.audited payload differs from report")
 
 
 def main() -> int:

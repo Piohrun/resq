@@ -121,13 +121,13 @@ appear complete.
 
 ## 1.7.0 — Snapshot inventory and obsolete management
 
-- [ ] Produce complete/partial snapshot-reference manifests for both backends,
+- [x] Produce complete/partial snapshot-reference manifests for both backends,
   including dynamic-name declarations and shard merging.
-- [ ] Classify referenced, missing, obsolete, and unverified snapshots without
+- [x] Classify referenced, missing, obsolete, and unverified snapshots without
   treating filtered, sharded, interrupted, or failed runs as complete.
-- [ ] Add read-only audit and CI gates plus explicit dry-run-first pruning that
+- [x] Add read-only audit and CI gates plus explicit dry-run-first pruning that
   moves files to recoverable `.resq/trash` storage.
-- [ ] Refuse symlinks and paths outside validated snapshot roots; prove
+- [x] Refuse symlinks and paths outside validated snapshot roots; prove
   idempotence and hostile-path safety.
 
 ## 1.8.0 — Benchmark regression analysis

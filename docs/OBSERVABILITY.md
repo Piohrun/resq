@@ -43,6 +43,7 @@ the public [stable identity contract](IDENTITY.md).
 | Function/statement/branch coverage and gate health | `coverage.json` summary/files/functions/branchSites/fallbacks/gates |
 | Framework hygiene | run/test `diagnostics[]` |
 | Reproducible execution inventory | `manifest` and its deterministic digest |
+| Snapshot debt and audit trust | `snapshotInventory`, `snapshots.audited`, completeness reasons and gate decision |
 | Ordered lifecycle ingestion | `events[]` and one-based `sequence` |
 
 Coverage dashboards must label the basis. Function coverage has a complete
@@ -72,6 +73,11 @@ and the coverage basis instead of
 reconstructing identity from display names. The JUnit/xUnit artifacts remain
 useful for CI-native test tabs, but JSON is the authoritative observability
 contract.
+
+Snapshot dashboards must retain the inventory's `complete` bit. Obsolete is a
+valid quality/debt signal only for a complete run or a strictly merged complete
+shard set; `unverified` on filtered/failed/partial runs is intentionally not
+equivalent to obsolete.
 
 The checked-in [external adapters](ADAPTERS.md) provide NDJSON events and
 Allure 2 result files without adding dependencies to the q runner.

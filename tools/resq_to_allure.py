@@ -151,6 +151,16 @@ def convert(source: Path, destination: Path) -> int:
         "commit": run.get("vcs", {}).get("sha", ""),
         "branch": run.get("vcs", {}).get("branch", ""),
     }
+    snapshots = document.get("snapshotInventory", {})
+    if snapshots.get("enabled"):
+        environment.update(
+            snapshotInventoryComplete=snapshots.get("complete", False),
+            snapshotReferenced=snapshots.get("counts", {}).get("referenced", 0),
+            snapshotMissing=snapshots.get("counts", {}).get("missing", 0),
+            snapshotObsolete=snapshots.get("counts", {}).get("obsolete", 0),
+            snapshotUnverified=snapshots.get("counts", {}).get("unverified", 0),
+            snapshotUnsafe=snapshots.get("counts", {}).get("unsafe", 0),
+        )
     (destination / "environment.properties").write_text(
         "".join(f"{key}={str(value).replace(chr(10), ' ')}\n" for key, value in environment.items()),
         encoding="utf-8",

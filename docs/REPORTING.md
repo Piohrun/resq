@@ -113,6 +113,7 @@ Its stable top-level fields are:
 | `coverage` | Canonical coverage summary (empty outside coverage runs) |
 | `diagnostics` | Typed run-level diagnostics |
 | `flake` | Evidence thresholds, history/manifest health, policy mode, and state counts |
+| `snapshotInventory` | Complete/partial snapshot roots, identities, classifications, counts, and gate decision |
 
 Each `tests` row retains those diagnostic fields and additionally contains a
 portable `file`, stable `testId`, optional top-level declarative `caseId` and
@@ -149,6 +150,11 @@ Optional fields may be added within schema v2 in a minor release. The published
 schema and dependency-free validator therefore accept unknown object members
 while continuing to enforce every required v2 field/type/invariant; see the
 [versioning policy](VERSIONING.md).
+
+With `-snapshot-audit` or `-snapshot-gate`, the same inventory is also written
+as `snapshot-manifest.json`, and lifecycle events include one
+`snapshots.audited` event. A complete native shard set is recomputed by the
+strict merger; individual shard manifests remain explicitly partial.
 
 Schema v2 intentionally breaks the flat schema-v1 aggregate layout. Consumers
 must read counts from `summary`, metadata from `run`, and use non-empty `caseId`

@@ -380,6 +380,10 @@
     argv:.tst.isolate.appendValue[argv;"-quarantine-file";.tst.quarantineManifestPath[]];
     argv:.tst.isolate.appendFlag[argv;"-quarantine-non-blocking";
         @[get;`.tst.app.quarantineNonBlocking;0b]];
+    / Children publish reference/declaration fragments, but never gate their
+    / necessarily partial per-file inventories. The aggregate parent gates.
+    argv:.tst.isolate.appendFlag[argv;"-snapshot-audit";
+        (1b~@[get;`.tst.app.snapshotAudit;0b]) or 1b~@[get;`.tst.app.snapshotGate;0b]];
     / File sharding is complete in the parent. Test/case sharding uses stable-ID
     / hashing, so every per-file child can apply the same global topology
     / independently and obtain exactly the parent's selected subset.
@@ -473,6 +477,18 @@
         childManifest:report`manifest;
         if[(99h=type childManifest) and `tests in key childManifest;
             .tst.isolate.childInventory,:.tst.eventRows childManifest`tests]];
+    if[valid and `snapshotInventory in key report;
+        childSnapshots:report`snapshotInventory;
+        if[(99h=type childSnapshots) and `entries in key childSnapshots;
+            declared:.tst.snapshotRows childSnapshots`entries;
+            declared:declared where {1b~x`declared} each declared;
+            if[count declared;
+                .tst.app.snapshotDeclarations,:{[entry]
+                    `backend`name`path`root`absolutePath`executionId`observedStatus`declared`dynamic!(
+                        `$entry`backend;.tst.toString entry`name;.tst.toString entry`path;
+                        .tst.toString entry`root;.tst.toString entry`absolutePath;"";"declared";
+                        1b;$[`dynamic in key entry;1b~entry`dynamic;1b])
+                  } each declared]]];
     tests: $[valid; report`tests; ()];
     rows: $[valid; .tst.isolate.rowsFromJson tests; ()];
     rowStatus: $[count rows;
@@ -702,6 +718,8 @@
     .tst.loadFlakeState[];
     .tst.loadRerunState[];
     .tst.isolate.childInventory:();
+    .tst.app.snapshotDeclarations:();
+    .tst.app.snapshotInventory:.tst.emptySnapshotInventory 0b;
 
     files: .tst.selectTestFiles .tst.findTests paths;
     n: count files;
@@ -808,6 +826,11 @@
     if[(exitCode=.resq.EXIT.PASS) and anyFailure;
         exitCode:.resq.EXIT.FAIL;
         .tst.app.passed:0b];
+    .tst.app.executionState:`completed;
+    .tst.applySnapshotAudit[];
+    .tst.writeSnapshotInventory[];
+    if[(exitCode=.resq.EXIT.PASS) and not 1b~.tst.app.passed;
+        exitCode:.resq.EXIT.FAIL];
     .tst.persistFlakeState[];
     .tst.persistRerunState[];
     .resq.report .resq.state.results;

@@ -476,6 +476,7 @@ def status_summary(rows: list[dict[str, Any]]) -> dict[str, int]:
 def lifecycle(
     run: dict[str, Any], manifest: dict[str, Any], rows: list[dict[str, Any]],
     stats: dict[str, Any], coverage: dict[str, Any], diagnostics: list[dict[str, Any]],
+    snapshot_inventory: dict[str, Any],
 ) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     def emit(kind: str, entity: str, parent: str, occurred: str, payload: dict[str, Any]) -> None:
@@ -557,6 +558,8 @@ def lifecycle(
         emit("file.finished", file_id, run["id"], run["finishedAt"], status_summary(file_rows))
     if coverage:
         emit("coverage.finished", "coverage", run["id"], run["finishedAt"], coverage)
+    if snapshot_inventory.get("enabled"):
+        emit("snapshots.audited", "snapshots", run["id"], run["finishedAt"], snapshot_inventory)
     for index, diagnostic in enumerate(diagnostics):
         diagnostic_id = "diagnostic_" + stable_hash(
             f"{run['id']}\n{index}\n{canonical(diagnostic)}"
@@ -646,13 +649,70 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
         insufficient=states.count("insufficient"),
         proposalCount=sum(int(document["flake"].get("proposalCount", 0)) for document in documents),
     )
+    snapshot_inventories = [document["snapshotInventory"] for document in documents]
+    inventory_enabled = any(bool(item.get("enabled")) for item in snapshot_inventories)
+    inventory_entries: dict[tuple[str, str], dict[str, Any]] = {}
+    inventory_roots: dict[tuple[str, str], dict[str, Any]] = {}
+    for inventory in snapshot_inventories:
+        for root_entry in inventory.get("roots", []):
+            inventory_roots[(str(root_entry.get("backend", "")), str(root_entry.get("absolutePath", "")))] = copy.deepcopy(root_entry)
+        for entry in inventory.get("entries", []):
+            key = (str(entry.get("backend", "")), str(entry.get("absolutePath", "")))
+            prior = inventory_entries.get(key)
+            if prior is None:
+                inventory_entries[key] = copy.deepcopy(entry)
+                continue
+            prior["referenced"] = bool(prior.get("referenced")) or bool(entry.get("referenced"))
+            prior["declared"] = bool(prior.get("declared")) or bool(entry.get("declared"))
+            prior["dynamic"] = bool(prior.get("dynamic")) or bool(entry.get("dynamic"))
+            prior["exists"] = bool(prior.get("exists")) or bool(entry.get("exists"))
+            prior["unsafe"] = bool(prior.get("unsafe")) or bool(entry.get("unsafe"))
+            prior["executionIds"] = sorted(set(prior.get("executionIds", [])) | set(entry.get("executionIds", [])))
+            prior["observedStatuses"] = sorted(set(prior.get("observedStatuses", [])) | set(entry.get("observedStatuses", [])))
+    merged_entries = list(inventory_entries.values())
+    for entry in merged_entries:
+        referenced = bool(entry.get("referenced")) or bool(entry.get("declared"))
+        entry["status"] = (
+            "referenced" if referenced and entry.get("exists") else
+            "missing" if referenced else "obsolete"
+        )
+    snapshot_counts = {
+        "referenced": sum(entry["status"] == "referenced" for entry in merged_entries),
+        "missing": sum(entry["status"] == "missing" for entry in merged_entries),
+        "obsolete": sum(entry["status"] == "obsolete" for entry in merged_entries),
+        "unverified": 0,
+        "unsafe": sum(bool(entry.get("unsafe")) for entry in merged_entries) +
+                  sum(bool(root.get("symlink")) for root in inventory_roots.values()),
+        "stored": sum(bool(entry.get("exists")) for entry in merged_entries),
+        "declared": sum(bool(entry.get("declared")) for entry in merged_entries),
+    }
+    snapshot_gate_enabled = any(bool(item.get("gate", {}).get("enabled")) for item in snapshot_inventories)
+    snapshot_gate_reasons = []
+    if snapshot_gate_enabled and snapshot_counts["missing"]:
+        snapshot_gate_reasons.append("missing-snapshots")
+    if snapshot_gate_enabled and snapshot_counts["obsolete"]:
+        snapshot_gate_reasons.append("obsolete-snapshots")
+    if snapshot_gate_enabled and snapshot_counts["unsafe"]:
+        snapshot_gate_reasons.append("unsafe-snapshot-paths")
+    snapshot_inventory = {
+        "schemaVersion": 1, "kind": "resq-snapshot-inventory",
+        "enabled": inventory_enabled, "generatedAt": run["finishedAt"],
+        "complete": inventory_enabled, "completenessReasons": [] if inventory_enabled else ["disabled"],
+        "roots": list(inventory_roots.values()), "entries": merged_entries,
+        "counts": snapshot_counts,
+        "gate": {"enabled": snapshot_gate_enabled, "passed": not snapshot_gate_reasons,
+                 "reasons": snapshot_gate_reasons},
+    }
     report = {
         "schemaVersion": 2, "framework": "resQ", "frameworkVersion": framework_version,
         "run": run, "summary": stats, "tests": rows, "performance": performance,
         "coverage": report_coverage, "diagnostics": diagnostics, "flake": flake,
+        "snapshotInventory": snapshot_inventory,
         "manifest": manifest,
     }
-    report["events"] = lifecycle(run, manifest, rows, stats, report_coverage, diagnostics)
+    report["events"] = lifecycle(
+        run, manifest, rows, stats, report_coverage, diagnostics, snapshot_inventory
+    )
     validate(report)
     (destination / "test-results.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -662,7 +722,7 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
         if row["status"] in {"fail", "error"}
         and not bool(row.get("quarantine", {}).get("nonBlocking"))
     ]
-    passed = not blocking and coverage_passed
+    passed = not blocking and coverage_passed and snapshot_inventory["gate"]["passed"]
     return report, passed
 
 

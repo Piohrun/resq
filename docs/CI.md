@@ -139,6 +139,13 @@ history, property seeds, benchmarks/snapshots, and typed diagnostics. Validate
 it with `tools/validate_report.py`. If one reporter fails, resQ still attempts
 the others and the overall run exits non-zero.
 
+For projects using snapshots, add `-snapshot-gate`. It fails closed unless the
+run has complete topology and no missing, obsolete, or unsafe snapshots. Native
+shards publish partial inventories; apply the policy to the strict merged report
+or run one unsharded snapshot gate. Review removals with
+`tools/prune_snapshots.py` before `--write`; pruning moves files to recoverable
+trash rather than deleting them.
+
 Machine reporter flags ADD an artifact; they do not replace the console report.
 A `-junit -json` run still prints the failure list, summary and verdict, then
 the paths it wrote — so a failing job is diagnosable from the log alone. Add

@@ -107,6 +107,15 @@ def report() -> dict:
             "insufficient": 0,
             "proposalCount": 0,
         },
+        "snapshotInventory": {
+            "schemaVersion": 1, "kind": "resq-snapshot-inventory",
+            "enabled": False, "generatedAt": "2026-08-12T12:00:01Z",
+            "complete": False, "completenessReasons": ["disabled"],
+            "roots": [], "entries": [],
+            "counts": {"referenced": 0, "missing": 0, "obsolete": 0,
+                       "unverified": 0, "unsafe": 0, "stored": 0, "declared": 0},
+            "gate": {"enabled": False, "passed": True, "reasons": []},
+        },
     }
 
 

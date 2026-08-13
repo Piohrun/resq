@@ -83,6 +83,47 @@ Both backends honour `-strict`, `setUpdateSnaps[1b]`, and file-presence existenc
 checks (an empty list, dict, or table is a valid snapshot value — never confused
 with "missing").
 
+## Inventory, CI gates, and obsolete snapshots
+
+Run a read-only inventory after the selected tests:
+
+```bash
+resq test tests -strict -snapshot-audit -json -outDir artifacts
+```
+
+This writes `artifacts/snapshot-manifest.json` and embeds the same versioned
+object as `snapshotInventory` in `test-results.json`. It classifies both binary
+and text snapshots as `referenced`, `missing`, `obsolete`, or `unverified`.
+
+Only an unfiltered, unsharded, successful, completed run is complete. Filters,
+last-failed selection, native shards, interrupted/failed runs, describe mode,
+and isolate children are explicitly partial, so they never call an unseen file
+obsolete. `tools/merge_shards.py` reconstructs a complete inventory only from a
+validated complete shard set.
+
+Use `-snapshot-gate` in CI. It implies audit and fails closed when the inventory
+is partial or contains missing, obsolete, or unsafe paths. The underlying test
+results are not rewritten.
+
+Dynamic snapshot names must be declared next to their generator:
+
+```q
+.resq.snapshot.declare[`text; ("region-eu"; "region-us")];
+.resq.snapshot.declare[`binary; "risk-grid"];
+```
+
+Declarations are references and never create or update files.
+
+Obsolete removal is explicit and recoverable. Preview with
+`tools/prune_snapshots.py artifacts/snapshot-manifest.json`, then repeat with
+`--write`. Files move beneath `.resq/trash/snapshots/<timestamp>/` with a
+`prune.json` audit record. The tool refuses partial manifests, non-obsolete
+entries, symlinks, extension mismatches, nested/escaping paths, and trash
+overwrites. Repeating a completed prune is safe.
+
+Snapshot roots and existing snapshot leaves may not be symlinks. Runtime reads
+and writes enforce the same containment rule as the auditor and pruner.
+
 ---
 
 ## Semantic Diffing on Mismatch
@@ -97,3 +138,5 @@ When a snapshot match fails, resQ provides a **Semantic Diff**:
   `musteq` is clearer.
 - **Commit snapshots** alongside the test that creates them. Run from your
   project root so paths are consistent between local and CI.
+- **Gate from a complete topology**: merge all native shards before applying an
+  obsolete policy; never infer obsolescence from a filtered developer run.

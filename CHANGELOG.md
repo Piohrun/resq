@@ -6,6 +6,13 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Snapshot lifecycle management now publishes versioned complete/partial
+  inventories across both backends, supports explicit dynamic-name
+  declarations, reconstructs complete topology from strict shard merges, and
+  offers fail-closed `-snapshot-gate` policy. Obsolete pruning is dry-run-first,
+  moves files to audited recoverable trash, and refuses symlinks or paths
+  outside validated roots.
+
 - Evidence-based flake management now keeps a bounded, versioned stable-ID
   observation history separate from reviewed quarantine policy. Configurable
   multi-run evidence produces healthy/suspect classifications but never

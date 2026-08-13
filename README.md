@@ -45,6 +45,8 @@ assistance.
     first-class `shouldEach` rows for stable case IDs and distributed execution.
   - **Async Testing**: Robust wait-for-condition and sleep utilities.
   - **Snapshot Testing**: Binary and text snapshots for complex data structures; text snapshots produce readable `git diff` output.
+  - **Snapshot Lifecycle**: Complete/partial inventories, fail-closed CI gates,
+    dynamic-name declarations, and recoverable dry-run-first obsolete pruning.
 - **Coverage** (`resq cover`): `--source src/` inventories loaded and entirely unloaded modules, then `\l`/`system "l "` instrumentation records hits. One canonical model produces LCOV, detailed `coverage.json`, annotated HTML, and complete state output. Coverage is function-level by default; `-cov-statements` adds measured statements and `-cov-branches` adds true/false edges for `if`, `while`, and lazy `$` conditions, including eligible anonymous lambdas under stable enclosing-function identities. Opt-in `-cov-contexts`/`-cov-attempt-contexts` add bounded stable attribution without changing aggregate gates. Function, line, branch, and instrumentation-completeness gates are independent and fail closed on incomplete denominators. Compiled operators and derived functions are skipped.
 - **Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change.
 
@@ -313,6 +315,11 @@ Without `-strict`, an all-skipped suite still exits 0.
 
 Under `-strict`, a snapshot that does not yet exist on disk is treated as a
 **failure** rather than silently creating the file.
+
+Use `-snapshot-audit` to publish `snapshot-manifest.json`; use
+`-snapshot-gate` in CI to reject partial inventories and missing, obsolete, or
+unsafe paths. `tools/prune_snapshots.py` previews recoverable moves before
+anything changes. See [Snapshot Testing](docs/SNAPSHOTS.md).
 
 ### Process Isolation (`-isolate`)
 Run each discovered test **file** in its own `q` subprocess; the parent

@@ -9,7 +9,7 @@
 snapTxtRoot: @[get;`.resq.startCwd;{system "cd"}]
 snapTxtDir: snapTxtRoot,"/tests/__snapshots__"
 
-setSnapTxtDir:{[d] .tst.snapTxtDir: d}
+setSnapTxtDir:{[d] .tst.snapTxtDir: .utl.pathToString d}
 
 / Same leaf containment as snapshot.q's snapPath: a snapshot name must be a
 / bare file name, so it can never resolve outside snapTxtDir.
@@ -19,7 +19,8 @@ snapTxtPath:{[name]
          '"Invalid snapshot name: expected a string or symbol"];
     if[not .tst.validSnapLeaf n;
         '"Invalid snapshot name '", n, "': must be a bare file name (no path separators, no leading dot)"];
-    ` sv (hsym `$.tst.snapTxtDir; `$n,".snap.txt")
+    target:.tst.snapTxtDir,"/",n,".snap.txt";
+    .utl.pathToHsym .tst.validateSnapshotTarget[.tst.snapTxtDir;target]
  }
 
 / Existence by FILE PRESENCE (mirrors snapshot.q's snapExists). A stored empty
