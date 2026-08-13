@@ -181,9 +181,9 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 / not a shared instance, to avoid accidental aliasing.
 .resq.state.emptyResults:{[]
     columns:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
-        `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+        `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine;
     flip columns!(
         `symbol$(); `symbol$(); `symbol$(); (); `timespan$(); (); `int$();
         (); `int$(); (); (); ();
-        (); (); `symbol$(); (); `int$(); `boolean$(); `boolean$(); (); (); (); (); (); ())
+        (); (); `symbol$(); (); `int$(); `boolean$(); `boolean$(); (); (); (); (); (); (); ())
  };

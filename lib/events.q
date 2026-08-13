@@ -304,10 +304,11 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                     sequence+:1;
                     di+:1];
                 events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.finished";runId;executionId;suiteId;finished;
-                    `status`duration`durationSeconds`assertsRun`attempts`retried`flaky`caseId!(
+                    `status`duration`durationSeconds`assertsRun`attempts`retried`flaky`caseId`quarantine!(
                         .tst.toString row`status;string row`time;
                         .tst.output.jsonDurationSeconds row`time;
-                        "j"$row`assertsRun;"j"$row`attempts;row`retried;row`flaky;.tst.toString row`caseId)];
+                        "j"$row`assertsRun;"j"$row`attempts;row`retried;row`flaky;.tst.toString row`caseId;
+                        $[`quarantine in key row;row`quarantine;()!()])];
                 sequence+:1;
                 ti+:1];
             events,:.tst.oneEventTable .tst.eventRecord[sequence;"suite.finished";runId;suiteId;fileId;finished;

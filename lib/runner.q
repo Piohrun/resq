@@ -561,6 +561,9 @@
 
         / failFast / failHard escapes.
         isFail: not r ~ `pass;
+        testIdentity:.tst.expectationTestId[s;e];
+        if[isFail and 1b~@[get;`.tst.app.quarantineNonBlocking;0b];
+            if[.tst.activeQuarantine testIdentity;isFail:0b]];
         shouldHalt: (1b ~ .tst.app.failFast) or (1b ~ .tst.app.failHard);
         if[shouldHalt and isFail;
             -1 "!!! HALTING FAILURE !!!";
@@ -623,6 +626,7 @@
     .tst.app.executionState: `notStarted;
     .tst.app.baseDir: system "cd";
     .tst.beginRunMetadata[];
+    .tst.loadFlakeState[];
     .tst.loadRerunState[];
     configWarnings:@[get;`.resq.config.validationWarnings;{()}];
     if[count configWarnings;
@@ -962,15 +966,9 @@
        (0=count .tst.app.loadErrors) and 0=count .resq.state.results;
         .tst.app.passed:1b;
         :()];
-    rawResults: @[get; `.tst.app.results; ()];
-    resList: $[98h = type rawResults;
-               {[tbl; idx] tbl idx}[rawResults] each til count rawResults;
-               rawResults];
-    r: raze { [x] $[99h = type x; $[count x`expectations; x`expectations; ()]; ()] } each resList;
-    allResPass:   $[count r; all (.tst.normalizeResultStatus each r[; `result]) in `pass`skip`pending; 1b];
-    allStatePass: $[count .resq.state.results; all .resq.state.results[`status] in `pass`skip`pending; 1b];
-
-    .tst.app.passed: allResPass and (0 = count .tst.app.loadErrors) and allStatePass and (0 < count .resq.state.results);
+    rows:.tst.resultRows .resq.state.results;
+    allStatePass:$[count rows;not any .tst.rowBlocksRun each rows;1b];
+    .tst.app.passed:(0=count .tst.app.loadErrors) and allStatePass and 0<count rows;
     if[0 < count .tst.app.loadErrors; .tst.app.passed: 0b];
  };
 
@@ -1319,11 +1317,13 @@
     / These phases deliberately ignore `continue`: they are the finally path.
     .tst.runAllPhase.runSafely[`cleanup; .tst.runAllPhase.finalCleanup];
     .tst.runAllPhase.runSafely[`cleanupErrors; .tst.runAllPhase.injectCleanupErrors];
+    .tst.runAllPhase.runSafely[`flakeState; .tst.applyFlakeState];
     .tst.runAllPhase.runSafely[`resultsSummary; .tst.runAllPhase.computePassed];
     .tst.runAllPhase.runSafely[`plugins; .tst.runRegisteredPlugins];
     / Strict plugin failures append canonical error rows. Recompute before state
     / persistence and reporting so every downstream verdict agrees.
     .tst.runAllPhase.runSafely[`pluginResultsSummary; .tst.runAllPhase.computePassed];
+    .tst.runAllPhase.runSafely[`flakePersistence; .tst.persistFlakeState];
     .tst.runAllPhase.runSafely[`rerunState; .tst.persistRerunState];
     .tst.runAllPhase.runSafely[`report; {.tst.markIsolatedReportBegin[]; .tst.printRunAudit[]; .resq.report .resq.state.results}];
     ::

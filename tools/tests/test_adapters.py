@@ -42,6 +42,7 @@ def test_row(name: str, status: str, suffix: str) -> dict:
         "diagnostics": [],
         "snapshots": [],
         "benchmark": {},
+        "quarantine": {},
     }
 
 
@@ -89,6 +90,23 @@ def report() -> dict:
         "performance": [],
         "coverage": {},
         "diagnostics": [],
+        "flake": {
+            "schemaVersion": 1,
+            "historyPath": ".resq/flake-history.json",
+            "historyStatus": "missing",
+            "manifestPath": ".resq/quarantine.json",
+            "manifestStatus": "missing",
+            "nonBlockingEnabled": False,
+            "evidenceMin": 3,
+            "failureMin": 2,
+            "window": 20,
+            "healthy": 0,
+            "suspect": 0,
+            "quarantined": 0,
+            "expired": 0,
+            "insufficient": 0,
+            "proposalCount": 0,
+        },
     }
 
 
@@ -151,6 +169,17 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "replay token count"):
             validate(bad_replay)
 
+        bad_quarantine = report()
+        bad_quarantine["tests"][0]["quarantine"] = {
+            "schemaVersion": 1, "state": "expired", "active": False,
+            "nonBlocking": True, "observations": 4, "passes": 2,
+            "failures": 2, "flakes": 0, "owner": "quality",
+            "reason": "known intermittent", "evidence": {}, "issue": "Q-1",
+            "createdAt": "2026-08-01T00:00:00Z", "expiresAt": "2026-08-10",
+        }
+        with self.assertRaisesRegex(ValueError, "only active quarantine"):
+            validate(bad_quarantine)
+
     def test_ndjson_preserves_run_and_stable_test_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -174,6 +203,13 @@ class AdapterTests(unittest.TestCase):
             output = root / "allure-results"
             document = report()
             document["tests"][0]["parameters"] = {"region": "eu", "size": 3}
+            document["tests"][0]["quarantine"] = {
+                "schemaVersion": 1, "state": "quarantined", "active": True,
+                "nonBlocking": True, "observations": 4, "passes": 2,
+                "failures": 2, "flakes": 0, "owner": "quality",
+                "reason": "known intermittent", "evidence": {}, "issue": "Q-1",
+                "createdAt": "2026-08-01T00:00:00Z", "expiresAt": "2026-09-01",
+            }
             document["tests"][1]["kind"] = "fuzz"
             document["tests"][1]["property"] = {
                 "seed": 42, "runs": 1, "maxFailRate": 0,
@@ -213,6 +249,10 @@ class AdapterTests(unittest.TestCase):
             passed = next(item for item in results if item["name"] == "passes")
             self.assertIn({"name": "region", "value": "eu"}, passed["parameters"])
             self.assertIn({"name": "size", "value": "3"}, passed["parameters"])
+            self.assertIn(
+                {"name": "quarantineState", "value": "quarantined"},
+                passed["parameters"],
+            )
             self.assertTrue((output / "executor.json").is_file())
             self.assertTrue((output / "environment.properties").is_file())
 

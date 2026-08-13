@@ -11,10 +11,10 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles`shardUnit;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins");("shard-unit";"shardUnit"));
-.tst.cli.specKinds:(31 # `flag), 26 # `value;
-.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`quarantineNonBlocking`flakeProposals`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles`shardUnit`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");("quarantine-non-blocking";"quarantineNonBlocking");("flake-proposals";"flakeProposals");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins");("shard-unit";"shardUnit");("flake-history";"flakeHistoryFile");("quarantine-file";"quarantineFile");("flake-proposal-file";"flakeProposalFile");("flake-evidence-min";"flakeEvidenceMin");("flake-failure-min";"flakeFailureMin");("flake-window";"flakeWindow"));
+.tst.cli.specKinds:(33 # `flag), 32 # `value;
+.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow;
 .tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
@@ -153,11 +153,14 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
         (numericValues < 0) or
         ((numericOptionNames = `isolateTimeout) and numericValues = 0) or
         ((numericOptionNames in `isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax) and numericValues = 0) or
+        ((numericOptionNames = `flakeEvidenceMin) and numericValues < 2) or
+        ((numericOptionNames in `flakeFailureMin`flakeWindow) and numericValues = 0) or
         ((numericOptionNames in .tst.cli.percentNames) and numericValues > 100);
     if[count invalidRanges;
         badIndex: first invalidRanges;
         numericValuePositions: valuePositions where numericMask;
-        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax; "> 0";
+        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax`flakeFailureMin`flakeWindow; "> 0";
+                       numericOptionNames[badIndex]~`flakeEvidenceMin; ">= 2";
                        numericOptionNames[badIndex] in .tst.cli.percentNames; "between 0 and 100";
                        ">= 0"];
         :.tst.cli.error "Value must be ", requirement, " for ",
@@ -178,6 +181,12 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
         :.tst.cli.error "Options -exit and -noquit cannot be used together"];
     if[(1b~options`lastFailed) and 1b~options`failedFirst;
         :.tst.cli.error "Options -last-failed and -failed-first cannot be used together"];
+    effectiveEvidence:$[10h=type options`flakeEvidenceMin;
+        "j"$@[get;`.tst.app.flakeEvidenceMin;3j];"j"$options`flakeEvidenceMin];
+    effectiveWindow:$[10h=type options`flakeWindow;
+        "j"$@[get;`.tst.app.flakeWindow;20j];"j"$options`flakeWindow];
+    if[effectiveWindow<effectiveEvidence;
+        :.tst.cli.error "flake-window must be greater than or equal to flake-evidence-min"];
     shardIndex:$[10h=type options`shardIndex;0j;"j"$options`shardIndex];
     shardCount:$[10h=type options`shardCount;1j;"j"$options`shardCount];
     if[shardIndex>=shardCount;
@@ -256,6 +265,8 @@ printUsage:{[]
         "  -ff / -fh             Fail fast / fail hard";
         "  -random-order -seed N Replayable private-PRNG file/suite/test order";
         "  -last-failed | -failed-first  Select/prioritize tests from stable-ID history";
+        "  -flake-proposals       Write suggestions without changing quarantine policy";
+        "  -quarantine-non-blocking  Let active, unexpired quarantines not fail the run";
         "  -shard-index I -shard-count N  Run zero-based deterministic shard I/N";
         "  -shard-unit file|test|case      Select the shard boundary (default file)";
         "  -plugin FILES         Load trusted comma-separated plugin files";
@@ -351,11 +362,19 @@ initCLI:{[parsed]
     if[options`lastFailed; .tst.app.lastFailed: 1b];
     if[options`failedFirst; .tst.app.failedFirst: 1b];
     if[options`strictPlugins; .tst.app.strictPlugins:1b];
+    if[options`quarantineNonBlocking;.tst.app.quarantineNonBlocking:1b];
+    if[options`flakeProposals;.tst.app.flakeProposalsEnabled:1b];
     if[0<count options`pluginFiles;.tst.app.pluginFiles:"," vs options`pluginFiles];
     if[0<count options`stateFile; .tst.app.stateFile: options`stateFile];
     if[not 10h=type options`shardIndex; .tst.app.shardIndex:"j"$options`shardIndex];
     if[not 10h=type options`shardCount; .tst.app.shardCount:"j"$options`shardCount];
     if[0<count options`shardUnit;.tst.app.shardUnit:`$lower options`shardUnit];
+    if[0<count options`flakeHistoryFile;.tst.app.flakeHistoryFile:options`flakeHistoryFile];
+    if[0<count options`quarantineFile;.tst.app.quarantineFile:options`quarantineFile];
+    if[0<count options`flakeProposalFile;.tst.app.flakeProposalFile:options`flakeProposalFile];
+    if[not 10h=type options`flakeEvidenceMin;.tst.app.flakeEvidenceMin:"j"$options`flakeEvidenceMin];
+    if[not 10h=type options`flakeFailureMin;.tst.app.flakeFailureMin:"j"$options`flakeFailureMin];
+    if[not 10h=type options`flakeWindow;.tst.app.flakeWindow:"j"$options`flakeWindow];
 
     / Process-isolation mode: each discovered test FILE runs in its own q
     / subprocess (see lib/isolate.q). -isolateTimeout sets the per-FILE wall

@@ -36,6 +36,7 @@ the public [stable identity contract](IDENTITY.md).
 |--------|--------|
 | Pass/error/skip rate and duration | `summary`, `tests[]` |
 | Flake rate | `tests[].flaky`, `attemptHistory` |
+| Flake debt and quarantine expiry | `flake`, `tests[].quarantine`, `test.finished.payload.quarantine` |
 | Parameter hot spots | `parameterCases[]` |
 | Property reproducibility | generator protocol, seed, replay tokens, original/minimal inputs, failure signature, shrink work/termination |
 | Benchmark drift | `performance[]`, `tests[].benchmark` |
@@ -66,7 +67,8 @@ tools/validate_report.py reports/test-results.json
 
 Then map the versioned JSON to Allure, ReportPortal, OpenTelemetry, or your data
 warehouse outside q. Thin adapters should be stateless transforms: preserve
-`testId`, `caseId`, attempts, diagnostics, and the coverage basis instead of
+`testId`, `caseId`, attempts, quarantine state/ownership/expiry, diagnostics,
+and the coverage basis instead of
 reconstructing identity from display names. The JUnit/xUnit artifacts remain
 useful for CI-native test tabs, but JSON is the authoritative observability
 contract.

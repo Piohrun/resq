@@ -86,12 +86,30 @@
       "property": {},
       "diagnostics": [],
       "snapshots": [],
-      "benchmark": {}
+      "benchmark": {},
+      "quarantine": {}
     }
   ],
   "performance": [],
   "coverage": {},
   "diagnostics": [],
+  "flake": {
+    "schemaVersion": 1,
+    "historyPath": ".resq/flake-history.json",
+    "historyStatus": "missing",
+    "manifestPath": ".resq/quarantine.json",
+    "manifestStatus": "missing",
+    "nonBlockingEnabled": false,
+    "evidenceMin": 3,
+    "failureMin": 2,
+    "window": 20,
+    "healthy": 0,
+    "suspect": 0,
+    "quarantined": 0,
+    "expired": 0,
+    "insufficient": 0,
+    "proposalCount": 0
+  },
   "manifest": {
     "schemaVersion": 2,
     "kind": "resq-execution-manifest",

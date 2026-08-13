@@ -110,13 +110,13 @@ appear complete.
 
 ## 1.6.0 — Flake classification and quarantine
 
-- [ ] Add a versioned history/quarantine model keyed by stable test identity,
+- [x] Add a versioned history/quarantine model keyed by stable test identity,
   including owner, reason, evidence, issue, creation, and expiry.
-- [ ] Detect healthy/suspect/quarantined/expired states only after configurable
+- [x] Detect healthy/suspect/quarantined/expired states only after configurable
   evidence; never auto-quarantine a first failure.
-- [ ] Separate read-only proposals from explicit manifest updates and continue
+- [x] Separate read-only proposals from explicit manifest updates and continue
   running quarantined tests with their underlying result visible.
-- [ ] Make non-blocking quarantine opt-in, restore expired entries to blocking,
+- [x] Make non-blocking quarantine opt-in, restore expired entries to blocking,
   and emit state consistently to console, JSON, events, and XML properties.
 
 ## 1.7.0 — Snapshot inventory and obsolete management

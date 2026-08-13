@@ -38,6 +38,7 @@
     if[not `diagnostics in key out;out[`diagnostics]:()];
     if[not `snapshots in key out;out[`snapshots]:()];
     if[not `benchmark in key out;out[`benchmark]:()!()];
+    if[not `quarantine in key out;out[`quarantine]:()!()];
     rawOutput: $[`output in key out; out`output; ""];
     out[`output]: .tst.stripAnsi .tst.renderReportMessage rawOutput;
     out

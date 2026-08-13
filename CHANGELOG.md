@@ -6,6 +6,19 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Evidence-based flake management now keeps a bounded, versioned stable-ID
+  observation history separate from reviewed quarantine policy. Configurable
+  multi-run evidence produces healthy/suspect classifications but never
+  auto-quarantines a first failure. Read-only proposal artifacts and the
+  dry-run-first `tools/update_quarantine.py` workflow make manifest mutation
+  explicit and atomic; entries carry owner, reason, evidence, issue, creation,
+  and expiry.
+- Quarantined tests continue to run with raw status/counts intact. They remain
+  blocking by default, can become non-blocking only through explicit policy,
+  and automatically return to blocking after expiry. Console, JSON, lifecycle
+  events, JUnit properties, and xUnit traits expose the same state; malformed
+  policy fails closed.
+
 - Property testing now has a public, deterministic `.resq.gen` protocol with
   bounded scalar and boundary generators, weighted choice, nullability,
   collections, dictionaries, tuples, tables, mapping, filtering, and custom

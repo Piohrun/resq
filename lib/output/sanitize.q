@@ -273,19 +273,19 @@
             `maxTimeMs`maxSpaceBytes!(
                 $[`maxTime in key perfOpts;"f"$perfOpts`maxTime;0nf];
                 $[`maxSpace in key perfOpts;"f"$perfOpts`maxSpace;0nf]))];
-    `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark!(
+    `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine!(
         testId;caseId;$[`type in key e;e`type;`test];
         $[`case~$[`type in key e;e`type;`test];e`parameters;()!()];attempts;
         $[`retried in key e;1b~e`retried;attempts>1];
         $[`flaky in key e;1b~e`flaky;(attempts>1) and `pass~.tst.normalizeResultStatus e`result];
-        history;cases;prop;.tst.expectationDiagnostics e;snaps;bench)
+        history;cases;prop;.tst.expectationDiagnostics e;snaps;bench;()!())
  };
 
 .tst.completeResultRow:{[row]
     fields:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
-        `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+        `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine;
     defaults:fields!(`;`;`pass;"";0Nn;();0i;"";0Ni;"";`symbol$();"";
-        "";"";`test;()!();1i;0b;0b;();();()!();();();()!());
+        "";"";`test;()!();1i;0b;0b;();();()!();();();()!();()!());
     if[99h=type row;defaults[key row]:value row];
     if[0=count defaults`testId;
         defaults[`testId]:.tst.stableTestId[defaults`file;defaults`suite;defaults`description]];
@@ -317,7 +317,7 @@
 
 .tst.emptyResultTable:{[]
     columns:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
-        `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+        `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine;
     flip columns!(
         ();
         ();
@@ -338,6 +338,7 @@
         `int$();
         `boolean$();
         `boolean$();
+        ();
         ();
         ();
         ();
@@ -379,6 +380,8 @@
         `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
         `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
         `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`shardUnit,
+        `quarantineNonBlocking`flakeProposalsEnabled`flakeHistoryFile`quarantineFile,
+        `flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow,
         `tagFilter`excludeTagFilter`coverageSources`strictPlugins`pluginFiles;
     names,:`coverageBranches`coverageBranchMin`coverageBranchCompletenessMin;
     appKeys:key `.tst.app;
@@ -511,8 +514,15 @@
         caseId:.tst.toString x`caseId;
         $[count caseId;caseId;.tst.toString x`testId]
       } each identityRows;
+    / Reporter/model construction is allowed repeatedly in one process (and the
+    / self-suite deliberately builds synthetic models). Extend the discovered
+    / selection for synthetic framework/plugin rows while building this model,
+    / then restore it before returning so a projection cannot pollute a later
+    / real report. Keeping the discovered IDs here is essential for fail-fast:
+    / its manifest intentionally records selected tests that were not executed.
+    savedSelectedExecutionIds:@[get;`.tst.app.selectedExecutionIds;{()}];
     .tst.app.selectedExecutionIds:distinct
-        (.tst.toString each @[get;`.tst.app.selectedExecutionIds;{()}]),resultExecutionIds;
+        (.tst.toString each savedSelectedExecutionIds),resultExecutionIds;
     stats:.tst.resultSummary rawRows;
     rows:rawRows;
     summaryKeys:`suiteCount`testCount`assertionCount`passCount`failCount`errorCount,
@@ -531,14 +541,17 @@
             @[get;`.tst.app.coverageEffectiveMinimum;0];
             @[get;`.tst.app.coveragePassed;0b])];
     modelKeys:`schemaVersion`framework`frameworkVersion`run`summary`tests`performance,
-        `coverage`diagnostics;
+        `coverage`diagnostics`flake;
     model:modelKeys!(2;"resQ";
         $[`VERSION in key `.resq;.resq.VERSION;"unknown"];
         .tst.finishRunMetadata[];summary;rows;performance;coverage;
-        @[get;`.tst.app.diagnostics;{()}]);
+        @[get;`.tst.app.diagnostics;{()}];
+        $[`flakeMetadata in key `.tst;.tst.flakeMetadata[];()!()]);
     manifest:.tst.executionManifest model;
     events:.tst.lifecycleEvents[model;manifest];
-    model,`manifest`events!(manifest;events)
+    complete:model,`manifest`events!(manifest;events);
+    .tst.app.selectedExecutionIds:savedSelectedExecutionIds;
+    complete
  };
 
 / Canonical table form for reporters that need qSQL grouping/filtering.

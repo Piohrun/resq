@@ -134,7 +134,7 @@
 / retry, parameter/property case, diagnostic, snapshot, or benchmark back to
 / the pre-v2 row shape while merging processes.
 .tst.isolate.telemetryFromJson:{[t;base]
-    fields:`testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+    fields:`testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine;
     out:.tst.completeResultRow base;
     present:fields inter key t;
     if[count present;out[present]:t present];
@@ -371,6 +371,15 @@
     argv:.tst.isolate.appendFlag[argv;"-last-failed";@[get;`.tst.app.lastFailed;0b]];
     argv:.tst.isolate.appendFlag[argv;"-failed-first";@[get;`.tst.app.failedFirst;0b]];
     argv:.tst.isolate.appendValue[argv;"-state-file";.tst.rerunStatePath[]];
+    / The parent is the sole durable flake-history writer. Give every child
+    / private scratch paths so concurrent workers cannot race, while propagating
+    / the reviewed manifest and policy needed to keep fail-fast from stopping on
+    / a known quarantine. The parent reclassifies every merged raw row.
+    argv:.tst.isolate.appendValue[argv;"-flake-history";wd,"/flake-history.json"];
+    argv:.tst.isolate.appendValue[argv;"-flake-proposal-file";wd,"/quarantine-proposals.json"];
+    argv:.tst.isolate.appendValue[argv;"-quarantine-file";.tst.quarantineManifestPath[]];
+    argv:.tst.isolate.appendFlag[argv;"-quarantine-non-blocking";
+        @[get;`.tst.app.quarantineNonBlocking;0b]];
     / File sharding is complete in the parent. Test/case sharding uses stable-ID
     / hashing, so every per-file child can apply the same global topology
     / independently and obtain exactly the parent's selected subset.
@@ -690,6 +699,7 @@
     .tst.app.baseDir: system "cd";
     .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
     .tst.beginRunMetadata[];
+    .tst.loadFlakeState[];
     .tst.loadRerunState[];
     .tst.isolate.childInventory:();
 
@@ -771,10 +781,15 @@
         .tst.app.emptyShard:(0<count files) and 0=count .resq.state.results];
     .tst.app.expectationsRan: .tst.isolate.executedCount[];
     .tst.isolate.addGlobalStrict[];
+    / Isolation children emit raw result rows. Apply evidence and quarantine
+    / policy once, after all files have been merged, so the parent has one
+    / denominator, one verdict, and one atomic history update.
+    .tst.applyFlakeState[];
 
     status: .tst.normalizeResultStatus each .resq.state.results`status;
     hasLoadError: any (.resq.state.results`suite) in `FILE_LOAD_ERROR;
-    anyFailure: any status in `fail`error;
+    resultRows:.tst.resultRows .resq.state.results;
+    anyFailure:$[count resultRows;any .tst.rowBlocksRun each resultRows;0b];
     noResults: 0 = count .resq.state.results;
     exitCode: $[hasLoadError; .resq.EXIT.LOAD_ERROR;
                 (0=n) and 1b~@[get;`.tst.app.emptyShard;0b]; .resq.EXIT.PASS;
@@ -786,13 +801,14 @@
     .tst.app.passed: exitCode = .resq.EXIT.PASS;
     .tst.finalizeRerunSelectionMetadata count .resq.state.results;
     .tst.runAllPhase.runSafely[`plugins;.tst.runRegisteredPlugins];
-    status:.tst.normalizeResultStatus each .resq.state.results`status;
-    anyFailure:any status in `fail`error;
+    resultRows:.tst.resultRows .resq.state.results;
+    anyFailure:$[count resultRows;any .tst.rowBlocksRun each resultRows;0b];
     / A strict plugin can turn an otherwise-green aggregate red, but must not
     / erase the more specific load/no-tests exit classification already chosen.
     if[(exitCode=.resq.EXIT.PASS) and anyFailure;
         exitCode:.resq.EXIT.FAIL;
         .tst.app.passed:0b];
+    .tst.persistFlakeState[];
     .tst.persistRerunState[];
     .resq.report .resq.state.results;
     exitCode

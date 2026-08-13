@@ -90,6 +90,15 @@ def parameters(row: dict[str, Any]) -> list[dict[str, str]]:
             })
     if row.get("caseId"):
         values.append({"name": "caseId", "value": str(row["caseId"])})
+    quarantine = row.get("quarantine") or {}
+    for source_name, target_name in (
+        ("state", "quarantineState"), ("owner", "quarantineOwner"),
+        ("reason", "quarantineReason"), ("issue", "quarantineIssue"),
+        ("createdAt", "quarantineCreatedAt"), ("expiresAt", "quarantineExpiresAt"),
+        ("nonBlocking", "quarantineNonBlocking"),
+    ):
+        if source_name in quarantine:
+            values.append({"name": target_name, "value": str(quarantine[source_name])})
     return values
 
 

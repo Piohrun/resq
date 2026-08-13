@@ -32,6 +32,9 @@ assistance.
 - **Automated Discovery**: Scans test source for unreferenced functions, writes an HTML report, and can generate boilerplate templates on request.
 - **CI/CD Integration**: JUnit XML, xUnit XML, and JSON reporters with detailed metrics.
 - **Retry support**: `retry[n; "desc"]{...}` re-runs a flaky test up to n+1 total attempts.
+- **Evidence-based quarantine**: bounded stable-ID history proposes suspects,
+  reviewed manifests carry owner/reason/issue/expiry, tests always run with raw
+  results visible, and non-blocking policy is explicit and fail-closed.
 - **Property testing**: `holds` accepts the deterministic `.resq.gen` protocol
   for bounded/composite generators, portable replay tokens, and type-aware
   shrinking with failure-class preservation and explicit work limits.
@@ -229,6 +232,10 @@ q resq.q test tests/ -random-order -seed 4242
 # Tighten the local feedback loop using stable test IDs
 q resq.q test tests/ -last-failed        # alias: -lf
 q resq.q test tests/ -failed-first
+
+# Generate suggestions without mutating policy; quarantines still block by default
+q resq.q test tests/ -flake-proposals
+q resq.q test tests/ -quarantine-non-blocking
 
 # Split files across three CI jobs (zero-based, backward-compatible default)
 q resq.q test tests/ -shard-index 0 -shard-count 3

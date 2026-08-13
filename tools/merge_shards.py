@@ -551,6 +551,7 @@ def lifecycle(
                     "assertsRun": row["assertsRun"], "attempts": row["attempts"],
                     "retried": row["retried"], "flaky": row["flaky"],
                     "caseId": row["caseId"],
+                    "quarantine": row.get("quarantine", {}),
                 })
             emit("suite.finished", suite_id, file_id, run["finishedAt"], status_summary(suite_rows))
         emit("file.finished", file_id, run["id"], run["finishedAt"], status_summary(file_rows))
@@ -635,17 +636,33 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
             basis=next(iter(bases)) if len(bases) == 1 else "mixed",
             minimum=minimum, passed=coverage_passed,
         )
+    flake = copy.deepcopy(documents[0]["flake"])
+    states = [row.get("quarantine", {}).get("state") for row in rows]
+    flake.update(
+        historyPath="<merged shard histories>",
+        historyStatus="ok" if all(document["flake"]["historyStatus"] == "ok" for document in documents) else "missing",
+        healthy=states.count("healthy"), suspect=states.count("suspect"),
+        quarantined=states.count("quarantined"), expired=states.count("expired"),
+        insufficient=states.count("insufficient"),
+        proposalCount=sum(int(document["flake"].get("proposalCount", 0)) for document in documents),
+    )
     report = {
         "schemaVersion": 2, "framework": "resQ", "frameworkVersion": framework_version,
         "run": run, "summary": stats, "tests": rows, "performance": performance,
-        "coverage": report_coverage, "diagnostics": diagnostics, "manifest": manifest,
+        "coverage": report_coverage, "diagnostics": diagnostics, "flake": flake,
+        "manifest": manifest,
     }
     report["events"] = lifecycle(run, manifest, rows, stats, report_coverage, diagnostics)
     validate(report)
     (destination / "test-results.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    passed = stats["failCount"] == 0 and stats["errorCount"] == 0 and coverage_passed
+    blocking = [
+        row for row in rows
+        if row["status"] in {"fail", "error"}
+        and not bool(row.get("quarantine", {}).get("nonBlocking"))
+    ]
+    passed = not blocking and coverage_passed
     return report, passed
 
 

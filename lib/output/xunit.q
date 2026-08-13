@@ -23,24 +23,31 @@
  };
 
 .tst.output.xunitPropertyNode:{[rec]
-    if[not `property in key rec;:""];
-    prop:rec`property;
-    if[(not 99h=type prop) or 0=count prop;:""];
+    body:"";
+    prop:$[`property in key rec;rec`property;()!()];
     names:`generatorProtocol`seed`replayToken`originalInput`minimalInput`shrinkSteps`shrinkCandidates`shrinkTermination`failureSignature`shrinkDurationMs;
     labels:("resq.property.generatorProtocol";"resq.property.seed";
         "resq.property.replayToken";"resq.property.originalInput";
         "resq.property.minimalInput";"resq.property.shrinkSteps";
         "resq.property.shrinkCandidates";"resq.property.shrinkTermination";
         "resq.property.failureSignature";"resq.property.shrinkDurationMs");
-    values:{[p;n]
-        if[not (n in key p);:""];
-        $[n in `originalInput`minimalInput;.Q.s1 p n;.tst.toString p n]
-    }[prop;] each names;
-    body:raze {[n;v]
-        "<trait name=\"",.tst.output.escapeXml[n],"\" value=\"",
-        .tst.output.escapeXml[v],"\"/>"
-    }'[labels;values];
-    "<traits>",body,"</traits>"
+    if[(99h=type prop) and 0<count prop;
+        values:{[p;n]
+            if[not (n in key p);:""];
+            $[n in `originalInput`minimalInput;.Q.s1 p n;.tst.toString p n]
+        }[prop;] each names;
+        body,:raze {[n;v]
+            "<trait name=\"",.tst.output.escapeXml[n],"\" value=\"",
+            .tst.output.escapeXml[v],"\"/>"
+        }'[labels;values]];
+    qstate:$[`quarantine in key rec;rec`quarantine;()!()];
+    if[(99h=type qstate) and 0<count qstate;
+        qnames:`state`active`nonBlocking`observations`passes`failures`flakes`owner`reason`issue`createdAt`expiresAt;
+        qlabels:{"resq.quarantine.",string x} each qnames;
+        qvalues:{[qstate;n].tst.toString qstate n}[qstate;] each qnames;
+        body,:raze {[n;v]"<trait name=\"",.tst.output.escapeXml[n],
+            "\" value=\"",.tst.output.escapeXml[v],"\"/>"}'[qlabels;qvalues]];
+    $[count body;"<traits>",body,"</traits>";""]
  };
 
 .tst.output.xunitUuid:{[seed]

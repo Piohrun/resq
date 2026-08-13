@@ -70,6 +70,10 @@ jobs:
         shell: bash
         run: tools/verify_property_protocol.py --q q
 
+      - name: Flake evidence and quarantine policy
+        shell: bash
+        run: tools/verify_quarantine.py --q q
+
       - name: Hostile environment and interruption audit
         shell: bash
         run: tools/verify_hostile_env.py --q q

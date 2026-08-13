@@ -112,12 +112,14 @@ Its stable top-level fields are:
 | `performance` | Benchmark time/space rows (empty when no benchmark ran) |
 | `coverage` | Canonical coverage summary (empty outside coverage runs) |
 | `diagnostics` | Typed run-level diagnostics |
+| `flake` | Evidence thresholds, history/manifest health, policy mode, and state counts |
 
 Each `tests` row retains those diagnostic fields and additionally contains a
 portable `file`, stable `testId`, optional top-level declarative `caseId` and
 `parameters`, `kind`, retry flags and `attemptHistory`, independently identified
-runtime `parameterCases`, structured `property`, `snapshots`, `benchmark`, and
-typed `diagnostics`. The public statuses are `pass`, `fail`,
+runtime `parameterCases`, structured `property`, `snapshots`, `benchmark`,
+`quarantine` (raw evidence plus owner/reason/issue/creation/expiry), and typed
+`diagnostics`. The public statuses are `pass`, `fail`,
 `error`, `skip`, and `pending`. `message` and `output` are always strings and
 `failures` is always a list of strings, including on passing rows. Missing
 source lines serialize as JSON null. Paths beneath the invocation directory are
@@ -167,6 +169,8 @@ JUnit elements. Property rows add a standard testcase `<properties>` block for
 the generator protocol, seed, replay token, original/minimal inputs, shrink
 work, termination, signature, and duration. Captured isolated-child output is
 written as `<system-out>` on the row that owns the file transcript.
+Quarantine rows add `resq.quarantine.*` properties without changing the
+testcase failure/error element or its underlying status.
 
 For a multiline failure, the element's `message` attribute contains a one-line
 summary while the full newline-preserving message remains in the element body.

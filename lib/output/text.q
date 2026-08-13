@@ -63,6 +63,28 @@
         -1 "  ... and ", string[(count silent) - 10], " more"];
  };
 
+.resq.reportFlakeStates:{[results]
+    if[not `quarantine in cols results;:()];
+    interesting:results where {[qstate]
+        if[not 99h=type qstate;:0b];
+        if[not `state in key qstate;:0b];
+        .tst.toString[qstate`state] in ("suspect";"quarantined";"expired")
+      } each results`quarantine;
+    if[0=count interesting;:()];
+    -1 "\n----------------------------------------------------------------";
+    -1 "FLAKE / QUARANTINE STATE (",string[count interesting],"):";
+    {[row]
+        qstate:row`quarantine;
+        line:"  ",string[row`suite],": ",string[row`description],"  [",
+            .tst.toString[qstate`state],"] ",string[qstate`observations]," observations, ",
+            string[qstate`failures]," failures, ",string[qstate`passes]," passes";
+        if[1b~qstate`nonBlocking;line,:"; NON-BLOCKING (explicit opt-in)"];
+        if["expired"~.tst.toString qstate`state;line,:"; expiry restored blocking"];
+        if[count .tst.toString qstate`owner;line,:"; owner=",.tst.toString qstate`owner];
+        -1 line
+      } each interesting;
+ };
+
 .resq.reportText:{[results]
     results: .tst.resultTable results;
     suites: distinct results`suite;
@@ -137,9 +159,19 @@
     / working through that suite and would want to know which of its passing
     / tests prove nothing. Ordering on a green run is unchanged.
     .resq.reportSilentTests[results; statusNorm];
-    if[0<count allFails;
+    .resq.reportFlakeStates results;
+    blockingFails:allFails;
+    if[count allFails;
+        failRows:{[table;i]table i}[allFails] each til count allFails;
+        blockingFails:allFails where not .tst.rowIsNonBlockingQuarantine each failRows];
+    if[0<count blockingFails;
         -1 "TOTAL FAILURES: ",string[count allFails];
         -1 .resq.color[`red; "Tests FAILED."];
+        :()];
+    if[0<count allFails;
+        -1 "QUARANTINED FAILURES: ",string[count allFails],
+            " (raw results retained; non-blocking policy explicitly enabled)";
+        -1 .resq.color[`yellow; "Run passed with quarantined failures."];
         :()];
 
     if[0 = totalTests;

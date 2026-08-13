@@ -50,7 +50,7 @@ def validate_test(row: Any, index: int) -> None:
             "parameters",
             "attempts", "retried", "flaky", "attemptHistory",
             "parameterCases", "property", "diagnostics", "snapshots",
-            "benchmark",
+            "benchmark", "quarantine",
         },
         where,
     )
@@ -142,6 +142,33 @@ def validate_test(row: Any, index: int) -> None:
     for snap_index, snapshot in enumerate(row["snapshots"]):
         require(snapshot, {"backend", "name", "status", "path", "timestamp"}, f"{where}.snapshots[{snap_index}]")
         iso8601(snapshot["timestamp"], f"{where}.snapshots[{snap_index}].timestamp")
+    quarantine = row["quarantine"]
+    if quarantine:
+        require(
+            quarantine,
+            {
+                "schemaVersion", "state", "active", "nonBlocking", "observations",
+                "passes", "failures", "flakes", "owner", "reason", "evidence",
+                "issue", "createdAt", "expiresAt",
+            },
+            f"{where}.quarantine",
+        )
+        if quarantine["schemaVersion"] != 1:
+            raise ValueError(f"{where}.quarantine: unsupported schema")
+        if quarantine["state"] not in {
+            "insufficient", "healthy", "suspect", "quarantined", "expired"
+        }:
+            raise ValueError(f"{where}.quarantine.state: invalid")
+        active = quarantine["state"] == "quarantined"
+        if quarantine["active"] != active:
+            raise ValueError(f"{where}.quarantine.active: disagrees with state")
+        if quarantine["nonBlocking"] and not active:
+            raise ValueError(f"{where}.quarantine: only active quarantine can be non-blocking")
+        counts = [quarantine[name] for name in ("observations", "passes", "failures", "flakes")]
+        if any(not isinstance(value, int) or value < 0 for value in counts):
+            raise ValueError(f"{where}.quarantine: evidence counters must be non-negative integers")
+        if quarantine["passes"] + quarantine["failures"] > quarantine["observations"]:
+            raise ValueError(f"{where}.quarantine: pass/failure evidence exceeds observations")
 
 
 def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
@@ -267,7 +294,11 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
         entry["executionId"] for entry in manifest["tests"] if entry["selected"]
     }
     if set(selected_ids) != expected_selected:
-        raise ValueError("run.shard.selectedExecutionIds: disagrees with manifest selection")
+        raise ValueError(
+            "run.shard.selectedExecutionIds: disagrees with manifest selection "
+            f"(extra={sorted(set(selected_ids) - expected_selected)}, "
+            f"missing={sorted(expected_selected - set(selected_ids))})"
+        )
 
 
 def validate_events(events: Any, document: dict[str, Any]) -> None:
@@ -310,7 +341,7 @@ def validate(document: Any) -> None:
         raise ValueError("report: expected object")
     require(
         document,
-        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics"},
+        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake"},
         "report",
     )
     if document["schemaVersion"] != 2 or document["framework"] != "resQ":
@@ -337,6 +368,25 @@ def validate(document: Any) -> None:
         raise ValueError("summary.testCount does not match tests length")
     if summary["testCount"] != sum(summary[k] for k in ("passCount", "failCount", "errorCount", "skipCount")):
         raise ValueError("summary status counts do not add up")
+    flake = document["flake"]
+    require(
+        flake,
+        {
+            "schemaVersion", "historyPath", "historyStatus", "manifestPath",
+            "manifestStatus", "nonBlockingEnabled", "evidenceMin", "failureMin",
+            "window", "healthy", "suspect", "quarantined", "expired",
+            "insufficient", "proposalCount",
+        },
+        "flake",
+    )
+    if flake["schemaVersion"] != 1:
+        raise ValueError("flake: unsupported schema")
+    if flake["historyStatus"] not in {"ok", "missing", "invalid", "unsupported"}:
+        raise ValueError("flake.historyStatus: invalid")
+    if flake["manifestStatus"] not in {"ok", "missing", "invalid", "unsupported"}:
+        raise ValueError("flake.manifestStatus: invalid")
+    if flake["evidenceMin"] < 2 or flake["failureMin"] < 1 or flake["window"] < flake["evidenceMin"]:
+        raise ValueError("flake: invalid evidence thresholds")
     execution_ids: list[str] = []
     case_ids: list[str] = []
     for index, row in enumerate(document["tests"]):

@@ -4,7 +4,7 @@
   "title": "resQ test report v2",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics"],
+  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake"],
   "properties": {
     "schemaVersion": {"const": 2},
     "framework": {"const": "resQ"},
@@ -15,6 +15,7 @@
     "performance": {"type": ["array", "object"]},
     "coverage": {"type": "object"},
     "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
+    "flake": {"$ref": "#/$defs/flake"},
     "manifest": {"$ref": "#/$defs/manifest"},
     "events": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/event"}}
   },
@@ -107,7 +108,7 @@
     "test": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["suite", "description", "status", "message", "time", "durationSeconds", "failures", "assertsRun", "file", "line", "namespace", "tags", "output", "testId", "caseId", "kind", "parameters", "attempts", "retried", "flaky", "attemptHistory", "parameterCases", "property", "diagnostics", "snapshots", "benchmark"],
+      "required": ["suite", "description", "status", "message", "time", "durationSeconds", "failures", "assertsRun", "file", "line", "namespace", "tags", "output", "testId", "caseId", "kind", "parameters", "attempts", "retried", "flaky", "attemptHistory", "parameterCases", "property", "diagnostics", "snapshots", "benchmark", "quarantine"],
       "properties": {
         "suite": {"type": "string"},
         "description": {"type": "string"},
@@ -139,8 +140,57 @@
         },
         "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
         "snapshots": {"type": "array", "items": {"$ref": "#/$defs/snapshot"}},
-        "benchmark": {"type": "object"}
+        "benchmark": {"type": "object"},
+        "quarantine": {
+          "oneOf": [
+            {"type": "object", "maxProperties": 0},
+            {"$ref": "#/$defs/quarantine"}
+          ]
+        }
       }
+    },
+    "quarantine": {
+      "type": "object",
+      "required": ["schemaVersion", "state", "active", "nonBlocking", "observations", "passes", "failures", "flakes", "owner", "reason", "evidence", "issue", "createdAt", "expiresAt"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "state": {"enum": ["insufficient", "healthy", "suspect", "quarantined", "expired"]},
+        "active": {"type": "boolean"},
+        "nonBlocking": {"type": "boolean"},
+        "observations": {"type": "integer", "minimum": 0},
+        "passes": {"type": "integer", "minimum": 0},
+        "failures": {"type": "integer", "minimum": 0},
+        "flakes": {"type": "integer", "minimum": 0},
+        "owner": {"type": "string"},
+        "reason": {"type": "string"},
+        "evidence": {},
+        "issue": {"type": "string"},
+        "createdAt": {"type": "string"},
+        "expiresAt": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "flake": {
+      "type": "object",
+      "required": ["schemaVersion", "historyPath", "historyStatus", "manifestPath", "manifestStatus", "nonBlockingEnabled", "evidenceMin", "failureMin", "window", "healthy", "suspect", "quarantined", "expired", "insufficient", "proposalCount"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "historyPath": {"type": "string"},
+        "historyStatus": {"enum": ["ok", "missing", "invalid", "unsupported"]},
+        "manifestPath": {"type": "string"},
+        "manifestStatus": {"enum": ["ok", "missing", "invalid", "unsupported"]},
+        "nonBlockingEnabled": {"type": "boolean"},
+        "evidenceMin": {"type": "integer", "minimum": 2},
+        "failureMin": {"type": "integer", "minimum": 1},
+        "window": {"type": "integer", "minimum": 2},
+        "healthy": {"type": "integer", "minimum": 0},
+        "suspect": {"type": "integer", "minimum": 0},
+        "quarantined": {"type": "integer", "minimum": 0},
+        "expired": {"type": "integer", "minimum": 0},
+        "insufficient": {"type": "integer", "minimum": 0},
+        "proposalCount": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
     },
     "property": {
       "type": "object",

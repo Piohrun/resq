@@ -1850,6 +1850,14 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-last-failed` / `-lf` | Run only tests whose stable IDs failed or errored in the previous run; missing/empty history safely falls back to the full selection |
 | `-failed-first` | Run previous failures first, then the rest, preserving the current deterministic order within each cohort |
 | `-state-file PATH` | Override the versioned rerun cache path (default `.resq/last-run.json`) |
+| `-flake-history PATH` | Override bounded observation history (default `.resq/flake-history.json`; shard-suffixed) |
+| `-quarantine-file PATH` | Read reviewed quarantine policy (default `.resq/quarantine.json`) |
+| `-flake-proposal-file PATH` | Override read-only proposal output (default `.resq/quarantine-proposals.json`) |
+| `-flake-evidence-min N` | Minimum observations before classification (default 3, minimum 2) |
+| `-flake-failure-min N` | Failures required for suspect classification (default 2) |
+| `-flake-window N` | Maximum observations retained per stable test ID (default 20) |
+| `-flake-proposals` | Write suspect proposals without changing the quarantine manifest |
+| `-quarantine-non-blocking` | Let active, unexpired quarantines not block; raw failures remain visible |
 | `-shard-index I` | Select zero-based native shard `I` |
 | `-shard-count N` | Partition the selected shard unit across `N > 0` shards (default `1`) |
 | `-shard-unit U` | Select `file` (default), `test`, or declarative `case` assignment |
@@ -1907,6 +1915,13 @@ unsupported history falls back to the complete current selection and emits a
 typed rerun diagnostic. The default `.resq/` cache directory should remain
 uncommitted. Multi-shard runs suffix this cache per shard to avoid concurrent
 writers.
+
+Flake history and quarantine policy use the same stable identity but remain
+separate authorities. A first failure is always insufficient evidence; only a
+reviewed manifest entry can quarantine a test. Quarantined tests continue to
+run and retain their raw status. They remain blocking unless
+`-quarantine-non-blocking` is explicitly selected, and expiry restores blocking
+automatically. See [Flake evidence and quarantine](QUARANTINE.md).
 
 File sharding sorts canonical paths, assigns file position `mod shardCount`,
 and only then applies optional seeded ordering. `test` and `case` sharding use a
@@ -1994,6 +2009,14 @@ Create `resq.json` in project root:
     "lastFailed": false,
     "failedFirst": false,
     "stateFile": ".resq/last-run.json",
+    "flakeHistoryFile": ".resq/flake-history.json",
+    "quarantineFile": ".resq/quarantine.json",
+    "flakeProposalFile": ".resq/quarantine-proposals.json",
+    "flakeEvidenceMin": 3,
+    "flakeFailureMin": 2,
+    "flakeWindow": 20,
+    "flakeProposals": false,
+    "quarantineNonBlocking": false,
     "shardIndex": 0,
     "shardCount": 1,
     "shardUnit": "file",
@@ -2043,6 +2066,14 @@ Create `resq.json` in project root:
 | `lastFailed` | `false` | Select only failures from the previous stable-ID state |
 | `failedFirst` | `false` | Prioritize failures from the previous stable-ID state |
 | `stateFile` | `.resq/last-run.json` | Versioned, atomically replaced local rerun cache |
+| `flakeHistoryFile` | `.resq/flake-history.json` | Bounded, atomically replaced outcome observations |
+| `quarantineFile` | `.resq/quarantine.json` | Reviewed owner/reason/evidence/issue/creation/expiry policy |
+| `flakeProposalFile` | `.resq/quarantine-proposals.json` | Read-only suspect proposal artifact |
+| `flakeEvidenceMin` | `3` | Observations required before classification; minimum 2 |
+| `flakeFailureMin` | `2` | Failures required for a mixed pass/fail suspect |
+| `flakeWindow` | `20` | Maximum observations retained per stable ID |
+| `flakeProposals` | `false` | Emit proposals without mutating policy |
+| `quarantineNonBlocking` | `false` | Let active, unexpired quarantine failures not block the exit code |
 | `shardIndex` | `0` | Zero-based native shard index |
 | `shardCount` | `1` | Number of deterministic shards |
 | `shardUnit` | `"file"` | Assignment unit: `file`, `test`, or declarative `case` |
