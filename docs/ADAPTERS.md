@@ -34,6 +34,7 @@ mistaken for current results.
 ## Extension policy
 
 The versioned JSON document is the supported integration boundary. In-process
-reporter callbacks and `.tst.*` internals remain experimental until a later
-plugin contract is explicitly versioned. New integrations should be stateless
-post-processors of schema v2, not code loaded into the application q process.
+event observers and end-of-run reporters have a public versioned lifecycle, but
+remain trusted code in the application q process. Prefer stateless
+post-processors of schema v2 for remote or untrusted integrations. See
+[Lifecycle events, execution manifests, and plugins](EVENTS_AND_PLUGINS.md).

@@ -1164,6 +1164,10 @@
     .tst.runAllPhase.runSafely[`cleanup; .tst.runAllPhase.finalCleanup];
     .tst.runAllPhase.runSafely[`cleanupErrors; .tst.runAllPhase.injectCleanupErrors];
     .tst.runAllPhase.runSafely[`resultsSummary; .tst.runAllPhase.computePassed];
+    .tst.runAllPhase.runSafely[`plugins; .tst.runRegisteredPlugins];
+    / Strict plugin failures append canonical error rows. Recompute before state
+    / persistence and reporting so every downstream verdict agrees.
+    .tst.runAllPhase.runSafely[`pluginResultsSummary; .tst.runAllPhase.computePassed];
     .tst.runAllPhase.runSafely[`rerunState; .tst.persistRerunState];
     .tst.runAllPhase.runSafely[`report; {.tst.markIsolatedReportBegin[]; .tst.printRunAudit[]; .resq.report .resq.state.results}];
     ::

@@ -350,7 +350,7 @@
         `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
         `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
         `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount,
-        `tagFilter`excludeTagFilter`coverageSources;
+        `tagFilter`excludeTagFilter`coverageSources`strictPlugins`pluginFiles;
     appKeys:key `.tst.app;
     present:names where names in appKeys;
     cfg:present!(get each {` sv (`.tst.app;x)} each present);
@@ -488,10 +488,13 @@
             @[get;`.tst.app.coveragePassed;0b])];
     modelKeys:`schemaVersion`framework`frameworkVersion`run`summary`tests`performance,
         `coverage`diagnostics;
-    modelKeys!(2;"resQ";
+    model:modelKeys!(2;"resQ";
         $[`VERSION in key `.resq;.resq.VERSION;"unknown"];
         .tst.finishRunMetadata[];summary;rows;performance;coverage;
-        @[get;`.tst.app.diagnostics;{()}])
+        @[get;`.tst.app.diagnostics;{()}]);
+    manifest:.tst.executionManifest model;
+    events:.tst.lifecycleEvents[model;manifest];
+    model,`manifest`events!(manifest;events)
  };
 
 / Canonical table form for reporters that need qSQL grouping/filtering.

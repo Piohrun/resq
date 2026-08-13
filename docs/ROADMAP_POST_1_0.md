@@ -49,15 +49,15 @@ appear complete.
 
 ## 1.1.0 — Public events and execution manifests
 
-- [ ] Publish a versioned, ordered event protocol with run/file/suite/test/
+- [x] Publish a versioned, ordered event protocol with run/file/suite/test/
   attempt/case/coverage/benchmark/diagnostic lifecycle events.
-- [ ] Publish trusted in-process observer and end-of-run reporter registration
+- [x] Publish trusted in-process observer and end-of-run reporter registration
   under `.resq`, with trapped failures and explicit strict-plugin policy.
-- [ ] Ensure plugin return values cannot mutate verdicts and document the
+- [x] Ensure plugin return values cannot mutate verdicts and document the
   in-process trust boundary.
-- [ ] Produce a versioned execution manifest with stable identities,
+- [x] Produce a versioned execution manifest with stable identities,
   shardability, source provenance, and a deterministic digest.
-- [ ] Preserve event order and payload semantics across normal, repeated,
+- [x] Preserve event order and payload semantics across normal, repeated,
   isolated, concurrent, and file-sharded execution.
 
 ## 1.2.0 — Conditional and LCOV branch coverage

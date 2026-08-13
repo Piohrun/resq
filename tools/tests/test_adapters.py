@@ -90,6 +90,22 @@ def report() -> dict:
 
 
 class AdapterTests(unittest.TestCase):
+    def test_validator_enforces_manifest_and_event_linkage(self) -> None:
+        contract = json.loads(
+            (ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8")
+        )
+        validate(contract)
+
+        bad_sequence = deepcopy(contract)
+        bad_sequence["events"][3]["sequence"] = 99
+        with self.assertRaisesRegex(ValueError, "sequence"):
+            validate(bad_sequence)
+
+        bad_manifest = deepcopy(contract)
+        bad_manifest["manifest"]["tests"][0]["testId"] = f"test_{'9' * 32}"
+        with self.assertRaisesRegex(ValueError, "differs from report tests"):
+            validate(bad_manifest)
+
     def test_validator_rejects_duplicate_stable_ids(self) -> None:
         duplicate = report()
         duplicate["tests"][1]["testId"] = duplicate["tests"][0]["testId"]

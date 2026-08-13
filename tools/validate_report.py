@@ -18,6 +18,9 @@ from typing import Any
 
 
 HEX_ID = re.compile(r"^(?:run|test|case)_[0-9a-f]{32}$")
+MANIFEST_ID = re.compile(r"^manifest_[0-9a-f]{32}$")
+FILE_ID = re.compile(r"^file_[0-9a-f]{32}$")
+SUITE_ID = re.compile(r"^suite_[0-9a-f]{32}$")
 STATUSES = {"pass", "fail", "error", "skip", "pending"}
 
 
@@ -100,6 +103,120 @@ def validate_test(row: Any, index: int) -> None:
         iso8601(snapshot["timestamp"], f"{where}.snapshots[{snap_index}].timestamp")
 
 
+def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest: expected object")
+    require(
+        manifest,
+        {
+            "schemaVersion", "kind", "digest", "digestAlgorithm",
+            "identityAlgorithm", "frameworkVersion", "revision", "shard",
+            "files", "tests",
+        },
+        "manifest",
+    )
+    if manifest["schemaVersion"] != 1 or manifest["kind"] != "resq-execution-manifest":
+        raise ValueError("manifest: expected resQ execution manifest v1")
+    if not isinstance(manifest["digest"], str) or not MANIFEST_ID.fullmatch(manifest["digest"]):
+        raise ValueError("manifest.digest: invalid")
+    if manifest["digestAlgorithm"] != "md5-source-inventory-v1":
+        raise ValueError("manifest.digestAlgorithm: unsupported")
+    if manifest["identityAlgorithm"] != "resq-test-id-v1":
+        raise ValueError("manifest.identityAlgorithm: unsupported")
+    if manifest["frameworkVersion"] != document["frameworkVersion"]:
+        raise ValueError("manifest.frameworkVersion does not match report")
+    if not isinstance(manifest["files"], list) or not isinstance(manifest["tests"], list):
+        raise ValueError("manifest files/tests: expected arrays")
+    file_ids: list[str] = []
+    file_paths: list[str] = []
+    shard_count = document["run"].get("shard", {}).get("count", 1)
+    for index, entry in enumerate(manifest["files"]):
+        where = f"manifest.files[{index}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where}: expected object")
+        require(
+            entry,
+            {"fileId", "path", "sourceDigest", "assignedShard", "selected", "shardable"},
+            where,
+        )
+        if not isinstance(entry["fileId"], str) or not FILE_ID.fullmatch(entry["fileId"]):
+            raise ValueError(f"{where}.fileId: invalid")
+        if not isinstance(entry["path"], str) or not entry["path"]:
+            raise ValueError(f"{where}.path: expected non-empty string")
+        if not isinstance(entry["sourceDigest"], str) or (
+            entry["sourceDigest"] and not re.fullmatch(r"[0-9a-f]{32}", entry["sourceDigest"])
+        ):
+            raise ValueError(f"{where}.sourceDigest: invalid")
+        if not isinstance(entry["assignedShard"], int) or not 0 <= entry["assignedShard"] < shard_count:
+            raise ValueError(f"{where}.assignedShard: outside shard range")
+        if not isinstance(entry["selected"], bool) or not isinstance(entry["shardable"], bool):
+            raise ValueError(f"{where}: selection flags must be boolean")
+        file_ids.append(entry["fileId"])
+        file_paths.append(entry["path"])
+    if len(file_ids) != len(set(file_ids)) or len(file_paths) != len(set(file_paths)):
+        raise ValueError("manifest.files: duplicate identity or path")
+    if file_paths != sorted(file_paths):
+        raise ValueError("manifest.files: paths must be deterministically sorted")
+    test_ids: list[str] = []
+    known_files = set(file_ids)
+    for index, entry in enumerate(manifest["tests"]):
+        where = f"manifest.tests[{index}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where}: expected object")
+        require(
+            entry,
+            {"testId", "suiteId", "fileId", "file", "suite", "description", "line", "kind", "tags", "shardKey"},
+            where,
+        )
+        if not isinstance(entry["testId"], str) or not HEX_ID.fullmatch(entry["testId"]):
+            raise ValueError(f"{where}.testId: invalid")
+        if not isinstance(entry["suiteId"], str) or not SUITE_ID.fullmatch(entry["suiteId"]):
+            raise ValueError(f"{where}.suiteId: invalid")
+        if entry["fileId"] not in known_files and entry["file"]:
+            raise ValueError(f"{where}.fileId: not present in file inventory")
+        test_ids.append(entry["testId"])
+    if len(test_ids) != len(set(test_ids)):
+        raise ValueError("manifest.tests: duplicate testId")
+    report_test_ids = [row["testId"] for row in document["tests"]]
+    if test_ids != report_test_ids:
+        raise ValueError("manifest.tests: order/identity differs from report tests")
+
+
+def validate_events(events: Any, document: dict[str, Any]) -> None:
+    if not isinstance(events, list) or not events:
+        raise ValueError("events: expected non-empty array")
+    run_id = document["run"]["id"]
+    for index, event in enumerate(events):
+        where = f"events[{index}]"
+        if not isinstance(event, dict):
+            raise ValueError(f"{where}: expected object")
+        require(
+            event,
+            {"schemaVersion", "sequence", "type", "runId", "entityId", "parentId", "occurredAt", "payload"},
+            where,
+        )
+        if event["schemaVersion"] != 1:
+            raise ValueError(f"{where}.schemaVersion: expected 1")
+        if event["sequence"] != index + 1:
+            raise ValueError(f"{where}.sequence: expected {index + 1}")
+        if event["runId"] != run_id:
+            raise ValueError(f"{where}.runId: does not match run")
+        if not isinstance(event["type"], str) or "." not in event["type"]:
+            raise ValueError(f"{where}.type: invalid")
+        if not all(isinstance(event[key], str) for key in ("entityId", "parentId", "occurredAt")):
+            raise ValueError(f"{where}: identity/timestamp fields must be strings")
+        iso8601(event["occurredAt"], f"{where}.occurredAt")
+        if not isinstance(event["payload"], dict):
+            raise ValueError(f"{where}.payload: expected object")
+    types = [event["type"] for event in events]
+    if types[:2] != ["run.started", "manifest.published"] or types[-1] != "run.finished":
+        raise ValueError("events: invalid run lifecycle boundary")
+    if events[1]["entityId"] != document["manifest"]["digest"]:
+        raise ValueError("events[1]: manifest identity differs from report manifest")
+    if events[-1]["payload"] != document["summary"]:
+        raise ValueError("events[-1]: run summary differs from report summary")
+
+
 def validate(document: Any) -> None:
     if not isinstance(document, dict):
         raise ValueError("report: expected object")
@@ -134,6 +251,10 @@ def validate(document: Any) -> None:
         raise ValueError("tests: duplicate testId")
     if len(case_ids) != len(set(case_ids)):
         raise ValueError("tests: duplicate parameter caseId")
+    if "manifest" in document or "events" in document:
+        require(document, {"manifest", "events"}, "report lifecycle extension")
+        validate_manifest(document["manifest"], document)
+        validate_events(document["events"], document)
 
 
 def main() -> int:

@@ -113,6 +113,7 @@ if[not .resq.cli`ok;
     exit .resq.EXIT.FAIL];
 
 .tst.initCLI .resq.cli;
+.resq.loadPluginFiles[];
 .resq.mode: .resq.cli`mode;
 .tst.app.args: .resq.cli`args;
 args: .tst.app.args;

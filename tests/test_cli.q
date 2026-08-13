@@ -144,6 +144,16 @@
             "shard-index must be less than shard-count*"] musteq 1b;
     };
 
+    should["parse trusted plugin files and strict callback policy"]{
+        parsed:.tst.parseCLI ("test";"--plugin";"one.q,two.q";"--strict-plugins";"suite.q");
+        parsed[`ok] musteq 1b;
+        parsed[`options;`pluginFiles] musteq "one.q,two.q";
+        parsed[`options;`strictPlugins] musteq 1b;
+        parsed[`args] musteq enlist "suite.q";
+        (.tst.parseCLI ("test";"--plugins";"one.q";"suite.q"))[`options;`pluginFiles]
+            musteq "one.q";
+    };
+
     should["support both spellings for every value option"]{
         single: .tst.parseCLI ("test"; "-maxTestTime"; "0"; "-fuzzLimit"; "4";
             "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";

@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;())
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -185,7 +185,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -202,7 +202,8 @@ validateConfig:{[cfg]
             "allowPartialLineCoverage must be a boolean";
             "randomOrder must be a boolean";
             "lastFailed must be a boolean";
-            "failedFirst must be a boolean");
+            "failedFirst must be a boolean";
+            "strictPlugins must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
   intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`seed`shardIndex`shardCount;
@@ -282,6 +283,8 @@ validateConfig:{[cfg]
   specMsgs:("excludeSpecs should be a symbol list or comma-separated string";
             "runSpecs should be a symbol list or comma-separated string");
   warnings,: raze checkType[cfg;;(0h;11h;-11h);]'[specNames; specMsgs];
+  warnings,: raze checkType[cfg;;(0h;10h;11h;-11h);]'[
+      enlist `pluginFiles;enlist "pluginFiles must be a string/symbol or list"];
 
   if[`testFilePatterns in key cfg;
     if[not .tst.validTestFilePatterns cfg`testFilePatterns;
@@ -318,7 +321,7 @@ invalidConfigKeys:{[cfg]
   ];
 
   / Boolean-typed keys: must be a single boolean.
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
   / Integer-typed keys: must be a single integer-like value, not null, AND
@@ -364,6 +367,8 @@ invalidConfigKeys:{[cfg]
   / spec lists: symbol list or comma-separated string.
   specNames:`excludeSpecs`runSpecs;
   invalid,: specNames where {[cfg;n] (n in key cfg) and not (type cfg n) in 0 11 -11h}[cfg] each specNames;
+  if[`pluginFiles in key cfg;
+    if[not (type cfg`pluginFiles) in 0 10 11 -11h;invalid,:`pluginFiles]];
 
   if[`testFilePatterns in key cfg;
     if[not .tst.validTestFilePatterns cfg`testFilePatterns; invalid,:`testFilePatterns]];
@@ -424,6 +429,11 @@ applyConfig:{[cfg]
     if[ok`seed; .tst.app.executionSeed: "j"$cfg`seed];
     if[ok`lastFailed; .tst.app.lastFailed: cfg`lastFailed];
     if[ok`failedFirst; .tst.app.failedFirst: cfg`failedFirst];
+    if[ok`strictPlugins;.tst.app.strictPlugins:cfg`strictPlugins];
+    if[ok`pluginFiles;
+        .tst.app.pluginFiles:$[10h=type cfg`pluginFiles;"," vs cfg`pluginFiles;
+            -11h=type cfg`pluginFiles;enlist .tst.toString cfg`pluginFiles;
+            .tst.toString each (),cfg`pluginFiles]];
     if[ok`stateFile; .tst.app.stateFile: .tst.toString cfg`stateFile];
     if[ok`shardIndex; .tst.app.shardIndex:"j"$cfg`shardIndex];
     if[ok`shardCount; .tst.app.shardCount:"j"$cfg`shardCount];

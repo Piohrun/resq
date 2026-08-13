@@ -21,6 +21,8 @@
   cfg[`stateFile] musteq ".resq/last-run.json";
   cfg[`shardIndex] musteq 0j;
   cfg[`shardCount] musteq 1j;
+  cfg[`strictPlugins] musteq 0b;
+  cfg[`pluginFiles] mustmatch ();
   };
 
  should["accept but ignore the deprecated qNamespaceExports switch"]{
@@ -71,6 +73,21 @@
   badCount musteq enlist `shardCount;
   badIndex:.tst.invalidConfigKeys `shardIndex`shardCount!(3;3);
   `shardIndex`shardCount mustin badIndex;
+  };
+ should["validate and apply trusted plugin settings"]{
+  cfg:`strictPlugins`pluginFiles!(1b;("plugins/a.q";"plugins/b.q"));
+  .tst.validateConfig[cfg] mustmatch ();
+  previousStrict:.tst.app.strictPlugins;
+  previousFiles:.tst.app.pluginFiles;
+  .tst.applyConfig cfg;
+  appliedStrict:.tst.app.strictPlugins;
+  appliedFiles:.tst.app.pluginFiles;
+  .tst.app.strictPlugins:previousStrict;
+  .tst.app.pluginFiles:previousFiles;
+  appliedStrict musteq 1b;
+  appliedFiles musteq ("plugins/a.q";"plugins/b.q");
+  .tst.invalidConfigKeys[(enlist `strictPlugins)!enlist "yes"] musteq enlist `strictPlugins;
+  .tst.invalidConfigKeys[(enlist `pluginFiles)!enlist 42] musteq enlist `pluginFiles;
   };
  should["load and parse JSON config file"]{
   / Create test config file

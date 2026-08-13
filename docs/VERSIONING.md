@@ -15,6 +15,8 @@ The SemVer promise covers:
   names, and coverage gate meanings;
 - stable test/case identity inputs and algorithms described in
   [IDENTITY.md](IDENTITY.md);
+- execution-manifest schema v1, lifecycle-event schema v1, and the documented
+  `.resq` observer/reporter registration and failure policy;
 - the supported runtime/execution matrix and trust-boundary guarantees.
 
 Unlisted `.tst.*`, `.resq.*`, `.utl.*`, implementation files, callback objects,
@@ -53,9 +55,9 @@ Security, data-loss, or false-green behavior may be disabled sooner when no safe
 compatibility shim exists. That exception requires a prominent release note,
 an actionable diagnostic, and the narrowest practical patch.
 
-Features explicitly labeled experimental (currently in-process plugins) are not
-covered until promoted. Their artifacts may not weaken the stable JSON/exit-code
-contract or make the test result depend on a plugin's availability.
+In-process plugins are trusted extensions, not a security boundary. Their
+documented registration, dispatch, state-restoration, and strictness semantics
+are public; arbitrary plugin side effects remain outside resQ's guarantees.
 
 ## Release mechanics
 

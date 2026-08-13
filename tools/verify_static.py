@@ -23,6 +23,7 @@ REQUIRED = {
     "bin/qspec", "lib/init.q", "docs/README.md", "docs/API_REFERENCE.md",
     "docs/schema/resq-report-v2.schema.json", "docs/SUPPORT.md",
     "docs/VERSIONING.md", "docs/IDENTITY.md", "tools/validate_report.py",
+    "docs/EVENTS_AND_PLUGINS.md",
     "tools/verify_hostile_env.py", "tools/verify_external_pilots.py",
     "tools/verify_release_gate.py", "docs/RELEASE_CHECKLIST.md",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
@@ -123,7 +124,10 @@ def check_contracts() -> None:
     if schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
         raise ValueError("report schema does not describe schemaVersion 2")
     definitions = schema.get("$defs", {})
-    extensible = [schema, *(definitions[name] for name in ("run", "summary", "test", "attempt", "case", "diagnostic", "snapshot"))]
+    extensible = [schema, *(definitions[name] for name in (
+        "run", "summary", "test", "attempt", "case", "diagnostic",
+        "snapshot", "manifest", "event",
+    ))]
     if not all(item.get("additionalProperties") is True for item in extensible):
         raise ValueError("report-v2 objects must accept additive minor-version fields")
     report = json.loads((ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8"))

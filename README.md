@@ -395,6 +395,7 @@ See `docs/` for detailed guides:
 | `docs/REPORTING.md` | Console, JSON schema, JUnit/xUnit mappings, artifact names |
 | `docs/OBSERVABILITY.md` | Stable dimensions and dashboard/ingestion guidance |
 | `docs/ADAPTERS.md` | Stateless NDJSON and Allure 2 report adapters |
+| `docs/EVENTS_AND_PLUGINS.md` | Versioned events, execution manifests, and trusted plugin callbacks |
 | `docs/ARCHITECTURE.md` | Namespace layout, file structure, exit codes (contributor reference) |
 | `docs/COVERAGE.md` | Coverage instrumentation, LCOV output, HTML report |
 | `docs/CI.md` | Production CI invocation, runner prerequisites, artifacts |

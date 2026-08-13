@@ -734,6 +734,14 @@
                 .resq.EXIT.PASS];
     .tst.app.passed: exitCode = .resq.EXIT.PASS;
     .tst.finalizeRerunSelectionMetadata count .resq.state.results;
+    .tst.runAllPhase.runSafely[`plugins;.tst.runRegisteredPlugins];
+    status:.tst.normalizeResultStatus each .resq.state.results`status;
+    anyFailure:any status in `fail`error;
+    / A strict plugin can turn an otherwise-green aggregate red, but must not
+    / erase the more specific load/no-tests exit classification already chosen.
+    if[(exitCode=.resq.EXIT.PASS) and anyFailure;
+        exitCode:.resq.EXIT.FAIL;
+        .tst.app.passed:0b];
     .tst.persistRerunState[];
     .resq.report .resq.state.results;
     exitCode

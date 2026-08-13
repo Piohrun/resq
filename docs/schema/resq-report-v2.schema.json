@@ -14,7 +14,9 @@
     "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}},
     "performance": {"type": ["array", "object"]},
     "coverage": {"type": "object"},
-    "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}}
+    "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
+    "manifest": {"$ref": "#/$defs/manifest"},
+    "events": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/event"}}
   },
   "$defs": {
     "run": {
@@ -118,7 +120,7 @@
         "output": {"type": "string"},
         "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
         "caseId": {"type": "string"},
-        "kind": {"enum": ["test", "fuzz", "perf", "load", "cleanup", "framework"]},
+        "kind": {"enum": ["test", "fuzz", "perf", "load", "cleanup", "framework", "plugin"]},
         "attempts": {"type": "integer", "minimum": 1},
         "retried": {"type": "boolean"},
         "flaky": {"type": "boolean"},
@@ -182,6 +184,72 @@
         "status": {"enum": ["created", "updated", "matched", "missing", "mismatch"]},
         "path": {"type": "string"},
         "timestamp": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": true
+    },
+    "manifest": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "digest", "digestAlgorithm", "identityAlgorithm", "frameworkVersion", "revision", "shard", "files", "tests"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "kind": {"const": "resq-execution-manifest"},
+        "digest": {"type": "string", "pattern": "^manifest_[0-9a-f]{32}$"},
+        "digestAlgorithm": {"const": "md5-source-inventory-v1"},
+        "identityAlgorithm": {"const": "resq-test-id-v1"},
+        "frameworkVersion": {"type": "string"},
+        "revision": {"type": "object"},
+        "shard": {"type": "object"},
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["fileId", "path", "sourceDigest", "assignedShard", "selected", "shardable"],
+            "properties": {
+              "fileId": {"type": "string", "pattern": "^file_[0-9a-f]{32}$"},
+              "path": {"type": "string", "minLength": 1},
+              "sourceDigest": {"type": "string", "pattern": "^(?:[0-9a-f]{32})?$"},
+              "assignedShard": {"type": "integer", "minimum": 0},
+              "selected": {"type": "boolean"},
+              "shardable": {"type": "boolean"}
+            },
+            "additionalProperties": true
+          }
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["testId", "suiteId", "fileId", "file", "suite", "description", "line", "kind", "tags", "shardKey"],
+            "properties": {
+              "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
+              "suiteId": {"type": "string", "pattern": "^suite_[0-9a-f]{32}$"},
+              "fileId": {"type": "string", "pattern": "^file_[0-9a-f]{32}$"},
+              "file": {"type": "string"},
+              "suite": {"type": "string"},
+              "description": {"type": "string"},
+              "line": {"type": ["integer", "null"]},
+              "kind": {"type": "string"},
+              "tags": {"type": "array", "items": {"type": "string"}},
+              "shardKey": {"type": "string"}
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "event": {
+      "type": "object",
+      "required": ["schemaVersion", "sequence", "type", "runId", "entityId", "parentId", "occurredAt", "payload"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "sequence": {"type": "integer", "minimum": 1},
+        "type": {"type": "string", "pattern": "^[a-z]+\\.[a-z]+$"},
+        "runId": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"},
+        "entityId": {"type": "string"},
+        "parentId": {"type": "string"},
+        "occurredAt": {"type": "string", "format": "date-time"},
+        "payload": {"type": "object"}
       },
       "additionalProperties": true
     }

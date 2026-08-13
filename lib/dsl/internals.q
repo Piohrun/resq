@@ -36,6 +36,8 @@ if[not `randomOrder in key `.tst.app; .tst.app.randomOrder: 0b];
 if[not `executionSeed in key `.tst.app; .tst.app.executionSeed: 0j];
 if[not `lastFailed in key `.tst.app; .tst.app.lastFailed: 0b];
 if[not `failedFirst in key `.tst.app; .tst.app.failedFirst: 0b];
+if[not `strictPlugins in key `.tst.app; .tst.app.strictPlugins:0b];
+if[not `pluginFiles in key `.tst.app; .tst.app.pluginFiles:()];
 if[not `stateFile in key `.tst.app; .tst.app.stateFile: ".resq/last-run.json"];
 if[not `shardIndex in key `.tst.app; .tst.app.shardIndex: 0j];
 if[not `shardCount in key `.tst.app; .tst.app.shardCount: 1j];

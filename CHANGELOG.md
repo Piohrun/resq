@@ -6,6 +6,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Versioned execution-manifest and ordered lifecycle-event contracts now ship
+  in every canonical JSON report. Stable source/test identities, source
+  provenance, shard assignment, and a deterministic manifest digest are
+  invariant across repeated, relocated, isolated, concurrent execution and all
+  members of one shard topology.
+- Trusted in-process plugins can register named event observers and end-of-run
+  reporters under `.resq`. Callbacks are trapped, return values and direct
+  verdict mutations are non-authoritative, and opt-in strict plugin policy
+  turns callback failures into canonical error rows.
 - An opt-in KX Developer `.cov` adapter can measure loaded resQ framework
   functions without using resQ's own source rewriter. Its versioned JSON and
   text artifacts are explicitly partial and non-gating, the adapter is covered

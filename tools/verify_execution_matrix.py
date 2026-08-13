@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -41,18 +42,21 @@ def q_version(q_executable: str) -> str:
     return lines[-1]
 
 
-def run_mode(root: Path, q_executable: str, name: str, flags: list[str]) -> dict[str, Any]:
+def run_mode(
+    root: Path, q_executable: str, name: str, flags: list[str],
+    *, fixtures: list[Path] = FIXTURES, cwd: Path = ROOT,
+) -> dict[str, Any]:
     output = root / name
     state = root / "state" / f"{name}.json"
     command = [
-        str(ROOT / "bin/resq"), "test", *(str(path) for path in FIXTURES),
+        str(ROOT / "bin/resq"), "test", *(str(path) for path in fixtures),
         "-strict", "-json", "-quiet", "-outDir", str(output),
         "-state-file", str(state), *flags,
     ]
     environment = dict(os.environ)
     environment["QBIN"] = q_executable
     completed = subprocess.run(
-        command, cwd=ROOT, env=environment, text=True, capture_output=True,
+        command, cwd=cwd, env=environment, text=True, capture_output=True,
         check=False, timeout=120,
     )
     if completed.returncode != 0:
@@ -70,6 +74,31 @@ def verdict(document: dict[str, Any]) -> dict[str, str]:
     return {row["testId"]: row["status"] for row in document["tests"]}
 
 
+def event_signature(document: dict[str, Any]) -> list[tuple[Any, ...]]:
+    """Project stable lifecycle semantics, excluding clocks and durations."""
+    run_id = document["run"]["id"]
+
+    def stable_id(value: str) -> str:
+        return "<run>" if value == run_id else value
+
+    signature: list[tuple[Any, ...]] = []
+    for event in document["events"]:
+        payload = event["payload"]
+        signature.append(
+            (
+                event["type"], stable_id(event["entityId"]),
+                stable_id(event["parentId"]), payload.get("status"),
+                payload.get("assertsRun"), payload.get("testCount"),
+                payload.get("attempt"),
+            )
+        )
+    return signature
+
+
+def manifest_test_ids(document: dict[str, Any]) -> set[str]:
+    return {entry["testId"] for entry in document["manifest"]["tests"]}
+
+
 def verify(q_executable: str, allow_unsupported: bool) -> None:
     version = q_version(q_executable)
     if version not in SUPPORTED_Q and not allow_unsupported:
@@ -79,6 +108,7 @@ def verify(q_executable: str, allow_unsupported: bool) -> None:
         root = Path(directory)
         modes = {
             "normal": [],
+            "normal-repeat": [],
             "isolated-sequential": ["-isolate", "-isolateTimeout", "30"],
             "isolated-concurrent": ["-isolate", "-isolateTimeout", "30", "-isolateWorkers", "3"],
             "random-normal": ["-random-order", "-seed", "4242"],
@@ -93,6 +123,16 @@ def verify(q_executable: str, allow_unsupported: bool) -> None:
                 raise RuntimeError(f"{name} verdict differs from normal")
             if document["run"]["qVersion"] != version:
                 raise RuntimeError(f"{name} report qVersion drifted")
+        baseline_digest = reports["normal"]["manifest"]["digest"]
+        baseline_events = event_signature(reports["normal"])
+        for name in ("normal-repeat", "isolated-sequential", "isolated-concurrent"):
+            document = reports[name]
+            if document["manifest"]["digest"] != baseline_digest:
+                raise RuntimeError(f"{name} execution manifest digest differs from normal")
+            if event_signature(document) != baseline_events:
+                raise RuntimeError(f"{name} lifecycle event semantics/order differ from normal")
+        if event_signature(reports["random-isolated"]) != event_signature(reports["random-normal"]):
+            raise RuntimeError("seeded isolated lifecycle differs from seeded normal")
 
         shard0 = run_mode(root, q_executable, "shard-0", ["-shard-index", "0", "-shard-count", "2"])
         shard1 = run_mode(root, q_executable, "shard-1", ["-shard-index", "1", "-shard-count", "2"])
@@ -101,13 +141,34 @@ def verify(q_executable: str, allow_unsupported: bool) -> None:
             raise RuntimeError("native shards overlap")
         if {**left, **right} != baseline:
             raise RuntimeError("native shard union differs from normal")
+        shard_digest = shard0["manifest"]["digest"]
         for index, document in enumerate((shard0, shard1)):
             shard = document["run"]["shard"]
             if shard["index"] != index or shard["count"] != 2:
                 raise RuntimeError(f"shard metadata mismatch: {shard!r}")
+            if document["manifest"]["digest"] != shard_digest:
+                raise RuntimeError(f"shard {index} manifest digest differs within shard topology")
+        if manifest_test_ids(shard0) & manifest_test_ids(shard1):
+            raise RuntimeError("manifest test identities overlap across shards")
+        if manifest_test_ids(shard0) | manifest_test_ids(shard1) != manifest_test_ids(reports["normal"]):
+            raise RuntimeError("manifest test identity union differs from unsharded run")
+
+        copied_root = root / "relocated-checkout"
+        copied_fixtures_root = copied_root / "tests/fixtures/sharding"
+        shutil.copytree(ROOT / "tests/fixtures/sharding", copied_fixtures_root)
+        copied_fixtures = [copied_fixtures_root / path.name for path in FIXTURES]
+        relocated = run_mode(
+            root, q_executable, "relocated", [], fixtures=copied_fixtures,
+            cwd=copied_root,
+        )
+        if relocated["manifest"]["digest"] != baseline_digest:
+            raise RuntimeError("manifest digest depends on absolute checkout path")
+        if verdict(relocated) != baseline:
+            raise RuntimeError("stable test identity depends on absolute checkout path")
     print(
         f"resQ execution matrix passed on q {version}: normal, isolated "
-        "sequential/concurrent, seeded normal/isolated, and 2-way native shards"
+        "sequential/concurrent, repeated/relocated runs, seeded normal/isolated, "
+        "and 2-way native shards with stable manifests/events"
     )
 
 

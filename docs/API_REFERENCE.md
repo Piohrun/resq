@@ -1760,6 +1760,8 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-state-file PATH` | Override the versioned rerun cache path (default `.resq/last-run.json`) |
 | `-shard-index I` | Select zero-based native file shard `I` |
 | `-shard-count N` | Partition canonical test files across `N > 0` shards (default `1`) |
+| `-plugin FILES` | Load comma-separated trusted q plugin files before discovery; files register public observers/reporters under `.resq` |
+| `-strict-plugins` | Turn a trapped plugin callback error into a canonical error row and failing exit status (default: warning only) |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
 | `-only PATTERN` | Run only suites whose title matches the `like` glob pattern |
 | `-exclude PATTERN` | Skip suites whose title matches the `like` glob pattern |
@@ -1791,6 +1793,12 @@ first failed/error row from each file
 owns its bounded combined child stdout/stderr in `output`; JUnit publishes the
 same value as `<system-out>` and xUnit v2 as `<output>`. A reporter error fails
 the run after every selected reporter has been attempted.
+
+JSON additionally embeds execution-manifest schema v1 and lifecycle-event
+schema v1. Trusted plugins can consume the same canonical stream through
+`.resq.registerObserver` and `.resq.registerReporter`; callback return values
+are ignored and direct verdict-state mutations are restored. See
+[Lifecycle events, execution manifests, and plugins](EVENTS_AND_PLUGINS.md).
 
 Selecting a machine reporter writes that artifact in addition to the final text
 summary. Other progress and diagnostic lines can still be written to
@@ -1886,6 +1894,8 @@ Create `resq.json` in project root:
     "stateFile": ".resq/last-run.json",
     "shardIndex": 0,
     "shardCount": 1,
+    "strictPlugins": false,
+    "pluginFiles": [],
     "pollutionGuard": true,
     "fuzzLimit": 100,
     "maxTestTime": 0,
@@ -1929,6 +1939,8 @@ Create `resq.json` in project root:
 | `stateFile` | `.resq/last-run.json` | Versioned, atomically replaced local rerun cache |
 | `shardIndex` | `0` | Zero-based native file shard index |
 | `shardCount` | `1` | Number of deterministic file shards |
+| `strictPlugins` | `false` | Fail the run when a registered plugin callback throws |
+| `pluginFiles` | empty | Trusted q plugin file path or list of paths, loaded before discovery |
 | `pollutionGuard` | `true` | Detect and restore application-namespace changes per suite |
 | `maxTestTime` | `0` | Post-execution per-test budget in milliseconds (`0` disables) |
 | `reportLimit` | `50000` | Maximum rendered failure/error message characters |

@@ -86,5 +86,52 @@
   ],
   "performance": [],
   "coverage": {},
-  "diagnostics": []
+  "diagnostics": [],
+  "manifest": {
+    "schemaVersion": 1,
+    "kind": "resq-execution-manifest",
+    "digest": "manifest_cccccccccccccccccccccccccccccccc",
+    "digestAlgorithm": "md5-source-inventory-v1",
+    "identityAlgorithm": "resq-test-id-v1",
+    "frameworkVersion": "1.0.0",
+    "revision": {"sha": "deadbeef", "branch": "main", "dirty": false},
+    "shard": {"index": 0, "count": 1},
+    "files": [
+      {
+        "fileId": "file_dddddddddddddddddddddddddddddddd",
+        "path": "tests/test_contract.q",
+        "sourceDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "assignedShard": 0,
+        "selected": true,
+        "shardable": true
+      }
+    ],
+    "tests": [
+      {
+        "testId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "suiteId": "suite_ffffffffffffffffffffffffffffffff",
+        "fileId": "file_dddddddddddddddddddddddddddddddd",
+        "file": "tests/test_contract.q",
+        "suite": "contract suite",
+        "description": "passes",
+        "line": 10,
+        "kind": "test",
+        "tags": ["contract"],
+        "shardKey": "file_dddddddddddddddddddddddddddddddd"
+      }
+    ]
+  },
+  "events": [
+    {"schemaVersion": 1, "sequence": 1, "type": "run.started", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "parentId": "", "occurredAt": "2026-08-12T12:00:00.000000000Z", "payload": {}},
+    {"schemaVersion": 1, "sequence": 2, "type": "manifest.published", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "manifest_cccccccccccccccccccccccccccccccc", "parentId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "occurredAt": "2026-08-12T12:00:00.000000000Z", "payload": {}},
+    {"schemaVersion": 1, "sequence": 3, "type": "file.started", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "file_dddddddddddddddddddddddddddddddd", "parentId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "occurredAt": "2026-08-12T12:00:00.000000000Z", "payload": {}},
+    {"schemaVersion": 1, "sequence": 4, "type": "suite.started", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "suite_ffffffffffffffffffffffffffffffff", "parentId": "file_dddddddddddddddddddddddddddddddd", "occurredAt": "2026-08-12T12:00:00.000000000Z", "payload": {"testCount": 1}},
+    {"schemaVersion": 1, "sequence": 5, "type": "test.started", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "parentId": "suite_ffffffffffffffffffffffffffffffff", "occurredAt": "2026-08-12T12:00:00.000000000Z", "payload": {}},
+    {"schemaVersion": 1, "sequence": 6, "type": "attempt.started", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/attempt/1", "parentId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "occurredAt": "2026-08-12T12:00:00.000000000Z", "payload": {"attempt": 1}},
+    {"schemaVersion": 1, "sequence": 7, "type": "attempt.finished", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/attempt/1", "parentId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "occurredAt": "2026-08-12T12:00:01.000000000Z", "payload": {"attempt": 1, "status": "pass", "assertsRun": 1}},
+    {"schemaVersion": 1, "sequence": 8, "type": "test.finished", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "parentId": "suite_ffffffffffffffffffffffffffffffff", "occurredAt": "2026-08-12T12:00:01.000000000Z", "payload": {"status": "pass", "assertsRun": 1}},
+    {"schemaVersion": 1, "sequence": 9, "type": "suite.finished", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "suite_ffffffffffffffffffffffffffffffff", "parentId": "file_dddddddddddddddddddddddddddddddd", "occurredAt": "2026-08-12T12:00:01.000000000Z", "payload": {"testCount": 1, "passCount": 1}},
+    {"schemaVersion": 1, "sequence": 10, "type": "file.finished", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "file_dddddddddddddddddddddddddddddddd", "parentId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "occurredAt": "2026-08-12T12:00:01.000000000Z", "payload": {"testCount": 1, "passCount": 1}},
+    {"schemaVersion": 1, "sequence": 11, "type": "run.finished", "runId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "entityId": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "parentId": "", "occurredAt": "2026-08-12T12:00:01.000000000Z", "payload": {"suiteCount": 1, "testCount": 1, "assertionCount": 1, "passCount": 1, "failCount": 0, "errorCount": 0, "skipCount": 0, "duration": "0D00:00:00.001000000", "durationSeconds": 0.001}}
+  ]
 }

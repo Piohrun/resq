@@ -3,6 +3,9 @@
 resQ's JSON schema v2 is an event-rich run artifact, not a historical database.
 Ingest `test-results.json`, `coverage.json`, and LCOV into the observability
 system you already operate; do not keep history inside the q test process.
+The same report embeds a versioned execution `manifest` and canonical ordered
+`events[]`; their contract and trusted callback API are documented in
+[Lifecycle events and plugins](EVENTS_AND_PLUGINS.md).
 
 ## Stable dimensions
 
@@ -35,6 +38,8 @@ the public [stable identity contract](IDENTITY.md).
 | Benchmark drift | `performance[]`, `tests[].benchmark` |
 | Coverage and gate health | `coverage.json` summary/files/fallbacks/gates |
 | Framework hygiene | run/test `diagnostics[]` |
+| Reproducible execution inventory | `manifest` and its deterministic digest |
+| Ordered lifecycle ingestion | `events[]` and one-based `sequence` |
 
 Coverage dashboards must label the basis. Function coverage has a complete
 manifest denominator; measured-line coverage is statement instrumentation and
