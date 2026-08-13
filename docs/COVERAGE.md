@@ -90,12 +90,12 @@ resq cover tests/ -cov-statements
  };                          LF:5  LH:3  -> 60%
 ```
 
-Probes go on every top-level statement and on statements inside `if[…]`,
-`do[…]` and `while[…]`, which evaluate each argument in turn. `$[…]` is
-deliberately left alone: it is a conditional *expression* whose branches are
-values, and a probe among them would change what it returns. Only lines carrying
-a probe are counted, so `LF` is the number of statements, not the number of
-lines.
+Probes go on every top-level statement, eligible statements inside anonymous
+lambdas, and statements inside `if[…]`, `do[…]` and `while[…]`, which evaluate
+each argument in turn. `$[…]` is deliberately left alone: it is a conditional
+*expression* whose branches are values, and a probe among them would change what
+it returns. LCOV still rolls sites up by source line; detailed JSON and HTML
+retain stable per-site identities, anonymous-lambda ownership, and hit counts.
 
 **Why this is opt-in.** It works by rewriting your function bodies at load time
 and re-evaluating them in their original namespace. Each function is attempted
@@ -159,8 +159,25 @@ resq cover tests/ --source src/ -cov-statements -cov-branches
 LCOV receives standard `BRDA`, `BRF`, and `BRH` records. The metric is
 conditional-edge coverage—not path coverage, MC/DC, or proof that every value
 expression was evaluated. `do[...]` is not a boolean branch and is not counted.
-Nested-lambda sites are inventoried with `fallbackReason:"nested_lambda"` but
-are intentionally ineligible until nested-lambda instrumentation lands.
+Conditions inside eligible anonymous lambdas are instrumented in the same
+atomic rewrite. They retain the enclosing named function plus a stable
+`lambdaId`, depth, and source location. LCOV emits their `BRDA` records under
+the source file and line but deliberately emits no invented `FN`/`FNDA` name.
+
+### Nested lambdas and atomic rollback
+
+resQ inventories each anonymous lambda under its enclosing named function.
+Stable `statement_<hash>`, `branch_<hash>`, `edge_<hash>`, and `lambda_<hash>`
+identities are checkout-relative and appear in detailed JSON, HTML, and state.
+The named function remains the only LCOV function identity.
+
+The entire named definition—including every nested probe—is evaluated and
+accepted as one unit. Binding-shape verification recursively compares
+parameters, locals, and globals for the outer and compiled nested lambdas after
+normalizing only resQ's probe helpers. If any level fails to parse or changes
+bindings, resQ restores the original named function and excludes every site in
+that definition from the measured denominator. No partially rewritten nested
+lambda can remain installed.
 
 ### Line records are emitted only where lines were measured
 
@@ -251,9 +268,9 @@ Reports are written to `outDir` (default: `.`):
 | File | Contents |
 |------|----------|
 | `coverage.lcov` | Standard LCOV function records, `DA`/`LF`/`LH` under statement mode, and `BRDA`/`BRF`/`BRH` under branch mode. |
-| `coverage.json` | Detailed canonical model: totals, eligibility/completeness, fallbacks, files, functions, statements, branch sites, edges, and hits. |
+| `coverage.json` | Detailed canonical model: totals, eligibility/completeness, fallbacks, files, functions, line roll-ups, stable statement sites, anonymous owners, branch sites, edges, and hits. |
 | `coverage.html` | Annotated source/function tables plus branch-site locations, edge hits, completeness, and fallbacks. |
-| `coverage_state.txt` | Grep-friendly v3 `F` function, `B` branch-site, and `E` edge records, including zero-hit state. |
+| `coverage_state.txt` | Grep-friendly v4 `F` function, `S` statement-site, `B` branch-site, and `E` edge records, including zero-hit and anonymous-owner state. |
 
 LCOV, detailed JSON, HTML, and state are rendered from the same in-memory
 coverage snapshot. The self-suite parses their outputs and requires function,
@@ -344,9 +361,10 @@ site instrumentation; there is deliberately no branch equivalent of
   for CI and refuses partial instrumentation unless explicitly acknowledged.
 - **`\l` / `system "l "` only** — the loader intercepts these two forms. Custom loaders are not auto-detected unless loader hijacking is explicitly enabled (experimental, see below).
 - **Compiled operators skipped** — `+/`, `each`, `':'`, etc. cannot be wrapped.
-- **Branch coverage is conditional-edge coverage** — no path/MC/DC records,
-  and nested-lambda sites remain explicitly ineligible until the nested-lambda
-  coverage milestone.
+- **Branch coverage is conditional-edge coverage** — no path or MC/DC records.
+  Eligible anonymous-lambda conditions are included under their enclosing
+  function; dynamically constructed source and compiled operators remain out of
+  scope.
 
 ---
 

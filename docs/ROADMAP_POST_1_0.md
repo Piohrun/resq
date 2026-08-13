@@ -75,9 +75,9 @@ appear complete.
 
 ## 1.3.0 — Nested lambdas and coverage contexts
 
-- [ ] Discover and instrument eligible nested-lambda statements and branches
+- [x] Discover and instrument eligible nested-lambda statements and branches
   with whole-function semantic rollback.
-- [ ] Represent anonymous sites under stable enclosing-function identities
+- [x] Represent anonymous sites under stable enclosing-function identities
   without fabricating named LCOV functions.
 - [ ] Add opt-in per-test coverage contexts and optional attempt detail while
   preserving identical aggregate counts.

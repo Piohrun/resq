@@ -1827,8 +1827,9 @@ empty discovery still returns the ordinary no-tests exit code.
 Coverage runs additionally write `coverage.lcov`, `coverage.json`,
 `coverage.html`, and `coverage_state.txt`. All four are projections of one
 canonical coverage model. `coverage.json` contains aggregate measurement and
-instrumentation totals plus per-file, per-function, measured-statement,
-branch-site, and edge records; see [Runtime code coverage](COVERAGE.md).
+instrumentation totals plus per-file, per-function, measured-line, stable
+statement-site, anonymous-lambda owner, branch-site, and edge records; see
+[Runtime code coverage](COVERAGE.md).
 
 **Filtering examples:**
 ```bash

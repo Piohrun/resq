@@ -251,7 +251,7 @@
              "LCOV must contain a record for an entirely unloaded module"];
         must[any r[`lcov] like "FNF:3";
              "the unloaded module must contribute all three functions"];
-        zeroMisses: {(0<count ss[x;"/never_loaded.q "]) and
+        zeroMisses: {(x like "F *") and (0<count ss[x;"/never_loaded.q "]) and
             0<count ss[x;" 0 "]} each r`state;
         must[3=sum zeroMisses;
              "coverage_state must include each zero-hit function"];
@@ -296,7 +296,7 @@
         must[0<count ss[r`coverageHtml;
              string[detailSummary`functionsHit]," / ",string[detailSummary`functionsFound]];
              "HTML summary must render the canonical function totals"];
-        stateFunctions:r[`state] where not r[`state] like "#*";
+        stateFunctions:r[`state] where r[`state] like "F *";
         stateFunctionCount:"f"$count stateFunctions;
         stateFunctionCount musteq detailSummary`functionsFound;
     };

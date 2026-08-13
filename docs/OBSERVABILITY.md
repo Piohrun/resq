@@ -48,6 +48,10 @@ edge coverage has stable branch-site and edge identities plus a separate site-
 instrumentation completeness percentage. It measures true/false outcomes for
 eligible `if`, `while`, and `$` conditions; it is not path coverage or MC/DC.
 Never merge those three percentages into a single unlabeled "coverage" trend.
+Detailed statement and branch sites inside anonymous lambdas use stable
+`lambdaId` ownership while retaining the enclosing named function, so a
+dashboard can drill into nested logic without creating synthetic function
+dimensions that would fragment history.
 
 ## Ingestion
 

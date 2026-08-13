@@ -49,6 +49,7 @@
   ".tst.coverageData";".tst.coverageEnabled";".tst.trackedFiles";
   ".tst.origFuncs";".tst.covWrappers";".tst.coverageLoadedFiles";
   ".tst.lineCoverageData";".tst.stmtInstrumented";".tst.stmtProbeLines";
+  ".tst.statementCoverageData";".tst.statementSiteInstrumented";
   ".tst.coverageStatements";".tst.branchCoverageData";
   ".tst.branchInstrumented";".tst.coverageBranches";
   ".tst.lastCoverageModel"));
@@ -63,6 +64,8 @@
   .tst.lineCoverageData:()!();
   .tst.stmtInstrumented:()!();
   .tst.stmtProbeLines:()!();
+  .tst.statementCoverageData:(`symbol$())!`long$();
+  .tst.statementSiteInstrumented:()!();
   .tst.coverageStatements:1b;
   .tst.branchCoverageData:(`symbol$())!();
   .tst.branchInstrumented:()!();
@@ -193,6 +196,9 @@
   if[modelOk;modelOk:1b~fnModels[0;`statementInstrumented]];
   if[modelOk;modelOk:"none"~fnModels[0;`fallbackReason]];
   if[modelOk;modelOk:0<fnModels[0;`statementFound]];
+  if[modelOk;modelOk:0<fnModels[0;`statementSitesFound]];
+  if[modelOk;modelOk:fnModels[0;`statementSitesFound]=
+      fnModels[0;`statementSitesInstrumented]];
   if[modelOk and count eligibleSites;
     modelOk:(count eligibleSites)=fnModels[0;`branchSitesInstrumented]];
   if[not modelOk;
@@ -245,6 +251,9 @@
     (".cdiffgen.f:{[x]"; "    acc: 0;"; "    do[4; acc: acc + 1];"; "    acc"; " };"));
   (`nestedLambda;
     (".cdiffgen.f:{[x]"; "    g: {[y] z: y * 2; z + 1};"; "    acc: g x;"; "    acc"; " };"));
+  (`nestedLambdaBranch;
+    (".cdiffgen.f:{[x]"; "    g: {[y] if[y > 0; :y * 2]; y - 2};";
+     "    acc: g x;"; "    acc"; " };"));
   (`stringWithSemicolon;
     (".cdiffgen.f:{[x]"; "    s: \"a;b;c{}\";"; "    acc: count s;"; "    acc"; " };"));
   (`trailingComments;

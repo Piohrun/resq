@@ -6,6 +6,12 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Statement and conditional-edge instrumentation now descends into eligible
+  anonymous lambdas. Stable statement, branch, edge, and lambda identities keep
+  the enclosing named function as owner, flow through detailed JSON/HTML/state,
+  and never fabricate LCOV functions. Recursive binding-shape verification and
+  a repaired trapped `set` helper make rejection atomic: any nested parse or
+  binding change restores the complete original named definition.
 - Opt-in conditional-edge coverage instruments eligible `if`, `while`, and
   lazy `$` conditions without evaluating value branches. Stable branch-site and
   edge identities, hits, fallbacks, and completeness now flow through the

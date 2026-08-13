@@ -51,7 +51,7 @@
 .tst.safeValue:{[sym] @[get; sym; {[e] .tst._covMissing}] };
 / Trapped assignment, used to put an original definition back when
 / statement instrumentation is abandoned.
-.tst.safeSet:{[sym;val] @[set; (sym; val); {[e] }]; };
+.tst.safeSet:{[sym;val] .[set;(sym;val);{[e] ::}]; };
 
 .tst.ensureCoverageEntry:{[fileSym]
     if[not fileSym in key .tst.coverageData;
@@ -405,6 +405,8 @@
     .tst.lineCoverageData:: ()!();
     .tst.stmtInstrumented:: ()!();
     .tst.stmtProbeLines:: ()!();
+    .tst.statementCoverageData:: (`symbol$())!`long$();
+    .tst.statementSiteInstrumented:: ()!();
     .tst.branchCoverageData:: (`symbol$())!();
     .tst.branchInstrumented:: ()!();
     .tst.coverageEnabled:: 1b;
@@ -501,6 +503,12 @@
 .tst.stmtInstrumented: ()!();
 / Lines carrying a probe, per file -- the denominator for measured coverage.
 .tst.stmtProbeLines: ()!();
+/ Stable statement-site id -> executions. Line totals remain a separate LCOV
+/ roll-up because several outer/anonymous statements may share one source line.
+.tst.statementCoverageData: (`symbol$())!`long$();
+/ Files -> stable statement-site ids whose enclosing named-function rewrite
+/ survived as one unit.
+.tst.statementSiteInstrumented: ()!();
 / Stable branch-site id -> two edge counters (`true` then `false`).
 .tst.branchCoverageData: (`symbol$())!();
 / Files -> stable branch-site ids whose enclosing function rewrite survived.
@@ -510,6 +518,13 @@
     d: $[f in key .tst.lineCoverageData; .tst.lineCoverageData f; (`long$())!`long$()];
     d[n]: 1 + $[n in key d; d n; 0];
     .tst.lineCoverageData[f]: d;
+ };
+
+.tst.covS:{[siteId;f;n]
+    siteKey:`$.tst.toString siteId;
+    .tst.statementCoverageData[siteKey]:1+$[siteKey in key .tst.statementCoverageData;
+        .tst.statementCoverageData siteKey;0j];
+    .tst.covL[f;n]
  };
 
 / Record one condition evaluation and return the value byte-for-byte. q control
@@ -584,8 +599,140 @@
     i
  };
 
-/ Canonical branch inventory for one named outer lambda. Nested lambda sites
-/ are retained as ineligible evidence for 1.2 and promoted by the 1.3 rewrite.
+/ Inventory the named outer lambda and every anonymous lambda nested inside it.
+/ Private offsets let both statement and branch scanners attribute sites to the
+/ innermost lambda without inventing LCOV function names. Anonymous identities
+/ are stable under checkout relocation and remain children of the named owner.
+.tst.covLambdaSpansInFunction:{[fileSym;functionName;srcLines;startLine;endLine]
+    if[(startLine<1) or (endLine>count srcLines) or endLine<startLine;:()];
+    seg:srcLines[(startLine-1)+til 1+endLine-startLine];
+    raw:"\n" sv {(),x} each seg;
+    maskedLines:@[.tst.static.maskLines;seg;{seg}];
+    if[not (count maskedLines)=count seg;maskedLines:seg];
+    masked:"\n" sv {(),x} each maskedLines;
+    if[not (count masked)=count raw;:()];
+    relativePath:.tst.repoRelativePath string fileSym;
+    functionText:.tst._covNameStr functionName;
+    stack:();spans:();depth:0;i:0;
+    while[i<count masked;
+        c:masked i;
+        if[c="{";
+            depth+:1;
+            stack,:enlist `openAt`depth!("j"$i;"j"$depth)];
+        if[c="}";
+            if[count stack;
+                opened:last stack;
+                stack:-1 _ stack;
+                openAt:opened`openAt;
+                lambdaDepth:("j"$opened`depth)-1;
+                bodyStart:openAt+1;
+                while[(bodyStart<i) and masked[bodyStart] in " \t\r\n";
+                    bodyStart+:1];
+                eligible:1b;fallback:"none";
+                if[(bodyStart<i) and "["=masked bodyStart;
+                    square:1;k:bodyStart+1;
+                    while[(k<i) and square>0;
+                        $[masked[k]="[";square+:1;
+                          masked[k]="]";square-:1;::];
+                        k+:1];
+                    if[square=0;
+                        bodyStart:k;
+                        while[(bodyStart<i) and masked[bodyStart] in " \t\r\n";
+                            bodyStart+:1]];
+                    if[square<>0;
+                        eligible:0b;fallback:"invalid_parameters"]];
+                location:.tst.covOffsetLocation[raw;startLine;openAt];
+                anonymous:lambdaDepth>0;
+                lambdaId:$[anonymous;
+                    "lambda_",.tst.stableHash[
+                        relativePath,"\n",functionText,"\n",
+                        string[location 0],":",string[location 1]];
+                    ""];
+                spans,:enlist `lambdaId`function`line`column`lambdaDepth`anonymous`eligible`fallbackReason`openAt`bodyStart`closeAt!(
+                    lambdaId;functionText;location 0;location 1;lambdaDepth;
+                    anonymous;eligible;fallback;openAt;"j"$bodyStart;"j"$i)];
+            depth-:1;
+            if[depth<0;depth:0]];
+        i+:1];
+    if[0=count spans;:()];
+    spans:spans iasc[spans`openAt];
+    spans
+ };
+
+/ Run the established statement parser over one exact lambda body and convert
+/ its first-line-relative columns back to function-source coordinates.
+.tst.covStatementPositionsInRange:{[masked;startLine;rangeStart;rangeEnd]
+    if[rangeEnd<=rangeStart;:()];
+    body:(rangeEnd-rangeStart)#rangeStart _ masked;
+    if[0=count body;:()];
+    location:.tst.covOffsetLocation[masked;startLine;rangeStart];
+    texts:"\n" vs body;
+    if[0=count texts;:()];
+    lineNumbers:location[0]+til count texts;
+    positions:.tst.covStatementPositions flip (lineNumbers;texts);
+    if[0=count positions;:()];
+    {[firstLine;firstColumn;p]
+        $[p[0]=firstLine;(p 0;firstColumn+p 1);p]
+    }[location 0;location 1;] each positions
+ };
+
+/ Canonical statement sites include outer and anonymous-lambda statements.
+/ Each site belongs to the enclosing named function; lambdaId/lambdaDepth add
+/ anonymous ownership without fabricating FN/FNDA records.
+.tst.covStatementSitesInFunction:{[fileSym;functionName;srcLines;startLine;endLine]
+    if[(startLine<1) or (endLine>count srcLines) or endLine<startLine;:()];
+    seg:srcLines[(startLine-1)+til 1+endLine-startLine];
+    raw:"\n" sv {(),x} each seg;
+    maskedLines:@[.tst.static.maskLines;seg;{seg}];
+    if[not (count maskedLines)=count seg;maskedLines:seg];
+    masked:"\n" sv {(),x} each maskedLines;
+    if[not (count masked)=count raw;:()];
+    spans:.tst.covLambdaSpansInFunction[
+        fileSym;functionName;srcLines;startLine;endLine];
+    if[0=count spans;:()];
+    relativePath:.tst.repoRelativePath string fileSym;
+    functionText:.tst._covNameStr functionName;
+    lineOffsets:0,1+where raw="\n";
+    sites:();i:0;
+    while[i<count spans;
+        owner:spans i;
+        ownerMasked:masked;
+        children:spans where
+            (spans[`openAt]>owner`openAt) &
+            (spans[`closeAt]<owner`closeAt);
+        j:0;
+        while[j<count children;
+            child:children j;
+            childLength:max 0,(child`closeAt)-(1+child`openAt);
+            childIndexes:(1+child`openAt)+til childLength;
+            if[count childIndexes;
+                replaceIndexes:childIndexes where ownerMasked[childIndexes]<>"\n";
+                if[count replaceIndexes;
+                    ownerMasked[replaceIndexes]:count[replaceIndexes]#" "]];
+            j+:1];
+        positions:$[1b~owner`eligible;
+            .tst.covStatementPositionsInRange[
+                ownerMasked;startLine;owner`bodyStart;owner`closeAt];()];
+        j:0;
+        while[j<count positions;
+            position:positions j;
+            rewriteAt:lineOffsets[("j"$position 0)-startLine]+position 1;
+            siteId:"statement_",.tst.stableHash[
+                relativePath,"\n",functionText,"\n",
+                string[position 0],":",string[position 1],"\n",
+                .tst.toString owner`lambdaId];
+            sites,:enlist `siteId`function`line`column`lambdaId`lambdaDepth`anonymous`eligible`fallbackReason`rewriteAt!(
+                siteId;functionText;"j"$position 0;"j"$position 1;
+                owner`lambdaId;"j"$owner`lambdaDepth;owner`anonymous;
+                owner`eligible;owner`fallbackReason;"j"$rewriteAt);
+            j+:1];
+        i+:1];
+    if[0=count sites;:()];
+    sites iasc[sites`rewriteAt]
+ };
+
+/ Canonical branch inventory for one named outer lambda. Sites inside anonymous
+/ lambdas retain the enclosing named function plus a stable lambda identity.
 / Private rewriteStart/rewriteEnd fields are removed by the public model.
 .tst.covBranchSitesInFunction:{[fileSym;functionName;srcLines;startLine;endLine]
     if[(startLine<1) or (endLine>count srcLines) or endLine<startLine;:()];
@@ -597,8 +744,9 @@
     if[not (count masked)=count raw;:()];
     relativePath:.tst.repoRelativePath string fileSym;
     functionText:.tst._covNameStr functionName;
+    lambdaSpans:.tst.covLambdaSpansInFunction[
+        fileSym;functionName;srcLines;startLine;endLine];
     sites:();
-    curlyDepth:0;
     i:0;
     while[i<count masked;
         c:masked i;
@@ -629,18 +777,26 @@
                 conditionIndex:conditionIndexes ci;
                 range:.tst.covTrimRange[raw;args conditionIndex];
                 location:.tst.covOffsetLocation[raw;startLine;range 0];
-                nested:curlyDepth<>1;
                 nonempty:range[1]>range 0;
-                eligible:(not nested) and nonempty;
-                fallback:$[nested;`nested_lambda;not nonempty;`empty_condition;`none];
+                owners:lambdaSpans where
+                    ((range 0)>=lambdaSpans`bodyStart) &
+                    ((range 0)<lambdaSpans`closeAt);
+                owner:$[count owners;last owners;()!()];
+                owned:99h=type owner;
+                eligible:owned and nonempty and 1b~owner`eligible;
+                fallback:$[not owned;`unowned_condition;
+                    not nonempty;`empty_condition;
+                    not 1b~owner`eligible;`lambda_rewrite_rejected;`none];
+                lambdaId:$[owned;owner`lambdaId;""];
+                lambdaDepth:$[owned;"j"$owner`lambdaDepth;0j];
                 siteId:"branch_",.tst.stableHash[
                     relativePath,"\n",functionText,"\n",token,"\n",
                     string[location 0],":",string[location 1],"\n",string ci];
-                sites,:enlist `siteId`function`kind`conditionIndex`line`column`eligible`fallbackReason`rewriteStart`rewriteEnd!(
+                sites,:enlist `siteId`function`kind`conditionIndex`line`column`lambdaId`lambdaDepth`anonymous`eligible`fallbackReason`rewriteStart`rewriteEnd!(
                     siteId;functionText;token;"j"$ci;location 0;location 1;
-                    eligible;string fallback;range 0;range 1);
+                    lambdaId;lambdaDepth;lambdaDepth>0;eligible;string fallback;
+                    range 0;range 1);
                 ci+:1]];
-        $[c="{";curlyDepth+:1;c="}";curlyDepth-:1;::];
         i+:1];
     sites
  };
@@ -729,47 +885,39 @@
     bodyAt: .tst.covBodyStart firstTxt;
     if[null bodyAt; :(::)];
 
-    / Statement starts are computed over the BODY only: the signature's brackets
-    / would otherwise be read as an open expression.
-    bodyFirst: bodyAt _ firstTxt;
-    bodyLines: enlist (startLine; bodyFirst);
-    if[1 < count seg;
-        bodyLines,: flip (startLine + 1 + til -1 + count seg; 1 _ seg)];
-    / Positions, not just lines: a statement nested in `if[...]` must get its
-    / probe INSIDE that bracket. Inserting at the start of the line would place
-    / it in whatever encloses the line -- for `$[c; if[a;b:1]; ...]` that means
-    / landing in the conditional expression's branch list and shifting every
-    / branch, which silently changes what the expression returns.
-    positions:$[1b~@[get;`.tst.coverageStatements;0b];
-        .tst.covStatementPositions bodyLines;()];
-    / Columns on the definition's first line are body-relative; shift them back.
-    if[count positions;
-        positions:{[b;st;p]$[p[0]=st;(p 0;b+p 1);p]}[
-            bodyAt;startLine;] each positions];
-    stmtLines:$[count positions;distinct positions[;0];`long$()];
+    / Parent scans mask child bodies; every anonymous lambda is then scanned on
+    / its own. Sites therefore belong once to their innermost stable owner.
+    statementSites:$[1b~@[get;`.tst.coverageStatements;0b];
+        .tst.covStatementSitesInFunction[
+            fileSym;functionName;srcLines;startLine;endLine];()];
+    eligibleStatements:$[count statementSites;
+        statementSites where statementSites`eligible;()];
+    statementIds:$[count eligibleStatements;eligibleStatements`siteId;()];
+    stmtLines:$[count eligibleStatements;
+        distinct "j"$eligibleStatements`line;`long$()];
     branchSites:$[1b~@[get;`.tst.coverageBranches;0b];
         .tst.covBranchSitesInFunction[
             fileSym;functionName;srcLines;startLine;endLine];()];
     eligibleSites:branchSites where {1b~x`eligible} each branchSites;
-    branchIds:{x`siteId} each eligibleSites;
-    if[(0=count positions) and 0=count eligibleSites;:(::)];
+    branchIds:$[count eligibleSites;eligibleSites`siteId;()];
+    if[(0=count eligibleStatements) and 0=count eligibleSites;:(::)];
 
     / The file symbol is written as `$"..." -- a path contains slashes and a bare
     / backtick literal would not parse. Escape so any path survives embedding.
     pathTxt: string fileSym;
     pathTxt: ssr[ssr[pathTxt; "\\"; "\\\\"]; "\""; "\\\""];
-    probeFor:{[p;n] ".tst.covL[`$\"",p,"\";",string[n],"];"}[
-        pathTxt;];
+    probeFor:{[p;site]
+        ".tst.covS[\"",(.tst.toString site`siteId),"\";`$\"",p,
+        "\";",string[site`line],"];"
+    }[pathTxt;];
     flat:"\n" sv {(),x} each seg;
     lineOffsets:0,1+where flat="\n";
     insertAt:`long$();
     insertText:();
-    if[count positions;
-        statementOffsets:{[offsets;firstLine;p]
-            offsets["j"$p[0]-firstLine]+p 1
-        }[lineOffsets;startLine;] each positions;
-        insertAt,:"j"$statementOffsets;
-        insertText,:probeFor each positions[;0]];
+    if[count eligibleStatements;
+        insertAt,:"j"$eligibleStatements`rewriteAt;
+        insertText,:{[probe;sites;index]probe[sites index]}[
+            probeFor;eligibleStatements;] each til count eligibleStatements];
     if[count eligibleSites;
         insertAt,:"j"${x`rewriteStart} each eligibleSites;
         insertText,:{[site] ".tst.covC[\"",(.tst.toString site`siteId),"\";"}
@@ -788,7 +936,7 @@
         insertion:insertText order i;
         newFlat:(at#newFlat),insertion,at _ newFlat;
         i+:1];
-    (newFlat;stmtLines;branchIds)
+    (newFlat;stmtLines;branchIds;statementIds)
  };
 
 / Backward-compatible low-level statement-rewriter view used by existing
@@ -809,6 +957,41 @@
     $[(::)~rw;(::);(rw 0;rw 1)]
  };
 
+/ Recursively capture the binding surface of a named lambda and every lambda
+/ constant compiled inside it. Probe helpers and q's compiler namespace marker
+/ are normalized away at each level; user globals inside an anonymous lambda
+/ are not. This makes the atomic rollback check cover nested bindings too.
+.tst.covNestedBindingShapesAt:{[item;depth]
+    itemType:type item;
+    if[100h=itemType;:enlist .tst.covBindingShapeAt[item;depth]];
+    if[0h=itemType;
+        shapes:();
+        i:0;
+        while[i<count item;
+            shapes,:.tst.covNestedBindingShapesAt[item i;depth];
+            i+:1];
+        :shapes];
+    ()
+ };
+
+.tst.covBindingShapeAt:{[fn;depth]
+    if[depth>64;:(`depth_limit;())];
+    v:value fn;
+    header:1 3 sublist v;
+    globals:header 2;
+    globals:globals except `.tst.covL`.tst.covS`.tst.covC;
+    if[count globals;globals:1 _ globals];
+    header[2]:globals;
+    nested:();
+    i:4;
+    while[i<count v;
+        nested,:.tst.covNestedBindingShapesAt[v i;depth+1];
+        i+:1];
+    (header;nested)
+ };
+
+.tst.covBindingShape:{[fn].tst.covBindingShapeAt[fn;0]};
+
 / Apply the rewrite to one function and prove it survived, or put the original
 / back. Returns 1b only when the instrumented definition is in place AND still
 / looks like the same function.
@@ -819,20 +1002,16 @@
     / it references. Comparing those before and after is a far stronger check
     / than "it still parses" -- a probe inserted somewhere that changes how a
     / name binds shows up as a different local or global set.
-    origShape: 1 3 sublist value orig;   / (params; locals; globals)
-    / `value lambda` prefixes the globals vector with a compiler namespace
-    / marker. A definition loaded under `system "d .ns"` carries ``, while the
-    / same source evaluated inside .ns carries `ns`; both bind the explicit
-    / globals that follow identically. Compare bindings, not that loader marker.
-    if[count origShape 2;origShape[2]:1 _ origShape 2];
+    origShape:.tst.covBindingShape orig;
 
     rw: @[.tst.covRewriteFunctionForName[
         srcLines;startLine;endLine;fileSym;];name;{[e](::)}];
     if[(::) ~ rw; :0b];
-    if[not 3 = count rw; :0b];
+    if[not 4 = count rw; :0b];
     newSrc: rw 0;
     probedLines: rw 1;
     branchIds:rw 2;
+    statementIds:rw 3;
     if[not 10h = type newSrc; :0b];
 
     / The rewritten text already carries the definition verbatim, including the
@@ -860,17 +1039,17 @@
     / locals, or which globals it binds has changed the function. Refuse it.
     now: .tst.safeValue name;
     if[not (type now) within 100 104h; .tst.safeSet[name; orig]; :0b];
-    newShape: 1 3 sublist value now;
-    / The probe itself is the one global legitimately added.
-    newShape[2]: newShape[2] except `.tst.covL`.tst.covC;
-    if[count newShape 2;newShape[2]:1 _ newShape 2];
+    newShape:.tst.covBindingShape now;
     if[not origShape ~ newShape; .tst.safeSet[name; orig]; :0b];
 
     / Remember which lines carry a probe, so the report counts exactly those.
     if[1b~@[get;`.tst.coverageStatements;0b];
         pl:$[fileSym in key .tst.stmtProbeLines;
             .tst.stmtProbeLines fileSym;`long$()];
-        .tst.stmtProbeLines[fileSym]:asc distinct pl,"j"$probedLines];
+        .tst.stmtProbeLines[fileSym]:asc distinct pl,"j"$probedLines;
+        si:$[fileSym in key .tst.statementSiteInstrumented;
+            .tst.statementSiteInstrumented fileSym;()];
+        .tst.statementSiteInstrumented[fileSym]:distinct si,statementIds];
     if[1b~@[get;`.tst.coverageBranches;0b];
         bi:$[fileSym in key .tst.branchInstrumented;
             .tst.branchInstrumented fileSym;()];
@@ -914,6 +1093,27 @@
     `line`hits`covered!("j"$lineNo;hits;hits>0)
  };
 
+.tst.coverageStatementSiteModel:{[fileSym;site]
+    siteId:site`siteId;
+    siteKey:`$.tst.toString siteId;
+    eligible:1b~site`eligible;
+    instrumentedIds:$[fileSym in key .tst.statementSiteInstrumented;
+        .tst.statementSiteInstrumented fileSym;()];
+    instrumented:eligible and any siteId~/:instrumentedIds;
+    hits:$[siteKey in key .tst.statementCoverageData;
+        "j"$.tst.statementCoverageData siteKey;0j];
+    mode:1b~@[get;`.tst.coverageStatements;0b];
+    fallback:$[not mode;"statement_mode_disabled";
+        not eligible;site`fallbackReason;
+        not (fileSym in .tst.coverageLoadedFiles);"source_not_loaded";
+        instrumented;"none";
+        "rewrite_rejected"];
+    `siteId`function`line`column`lambdaId`lambdaDepth`anonymous`eligible`instrumented`fallbackReason`hits`covered!(
+        siteId;site`function;"j"$site`line;"j"$site`column;site`lambdaId;
+        "j"$site`lambdaDepth;site`anonymous;eligible;instrumented;fallback;
+        hits;hits>0)
+ };
+
 .tst.coverageBranchSiteModel:{[fileSym;block;site]
     siteId:site`siteId;
     siteKey:`$.tst.toString siteId;
@@ -941,13 +1141,14 @@
         not (fileSym in .tst.coverageLoadedFiles);"source_not_loaded";
         instrumented;"none";
         "rewrite_rejected"];
-    `siteId`function`kind`conditionIndex`line`column`block`eligible`instrumented`fallbackReason`edgesFound`edgesHit`edges!(
+    `siteId`function`kind`conditionIndex`line`column`lambdaId`lambdaDepth`anonymous`block`eligible`instrumented`fallbackReason`edgesFound`edgesHit`edges!(
         siteId;site`function;site`kind;"j"$site`conditionIndex;
-        "j"$site`line;"j"$site`column;"j"$block;eligible;instrumented;
+        "j"$site`line;"j"$site`column;site`lambdaId;"j"$site`lambdaDepth;
+        site`anonymous;"j"$block;eligible;instrumented;
         fallback;2j;"j"$sum {x`covered} each edges;edges)
  };
 
-.tst.coverageFunctionModel:{[fileSym;fData;srcLines;nsAt;starts;branchRows;row]
+.tst.coverageFunctionModel:{[fileSym;fData;srcLines;nsAt;starts;statementSiteRows;branchRows;row]
     nm:.tst.coverageQualifyName[nsAt;row`line;row`name];
     hits:$[nm in key fData;"j"$fData nm;0j];
     measuredNames:$[fileSym in key .tst.stmtInstrumented;
@@ -964,15 +1165,24 @@
     statementHits:sum 0,{x`covered} each statements;
     reason:.tst.coverageFallbackReason[fileSym;nm];
     fnName:.tst._covNameStr nm;
-    fnBranches:branchRows where {[name;site]name~site`function}[fnName;] each branchRows;
-    eligibleBranches:fnBranches where {1b~x`eligible} each fnBranches;
-    `name`line`hits`covered`functionEligible`functionInstrumented`statementEligible`statementInstrumented`fallbackReason`statementFound`statementHit`statements`branchSitesEligible`branchSitesInstrumented`branchFound`branchHit`branches!(
+    fnStatementSites:$[count statementSiteRows;
+        statementSiteRows where fnName~/:statementSiteRows`function;()];
+    fnBranches:$[count branchRows;
+        branchRows where fnName~/:branchRows`function;()];
+    eligibleBranches:$[count fnBranches;
+        fnBranches where fnBranches`eligible;()];
+    `name`line`hits`covered`functionEligible`functionInstrumented`statementEligible`statementInstrumented`fallbackReason`statementFound`statementHit`statements`statementSitesFound`statementSitesHit`statementSitesInstrumented`statementSites`branchSitesEligible`branchSitesInstrumented`branchFound`branchHit`branches!(
         fnName;"j"$row`line;hits;hits>0;1b;
         nm in key .tst.covWrappers;1b;measured;string reason;
         count statements;statementHits;statements;
-        count eligibleBranches;sum 0,{x`instrumented} each eligibleBranches;
-        sum 0,{x`edgesFound} each eligibleBranches;
-        sum 0,{x`edgesHit} each eligibleBranches;fnBranches)
+        count fnStatementSites;sum 0,$[count fnStatementSites;
+            fnStatementSites`covered;`boolean$()];
+        sum 0,$[count fnStatementSites;
+            fnStatementSites`instrumented;`boolean$()];fnStatementSites;
+        count eligibleBranches;sum 0,$[count eligibleBranches;
+            eligibleBranches`instrumented;`boolean$()];
+        sum 0,$[count eligibleBranches;eligibleBranches`edgesFound;`long$()];
+        sum 0,$[count eligibleBranches;eligibleBranches`edgesHit;`long$()];fnBranches)
  };
 
 .tst.coverageFileModel:{[fileSym]
@@ -986,15 +1196,23 @@
     starts:"j"$$[`line in cols staticFns;staticFns`line;`long$()];
     starts:starts where not null starts;
     fData:.tst.coverageData fileSym;
-    rawBranches:();
+    rawStatementSites:();rawBranches:();
     i:0;
     while[i<count staticFns;
         row:staticFns i;
         nm:.tst.coverageQualifyName[nsAt;row`line;row`name];
         span:.tst.covFunctionSpan[srcLines;row`line;starts];
         if[span[1]>=span 0;
+            rawStatementSites,:.tst.covStatementSitesInFunction[
+                fileSym;nm;srcLines;span 0;span 1];
             rawBranches,:.tst.covBranchSitesInFunction[
                 fileSym;nm;srcLines;span 0;span 1]];
+        i+:1];
+    statementSiteRows:();
+    i:0;
+    while[i<count rawStatementSites;
+        statementSiteRows,:enlist .tst.coverageStatementSiteModel[
+            fileSym;rawStatementSites i];
         i+:1];
     branchRows:();
     i:0;
@@ -1002,19 +1220,26 @@
         branchRows,:enlist .tst.coverageBranchSiteModel[fileSym;i;rawBranches i];
         i+:1];
     fnRows:.tst.coverageFunctionModel[
-        fileSym;fData;srcLines;nsAt;starts;branchRows;] each staticFns;
+        fileSym;fData;srcLines;nsAt;starts;statementSiteRows;branchRows;] each staticFns;
     lineRows:raze {x`statements} each fnRows;
     functionHit:sum 0,{x`covered} each fnRows;
     lineHit:sum 0,{x`covered} each lineRows;
     measuredFns:sum 0,{x`statementInstrumented} each fnRows;
-    eligibleBranches:branchRows where {1b~x`eligible} each branchRows;
-    `path`loaded`functionFound`functionHit`statementFunctionsInstrumented`lineFound`lineHit`branchSitesEligible`branchSitesInstrumented`branchFound`branchHit`functions`lines`branches`sourceLines!(
+    eligibleStatementSites:$[count statementSiteRows;
+        statementSiteRows where statementSiteRows`eligible;()];
+    eligibleBranches:$[count branchRows;
+        branchRows where branchRows`eligible;()];
+    `path`loaded`functionFound`functionHit`statementFunctionsInstrumented`lineFound`lineHit`statementSitesEligible`statementSitesInstrumented`statementSitesHit`branchSitesEligible`branchSitesInstrumented`branchFound`branchHit`functions`lines`statementSites`branches`sourceLines!(
         path;fileSym in .tst.coverageLoadedFiles;count fnRows;functionHit;
-        measuredFns;count lineRows;lineHit;count eligibleBranches;
-        sum 0,{x`instrumented} each eligibleBranches;
-        sum 0,{x`edgesFound} each eligibleBranches;
-        sum 0,{x`edgesHit} each eligibleBranches;
-        fnRows;lineRows;branchRows;srcLines)
+        measuredFns;count lineRows;lineHit;count eligibleStatementSites;
+        sum 0,$[count eligibleStatementSites;
+            eligibleStatementSites`instrumented;`boolean$()];
+        sum 0,$[count eligibleStatementSites;
+            eligibleStatementSites`covered;`boolean$()];count eligibleBranches;
+        sum 0,$[count eligibleBranches;eligibleBranches`instrumented;`boolean$()];
+        sum 0,$[count eligibleBranches;eligibleBranches`edgesFound;`long$()];
+        sum 0,$[count eligibleBranches;eligibleBranches`edgesHit;`long$()];
+        fnRows;lineRows;statementSiteRows;branchRows;srcLines)
  };
 
 .tst.coverageModel:{[]
@@ -1023,14 +1248,24 @@
     fnHit:sum 0,{x`functionHit} each fileRows;
     lineFound:sum 0,{x`lineFound} each fileRows;
     lineHit:sum 0,{x`lineHit} each fileRows;
+    statementSitesEligible:sum 0,{x`statementSitesEligible} each fileRows;
+    statementSitesInstrumented:sum 0,{x`statementSitesInstrumented} each fileRows;
+    statementSitesHit:sum 0,{x`statementSitesHit} each fileRows;
     branchSitesEligible:sum 0,{x`branchSitesEligible} each fileRows;
     branchSitesInstrumented:sum 0,{x`branchSitesInstrumented} each fileRows;
     branchFound:sum 0,{x`branchFound} each fileRows;
     branchHit:sum 0,{x`branchHit} each fileRows;
     branchMode:1b~@[get;`.tst.coverageBranches;0b];
-    base:`linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent`branchesFound`branchesHit`branchPercent`branchMode`branchSitesEligible`branchSitesInstrumented`branchInstrumentationPercent`branchInstrumentationComplete!(
+    statementMode:1b~@[get;`.tst.coverageStatements;0b];
+    base:`linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent`statementSitesFound`statementSitesHit`statementSitePercent`statementSitesInstrumented`statementSiteInstrumentationPercent`statementSiteInstrumentationComplete`branchesFound`branchesHit`branchPercent`branchMode`branchSitesEligible`branchSitesInstrumented`branchInstrumentationPercent`branchInstrumentationComplete!(
         lineFound;lineHit;$[0=lineFound;0f;100f*lineHit%lineFound];
         fnFound;fnHit;$[0=fnFound;0f;100f*fnHit%fnFound];
+        statementSitesEligible;statementSitesHit;
+        $[0=statementSitesEligible;0f;100f*statementSitesHit%statementSitesEligible];
+        statementSitesInstrumented;
+        $[0=statementSitesEligible;0f;100f*statementSitesInstrumented%statementSitesEligible];
+        statementMode and 0<statementSitesEligible and
+            statementSitesEligible=statementSitesInstrumented;
         branchFound;branchHit;$[0=branchFound;0f;100f*branchHit%branchFound];
         branchMode;branchSitesEligible;branchSitesInstrumented;
         $[0=branchSitesEligible;0f;100f*branchSitesInstrumented%branchSitesEligible];
@@ -1049,9 +1284,10 @@
  };
 
 .tst.coverageStateLines:{[model]
-    lines:("# resQ coverage state v3";
+    lines:("# resQ coverage state v4";
         "# F path function hits functionInstrumented statementInstrumented fallback";
-        "# B path siteId function kind conditionIndex line column eligible instrumented fallback";
+        "# S path siteId function line column lambdaId lambdaDepth anonymous eligible instrumented hits fallback";
+        "# B path siteId function kind conditionIndex line column lambdaId lambdaDepth anonymous eligible instrumented fallback";
         "# E siteId edgeId index label hits covered");
     fileRows:model`files;
     i:0;
@@ -1066,13 +1302,26 @@
                 string[fn`functionInstrumented];
                 string[fn`statementInstrumented];fn`fallbackReason);
             j+:1];
+        statementSites:fileRow`statementSites;
+        j:0;
+        do[count statementSites;
+            site:statementSites j;
+            lambdaText:$[count site`lambdaId;site`lambdaId;enlist "-"];
+            lines,:enlist " " sv (enlist "S";filePath;site`siteId;
+                site`function;string[site`line];string[site`column];lambdaText;
+                string[site`lambdaDepth];string[site`anonymous];
+                string[site`eligible];string[site`instrumented];
+                string[site`hits];site`fallbackReason);
+            j+:1];
         branches:fileRow`branches;
         j:0;
         do[count branches;
             site:branches j;
+            lambdaText:$[count site`lambdaId;site`lambdaId;enlist "-"];
             lines,:enlist " " sv (enlist "B";filePath;site`siteId;site`function;
                 site`kind;string[site`conditionIndex];string[site`line];
-                string[site`column];string[site`eligible];
+                string[site`column];lambdaText;string[site`lambdaDepth];
+                string[site`anonymous];string[site`eligible];
                 string[site`instrumented];site`fallbackReason);
             edges:site`edges;
             k:0;
@@ -1183,10 +1432,24 @@
     "</td><td>",string[fn`functionInstrumented],"</td><td>",
     string[fn`statementHit]," / ",string[fn`statementFound],
     "</td><td>",string[fn`statementInstrumented],"</td><td>",
+    string[fn`statementSitesHit]," / ",string[fn`statementSitesFound],
+    "</td><td>",string[fn`statementSitesInstrumented],"</td><td>",
     string[fn`branchHit]," / ",string[fn`branchFound],"</td><td>",
     string[fn`branchSitesInstrumented]," / ",
     string[fn`branchSitesEligible],"</td><td>",
     .tst.coverageHtmlEscape[fn`fallbackReason],"</td></tr>"
+ };
+
+.tst.coverageStatementSiteHtml:{[site]
+    cls:$[not site`eligible;"unmeasured";site`covered;"covered";"uncovered"];
+    lambdaText:$[site`anonymous;site`lambdaId;"named function"];
+    "<tr class=\"",cls,"\"><td>",.tst.coverageHtmlEscape[site`siteId],
+    "</td><td>",.tst.coverageHtmlEscape[site`function],"</td><td>",
+    string[site`line],":",string[site`column],"</td><td>",
+    .tst.coverageHtmlEscape[lambdaText],"</td><td>",
+    string[site`lambdaDepth],"</td><td>",string[site`hits],"</td><td>",
+    string[site`instrumented],"</td><td>",
+    .tst.coverageHtmlEscape[site`fallbackReason],"</td></tr>"
  };
 
 .tst.coverageBranchHtml:{[site]
@@ -1200,7 +1463,9 @@
     "</td><td>",.tst.coverageHtmlEscape[site`function],"</td><td>",
     .tst.coverageHtmlEscape[site`kind],"</td><td>",string[site`conditionIndex],
     "</td><td>",string[site`line],":",string[site`column],"</td><td>",
-    edgeText,"</td><td>",string[site`instrumented],"</td><td>",
+    .tst.coverageHtmlEscape[$[site`anonymous;site`lambdaId;"named function"]],
+    "</td><td>",string[site`lambdaDepth],"</td><td>",edgeText,
+    "</td><td>",string[site`instrumented],"</td><td>",
     .tst.coverageHtmlEscape[site`fallbackReason],"</td></tr>"
  };
 
@@ -1234,7 +1499,9 @@
         string[s`functionsHit]," / ",string[s`functionsFound]," (",
         string[s`functionPercent],"%)</p><p><strong>Measured statements:</strong> ",
         string[s`linesHit]," / ",string[s`linesFound]," (",string[s`linePercent],
-        "%)</p><p><strong>Statement instrumentation completeness:</strong> ",
+        "%)</p><p><strong>Statement sites:</strong> ",
+        string[s`statementSitesHit]," / ",string[s`statementSitesFound]," (",
+        string[s`statementSitePercent],"%)</p><p><strong>Statement instrumentation completeness:</strong> ",
         string[s`statementFunctionsInstrumented]," / ",
         string[s`statementFunctionsEligible]," (",
         string[s`statementInstrumentationPercent],"%)</p><p><strong>Branches:</strong> ",
@@ -1254,11 +1521,15 @@
             " measured statements covered; ",string[fileRow`branchHit]," / ",
             string[fileRow`branchFound]," branch edges covered; loaded=",
             string[fileRow`loaded],"</p>";
-        html,:"<table><thead><tr><th>Function</th><th>Line</th><th>Hits</th><th>Function instrumented</th><th>Statements</th><th>Statement instrumented</th><th>Branches</th><th>Branch sites instrumented</th><th>Fallback</th></tr></thead><tbody>";
+        html,:"<table><thead><tr><th>Function</th><th>Line</th><th>Hits</th><th>Function instrumented</th><th>Lines</th><th>Statement instrumented</th><th>Statement sites</th><th>Sites instrumented</th><th>Branches</th><th>Branch sites instrumented</th><th>Fallback</th></tr></thead><tbody>";
         html,:raze .tst.coverageFunctionHtml each fileRow`functions;
         html,:"</tbody></table>";
+        if[count fileRow`statementSites;
+            html,:"<details open><summary>Statement sites</summary><table><thead><tr><th>Site ID</th><th>Function</th><th>Location</th><th>Owner</th><th>Lambda depth</th><th>Hits</th><th>Instrumented</th><th>Fallback</th></tr></thead><tbody>";
+            html,:raze .tst.coverageStatementSiteHtml each fileRow`statementSites;
+            html,:"</tbody></table></details>"];
         if[count fileRow`branches;
-            html,:"<details open><summary>Branch sites</summary><table><thead><tr><th>Site ID</th><th>Function</th><th>Kind</th><th>Condition</th><th>Location</th><th>Edge hits</th><th>Instrumented</th><th>Fallback</th></tr></thead><tbody>";
+            html,:"<details open><summary>Branch sites</summary><table><thead><tr><th>Site ID</th><th>Function</th><th>Kind</th><th>Condition</th><th>Location</th><th>Owner</th><th>Lambda depth</th><th>Edge hits</th><th>Instrumented</th><th>Fallback</th></tr></thead><tbody>";
             html,:raze .tst.coverageBranchHtml each fileRow`branches;
             html,:"</tbody></table></details>"];
         html,:.tst.coverageSourceHtml[fileRow],"</section>";

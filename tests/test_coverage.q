@@ -638,7 +638,7 @@
         trimmed: trim ifLine;
         must["if" ~ 2 # trimmed;
              "the line must still start with the construct, got: ", trimmed];
-        must[trimmed like "*covL*";
+        must[trimmed like "*covS*";
              "the nested statement must carry a probe, got: ", trimmed];
     };
 
@@ -653,9 +653,9 @@
         / `like` treats "[" as a char class, so compare the prefix directly.
         must[".f:{" ~ 4 # firstLine;
              "the signature must be untouched, got: ", firstLine];
-        must[not (4 # firstLine) like "*covL*";
+        must[not (4 # firstLine) like "*covS*";
              "no probe may precede the opening brace"];
-        must[any (("\n" vs txt) 1) like "*covL*";
+        must[any (("\n" vs txt) 1) like "*covS*";
              "the first body statement must carry a probe"];
     };
  };
@@ -674,18 +674,71 @@
         sites:.tst.covBranchSitesInFunction[
             fs;`.branch.mixed;src;1;count src];
         eligible:sites where sites`eligible;
-        ineligible:sites where not sites`eligible;
         (count sites) musteq 5;
-        (eligible`kind) mustmatch ("if";"while";enlist "$";enlist "$");
-        (eligible`conditionIndex) musteq 0 0 0 1j;
-        (eligible`line) musteq 2 3 4 5j;
-        (eligible`column) musteq 5 8 4 4j;
-        (count distinct eligible`siteId) musteq 4;
-        (count ineligible) musteq 1;
-        (first ineligible`fallbackReason) musteq "nested_lambda";
+        (eligible`kind) mustmatch ("if";"while";enlist "$";enlist "$";"if");
+        (eligible`conditionIndex) musteq 0 0 0 1 0j;
+        (eligible`line) musteq 2 3 4 5 7j;
+        (eligible`column) musteq 5 8 4 4 6j;
+        (eligible`lambdaDepth) musteq 0 0 0 0 1j;
+        (eligible`anonymous) musteq 00001b;
+        (count distinct eligible`siteId) musteq 5;
+        must[all "none"~/:eligible`fallbackReason;
+             "nested sites must be eligible without a fallback"];
+        must[0=count first eligible`lambdaId;
+             "outer sites must stay owned by the named function"];
+        must[0<count last eligible`lambdaId;
+             "the nested site must expose a stable anonymous owner"];
         again:.tst.covBranchSitesInFunction[
             fs;`.branch.mixed;src;1;count src];
         (sites`siteId) mustmatch again`siteId;
+        (sites`lambdaId) mustmatch again`lambdaId;
+    };
+
+    should["inventory anonymous statements under the named enclosing function"]{
+        src:(".branch.mixed:{[x]";
+             "  if[x<0; :`negative];";
+             "  while[x>10; x-:1];";
+             "  $[x=0; `zero;";
+             "    x=1; `one;";
+             "    `many];";
+             "  {if[x;1;0]}[x]";
+             " };");
+        fs:`$"/tmp/branch_sites.q";
+        sites:.tst.covStatementSitesInFunction[
+            fs;`.branch.mixed;src;1;count src];
+        (count sites) musteq 9;
+        must[all sites`eligible;"every parsed statement site must be eligible"];
+        must[all ".branch.mixed"~/:sites`function;
+             "anonymous sites must retain the enclosing function identity"];
+        ("j"$sum sites`anonymous) musteq 3j;
+        (sites[`line] where sites`anonymous) musteq 7 7 7j;
+        must[1=count distinct sites[`lambdaId] where sites`anonymous;
+             "one nested lambda must have one stable owner identity"];
+        (count distinct sites`siteId) musteq 9;
+        again:.tst.covStatementSitesInFunction[
+            fs;`.branch.mixed;src;1;count src];
+        (sites`siteId) mustmatch again`siteId;
+        (sites`lambdaId) mustmatch again`lambdaId;
+    };
+
+    should["keep statement, branch, and lambda identities stable after relocation"]{
+        `.tst.app.baseDir mock "/checkout/one";
+        src:(".relocated.f:{[x]";
+             "  {[y] if[y;:1];0}[x]";
+             " };");
+        firstStatements:.tst.covStatementSitesInFunction[
+            `$"/checkout/one/src/logic.q";`.relocated.f;src;1;3];
+        firstBranches:.tst.covBranchSitesInFunction[
+            `$"/checkout/one/src/logic.q";`.relocated.f;src;1;3];
+        .tst.app.baseDir:"/copy/two";
+        movedStatements:.tst.covStatementSitesInFunction[
+            `$"/copy/two/src/logic.q";`.relocated.f;src;1;3];
+        movedBranches:.tst.covBranchSitesInFunction[
+            `$"/copy/two/src/logic.q";`.relocated.f;src;1;3];
+        (firstStatements`siteId) mustmatch movedStatements`siteId;
+        (firstStatements`lambdaId) mustmatch movedStatements`lambdaId;
+        (firstBranches`siteId) mustmatch movedBranches`siteId;
+        (firstBranches`lambdaId) mustmatch movedBranches`lambdaId;
     };
 
     should["wrap conditions only and keep lazy branch values untouched"]{
@@ -722,6 +775,114 @@
         (.tst.covC["site_one";`invalid]) musteq `invalid;
         .tst.branchCoverageData[`site_one] musteq 2 2j;
         .tst.branchCoverageData:oldData;
+    };
+ };
+
+.tst.desc["Coverage: nested lambda runtime model"]{
+    should["instrument anonymous statements and branches without fake functions"]{
+        `.tst.coverageData mock ()!();
+        `.tst.coverageEnabled mock 1b;
+        `.tst.trackedFiles mock `symbol$();
+        `.tst.origFuncs mock ()!();
+        `.tst.covWrappers mock ()!();
+        `.tst.coverageLoadedFiles mock `symbol$();
+        `.tst.lineCoverageData mock ()!();
+        `.tst.stmtInstrumented mock ()!();
+        `.tst.stmtProbeLines mock ()!();
+        `.tst.statementCoverageData mock (`symbol$())!`long$();
+        `.tst.statementSiteInstrumented mock ()!();
+        `.tst.branchCoverageData mock (`symbol$())!();
+        `.tst.branchInstrumented mock ()!();
+        `.tst.coverageStatements mock 1b;
+        `.tst.coverageBranches mock 1b;
+        src:.tst.tempFile ".q";
+        (hsym `$src) 0:(
+            ".nestedcov.run:{[xs]";
+            "  transform:{[x]";
+            "    y:x+1;";
+            "    if[y>2; :y*2];";
+            "    y-1";
+            "  };";
+            "  transform each xs";
+            " };");
+        system "l ",src;
+        .tst.instrumentFile src;
+        .nestedcov.run[0 2] musteq 0 6;
+        fileSym:`$.tst.resolvePath src;
+        model:.tst.coverageFileModel fileSym;
+        model[`functionFound] musteq 1;
+        fn:first model`functions;
+        fn[`name] musteq ".nestedcov.run";
+        nestedStatements:model[`statementSites] where
+            model[`statementSites;`anonymous];
+        must[0<count nestedStatements;
+             "anonymous statement sites must be present"];
+        must[all nestedStatements`instrumented;
+             "every anonymous statement site must survive the atomic rewrite"];
+        must[all 0<nestedStatements`hits;
+             "the selected inputs must execute every anonymous statement"];
+        nestedBranches:model[`branches] where model[`branches;`anonymous];
+        (count nestedBranches) musteq 1;
+        branch:first nestedBranches;
+        branch[`lambdaDepth] musteq 1;
+        branch[`edgesHit] musteq 2;
+        branch[`instrumented] musteq 1b;
+        nestedOwner:(first nestedStatements)`lambdaId;
+        must[branch[`lambdaId]~nestedOwner;
+             "statement and branch sites must share their anonymous owner"];
+        out:.tst.coverageTestOutput[];
+        .tst.generateLCOV out;
+        lcov:read0 hsym `$out;
+        must[1=sum lcov like "FN:*";
+             "LCOV must list only the enclosing named function"];
+        fnLines:lcov where lcov like "FN:*";
+        must[not any {0<count ss[x;"lambda_"]} each fnLines;
+             "anonymous owner identities must never become fake functions"];
+        must[any lcov like "BRDA:4,*";
+             "LCOV must retain the nested condition's real source line"];
+        idx:(count out)-(reverse out)?"/";
+        outDir:idx#out;
+        state:read0 hsym `$outDir,"/coverage_state.txt";
+        nestedState:{(x like "S *") and 0<count ss[x;"lambda_"]} each state;
+        must[any nestedState;
+             "state v4 must expose anonymous statement ownership"];
+        jsonPath:outDir,"/nested.json";
+        .tst.generateCoverageJSON jsonPath;
+        payload:.j.k raze read0 hsym `$jsonPath;
+        jsonStatements:raze {x`statementSites} each payload`files;
+        must[any jsonStatements`anonymous;
+             "coverage JSON must expose anonymous statement sites"];
+        htmlPath:outDir,"/nested.html";
+        .tst.generateHTML htmlPath;
+        html:"\n" sv read0 hsym `$htmlPath;
+        must[(0<count ss[html;"Statement sites"]) and
+             0<count ss[html;nestedOwner];
+             "HTML must render the stable anonymous owner"];
+        @[{delete nestedcov from `.};::;{}];
+    };
+
+    should["roll back the whole named function when a nested binding changes"]{
+        `.tst.coverageStatements mock 1b;
+        `.tst.coverageBranches mock 0b;
+        `.tst.stmtProbeLines mock ()!();
+        `.tst.statementSiteInstrumented mock ()!();
+        `.nestedrollback.f set {[x] {[y] y+1}[x]};
+        original:.tst.safeValue `.nestedrollback.f;
+        / The supplied source adds a global only inside the anonymous lambda.
+        / Shape verification must reject the whole transformed definition and
+        / restore the live named function; no partial nested edit can survive.
+        src:(".nestedrollback.f:{[x]";
+              "  {[y] y+.nestedrollback.offset}[x]";
+              " };");
+        ok:.tst.covInstrumentStatements[
+            `.nestedrollback.f;`$"/tmp/nested_rollback.q";src;1;3];
+        ok musteq 0b;
+        (.nestedrollback.f 2) musteq 3;
+        must[original~.tst.safeValue `.nestedrollback.f;
+             "rejected nested instrumentation must restore the original lambda"];
+        must[0=count .tst.statementSiteInstrumented;
+             "rejected sites must not enter the measured denominator"];
+        @[{delete nestedrollback from `.};::;{}];
     };
  };
 
