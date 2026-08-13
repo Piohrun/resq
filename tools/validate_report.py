@@ -21,8 +21,11 @@ HEX_ID = re.compile(r"^(?:run|test|case)_[0-9a-f]{32}$")
 MANIFEST_ID = re.compile(r"^manifest_[0-9a-f]{32}$")
 FILE_ID = re.compile(r"^file_[0-9a-f]{32}$")
 SUITE_ID = re.compile(r"^suite_[0-9a-f]{32}$")
+BENCHMARK_ID = re.compile(r"^benchmark_[0-9a-f]{32}$")
+ENVIRONMENT_ID = re.compile(r"^environment_[0-9a-f]{32}$")
 REPLAY_TOKEN = re.compile(r"^resq-pbt-v1/-?\d+/\d+$")
 STATUSES = {"pass", "fail", "error", "skip", "pending"}
+BENCHMARK_CLASSES = {"improved", "stable", "inconclusive", "regressed"}
 
 
 def require(obj: dict[str, Any], keys: set[str], where: str) -> None:
@@ -35,6 +38,96 @@ def iso8601(value: Any, where: str) -> None:
     if not isinstance(value, str):
         raise ValueError(f"{where}: expected ISO-8601 string")
     datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def rows_for_validation(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return [value] if value else []
+    raise ValueError("performance: expected array or empty object")
+
+
+def validate_benchmark_samples(samples: Any, where: str, runs: int) -> None:
+    if not isinstance(samples, dict):
+        raise ValueError(f"{where}: expected object")
+    require(samples, {"timeNs", "retainedBytes", "heapGrowthBytes"}, where)
+    for name in ("timeNs", "retainedBytes", "heapGrowthBytes"):
+        values = samples[name]
+        if not isinstance(values, list) or len(values) != runs:
+            raise ValueError(f"{where}.{name}: sample count must equal runs")
+        if any(not isinstance(value, int) or value < 0 for value in values):
+            raise ValueError(f"{where}.{name}: expected non-negative integer samples")
+
+
+def validate_benchmark_workload(workload: Any, where: str, runs: int) -> None:
+    if not isinstance(workload, dict):
+        raise ValueError(f"{where}: expected object")
+    require(workload, {"runs", "warmup", "gcBefore", "gcEach", "space"}, where)
+    if workload["runs"] != runs or runs < 1 or workload["warmup"] < 0:
+        raise ValueError(f"{where}: invalid runs/warmup")
+    if any(not isinstance(workload[name], bool) for name in ("gcBefore", "gcEach", "space")):
+        raise ValueError(f"{where}: GC/space controls must be boolean")
+
+
+def validate_benchmark_environment(environment: Any, where: str) -> None:
+    if not isinstance(environment, dict):
+        raise ValueError(f"{where}: expected object")
+    require(
+        environment,
+        {"qVersion", "qRelease", "os", "architecture", "cpuModel", "logicalCores", "fingerprint"},
+        where,
+    )
+    if not isinstance(environment["fingerprint"], str) or not ENVIRONMENT_ID.fullmatch(environment["fingerprint"]):
+        raise ValueError(f"{where}.fingerprint: invalid")
+
+
+def validate_benchmark_comparison(comparison: Any, where: str) -> None:
+    if not isinstance(comparison, dict):
+        raise ValueError(f"{where}: expected object")
+    require(
+        comparison,
+        {
+            "benchmarkId", "testId", "file", "suite", "description", "classification", "reason",
+            "baselineFound", "comparable", "environmentMatch", "workloadMatch", "environmentAccepted",
+            "metric", "unit", "baselineMedian", "currentMedian", "relativeChangePercent", "u", "z",
+            "pValue", "adjustedPValue", "alpha", "practicalEffectPercent", "baselineRuns", "currentRuns",
+        },
+        where,
+    )
+    if not BENCHMARK_ID.fullmatch(str(comparison["benchmarkId"])):
+        raise ValueError(f"{where}.benchmarkId: invalid")
+    if not HEX_ID.fullmatch(str(comparison["testId"])):
+        raise ValueError(f"{where}.testId: invalid")
+    if comparison["classification"] not in BENCHMARK_CLASSES:
+        raise ValueError(f"{where}.classification: invalid")
+    if not 0 <= float(comparison["pValue"]) <= float(comparison["adjustedPValue"]) <= 1:
+        raise ValueError(f"{where}: invalid raw/adjusted p-values")
+    if not 0 < float(comparison["alpha"]) <= 1:
+        raise ValueError(f"{where}.alpha: invalid")
+    if not comparison["comparable"] and comparison["classification"] != "inconclusive":
+        raise ValueError(f"{where}: non-comparable benchmark must be inconclusive")
+
+
+def validate_benchmark_telemetry(benchmark: Any, where: str, test_id: str) -> None:
+    if not isinstance(benchmark, dict):
+        raise ValueError(f"{where}: expected object")
+    require(
+        benchmark,
+        {"benchmarkId", "testId", "file", "suite", "description", "status", "runs", "metric", "unit", "measurement", "limits", "workload", "samples", "comparison"},
+        where,
+    )
+    if not BENCHMARK_ID.fullmatch(str(benchmark["benchmarkId"])) or benchmark["testId"] != test_id:
+        raise ValueError(f"{where}: invalid benchmark/test identity")
+    runs = benchmark["runs"]
+    if not isinstance(runs, int) or runs < 1:
+        raise ValueError(f"{where}.runs: expected positive integer")
+    validate_benchmark_workload(benchmark["workload"], f"{where}.workload", runs)
+    validate_benchmark_samples(benchmark["samples"], f"{where}.samples", runs)
+    if benchmark["comparison"]:
+        validate_benchmark_comparison(benchmark["comparison"], f"{where}.comparison")
+        if benchmark["comparison"]["benchmarkId"] != benchmark["benchmarkId"]:
+            raise ValueError(f"{where}.comparison: benchmark identity differs")
 
 
 def validate_test(row: Any, index: int) -> None:
@@ -143,6 +236,10 @@ def validate_test(row: Any, index: int) -> None:
         require(snapshot, {"backend", "name", "status", "path", "timestamp"}, f"{where}.snapshots[{snap_index}]")
         require(snapshot, {"root"}, f"{where}.snapshots[{snap_index}]")
         iso8601(snapshot["timestamp"], f"{where}.snapshots[{snap_index}].timestamp")
+    if row["benchmark"]:
+        validate_benchmark_telemetry(row["benchmark"], f"{where}.benchmark", row["testId"])
+        if row["kind"] != "perf":
+            raise ValueError(f"{where}: only perf rows may carry benchmark telemetry")
     quarantine = row["quarantine"]
     if quarantine:
         require(
@@ -342,7 +439,7 @@ def validate(document: Any) -> None:
         raise ValueError("report: expected object")
     require(
         document,
-        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake", "snapshotInventory"},
+        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake", "snapshotInventory", "benchmarkAnalysis"},
         "report",
     )
     if document["schemaVersion"] != 2 or document["framework"] != "resQ":
@@ -409,6 +506,59 @@ def validate(document: Any) -> None:
             raise ValueError(f"{where}.status: invalid")
         if entry["backend"] not in {"binary", "text"}:
             raise ValueError(f"{where}.backend: invalid")
+    performance = rows_for_validation(document["performance"])
+    performance_ids: list[str] = []
+    for index, measurement in enumerate(performance):
+        where = f"performance[{index}]"
+        require(
+            measurement,
+            {"benchmarkId", "testId", "file", "suite", "description", "metric", "unit", "runs", "avgTimeMs", "minTimeMs", "medTimeMs", "maxTimeMs", "devTimeMs", "avgSpaceBytes", "maxSpaceBytes", "timeLimitMs", "spaceLimitBytes", "workload", "samples", "measurement", "environment", "comparison"},
+            where,
+        )
+        if not BENCHMARK_ID.fullmatch(str(measurement["benchmarkId"])):
+            raise ValueError(f"{where}.benchmarkId: invalid")
+        if not HEX_ID.fullmatch(str(measurement["testId"])):
+            raise ValueError(f"{where}.testId: invalid")
+        runs = measurement["runs"]
+        validate_benchmark_workload(measurement["workload"], f"{where}.workload", runs)
+        validate_benchmark_samples(measurement["samples"], f"{where}.samples", runs)
+        validate_benchmark_environment(measurement["environment"], f"{where}.environment")
+        if measurement["comparison"]:
+            validate_benchmark_comparison(measurement["comparison"], f"{where}.comparison")
+        performance_ids.append(measurement["benchmarkId"])
+    if len(performance_ids) != len(set(performance_ids)):
+        raise ValueError("performance: duplicate benchmark identity")
+    analysis = document["benchmarkAnalysis"]
+    require(
+        analysis,
+        {"schemaVersion", "kind", "enabled", "baselinePath", "baselineStatus", "method", "config", "environment", "counts", "comparisons", "gate"},
+        "benchmarkAnalysis",
+    )
+    if analysis["schemaVersion"] != 1 or analysis["kind"] != "resq-benchmark-analysis":
+        raise ValueError("benchmarkAnalysis: unsupported schema")
+    if analysis["baselineStatus"] not in {"disabled", "notLoaded", "ok", "missing", "invalid", "unsupported"}:
+        raise ValueError("benchmarkAnalysis.baselineStatus: invalid")
+    validate_benchmark_environment(analysis["environment"], "benchmarkAnalysis.environment")
+    comparison_ids: list[str] = []
+    for index, comparison in enumerate(analysis["comparisons"]):
+        validate_benchmark_comparison(comparison, f"benchmarkAnalysis.comparisons[{index}]")
+        comparison_ids.append(comparison["benchmarkId"])
+    if len(comparison_ids) != len(set(comparison_ids)):
+        raise ValueError("benchmarkAnalysis: duplicate comparison identity")
+    if analysis["enabled"] and set(comparison_ids) != set(performance_ids):
+        raise ValueError("benchmarkAnalysis: comparisons must cover every performance record")
+    benchmark_gate = analysis["gate"]
+    require(
+        benchmark_gate, {"enabled", "deferred", "passed", "reasons"},
+        "benchmarkAnalysis.gate",
+    )
+    if not all(isinstance(benchmark_gate[name], bool) for name in ("enabled", "deferred", "passed")):
+        raise ValueError("benchmarkAnalysis.gate: enabled/deferred/passed must be boolean")
+    if benchmark_gate["deferred"]:
+        if not benchmark_gate["enabled"] or not benchmark_gate["passed"] or benchmark_gate["reasons"]:
+            raise ValueError("benchmarkAnalysis.gate: deferred shard gate must be enabled, non-blocking, and reason-free")
+        if int(run["shard"].get("count", 1)) <= 1 or run["shard"].get("merged", False):
+            raise ValueError("benchmarkAnalysis.gate: only an unmerged multi-shard run may defer")
     execution_ids: list[str] = []
     case_ids: list[str] = []
     for index, row in enumerate(document["tests"]):
@@ -419,6 +569,11 @@ def validate(document: Any) -> None:
         raise ValueError("tests: duplicate execution identity")
     if len(case_ids) != len(set(case_ids)):
         raise ValueError("tests: duplicate parameter caseId")
+    row_benchmark_ids = [
+        row["benchmark"]["benchmarkId"] for row in document["tests"] if row["benchmark"]
+    ]
+    if set(row_benchmark_ids) != set(performance_ids):
+        raise ValueError("performance: identities differ from test benchmark telemetry")
     if "manifest" in document or "events" in document:
         require(document, {"manifest", "events"}, "report lifecycle extension")
         validate_manifest(document["manifest"], document)
@@ -429,6 +584,12 @@ def validate(document: Any) -> None:
             raise ValueError("events: snapshots.audited presence disagrees with snapshot inventory")
         if audited and audited[0]["payload"] != document["snapshotInventory"]:
             raise ValueError("events: snapshots.audited payload differs from report")
+        benchmark_events = [event for event in document["events"] if event["type"] == "benchmarks.compared"]
+        expected_benchmark_events = 1 if document["benchmarkAnalysis"]["enabled"] else 0
+        if len(benchmark_events) != expected_benchmark_events:
+            raise ValueError("events: benchmarks.compared presence disagrees with benchmark analysis")
+        if benchmark_events and benchmark_events[0]["payload"] != document["benchmarkAnalysis"]:
+            raise ValueError("events: benchmarks.compared payload differs from report")
 
 
 def main() -> int:

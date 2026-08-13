@@ -17,6 +17,8 @@ versions, VCS and CI context. Test payloads retain `testId`, `caseId`, attempts,
 typed diagnostics, properties, snapshots, and benchmarks unchanged. Send this
 stream to OpenTelemetry collectors, ReportPortal transforms, log pipelines, or
 a warehouse without reconstructing identity from display names.
+The run record includes `benchmarkAnalysis`; each benchmark event retains raw
+samples, stable identity, environment, and its corrected comparison.
 
 ## Allure 2 results
 
@@ -30,6 +32,9 @@ The adapter maps pass/fail/error/skip to Allure status, uses `testId` as
 tags and flake state as labels, and writes executor/environment metadata. Use a
 fresh output directory per run so files from an older invocation cannot be
 mistaken for current results.
+Benchmark tests add ID/classification/change/adjusted-p-value parameters, while
+`environment.properties` carries comparison/gate state and classification
+counts.
 
 ## Extension policy
 

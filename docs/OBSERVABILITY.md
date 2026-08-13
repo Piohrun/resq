@@ -39,7 +39,7 @@ the public [stable identity contract](IDENTITY.md).
 | Flake debt and quarantine expiry | `flake`, `tests[].quarantine`, `test.finished.payload.quarantine` |
 | Parameter hot spots | `parameterCases[]` |
 | Property reproducibility | generator protocol, seed, replay tokens, original/minimal inputs, failure signature, shrink work/termination |
-| Benchmark drift | `performance[]`, `tests[].benchmark` |
+| Benchmark drift | stable `performance[].benchmarkId`, raw samples/workload/environment, `benchmarkAnalysis`, `benchmarks.compared` |
 | Function/statement/branch coverage and gate health | `coverage.json` summary/files/functions/branchSites/fallbacks/gates |
 | Framework hygiene | run/test `diagnostics[]` |
 | Reproducible execution inventory | `manifest` and its deterministic digest |
@@ -78,6 +78,12 @@ Snapshot dashboards must retain the inventory's `complete` bit. Obsolete is a
 valid quality/debt signal only for a complete run or a strictly merged complete
 shard set; `unverified` on filtered/failed/partial runs is intentionally not
 equivalent to obsolete.
+
+Benchmark dashboards should use `benchmarkId` rather than display names, retain
+the environment fingerprint and workload as dimensions, and distinguish
+`inconclusive` from `stable`. Plot median change, adjusted p-value, and the
+practical-effect threshold together. Environment mismatches are deliberately
+non-gating unless the run records explicit acceptance.
 
 The checked-in [external adapters](ADAPTERS.md) provide NDJSON events and
 Allure 2 result files without adding dependencies to the q runner.

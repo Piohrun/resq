@@ -303,8 +303,8 @@ def verify(q_executable: str) -> None:
 
         try:
             merge_performance([
-                {"performance": [{"suite": "bench", "description": "same"}]},
-                {"performance": [{"suite": "bench", "description": "same"}]},
+                {"performance": [{"benchmarkId": "benchmark_" + "a" * 32, "suite": "bench", "description": "same"}]},
+                {"performance": [{"benchmarkId": "benchmark_" + "a" * 32, "suite": "bench", "description": "same"}]},
             ])
         except MergeError as exc:
             if "more than one shard" not in str(exc):

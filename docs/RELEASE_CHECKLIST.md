@@ -22,6 +22,9 @@ normal, isolated, and coverage artifacts. It verifies:
   exact file-handle cleanup, and structured cleanup diagnostics;
 - unique stable IDs, portable paths, retry attempts, parameter cases, and
   reproducible property seeds;
+- benchmark raw-sample identity, explicit baseline lifecycle, reference-pinned
+  statistics, regression/improvement policy, environment safeguards, strict
+  shard recomputation, and adapter telemetry;
 - full-suite normal/concurrent-isolated verdict parity;
 - the supported execution/repetition/randomization/sharding matrix;
 - hostile path, permission, artifact, signal, and child-reaping behavior;

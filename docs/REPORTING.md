@@ -110,6 +110,7 @@ Its stable top-level fields are:
 | `summary` | Counts and total duration |
 | `tests` | Ordered test-result rows |
 | `performance` | Benchmark time/space rows (empty when no benchmark ran) |
+| `benchmarkAnalysis` | Versioned method/config/environment, comparisons, classifications, counts, and gate decision |
 | `coverage` | Canonical coverage summary (empty outside coverage runs) |
 | `diagnostics` | Typed run-level diagnostics |
 | `flake` | Evidence thresholds, history/manifest health, policy mode, and state counts |
@@ -155,6 +156,14 @@ With `-snapshot-audit` or `-snapshot-gate`, the same inventory is also written
 as `snapshot-manifest.json`, and lifecycle events include one
 `snapshots.audited` event. A complete native shard set is recomputed by the
 strict merger; individual shard manifests remain explicitly partial.
+
+Benchmark records use `benchmarkId` as their time-series key and retain the raw
+samples, workload, and environment fingerprint needed to replay a comparison.
+With baseline comparison enabled, `performance[].comparison`, the owning
+`tests[].benchmark.comparison`, `benchmarkAnalysis.comparisons`, the
+`benchmark.finished` payload, and the run-level `benchmarks.compared` event
+carry the same classification. Chart adjusted p-value and practical median
+change together; neither alone represents the gate decision.
 
 Schema v2 intentionally breaks the flat schema-v1 aggregate layout. Consumers
 must read counts from `summary`, metadata from `run`, and use non-empty `caseId`

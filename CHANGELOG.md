@@ -6,6 +6,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Benchmark regression analysis now assigns stable benchmark identities and
+  retains raw samples, workload settings, summaries, and a portable environment
+  fingerprint. Explicit, versioned baselines are compared with a tie-corrected
+  two-sided Mann-Whitney U test, Holm-Bonferroni correction, and an independent
+  practical-effect threshold. Regressions fail the opt-in gate only when both
+  thresholds are crossed; incompatible environments/workloads remain visibly
+  inconclusive. Strict shard merges recompute the global correction, and the
+  console, schema-v2 JSON/events, NDJSON, and Allure adapters share the result.
+
 - Snapshot lifecycle management now publishes versioned complete/partial
   inventories across both backends, supports explicit dynamic-name
   declarations, reconstructs complete topology from strict shard merges, and

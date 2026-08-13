@@ -4,7 +4,7 @@ resQ now supports integrated performance testing and benchmarking, allowing you 
 
 ## The `perf` Block
 
-Use `perf` blocks to define dedicated benchmark tests. These tests run your code multiple times (default 100) and collect statistical data.
+Use `perf` blocks to define dedicated benchmark tests. These tests run your code multiple times (default 10) and collect statistical data.
 
 ```q
 .tst.desc["Algo Performance"]{
@@ -23,10 +23,11 @@ Use `perf` blocks to define dedicated benchmark tests. These tests run your code
 ```
 
 ### Properties
-- `runs`: Number of executions (warmup runs are excluded). Default: 100.
+- `runs`: Number of executions (three warmup runs are excluded). Default: 10.
 - `maxTime`: Maximum allowed **average** execution time in milliseconds.
 - `maxSpace`: Maximum allowed **average** memory allocation in bytes.
-- `gc`: Not currently exposed in the `perf` block (garbage collection is handled internally by the benchmark runner).
+- `gc`: Run `.Q.gc[]` before every measured iteration. Default: `1b`; set
+  `0b` when latency matters more than allocation repeatability.
 
 **Note:** `perf` tests are **skipped by default**. Run with `-perf` to include them.
 ```bash
@@ -45,17 +46,69 @@ PERFORMANCE (2 benchmarks):
 ```
 
 **JSON** (`-json`) — a top-level `performance` array, one object per
-benchmark with `suite`, `description`, `runs`, `avgTimeMs`, `minTimeMs`,
-`maxTimeMs`, `devTimeMs`, `avgSpaceBytes`, `maxSpaceBytes`, and the declared
-`timeLimitMs` / `spaceLimitBytes` (null when no budget was set). This is the
-format to feed a dashboard if you want to chart a function's latency across
-releases. The owning test row also has a `benchmark` lifecycle object containing
-its outcome, run count, complete time/space/heap-growth measurement, and limits.
+benchmark. In addition to the summary and budgets, each record has stable
+`benchmarkId`/`testId`, repository-relative source identity, the exact workload,
+all raw nanosecond/retained/heap-growth samples, environment fingerprint, and
+an optional baseline comparison. The owning test row has the same identity,
+samples and comparison in `benchmark`.
 
-**In-process** — `.tst.app.perfResults`, a table with the same columns.
+**In-process** — `.tst.app.perfResults`, a table with the same records.
 
 Note that the `time` field on an ordinary test row is that test's own wall clock,
 not a benchmark; the `performance` array is the measured data.
+
+## Regression baselines and CI gates
+
+Create a candidate report on a controlled worker, review it, then explicitly
+replace the baseline. The updater is dry-run-only unless `--write` is present:
+
+```bash
+resq test tests/performance -perf -json -outDir artifacts/bench -exit
+tools/update_benchmark_baseline.py artifacts/bench/test-results.json \
+  --baseline benchmarks/baseline.json
+tools/update_benchmark_baseline.py artifacts/bench/test-results.json \
+  --baseline benchmarks/baseline.json --write
+```
+
+The updater refuses failed, filtered, rerun, and partial-shard reports. A
+baseline uses the published
+[`resq-benchmark-baseline-v1` schema](schema/resq-benchmark-baseline-v1.schema.json)
+and retains raw samples, summaries, workload, source/test identities, VCS/run
+provenance, and the environment fingerprint. Baselines do not update during a
+test run.
+
+Compare and optionally gate later runs:
+
+```bash
+resq test tests/performance -benchmark-baseline benchmarks/baseline.json \
+  -benchmark-gate -json -outDir artifacts/bench -exit
+```
+
+Supplying a baseline or gate automatically includes `perf` blocks. Each
+benchmark is classified as `improved`, `stable`, `inconclusive`, or `regressed`.
+The gate fails only a `regressed` result, a missing/invalid baseline, a new
+benchmark absent from the baseline, or a complete run that executes no
+benchmarks. Workload mismatches and insufficient samples are inconclusive.
+Environment mismatches are also inconclusive and non-gating; only the explicit
+`-benchmark-accept-environment` flag permits their distributions to be compared.
+
+The comparison is a two-sided, tie-corrected asymptotic Mann–Whitney U test with
+a 0.5 continuity correction. resQ applies Holm–Bonferroni across all comparable
+benchmarks, then requires a separate median change of at least 5% before calling
+a statistically significant result improved/regressed. Defaults are alpha
+`0.05`, practical effect `5%`, and five samples per side. Configure them with
+`-benchmark-alpha`, `-benchmark-effect-min`, and `-benchmark-min-samples` (or
+the corresponding JSON keys). The implementation is pinned against a SciPy
+reference vector in `tests/test_perf.q`; raw samples make every decision
+independently replayable.
+
+For distributed runs, compare each native shard against the same baseline and
+merge only a complete set with `tools/merge_shards.py`. The merger keys on
+`benchmarkId`, preserves all samples, reapplies Holm correction over the global
+union, and recomputes the gate. Individual multi-shard jobs mark the benchmark
+gate `deferred` and do not fail locally from a partial multiple-comparison
+denominator; the strict merged verdict is authoritative. A single shard is
+never accepted by the baseline updater.
 
 ## Inline Assertions
 
@@ -101,7 +154,7 @@ in what they give you back, not in how they measure:
 | Want | Use | Gives you |
 |------|-----|-----------|
 | Fail the build on a budget | `perf` block, `mustBeFasterThan`, `mustAllocLessThan` | pass/fail + the recorded measurement |
-| Time and **memory** statistics | `.tst.benchmark.measureOpts[n; code; opts]` | `` `time`space`heapGrowth `` each with min/med/max/avg/dev |
+| Time and **memory** statistics | `.tst.benchmark.measureOpts[n; code; opts]` | `` `time`space`heapGrowth `` stats plus raw `samples` and exact `workload` |
 | Percentiles and a distribution | `.tst.bench[func; opts]` | iterations, min/max/avg/std, p50–p99, histogram, raw timings |
 
 `bench` does not record allocation: the `.Q.w[]` calls needed for it would show

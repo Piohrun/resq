@@ -103,9 +103,38 @@
         -1 "  gate: ",$[inventory[`gate;`passed];"PASS";"FAIL (",", " sv inventory[`gate;`reasons],")"]];
  };
 
+.resq.reportBenchmarkAnalysis:{[analysis]
+    if[not 99h=type analysis;:()];
+    if[not 1b~analysis`enabled;:()];
+    counts:analysis`counts;
+    -1 "\n----------------------------------------------------------------";
+    -1 "BENCHMARK REGRESSION: ",string[counts`total]," compared; ",
+        string[counts`improved]," improved, ",string[counts`stable]," stable, ",
+        string[counts`inconclusive]," inconclusive, ",string[counts`regressed]," regressed";
+    -1 "  baseline: ",.tst.toString[analysis`baselinePath]," [",
+        .tst.toString[analysis`baselineStatus],"]";
+    {[comparison]
+        if[not (comparison`classification) in `regressed`inconclusive;:()];
+        line:"  ",.tst.toString[comparison`classification],"  ",
+            .tst.toString[comparison`suite],": ",.tst.toString comparison`description;
+        if[not null comparison`relativeChangePercent;
+            line,:"  change=",.Q.f[2;"f"$comparison`relativeChangePercent],"%"];
+        if[count .tst.toString comparison`reason;line,:"  (",.tst.toString[comparison`reason],")"];
+        -1 line
+      } each .tst.benchmarkRows analysis`comparisons;
+    if[1b~analysis[`gate;`enabled];
+        gateText:$[1b~$[`deferred in key analysis`gate;analysis[`gate;`deferred];0b];
+            "DEFERRED (strict shard merge is authoritative)";
+          analysis[`gate;`passed];"PASS";
+            "FAIL (",(", " sv analysis[`gate;`reasons]),")"];
+        -1 "  gate: ",gateText]
+ };
+
 .resq.reportText:{[results]
     snapshotInventory:$[(99h=type results) and `snapshotInventory in key results;
         results`snapshotInventory;.tst.emptySnapshotInventory 0b];
+    benchmarkAnalysis:$[(99h=type results) and `benchmarkAnalysis in key results;
+        results`benchmarkAnalysis;.tst.emptyBenchmarkAnalysis 0b];
     results: .tst.resultTable results;
     suites: distinct results`suite;
     quiet: $[`quiet in key `.tst.app; .tst.app.quiet; 0b];
@@ -181,6 +210,7 @@
     .resq.reportSilentTests[results; statusNorm];
     .resq.reportFlakeStates results;
     .resq.reportSnapshotInventory snapshotInventory;
+    .resq.reportBenchmarkAnalysis benchmarkAnalysis;
     blockingFails:allFails;
     if[count allFails;
         failRows:{[table;i]table i}[allFails] each til count allFails;
@@ -197,6 +227,11 @@
     if[(99h=type snapshotInventory) and 1b~snapshotInventory[`gate;`enabled] and
        not 1b~snapshotInventory[`gate;`passed];
         -1 "TOTAL FAILURES: snapshot inventory gate";
+        -1 .resq.color[`red;"Tests FAILED."];
+        :()];
+    if[(99h=type benchmarkAnalysis) and 1b~benchmarkAnalysis[`gate;`enabled] and
+       not 1b~benchmarkAnalysis[`gate;`passed];
+        -1 "TOTAL FAILURES: benchmark regression gate";
         -1 .resq.color[`red;"Tests FAILED."];
         :()];
 
@@ -236,6 +271,10 @@
             / Show the budget alongside the measurement so the margin is visible.
             if[not null r`timeLimitMs;    line,: "  [limit ", .tst.fmtMs[r`timeLimitMs], "ms]"];
             if[not null r`spaceLimitBytes; line,: "  [limit ", string[`long$r`spaceLimitBytes], " bytes]"];
+            if[(99h=type r`comparison) and `classification in key r`comparison;
+                line,:"  [",.tst.toString[r[`comparison;`classification]],
+                    $[null r[`comparison;`relativeChangePercent];"";
+                      " ",.Q.f[2;"f"$r[`comparison;`relativeChangePercent]],"%"],"]"];
             -1 line;
         } each perfRows;
     ]];

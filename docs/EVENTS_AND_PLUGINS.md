@@ -24,7 +24,8 @@ The canonical order is:
    test's `test.started`, attempt pairs, parameter-case pairs, optional
    `benchmark.finished`, test diagnostics, and `test.finished`; then
    `suite.finished` and `file.finished`;
-3. optional `coverage.finished` and `snapshots.audited`, then run diagnostics;
+3. optional `coverage.finished`, `snapshots.audited`, and
+   `benchmarks.compared`, then run diagnostics;
 4. `run.finished` with the same summary object as the report.
 
 Attempt and case pairs are `attempt.started`/`attempt.finished` and
@@ -44,6 +45,9 @@ When snapshot audit is enabled, the validator also requires exactly one
 `snapshots.audited` event whose payload equals the top-level
 `snapshotInventory`. Individual native shards remain partial; a strict complete
 merge recomputes the aggregate classifications and event.
+When benchmark comparison is enabled, it likewise requires exactly one
+`benchmarks.compared` event equal to top-level `benchmarkAnalysis`; individual
+`benchmark.finished` events carry the owning measurement and comparison.
 
 ```bash
 tools/validate_report.py reports/test-results.json
@@ -89,7 +93,9 @@ bin/resq-merge artifacts/*/test-results.json --out-dir artifacts/merged
 It validates manifest schema/digest, VCS revision, q/framework/configuration,
 all shard indices, source digests, assignments, duplicate/missing result IDs,
 snapshot and benchmark ownership, then merges result rows, diagnostics,
-coverage, bounded coverage contexts, and snapshot inventory. A missing/aborted/fail-fast shard is
+coverage, bounded coverage contexts, snapshot inventory, raw benchmark samples,
+and benchmark comparisons. Holm correction and the benchmark gate are
+recomputed over the complete union. A missing/aborted/fail-fast shard is
 rejected with exit 2 rather than represented as a complete run. Exit 1 means a
 valid merged run has a failing test or coverage verdict; exit 0 is green.
 Framework results created after discovery (for example a strict plugin error)

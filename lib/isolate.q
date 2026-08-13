@@ -720,6 +720,8 @@
     .tst.isolate.childInventory:();
     .tst.app.snapshotDeclarations:();
     .tst.app.snapshotInventory:.tst.emptySnapshotInventory 0b;
+    .tst.app.benchmarkEnvironment:()!();
+    .tst.app.benchmarkAnalysis:.tst.emptyBenchmarkAnalysis 0b;
 
     files: .tst.selectTestFiles .tst.findTests paths;
     n: count files;
@@ -827,6 +829,7 @@
         exitCode:.resq.EXIT.FAIL;
         .tst.app.passed:0b];
     .tst.app.executionState:`completed;
+    .tst.runAllPhase.runSafely[`benchmarkRegression;.tst.applyBenchmarkRegression];
     .tst.applySnapshotAudit[];
     .tst.writeSnapshotInventory[];
     if[(exitCode=.resq.EXIT.PASS) and not 1b~.tst.app.passed;

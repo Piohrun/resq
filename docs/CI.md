@@ -152,6 +152,30 @@ the paths it wrote — so a failing job is diagnosable from the log alone. Add
 `-quiet` for quieter logs (failures and the summary survive it) and see
 [Test reporting](REPORTING.md) for the full output contract.
 
+## Benchmark regression gate
+
+Keep benchmark jobs on a controlled worker class and commit a reviewed baseline:
+
+```bash
+resq test tests/performance -benchmark-baseline benchmarks/baseline.json \
+  -benchmark-gate -json -outDir artifacts/benchmarks -exit
+```
+
+The gate combines a two-sided Mann–Whitney U test, global Holm–Bonferroni
+correction, and a separate median-effect threshold. Hardware/q/workload drift
+is reported as inconclusive instead of green or red; only
+`-benchmark-accept-environment` overrides an environment mismatch. Update a
+baseline only from a complete green report and only with explicit `--write`:
+
+```bash
+tools/update_benchmark_baseline.py artifacts/benchmarks/test-results.json \
+  --baseline benchmarks/baseline.json --write
+```
+
+For native shards, compare against the same baseline in every job, strictly
+merge all reports, then use the merged report for any baseline update. See
+[Performance testing](PERFORMANCE.md) for the complete classification contract.
+
 ## Runner requirements
 
 The checked-in [workflow](../.github/workflows/ci.yml) expects a self-hosted
@@ -222,7 +246,13 @@ The merger requires the exact index set `0..count-1`, identical revision,
 manifest digest, q/framework version, source inventory and effective execution
 configuration. It validates assigned/selected IDs, rejects duplicate or missing
 results (including fail-fast/aborted shards), and merges diagnostics, snapshots,
-benchmarks, aggregate coverage and coverage contexts. Exit 2 means the shard set
+raw benchmark samples/comparisons (with a global Holm correction), aggregate
+coverage and coverage contexts. Exit 2 means the shard set
 is invalid/incomplete, exit 1 means a valid merged verdict failed, and exit 0 is
 green. See
 [Parallel test execution](PARALLEL.md) for the trade-offs.
+
+When `-benchmark-gate` is enabled in a multi-shard matrix, each shard records
+its comparisons but reports the benchmark gate as deferred and non-blocking.
+Only `bin/resq-merge` has the complete family of p-values needed for the global
+Holm correction, so its exit code—not an individual shard—is authoritative.

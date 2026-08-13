@@ -537,20 +537,9 @@
         / nothing downstream read it, so a passing benchmark reported nothing at
         / all and only a breached budget ever surfaced a number.
         if[`perf in key e;
-            pr: e`perf;
-            if[99h = type pr;
-                popts: $[`props in key e; $[99h = type e`props; e`props; ()!()]; ()!()];
-                lim: {[d;k] $[k in key d; "f"$d k; 0nf]};
-                .tst.app.perfResults: .tst.app.perfResults upsert
-                    `suite`description`runs`avgTimeMs`minTimeMs`maxTimeMs`devTimeMs`avgSpaceBytes`maxSpaceBytes`timeLimitMs`spaceLimitBytes!(
-                        toSym s[`title];
-                        toSym e[`desc];
-                        "j"$$[`runs in key popts; popts`runs; 100];
-                        "f"$pr[`time;`avg];  "f"$pr[`time;`min];
-                        "f"$pr[`time;`max];  "f"$pr[`time;`dev];
-                        "f"$pr[`space;`avg]; "f"$pr[`space;`max];
-                        lim[popts;`maxTime]; lim[popts;`maxSpace]);
-            ];
+            if[99h=type e`perf;
+                perfRecord:.tst.performanceRecord first .tst.resultRows toInsert;
+                .tst.app.perfResults:.tst.app.perfResults upsert perfRecord];
         ];
 
         / Defensive: re-initialise the results table if something clobbered it.
@@ -626,6 +615,8 @@
     .tst.app.executionState: `notStarted;
     .tst.app.snapshotDeclarations:();
     .tst.app.snapshotInventory:.tst.emptySnapshotInventory 0b;
+    .tst.app.benchmarkEnvironment:()!();
+    .tst.app.benchmarkAnalysis:.tst.emptyBenchmarkAnalysis 0b;
     .tst.app.baseDir: system "cd";
     .tst.beginRunMetadata[];
     .tst.loadFlakeState[];
@@ -1325,6 +1316,7 @@
     / Strict plugin failures append canonical error rows. Recompute before state
     / persistence and reporting so every downstream verdict agrees.
     .tst.runAllPhase.runSafely[`pluginResultsSummary; .tst.runAllPhase.computePassed];
+    .tst.runAllPhase.runSafely[`benchmarkRegression; .tst.applyBenchmarkRegression];
     .tst.runAllPhase.runSafely[`snapshotAudit; .tst.applySnapshotAudit];
     .tst.runAllPhase.runSafely[`snapshotManifest; .tst.writeSnapshotInventory];
     .tst.runAllPhase.runSafely[`flakePersistence; .tst.persistFlakeState];

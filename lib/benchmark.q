@@ -64,13 +64,19 @@
 
 .tst.benchmark.measureOpts:{[n;code;opts]
   o: (enlist[`gc]!enlist 1b), $[99h=type opts; opts; ()!()];
+  workload:`runs`warmup`gcBefore`gcEach`space!("j"$n;3j;1b;o`gc;1b);
   smp: .tst.benchmark.sample[n; code;
-        `warmup`gcBefore`gcEach`space!(3; 1b; o`gc; 1b)];
+        `warmup`gcBefore`gcEach`space!(workload`warmup;workload`gcBefore;
+          workload`gcEach;workload`space)];
   / Timings are FLOAT milliseconds with nanosecond precision (no `long$ floor,
   / so sub-millisecond code does not measure 0).
-  `time`space`heapGrowth!(.tst.benchmark.stats (`float$smp`timesNs) % 1000000;
-               .tst.benchmark.stats smp`space;
-               .tst.benchmark.stats smp`heapGrowth)
+  samples:`timeNs`retainedBytes`heapGrowthBytes!(
+      "j"$smp`timesNs;"j"$smp`space;"j"$smp`heapGrowth);
+  `time`space`heapGrowth`samples`workload!(
+      .tst.benchmark.stats (`float$smp`timesNs) % 1000000;
+      .tst.benchmark.stats smp`space;
+      .tst.benchmark.stats smp`heapGrowth;
+      samples;workload)
  }
 
 / Backward-compatible wrapper: gc on by default. Public API unchanged.

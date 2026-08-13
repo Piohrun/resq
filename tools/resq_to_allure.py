@@ -99,6 +99,18 @@ def parameters(row: dict[str, Any]) -> list[dict[str, str]]:
     ):
         if source_name in quarantine:
             values.append({"name": target_name, "value": str(quarantine[source_name])})
+    benchmark = row.get("benchmark") or {}
+    if benchmark:
+        values.append({"name": "benchmarkId", "value": str(benchmark["benchmarkId"])})
+        comparison = benchmark.get("comparison") or {}
+        if comparison:
+            for source_name, target_name in (
+                ("classification", "benchmarkClassification"),
+                ("relativeChangePercent", "benchmarkRelativeChangePercent"),
+                ("adjustedPValue", "benchmarkAdjustedPValue"),
+                ("reason", "benchmarkComparisonReason"),
+            ):
+                values.append({"name": target_name, "value": str(comparison.get(source_name, ""))})
     return values
 
 
@@ -161,6 +173,15 @@ def convert(source: Path, destination: Path) -> int:
             snapshotUnverified=snapshots.get("counts", {}).get("unverified", 0),
             snapshotUnsafe=snapshots.get("counts", {}).get("unsafe", 0),
         )
+    benchmarks = document.get("benchmarkAnalysis", {})
+    environment.update(
+        benchmarkComparisonEnabled=benchmarks.get("enabled", False),
+        benchmarkGatePassed=benchmarks.get("gate", {}).get("passed", True),
+        benchmarkImproved=benchmarks.get("counts", {}).get("improved", 0),
+        benchmarkStable=benchmarks.get("counts", {}).get("stable", 0),
+        benchmarkInconclusive=benchmarks.get("counts", {}).get("inconclusive", 0),
+        benchmarkRegressed=benchmarks.get("counts", {}).get("regressed", 0),
+    )
     (destination / "environment.properties").write_text(
         "".join(f"{key}={str(value).replace(chr(10), ' ')}\n" for key, value in environment.items()),
         encoding="utf-8",

@@ -202,17 +202,112 @@ def validate_snapshot_ownership(rows: Iterable[dict[str, Any]]) -> None:
 
 
 def merge_performance(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    merged: dict[tuple[str, str], dict[str, Any]] = {}
+    merged: dict[str, dict[str, Any]] = {}
     for document in documents:
         performance = document.get("performance") or []
         if isinstance(performance, dict):
             performance = [performance] if performance else []
         for row in performance:
-            key = (str(row.get("suite", "")), str(row.get("description", "")))
+            key = str(row.get("benchmarkId", ""))
+            if not key:
+                raise MergeError("benchmark result has no stable benchmarkId")
             if key in merged:
                 raise MergeError(f"benchmark result {key!r} appears in more than one shard")
             merged[key] = copy.deepcopy(row)
     return [merged[key] for key in sorted(merged)]
+
+
+def holm_adjust(p_values: list[float]) -> list[float]:
+    order = sorted(range(len(p_values)), key=p_values.__getitem__)
+    adjusted = [0.0] * len(p_values)
+    running = 0.0
+    for rank, index in enumerate(order):
+        running = max(running, (len(p_values) - rank) * p_values[index])
+        adjusted[index] = min(1.0, running)
+    return adjusted
+
+
+def merge_benchmark_analysis(
+    documents: list[dict[str, Any]], performance: list[dict[str, Any]],
+    result_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    first = copy.deepcopy(documents[0]["benchmarkAnalysis"])
+    enabled = any(bool(document["benchmarkAnalysis"]["enabled"]) for document in documents)
+    first["enabled"] = enabled
+    first["environment"] = same(
+        documents, lambda document: document["benchmarkAnalysis"]["environment"],
+        "benchmark environment",
+    )
+    if not enabled:
+        first["counts"]["total"] = len(performance)
+        first["comparisons"] = []
+        first["gate"] = {
+            "enabled": bool(first["gate"]["enabled"]), "deferred": False,
+            "passed": True, "reasons": [],
+        }
+        return first
+    for label, getter in (
+        ("benchmark baseline path", lambda d: d["benchmarkAnalysis"]["baselinePath"]),
+        ("benchmark baseline status", lambda d: d["benchmarkAnalysis"]["baselineStatus"]),
+        ("benchmark method", lambda d: d["benchmarkAnalysis"]["method"]),
+        ("benchmark configuration", lambda d: d["benchmarkAnalysis"]["config"]),
+        ("benchmark gate policy", lambda d: d["benchmarkAnalysis"]["gate"]["enabled"]),
+    ):
+        same(documents, getter, label)
+    comparisons = [
+        copy.deepcopy(row["comparison"]) for row in performance if row.get("comparison")
+    ]
+    comparable = [index for index, item in enumerate(comparisons) if item["comparable"]]
+    adjusted = holm_adjust([float(comparisons[index]["pValue"]) for index in comparable])
+    for position, index in enumerate(comparable):
+        comparison = comparisons[index]
+        comparison["adjustedPValue"] = adjusted[position]
+        significant = adjusted[position] <= float(comparison["alpha"])
+        effect = comparison.get("relativeChangePercent")
+        practical = effect is not None and abs(float(effect)) >= float(comparison["practicalEffectPercent"])
+        comparison["classification"] = (
+            "regressed" if significant and practical and float(effect) > 0 else
+            "improved" if significant and practical else "stable"
+        )
+    by_id = {item["benchmarkId"]: item for item in comparisons}
+    for measurement in performance:
+        if measurement["benchmarkId"] in by_id:
+            measurement["comparison"] = copy.deepcopy(by_id[measurement["benchmarkId"]])
+    for row in result_rows:
+        benchmark = row.get("benchmark") or {}
+        identity = benchmark.get("benchmarkId")
+        if identity in by_id:
+            benchmark["comparison"] = copy.deepcopy(by_id[identity])
+    classes = [item["classification"] for item in comparisons]
+    first["comparisons"] = comparisons
+    first["counts"] = {
+        "total": len(comparisons),
+        "baselineFound": sum(bool(item["baselineFound"]) for item in comparisons),
+        "comparable": sum(bool(item["comparable"]) for item in comparisons),
+        "improved": classes.count("improved"),
+        "stable": classes.count("stable"),
+        "inconclusive": classes.count("inconclusive"),
+        "regressed": classes.count("regressed"),
+        "environmentMismatches": sum(
+            bool(item["baselineFound"]) and not bool(item["environmentMatch"])
+            for item in comparisons
+        ),
+    }
+    gate_enabled = bool(first["gate"]["enabled"])
+    reasons: list[str] = []
+    if gate_enabled and first["baselineStatus"] != "ok":
+        reasons.append(f"baseline-{first['baselineStatus']}")
+    if gate_enabled and not comparisons:
+        reasons.append("no-benchmarks-executed")
+    if gate_enabled and any(not item["baselineFound"] for item in comparisons):
+        reasons.append("benchmark-missing-from-baseline")
+    if gate_enabled and "regressed" in classes:
+        reasons.append("statistically-significant-practical-regression")
+    first["gate"] = {
+        "enabled": gate_enabled, "deferred": False,
+        "passed": not reasons, "reasons": reasons,
+    }
+    return first
 
 
 def merge_diagnostics(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -476,7 +571,7 @@ def status_summary(rows: list[dict[str, Any]]) -> dict[str, int]:
 def lifecycle(
     run: dict[str, Any], manifest: dict[str, Any], rows: list[dict[str, Any]],
     stats: dict[str, Any], coverage: dict[str, Any], diagnostics: list[dict[str, Any]],
-    snapshot_inventory: dict[str, Any],
+    snapshot_inventory: dict[str, Any], benchmark_analysis: dict[str, Any],
 ) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     def emit(kind: str, entity: str, parent: str, occurred: str, payload: dict[str, Any]) -> None:
@@ -540,7 +635,10 @@ def lifecycle(
                     emit("case.finished", case_id, row["testId"], run["finishedAt"], case)
                 benchmark = row.get("benchmark") or {}
                 if benchmark:
-                    emit("benchmark.finished", row["testId"], row["testId"], run["finishedAt"], benchmark)
+                    emit(
+                        "benchmark.finished", str(benchmark["benchmarkId"]),
+                        row["testId"], run["finishedAt"], benchmark,
+                    )
                 for index, diagnostic in enumerate(row.get("diagnostics", [])):
                     diagnostic_id = "diagnostic_" + stable_hash(
                         f"{identity}\n{index}\n{canonical(diagnostic)}"
@@ -560,6 +658,8 @@ def lifecycle(
         emit("coverage.finished", "coverage", run["id"], run["finishedAt"], coverage)
     if snapshot_inventory.get("enabled"):
         emit("snapshots.audited", "snapshots", run["id"], run["finishedAt"], snapshot_inventory)
+    if benchmark_analysis.get("enabled"):
+        emit("benchmarks.compared", "benchmarks", run["id"], run["finishedAt"], benchmark_analysis)
     for index, diagnostic in enumerate(diagnostics):
         diagnostic_id = "diagnostic_" + stable_hash(
             f"{run['id']}\n{index}\n{canonical(diagnostic)}"
@@ -703,15 +803,18 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
         "gate": {"enabled": snapshot_gate_enabled, "passed": not snapshot_gate_reasons,
                  "reasons": snapshot_gate_reasons},
     }
+    benchmark_analysis = merge_benchmark_analysis(documents, performance, rows)
     report = {
         "schemaVersion": 2, "framework": "resQ", "frameworkVersion": framework_version,
         "run": run, "summary": stats, "tests": rows, "performance": performance,
         "coverage": report_coverage, "diagnostics": diagnostics, "flake": flake,
         "snapshotInventory": snapshot_inventory,
+        "benchmarkAnalysis": benchmark_analysis,
         "manifest": manifest,
     }
     report["events"] = lifecycle(
-        run, manifest, rows, stats, report_coverage, diagnostics, snapshot_inventory
+        run, manifest, rows, stats, report_coverage, diagnostics, snapshot_inventory,
+        benchmark_analysis,
     )
     validate(report)
     (destination / "test-results.json").write_text(
@@ -722,7 +825,10 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
         if row["status"] in {"fail", "error"}
         and not bool(row.get("quarantine", {}).get("nonBlocking"))
     ]
-    passed = not blocking and coverage_passed and snapshot_inventory["gate"]["passed"]
+    passed = (
+        not blocking and coverage_passed and snapshot_inventory["gate"]["passed"]
+        and benchmark_analysis["gate"]["passed"]
+    )
     return report, passed
 
 

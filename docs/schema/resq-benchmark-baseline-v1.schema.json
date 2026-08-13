@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Piohrun/resq/schemas/resq-benchmark-baseline-v1.schema.json",
+  "title": "resQ benchmark baseline v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "kind", "updatedAt", "frameworkVersion", "source", "environment", "benchmarks"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "kind": {"const": "resq-benchmark-baseline"},
+    "updatedAt": {"type": "string", "format": "date-time"},
+    "frameworkVersion": {"type": "string"},
+    "source": {
+      "type": "object",
+      "required": ["runId", "startedAt", "finishedAt", "vcs", "manifestDigest"],
+      "additionalProperties": true
+    },
+    "environment": {"$ref": "resq-report-v2.schema.json#/$defs/benchmarkEnvironment"},
+    "benchmarks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["benchmarkId", "testId", "file", "suite", "description", "metric", "unit", "workload", "samples", "summary", "environment"],
+        "properties": {
+          "benchmarkId": {"type": "string", "pattern": "^benchmark_[0-9a-f]{32}$"},
+          "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
+          "metric": {"const": "timeNs"},
+          "unit": {"const": "nanoseconds"},
+          "workload": {"$ref": "resq-report-v2.schema.json#/$defs/benchmarkWorkload"},
+          "samples": {"$ref": "resq-report-v2.schema.json#/$defs/benchmarkSamples"},
+          "summary": {"type": "object"},
+          "environment": {"$ref": "resq-report-v2.schema.json#/$defs/benchmarkEnvironment"}
+        }
+      }
+    }
+  }
+}

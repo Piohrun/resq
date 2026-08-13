@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit`quarantineNonBlocking`flakeProposals`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow`snapshotAudit`snapshotGate!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file;0b;0b;".resq/flake-history.json";".resq/quarantine.json";".resq/quarantine-proposals.json";3j;2j;20j;0b;0b)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit`quarantineNonBlocking`flakeProposals`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow`snapshotAudit`snapshotGate`benchmarkBaseline`benchmarkGate`benchmarkAcceptEnvironment`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file;0b;0b;".resq/flake-history.json";".resq/quarantine.json";".resq/quarantine-proposals.json";3j;2j;20j;0b;0b;"";0b;0b;5j;5j;5j)
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -82,7 +82,7 @@ loadConfig:{[path]
     if[10h = type merged`shardIndex;merged[`shardIndex]:"J"$merged`shardIndex];
     if[10h = type merged`shardCount;merged[`shardCount]:"J"$merged`shardCount];
     if[10h=type merged`shardUnit;merged[`shardUnit]:`$lower merged`shardUnit];
-    coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`flakeEvidenceMin`flakeFailureMin`flakeWindow;
+    coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples;
     {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
     if[`testFilePatterns in key merged;
         if[.tst.validTestFilePatterns merged`testFilePatterns;
@@ -186,7 +186,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -211,10 +211,12 @@ validateConfig:{[cfg]
             "quarantineNonBlocking must be a boolean";
             "flakeProposals must be a boolean";
             "snapshotAudit must be a boolean";
-            "snapshotGate must be a boolean");
+            "snapshotGate must be a boolean";
+            "benchmarkGate must be a boolean";
+            "benchmarkAcceptEnvironment must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples;
   intMsgs:("fuzzLimit must be an integer scalar";
            "maxTestTime must be an integer scalar";
            "reportLimit must be an integer scalar";
@@ -234,7 +236,10 @@ validateConfig:{[cfg]
            "shardCount must be an integer scalar";
            "flakeEvidenceMin must be an integer scalar";
            "flakeFailureMin must be an integer scalar";
-           "flakeWindow must be an integer scalar");
+           "flakeWindow must be an integer scalar";
+           "benchmarkAlphaPercent must be an integer scalar";
+           "benchmarkEffectMin must be an integer scalar";
+           "benchmarkMinSamples must be an integer scalar");
   warnings,: raze checkType[cfg;;(-5h;-6h;-7h);]'[intNames; intMsgs];
 
   / Range check: numeric keys must be non-negative. A correctly-typed but
@@ -268,13 +273,16 @@ validateConfig:{[cfg]
              "shardCount must be > 0";
              "flakeEvidenceMin must be >= 2";
              "flakeFailureMin must be > 0";
-             "flakeWindow must be >= flakeEvidenceMin");
+             "flakeWindow must be >= flakeEvidenceMin";
+             "benchmarkAlphaPercent must be between 1 and 100";
+             "benchmarkEffectMin must be between 0 and 100";
+             "benchmarkMinSamples must be >= 2");
   warnings,: raze checkNonNeg[cfg;;]'[intNames; rangeMsgs];
   if[`coverageMin in key cfg;
     if[(type cfg`coverageMin) in -5 -6 -7h;
       if[(not null cfg[`coverageMin]) and (cfg[`coverageMin] > 100);
         warnings,: enlist "coverageMin must be between 0 and 100"]]];
-  percentNames:`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin;
+  percentNames:`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`benchmarkAlphaPercent`benchmarkEffectMin;
   checkPercentMax:{[cfg;n]
       if[not n in key cfg;:()];
       if[not (type cfg n) in -5 -6 -7h;:()];
@@ -302,6 +310,14 @@ validateConfig:{[cfg]
     if[(type cfg`flakeFailureMin) in -5 -6 -7h;
       if[(not null cfg`flakeFailureMin) and 1>cfg`flakeFailureMin;
         warnings,:enlist "flakeFailureMin must be > 0"]]];
+  if[`benchmarkAlphaPercent in key cfg;
+    if[(type cfg`benchmarkAlphaPercent) in -5 -6 -7h;
+      if[(not null cfg`benchmarkAlphaPercent) and 1>cfg`benchmarkAlphaPercent;
+        warnings,:enlist "benchmarkAlphaPercent must be between 1 and 100"]]];
+  if[`benchmarkMinSamples in key cfg;
+    if[(type cfg`benchmarkMinSamples) in -5 -6 -7h;
+      if[(not null cfg`benchmarkMinSamples) and 2>cfg`benchmarkMinSamples;
+        warnings,:enlist "benchmarkMinSamples must be >= 2"]]];
   if[all `flakeWindow`flakeEvidenceMin in key cfg;
     if[(type cfg`flakeWindow) in -5 -6 -7h;
       if[(type cfg`flakeEvidenceMin) in -5 -6 -7h;
@@ -327,6 +343,8 @@ validateConfig:{[cfg]
   warnings,:raze {[cfg;n]
       $[(n in key cfg) and 0=count .tst.toString cfg n;
         enlist string[n]," must be nonempty";()]}[cfg;] each pathNames;
+  warnings,:raze checkType[cfg;;(10h;-10h);]'[
+      enlist `benchmarkBaseline;enlist "benchmarkBaseline must be a string or symbol"];
   if[(1b~$[`lastFailed in key cfg;cfg`lastFailed;0b]) and
      1b~$[`failedFirst in key cfg;cfg`failedFirst;0b];
       warnings,:enlist "lastFailed and failedFirst cannot both be true"];
@@ -411,6 +429,12 @@ invalidConfigKeys:{[cfg]
   if[`flakeEvidenceMin in key cfg;
     if[(type cfg`flakeEvidenceMin) in -5 -6 -7h;
       if[(not null cfg`flakeEvidenceMin) and 2>cfg`flakeEvidenceMin;invalid,:`flakeEvidenceMin]]];
+  if[`benchmarkAlphaPercent in key cfg;
+    if[(type cfg`benchmarkAlphaPercent) in -5 -6 -7h;
+      if[(not null cfg`benchmarkAlphaPercent) and 1>cfg`benchmarkAlphaPercent;invalid,:`benchmarkAlphaPercent]]];
+  if[`benchmarkMinSamples in key cfg;
+    if[(type cfg`benchmarkMinSamples) in -5 -6 -7h;
+      if[(not null cfg`benchmarkMinSamples) and 2>cfg`benchmarkMinSamples;invalid,:`benchmarkMinSamples]]];
   if[`flakeFailureMin in key cfg;
     if[(type cfg`flakeFailureMin) in -5 -6 -7h;
       if[(not null cfg`flakeFailureMin) and 1>cfg`flakeFailureMin;invalid,:`flakeFailureMin]]];
@@ -435,6 +459,8 @@ invalidConfigKeys:{[cfg]
   invalid,:pathNames where {[cfg;n]
       (n in key cfg) and ((not (type cfg n) in 10 -10h) or 0=count .tst.toString cfg n)
     }[cfg] each pathNames;
+  if[`benchmarkBaseline in key cfg;
+    if[not (type cfg`benchmarkBaseline) in 10 -10h;invalid,:`benchmarkBaseline]];
   if[`shardUnit in key cfg;
     if[(not -11h=type cfg`shardUnit) or not (cfg`shardUnit) in `file`test`case;
       invalid,:`shardUnit]];
@@ -522,6 +548,17 @@ applyConfig:{[cfg]
     if[ok`snapshotGate;
         .tst.app.snapshotGate:cfg`snapshotGate;
         if[cfg`snapshotGate;.tst.app.snapshotAudit:1b]];
+    if[ok`benchmarkBaseline;
+        .tst.app.benchmarkBaseline:.tst.toString cfg`benchmarkBaseline;
+        if[count .tst.app.benchmarkBaseline;.tst.app.runPerformance:1b]];
+    if[ok`benchmarkGate;
+        .tst.app.benchmarkGate:cfg`benchmarkGate;
+        if[cfg`benchmarkGate;.tst.app.runPerformance:1b]];
+    if[ok`benchmarkAcceptEnvironment;
+        .tst.app.benchmarkAcceptEnvironment:cfg`benchmarkAcceptEnvironment];
+    if[ok`benchmarkAlphaPercent;.tst.app.benchmarkAlphaPercent:"j"$cfg`benchmarkAlphaPercent];
+    if[ok`benchmarkEffectMin;.tst.app.benchmarkEffectMin:"j"$cfg`benchmarkEffectMin];
+    if[ok`benchmarkMinSamples;.tst.app.benchmarkMinSamples:"j"$cfg`benchmarkMinSamples];
     if[ok`flakeHistoryFile;.tst.app.flakeHistoryFile:.tst.toString cfg`flakeHistoryFile];
     if[ok`quarantineFile;.tst.app.quarantineFile:.tst.toString cfg`quarantineFile];
     if[ok`flakeProposalFile;.tst.app.flakeProposalFile:.tst.toString cfg`flakeProposalFile];

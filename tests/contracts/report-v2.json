@@ -122,6 +122,19 @@
     "counts": {"referenced": 0, "missing": 0, "obsolete": 0, "unverified": 0, "unsafe": 0, "stored": 0, "declared": 0},
     "gate": {"enabled": false, "passed": true, "reasons": []}
   },
+  "benchmarkAnalysis": {
+    "schemaVersion": 1,
+    "kind": "resq-benchmark-analysis",
+    "enabled": false,
+    "baselinePath": "",
+    "baselineStatus": "disabled",
+    "method": {"name": "Mann-Whitney U", "alternative": "two-sided", "continuityCorrection": true, "tieCorrection": true, "multipleComparison": "Holm-Bonferroni"},
+    "config": {"alpha": 0.05, "practicalEffectPercent": 5, "minimumSamples": 5, "metric": "timeNs"},
+    "environment": {"qVersion": "4.1", "qRelease": "2026.05.01", "os": "l64", "architecture": "x86_64", "cpuModel": "contract", "logicalCores": 1, "fingerprint": "environment_11111111111111111111111111111111"},
+    "counts": {"total": 0, "baselineFound": 0, "comparable": 0, "improved": 0, "stable": 0, "inconclusive": 0, "regressed": 0, "environmentMismatches": 0},
+    "comparisons": [],
+    "gate": {"enabled": false, "deferred": false, "passed": true, "reasons": []}
+  },
   "manifest": {
     "schemaVersion": 2,
     "kind": "resq-execution-manifest",

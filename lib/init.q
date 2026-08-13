@@ -34,6 +34,7 @@ if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: "
 .utl.require .utl.PKGLOADING,"/snapshot_txt.q"
 .utl.require .utl.PKGLOADING,"/dsl/internals.q"
 .utl.require .utl.PKGLOADING,"/output/sanitize.q"
+.utl.require .utl.PKGLOADING,"/benchmark_regression.q"
 .utl.require .utl.PKGLOADING,"/snapshot_inventory.q"
 .utl.require .utl.PKGLOADING,"/events.q"
 .utl.require .utl.PKGLOADING,"/output/text.q"
@@ -65,9 +66,15 @@ if[`resq in key `;
 / averages and discard them unless a budget was breached, so a passing
 / benchmark left no record and performance could be gated but never tracked.
 .tst.app.emptyPerfResults:{[]
-    flip `suite`description`runs`avgTimeMs`minTimeMs`maxTimeMs`devTimeMs`avgSpaceBytes`maxSpaceBytes`timeLimitMs`spaceLimitBytes!(
-        `symbol$(); `symbol$(); `long$(); `float$(); `float$(); `float$(); `float$();
-        `float$(); `float$(); `float$(); `float$())
+    fields:`benchmarkId`testId`file`suite`description`metric`unit`runs,
+        `avgTimeMs`minTimeMs`medTimeMs`maxTimeMs`devTimeMs,
+        `avgSpaceBytes`maxSpaceBytes`timeLimitMs`spaceLimitBytes,
+        `workload`samples`measurement`environment`comparison;
+    values:(
+        ();();();`symbol$();`symbol$();`symbol$();();`long$();
+        `float$();`float$();`float$();`float$();`float$();
+        `float$();`float$();`float$();`float$();();();();();());
+    flip fields!values
  };
 .tst.app.perfResults: .tst.app.emptyPerfResults[];
 if[not `strict in key .tst.app; .tst.app.strict: 0b];

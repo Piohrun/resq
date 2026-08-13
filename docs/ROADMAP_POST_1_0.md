@@ -132,14 +132,14 @@ appear complete.
 
 ## 1.8.0 — Benchmark regression analysis
 
-- [ ] Add stable benchmark identities and versioned baselines containing raw
+- [x] Add stable benchmark identities and versioned baselines containing raw
   samples, summaries, workload configuration, and environment fingerprints.
-- [ ] Compare distributions with a documented, reference-validated
+- [x] Compare distributions with a documented, reference-validated
   non-parametric method, multiple-comparison correction, and a separate
   practical-effect threshold.
-- [ ] Classify improved/stable/inconclusive/regressed; environment mismatches
+- [x] Classify improved/stable/inconclusive/regressed; environment mismatches
   remain non-gating unless explicitly accepted.
-- [ ] Keep baseline updates explicit, merge shard samples without identity loss,
+- [x] Keep baseline updates explicit, merge shard samples without identity loss,
   and emit comparisons through console, JSON, events, and adapters.
 
 ## Final completion gate

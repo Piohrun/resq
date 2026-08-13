@@ -224,6 +224,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         audit.run("property generator and shrink protocol", [str(ROOT / "tools/verify_property_protocol.py"), "--q", q_executable])
         audit.run("flake evidence and quarantine policy", [str(ROOT / "tools/verify_quarantine.py"), "--q", q_executable])
         audit.run("snapshot inventory and recoverable pruning", [str(ROOT / "tools/verify_snapshot_inventory.py"), "--q", q_executable])
+        audit.run("benchmark regression baselines and telemetry", [str(ROOT / "tools/verify_benchmark_regression.py")])
         audit.run("hostile environment audit", [str(ROOT / "tools/verify_hostile_env.py"), "--q", q_executable])
         audit.run("external adoption pilots", [str(ROOT / "tools/verify_external_pilots.py"), "--q", q_executable])
 

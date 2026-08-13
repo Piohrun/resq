@@ -1886,6 +1886,12 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-quarantine-non-blocking` | Let active, unexpired quarantines not block; raw failures remain visible |
 | `-snapshot-audit` | Publish complete/partial snapshot inventory without changing the verdict |
 | `-snapshot-gate` | Imply audit and fail on partial, missing, obsolete, or unsafe inventory |
+| `-benchmark-baseline PATH` | Include `perf` blocks and compare raw timing distributions with a versioned baseline |
+| `-benchmark-gate` | Include `perf` blocks and fail on a significant practical regression or unusable baseline |
+| `-benchmark-accept-environment` | Explicitly compare despite an environment fingerprint mismatch (otherwise inconclusive/non-gating) |
+| `-benchmark-alpha N` | Statistical significance percentage, 1..100 (default 5) |
+| `-benchmark-effect-min N` | Minimum absolute median change percentage for improved/regressed (default 5) |
+| `-benchmark-min-samples N` | Minimum samples on both sides of a comparison (default 5, minimum 2) |
 | `-shard-index I` | Select zero-based native shard `I` |
 | `-shard-count N` | Partition the selected shard unit across `N > 0` shards (default `1`) |
 | `-shard-unit U` | Select `file` (default), `test`, or declarative `case` assignment |
@@ -2047,6 +2053,12 @@ Create `resq.json` in project root:
     "quarantineNonBlocking": false,
     "snapshotAudit": false,
     "snapshotGate": false,
+    "benchmarkBaseline": "",
+    "benchmarkGate": false,
+    "benchmarkAcceptEnvironment": false,
+    "benchmarkAlphaPercent": 5,
+    "benchmarkEffectMin": 5,
+    "benchmarkMinSamples": 5,
     "shardIndex": 0,
     "shardCount": 1,
     "shardUnit": "file",
@@ -2106,6 +2118,12 @@ Create `resq.json` in project root:
 | `quarantineNonBlocking` | `false` | Let active, unexpired quarantine failures not block the exit code |
 | `snapshotAudit` | `false` | Publish the versioned snapshot inventory |
 | `snapshotGate` | `false` | Fail closed on incomplete or unhealthy snapshot topology |
+| `benchmarkBaseline` | `""` | Versioned baseline path; a nonempty value includes `perf` blocks and enables comparison |
+| `benchmarkGate` | `false` | Fail on significant practical regressions or an unusable/missing baseline |
+| `benchmarkAcceptEnvironment` | `false` | Allow comparison across a recorded fingerprint mismatch |
+| `benchmarkAlphaPercent` | `5` | Mann–Whitney/Holm significance percentage (1..100) |
+| `benchmarkEffectMin` | `5` | Practical median-change threshold percentage (0..100) |
+| `benchmarkMinSamples` | `5` | Minimum raw samples in current and baseline distributions (minimum 2) |
 | `shardIndex` | `0` | Zero-based native shard index |
 | `shardCount` | `1` | Number of deterministic shards |
 | `shardUnit` | `"file"` | Assignment unit: `file`, `test`, or declarative `case` |

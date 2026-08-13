@@ -4,7 +4,7 @@
   "title": "resQ test report v2",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake", "snapshotInventory"],
+  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake", "snapshotInventory", "benchmarkAnalysis"],
   "properties": {
     "schemaVersion": {"const": 2},
     "framework": {"const": "resQ"},
@@ -12,11 +12,17 @@
     "run": {"$ref": "#/$defs/run"},
     "summary": {"$ref": "#/$defs/summary"},
     "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}},
-    "performance": {"type": ["array", "object"]},
+    "performance": {
+      "oneOf": [
+        {"type": "array", "items": {"$ref": "#/$defs/benchmarkMeasurement"}},
+        {"type": "object", "maxProperties": 0}
+      ]
+    },
     "coverage": {"type": "object"},
     "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
     "flake": {"$ref": "#/$defs/flake"},
     "snapshotInventory": {"$ref": "#/$defs/snapshotInventory"},
+    "benchmarkAnalysis": {"$ref": "#/$defs/benchmarkAnalysis"},
     "manifest": {"$ref": "#/$defs/manifest"},
     "events": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/event"}}
   },
@@ -141,7 +147,12 @@
         },
         "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
         "snapshots": {"type": "array", "items": {"$ref": "#/$defs/snapshot"}},
-        "benchmark": {"type": "object"},
+        "benchmark": {
+          "oneOf": [
+            {"type": "object", "maxProperties": 0},
+            {"$ref": "#/$defs/benchmarkTelemetry"}
+          ]
+        },
         "quarantine": {
           "oneOf": [
             {"type": "object", "maxProperties": 0},
@@ -303,6 +314,137 @@
         }},
         "counts": {"type": "object"},
         "gate": {"type": "object", "required": ["enabled", "passed", "reasons"]}
+      },
+      "additionalProperties": true
+    },
+    "benchmarkSamples": {
+      "type": "object",
+      "required": ["timeNs", "retainedBytes", "heapGrowthBytes"],
+      "properties": {
+        "timeNs": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+        "retainedBytes": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+        "heapGrowthBytes": {"type": "array", "items": {"type": "integer", "minimum": 0}}
+      },
+      "additionalProperties": true
+    },
+    "benchmarkWorkload": {
+      "type": "object",
+      "required": ["runs", "warmup", "gcBefore", "gcEach", "space"],
+      "properties": {
+        "runs": {"type": "integer", "minimum": 1},
+        "warmup": {"type": "integer", "minimum": 0},
+        "gcBefore": {"type": "boolean"},
+        "gcEach": {"type": "boolean"},
+        "space": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "benchmarkEnvironment": {
+      "type": "object",
+      "required": ["qVersion", "qRelease", "os", "architecture", "cpuModel", "logicalCores", "fingerprint"],
+      "properties": {
+        "qVersion": {"type": "string"},
+        "qRelease": {"type": "string"},
+        "os": {"type": "string"},
+        "architecture": {"type": "string"},
+        "cpuModel": {"type": "string"},
+        "logicalCores": {"type": ["integer", "null"]},
+        "fingerprint": {"type": "string", "pattern": "^environment_[0-9a-f]{32}$"}
+      },
+      "additionalProperties": true
+    },
+    "benchmarkComparison": {
+      "type": "object",
+      "required": ["benchmarkId", "testId", "file", "suite", "description", "classification", "reason", "baselineFound", "comparable", "environmentMatch", "workloadMatch", "environmentAccepted", "metric", "unit", "baselineMedian", "currentMedian", "relativeChangePercent", "u", "z", "pValue", "adjustedPValue", "alpha", "practicalEffectPercent", "baselineRuns", "currentRuns"],
+      "properties": {
+        "benchmarkId": {"type": "string", "pattern": "^benchmark_[0-9a-f]{32}$"},
+        "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
+        "classification": {"enum": ["improved", "stable", "inconclusive", "regressed"]},
+        "reason": {"type": "string"},
+        "baselineFound": {"type": "boolean"},
+        "comparable": {"type": "boolean"},
+        "environmentMatch": {"type": "boolean"},
+        "workloadMatch": {"type": "boolean"},
+        "environmentAccepted": {"type": "boolean"},
+        "metric": {"const": "timeNs"},
+        "unit": {"const": "nanoseconds"},
+        "pValue": {"type": "number", "minimum": 0, "maximum": 1},
+        "adjustedPValue": {"type": "number", "minimum": 0, "maximum": 1},
+        "alpha": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "baselineRuns": {"type": "integer", "minimum": 0},
+        "currentRuns": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "benchmarkTelemetry": {
+      "type": "object",
+      "required": ["benchmarkId", "testId", "file", "suite", "description", "status", "runs", "metric", "unit", "measurement", "limits", "workload", "samples", "comparison"],
+      "properties": {
+        "benchmarkId": {"type": "string", "pattern": "^benchmark_[0-9a-f]{32}$"},
+        "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
+        "status": {"enum": ["pass", "fail", "error"]},
+        "runs": {"type": "integer", "minimum": 1},
+        "metric": {"const": "time"},
+        "unit": {"const": "nanoseconds"},
+        "measurement": {"type": "object"},
+        "limits": {"type": "object"},
+        "workload": {"$ref": "#/$defs/benchmarkWorkload"},
+        "samples": {"$ref": "#/$defs/benchmarkSamples"},
+        "comparison": {
+          "oneOf": [
+            {"type": "object", "maxProperties": 0},
+            {"$ref": "#/$defs/benchmarkComparison"}
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "benchmarkMeasurement": {
+      "type": "object",
+      "required": ["benchmarkId", "testId", "file", "suite", "description", "metric", "unit", "runs", "avgTimeMs", "minTimeMs", "medTimeMs", "maxTimeMs", "devTimeMs", "avgSpaceBytes", "maxSpaceBytes", "timeLimitMs", "spaceLimitBytes", "workload", "samples", "measurement", "environment", "comparison"],
+      "properties": {
+        "benchmarkId": {"type": "string", "pattern": "^benchmark_[0-9a-f]{32}$"},
+        "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
+        "metric": {"const": "time"},
+        "unit": {"const": "nanoseconds"},
+        "runs": {"type": "integer", "minimum": 1},
+        "workload": {"$ref": "#/$defs/benchmarkWorkload"},
+        "samples": {"$ref": "#/$defs/benchmarkSamples"},
+        "environment": {"$ref": "#/$defs/benchmarkEnvironment"},
+        "comparison": {
+          "oneOf": [
+            {"type": "object", "maxProperties": 0},
+            {"$ref": "#/$defs/benchmarkComparison"}
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "benchmarkAnalysis": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "enabled", "baselinePath", "baselineStatus", "method", "config", "environment", "counts", "comparisons", "gate"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "kind": {"const": "resq-benchmark-analysis"},
+        "enabled": {"type": "boolean"},
+        "baselinePath": {"type": "string"},
+        "baselineStatus": {"enum": ["disabled", "notLoaded", "ok", "missing", "invalid", "unsupported"]},
+        "method": {"type": "object"},
+        "config": {"type": "object"},
+        "environment": {"$ref": "#/$defs/benchmarkEnvironment"},
+        "counts": {"type": "object"},
+        "comparisons": {"type": "array", "items": {"$ref": "#/$defs/benchmarkComparison"}},
+        "gate": {
+          "type": "object",
+          "required": ["enabled", "deferred", "passed", "reasons"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "deferred": {"type": "boolean"},
+            "passed": {"type": "boolean"},
+            "reasons": {"type": "array", "items": {"type": "string"}}
+          },
+          "additionalProperties": true
+        }
       },
       "additionalProperties": true
     },

@@ -266,13 +266,26 @@
     bench:()!();
     if[`perf in key e;
         perfOpts:$[`props in key e;$[99h=type e`props;e`props;()!()];()!()];
-        bench:`status`runs`measurement`limits!(
+        benchmarkId:"benchmark_",.tst.stableHash[testId,"\ntime"];
+        measurement:e`perf;
+        workload:$[`workload in key measurement;measurement`workload;
+            `runs`warmup`gcBefore`gcEach`space!(
+                "j"$$[`runs in key perfOpts;perfOpts`runs;0];3j;1b;
+                $[`gc in key perfOpts;1b~perfOpts`gc;1b];1b)];
+        samples:$[`samples in key measurement;measurement`samples;
+            `timeNs`retainedBytes`heapGrowthBytes!(`long$();`long$();`long$())];
+        bench:`benchmarkId`testId`file`suite`description`status`runs`metric`unit`measurement`limits`workload`samples`comparison!(
+            benchmarkId;testId;.tst.repoRelativePath fileText;
+            .tst.toString $[`title in key s;s`title;""];
+            .tst.toString e`desc;
             .tst.normalizeResultStatus e`result;
             "j"$$[`runs in key perfOpts;perfOpts`runs;0];
+            `time;"nanoseconds";
             e`perf;
             `maxTimeMs`maxSpaceBytes!(
                 $[`maxTime in key perfOpts;"f"$perfOpts`maxTime;0nf];
-                $[`maxSpace in key perfOpts;"f"$perfOpts`maxSpace;0nf]))];
+                $[`maxSpace in key perfOpts;"f"$perfOpts`maxSpace;0nf]);
+            workload;samples;()!())];
     `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine!(
         testId;caseId;$[`type in key e;e`type;`test];
         $[`case~$[`type in key e;e`type;`test];e`parameters;()!()];attempts;
@@ -382,7 +395,9 @@
         `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`shardUnit,
         `quarantineNonBlocking`flakeProposalsEnabled`flakeHistoryFile`quarantineFile,
         `flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow,
-        `tagFilter`excludeTagFilter`coverageSources`strictPlugins`pluginFiles;
+        `tagFilter`excludeTagFilter`coverageSources`strictPlugins`pluginFiles,
+        `benchmarkBaseline`benchmarkGate`benchmarkAcceptEnvironment,
+        `benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples;
     names,:`coverageBranches`coverageBranchMin`coverageBranchCompletenessMin;
     appKeys:key `.tst.app;
     present:names where names in appKeys;
@@ -541,13 +556,14 @@
             @[get;`.tst.app.coverageEffectiveMinimum;0];
             @[get;`.tst.app.coveragePassed;0b])];
     modelKeys:`schemaVersion`framework`frameworkVersion`run`summary`tests`performance,
-        `coverage`diagnostics`flake`snapshotInventory;
+        `coverage`diagnostics`flake`snapshotInventory`benchmarkAnalysis;
     model:modelKeys!(2;"resQ";
         $[`VERSION in key `.resq;.resq.VERSION;"unknown"];
         .tst.finishRunMetadata[];summary;rows;performance;coverage;
         @[get;`.tst.app.diagnostics;{()}];
         $[`flakeMetadata in key `.tst;.tst.flakeMetadata[];()!()];
-        @[get;`.tst.app.snapshotInventory;{.tst.emptySnapshotInventory 0b}]);
+        @[get;`.tst.app.snapshotInventory;{.tst.emptySnapshotInventory 0b}];
+        @[get;`.tst.app.benchmarkAnalysis;{.tst.emptyBenchmarkAnalysis 0b}]);
     manifest:.tst.executionManifest model;
     events:.tst.lifecycleEvents[model;manifest];
     complete:model,`manifest`events!(manifest;events);

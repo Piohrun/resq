@@ -25,7 +25,10 @@ REQUIRED = {
     "docs/VERSIONING.md", "docs/IDENTITY.md", "tools/validate_report.py",
     "docs/EVENTS_AND_PLUGINS.md",
     "tools/verify_hostile_env.py", "tools/verify_external_pilots.py",
-    "tools/verify_release_gate.py", "docs/RELEASE_CHECKLIST.md",
+    "tools/verify_release_gate.py", "tools/verify_benchmark_regression.py",
+    "tools/update_benchmark_baseline.py",
+    "docs/schema/resq-benchmark-baseline-v1.schema.json",
+    "docs/RELEASE_CHECKLIST.md",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
     "tests/contracts/xunit.xml",
 }
@@ -56,6 +59,7 @@ def check_package() -> None:
         "bin/resq", "bin/qspec", "tools/validate_report.py",
         "tools/verify_static.py", "tools/verify_hostile_env.py",
         "tools/verify_external_pilots.py", "tools/verify_release_gate.py",
+        "tools/verify_benchmark_regression.py", "tools/update_benchmark_baseline.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
@@ -123,10 +127,21 @@ def check_contracts() -> None:
         raise ValueError("report schema must declare JSON Schema draft 2020-12")
     if schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
         raise ValueError("report schema does not describe schemaVersion 2")
+    baseline_schema = json.loads(
+        (ROOT / "docs/schema/resq-benchmark-baseline-v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    if baseline_schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
+        raise ValueError("benchmark baseline schema must declare JSON Schema draft 2020-12")
+    if baseline_schema.get("properties", {}).get("schemaVersion", {}).get("const") != 1:
+        raise ValueError("benchmark baseline schema does not describe schemaVersion 1")
+    if baseline_schema.get("properties", {}).get("kind", {}).get("const") != "resq-benchmark-baseline":
+        raise ValueError("benchmark baseline schema has the wrong document kind")
     definitions = schema.get("$defs", {})
     extensible = [schema, *(definitions[name] for name in (
         "run", "summary", "test", "attempt", "case", "diagnostic",
-        "snapshot", "manifest", "event",
+        "snapshot", "benchmarkAnalysis", "benchmarkMeasurement", "manifest", "event",
     ))]
     if not all(item.get("additionalProperties") is True for item in extensible):
         raise ValueError("report-v2 objects must accept additive minor-version fields")

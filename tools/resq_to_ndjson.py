@@ -31,6 +31,7 @@ def records(document: dict[str, Any]) -> Iterable[dict[str, Any]]:
         "coverage": document["coverage"],
         "diagnostics": document["diagnostics"],
         "snapshotInventory": document["snapshotInventory"],
+        "benchmarkAnalysis": document["benchmarkAnalysis"],
     }
     for row in document["tests"]:
         yield {**context, "eventType": "resq.test", "test": row}

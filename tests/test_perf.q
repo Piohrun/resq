@@ -112,6 +112,48 @@
     };
 };
 
+.tst.desc["benchmark regression statistics"]{
+    should["retain one raw sample per measured run"]{
+        result:.tst.benchmark.measureOpts[7;{sum til 20};enlist[`gc]!enlist 0b];
+        (count result[`samples;`timeNs]) musteq 7;
+        (count result[`samples;`retainedBytes]) musteq 7;
+        result[`workload;`runs] musteq 7;
+        result[`workload;`gcEach] musteq 0b;
+    };
+
+    should["average tied ranks deterministically"]{
+        .tst.benchmarkRanks[1 2 2 4f] musteq 1 2.5 2.5 4f;
+    };
+
+    should["match the reference Mann-Whitney asymptotic result"]{
+        / scipy.stats.mannwhitneyu([1..5],[6..10], alternative="two-sided",
+        / method="asymptotic", use_continuity=True) gives p=0.0121857804.
+        result:.tst.benchmarkMannWhitney[1 2 3 4 5f;6 7 8 9 10f];
+        (result`valid) musteq 1b;
+        (result`u) musteq 0f;
+        (abs[(result`pValue)-0.0121857804] < 0.0000001) musteq 1b;
+    };
+
+    should["apply Holm-Bonferroni without decreasing adjusted p-values"]{
+        adjusted:.tst.benchmarkHolm 0.01 0.04 0.03 0.002f;
+        adjusted musteq 0.03 0.06 0.06 0.008f;
+        (all adjusted>=0.01 0.04 0.03 0.002f) musteq 1b;
+    };
+
+    should["fingerprint the measurement environment without host paths"]{
+        environment:.tst.benchmarkEnvironment[];
+        (environment`fingerprint) mustlike "environment_????????????????????????????????";
+        `qVersion`qRelease`os`architecture`cpuModel`logicalCores mustin key environment;
+    };
+
+    should["ignore non-benchmark framework rows"]{
+        table:.resq.state.emptyResults[];
+        table:table upsert .tst.isolate.errorRow[
+            `FILE_LOAD_ERROR;"missing.q";"missing source"];
+        (count .tst.performanceRecords table) musteq 0;
+    };
+};
+
 .tst.desc["perf DSL runner"]{
     should["default to ten measured runs with per-iteration GC enabled"]{
         `.tst.benchmark.measureOpts mock {[n; code; opts]

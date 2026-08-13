@@ -78,6 +78,10 @@ jobs:
         shell: bash
         run: tools/verify_snapshot_inventory.py --q q
 
+      - name: Benchmark regression baselines and telemetry
+        shell: bash
+        run: tools/verify_benchmark_regression.py
+
       - name: Hostile environment and interruption audit
         shell: bash
         run: tools/verify_hostile_env.py --q q

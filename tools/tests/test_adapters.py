@@ -116,6 +116,24 @@ def report() -> dict:
                        "unverified": 0, "unsafe": 0, "stored": 0, "declared": 0},
             "gate": {"enabled": False, "passed": True, "reasons": []},
         },
+        "benchmarkAnalysis": {
+            "schemaVersion": 1, "kind": "resq-benchmark-analysis",
+            "enabled": False, "baselinePath": "", "baselineStatus": "disabled",
+            "method": {"name": "Mann-Whitney U", "alternative": "two-sided",
+                       "continuityCorrection": True, "tieCorrection": True,
+                       "multipleComparison": "Holm-Bonferroni"},
+            "config": {"alpha": 0.05, "practicalEffectPercent": 5,
+                       "minimumSamples": 5, "metric": "timeNs"},
+            "environment": {"qVersion": "4.1", "qRelease": "2024.01.01",
+                            "os": "linux", "architecture": "x86_64",
+                            "cpuModel": "unit", "logicalCores": 1,
+                            "fingerprint": f"environment_{'1' * 32}"},
+            "counts": {"total": 0, "baselineFound": 0, "comparable": 0,
+                       "improved": 0, "stable": 0, "inconclusive": 0,
+                       "regressed": 0, "environmentMismatches": 0},
+            "comparisons": [],
+            "gate": {"enabled": False, "deferred": False, "passed": True, "reasons": []},
+        },
     }
 
 
