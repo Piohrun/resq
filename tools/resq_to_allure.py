@@ -71,6 +71,23 @@ def parameters(row: dict[str, Any]) -> list[dict[str, str]]:
     property_data = row.get("property") or {}
     if "seed" in property_data:
         values.append({"name": "propertySeed", "value": str(property_data["seed"])})
+        for source_name, target_name in (
+            ("generatorProtocol", "propertyGeneratorProtocol"),
+            ("replayToken", "propertyReplayToken"),
+            ("shrinkTermination", "propertyShrinkTermination"),
+            ("shrinkSteps", "propertyShrinkSteps"),
+            ("shrinkCandidates", "propertyShrinkCandidates"),
+            ("failureSignature", "propertyFailureSignature"),
+        ):
+            values.append({"name": target_name, "value": str(property_data.get(source_name, ""))})
+        for source_name, target_name in (
+            ("originalInput", "propertyOriginalInput"),
+            ("minimalInput", "propertyMinimalInput"),
+        ):
+            values.append({
+                "name": target_name,
+                "value": json.dumps(property_data.get(source_name), ensure_ascii=False, sort_keys=True),
+            })
     if row.get("caseId"):
         values.append({"name": "caseId", "value": str(row["caseId"])})
     return values

@@ -32,6 +32,9 @@ assistance.
 - **Automated Discovery**: Scans test source for unreferenced functions, writes an HTML report, and can generate boilerplate templates on request.
 - **CI/CD Integration**: JUnit XML, xUnit XML, and JSON reporters with detailed metrics.
 - **Retry support**: `retry[n; "desc"]{...}` re-runs a flaky test up to n+1 total attempts.
+- **Property testing**: `holds` accepts the deterministic `.resq.gen` protocol
+  for bounded/composite generators, portable replay tokens, and type-aware
+  shrinking with failure-class preservation and explicit work limits.
 - **Advanced Utilities**:
   - **Fixtures**: Binary, text, and directory-based data injection.
   - **Mocking/Spies**: Clean function and variable mocking with auto-restoration.

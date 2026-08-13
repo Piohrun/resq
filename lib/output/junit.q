@@ -38,6 +38,27 @@
     .tst.resultRows rows
  };
 
+.tst.output.junitPropertyNode:{[rec]
+    if[not `property in key rec;:""];
+    prop:rec`property;
+    if[(not 99h=type prop) or 0=count prop;:""];
+    names:`generatorProtocol`seed`replayToken`originalInput`minimalInput`shrinkSteps`shrinkCandidates`shrinkTermination`failureSignature`shrinkDurationMs;
+    labels:("resq.property.generatorProtocol";"resq.property.seed";
+        "resq.property.replayToken";"resq.property.originalInput";
+        "resq.property.minimalInput";"resq.property.shrinkSteps";
+        "resq.property.shrinkCandidates";"resq.property.shrinkTermination";
+        "resq.property.failureSignature";"resq.property.shrinkDurationMs");
+    values:{[p;n]
+        if[not (n in key p);:""];
+        $[n in `originalInput`minimalInput;.Q.s1 p n;.tst.toString p n]
+    }[prop;] each names;
+    body:raze {[n;v]
+        "<property name=\"",.tst.output.escapeXml[n],"\" value=\"",
+        .tst.output.escapeXml[v],"\"/>"
+    }'[labels;values];
+    "<properties>",body,"</properties>"
+ };
+
 .tst.output.buildJUnitCase:{[rec]
     recStatus: .tst.normalizeResultStatus $[`status in key rec; rec`status; `pass];
     / classname fallback chain: suite name -> namespace -> "resq". The suite name
@@ -87,7 +108,7 @@
         if[(not null sourceLine) and sourceLine > 0;
             attrs,: " line=\"", string[sourceLine], "\""];
     ];
-    caseOpen: "    <testcase",attrs,">";
+    caseOpen: "    <testcase",attrs,">",.tst.output.junitPropertyNode rec;
     caseClose: "    </testcase>";
     if[recStatus in `pass;
         :caseOpen,systemOut,caseClose

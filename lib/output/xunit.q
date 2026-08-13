@@ -22,6 +22,27 @@
     .tst.resultRows rows
  };
 
+.tst.output.xunitPropertyNode:{[rec]
+    if[not `property in key rec;:""];
+    prop:rec`property;
+    if[(not 99h=type prop) or 0=count prop;:""];
+    names:`generatorProtocol`seed`replayToken`originalInput`minimalInput`shrinkSteps`shrinkCandidates`shrinkTermination`failureSignature`shrinkDurationMs;
+    labels:("resq.property.generatorProtocol";"resq.property.seed";
+        "resq.property.replayToken";"resq.property.originalInput";
+        "resq.property.minimalInput";"resq.property.shrinkSteps";
+        "resq.property.shrinkCandidates";"resq.property.shrinkTermination";
+        "resq.property.failureSignature";"resq.property.shrinkDurationMs");
+    values:{[p;n]
+        if[not (n in key p);:""];
+        $[n in `originalInput`minimalInput;.Q.s1 p n;.tst.toString p n]
+    }[prop;] each names;
+    body:raze {[n;v]
+        "<trait name=\"",.tst.output.escapeXml[n],"\" value=\"",
+        .tst.output.escapeXml[v],"\"/>"
+    }'[labels;values];
+    "<traits>",body,"</traits>"
+ };
+
 .tst.output.xunitUuid:{[seed]
     h: raze string md5 .tst.toString seed;
     (8 # h), "-", (4 # 8 _ h), "-", (4 # 12 _ h), "-",
@@ -80,7 +101,7 @@
         if[(not null sourceLine) and sourceLine > 0;
             attrs,: " source-line=\"", string[sourceLine], "\""];
     ];
-    caseOpen: "      <test",attrs,">";
+    caseOpen: "      <test",attrs,">",.tst.output.xunitPropertyNode rec;
     caseClose: "      </test>";
     if[recStatus in `pass;
         :caseOpen,outputNode,caseClose

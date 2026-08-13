@@ -126,9 +126,30 @@ class AdapterTests(unittest.TestCase):
             "seed": 42, "runs": 10, "maxFailRate": 0,
             "failRate": 0, "passCount": 8, "failCount": 1,
             "failedInputs": [], "shrunkInput": None,
+            "generatorProtocol": "resq-generator-v1", "replayToken": "token",
+            "replayTokens": ["token"], "originalInput": 1, "minimalInput": 0,
+            "shrinkSteps": 1, "shrinkCandidates": 1,
+            "shrinkTermination": "minimal", "failureSignature": "signature",
+            "shrinkDurationMs": 0.1,
         }
         with self.assertRaisesRegex(ValueError, "totals must equal runs"):
             validate(bad_property)
+
+        bad_replay = report()
+        bad_replay["tests"][0]["property"] = {
+            "seed": 42, "runs": 1, "maxFailRate": 0,
+            "failRate": 1, "passCount": 0, "failCount": 1,
+            "failedInputs": [1], "shrunkInput": 0,
+            "generatorProtocol": "resq-generator-v1",
+            "replayToken": "resq-pbt-v1/42/0", "replayTokens": [],
+            "originalInput": 1, "minimalInput": 0,
+            "shrinkSteps": 1, "shrinkCandidates": 1,
+            "shrinkTermination": "minimal",
+            "failureSignature": "fuzz-failure-v1/1/abc",
+            "shrinkDurationMs": 0.1,
+        }
+        with self.assertRaisesRegex(ValueError, "replay token count"):
+            validate(bad_replay)
 
     def test_ndjson_preserves_run_and_stable_test_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -153,6 +174,20 @@ class AdapterTests(unittest.TestCase):
             output = root / "allure-results"
             document = report()
             document["tests"][0]["parameters"] = {"region": "eu", "size": 3}
+            document["tests"][1]["kind"] = "fuzz"
+            document["tests"][1]["property"] = {
+                "seed": 42, "runs": 1, "maxFailRate": 0,
+                "failRate": 1, "passCount": 0, "failCount": 1,
+                "failedInputs": [[4, 2]], "shrunkInput": [0],
+                "generatorProtocol": "resq-generator-v1",
+                "replayToken": "resq-pbt-v1/42/0",
+                "replayTokens": ["resq-pbt-v1/42/0"],
+                "originalInput": [4, 2], "minimalInput": [0],
+                "shrinkSteps": 2, "shrinkCandidates": 3,
+                "shrinkTermination": "minimal",
+                "failureSignature": "fuzz-failure-v1/1/abc",
+                "shrinkDurationMs": 0.1,
+            }
             source.write_text(json.dumps(document), encoding="utf-8")
             completed = subprocess.run(
                 [sys.executable, str(ROOT / "tools/resq_to_allure.py"), str(source), str(output)],
@@ -167,6 +202,14 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(f"test_{'c' * 32}", failed["historyId"])
             self.assertEqual("boom", failed["statusDetails"]["message"])
             self.assertIn({"name": "tag", "value": "unit"}, failed["labels"])
+            self.assertIn(
+                {"name": "propertyReplayToken", "value": "resq-pbt-v1/42/0"},
+                failed["parameters"],
+            )
+            self.assertIn(
+                {"name": "propertyMinimalInput", "value": "[0]"},
+                failed["parameters"],
+            )
             passed = next(item for item in results if item["name"] == "passes")
             self.assertIn({"name": "region", "value": "eu"}, passed["parameters"])
             self.assertIn({"name": "size", "value": "3"}, passed["parameters"])

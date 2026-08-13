@@ -21,6 +21,7 @@ HEX_ID = re.compile(r"^(?:run|test|case)_[0-9a-f]{32}$")
 MANIFEST_ID = re.compile(r"^manifest_[0-9a-f]{32}$")
 FILE_ID = re.compile(r"^file_[0-9a-f]{32}$")
 SUITE_ID = re.compile(r"^suite_[0-9a-f]{32}$")
+REPLAY_TOKEN = re.compile(r"^resq-pbt-v1/-?\d+/\d+$")
 STATUSES = {"pass", "fail", "error", "skip", "pending"}
 
 
@@ -102,11 +103,42 @@ def validate_test(row: Any, index: int) -> None:
     if property_data:
         require(
             property_data,
-            {"seed", "runs", "maxFailRate", "failRate", "passCount", "failCount", "failedInputs", "shrunkInput"},
+            {
+                "seed", "runs", "maxFailRate", "failRate", "passCount", "failCount",
+                "failedInputs", "shrunkInput", "generatorProtocol", "replayToken",
+                "replayTokens", "originalInput", "minimalInput", "shrinkSteps",
+                "shrinkCandidates", "shrinkTermination", "failureSignature",
+                "shrinkDurationMs",
+            },
             f"{where}.property",
         )
         if property_data["passCount"] + property_data["failCount"] != property_data["runs"]:
             raise ValueError(f"{where}.property: pass/fail totals must equal runs")
+        if len(property_data["failedInputs"]) != property_data["failCount"]:
+            raise ValueError(f"{where}.property: failed input count must equal failCount")
+        if len(property_data["replayTokens"]) != property_data["failCount"]:
+            raise ValueError(f"{where}.property: replay token count must equal failCount")
+        if bool(property_data["replayToken"]) != bool(property_data["failCount"]):
+            raise ValueError(f"{where}.property: replayToken presence must match failures")
+        if property_data["failCount"] and property_data["replayToken"] != property_data["replayTokens"][0]:
+            raise ValueError(f"{where}.property: replayToken must identify the first failure")
+        if any(not REPLAY_TOKEN.fullmatch(str(token)) for token in property_data["replayTokens"]):
+            raise ValueError(f"{where}.property: invalid replay token")
+        if property_data["generatorProtocol"] != "resq-generator-v1":
+            raise ValueError(f"{where}.property: unsupported generator protocol")
+        expected_rate = property_data["failCount"] / property_data["runs"] if property_data["runs"] else 0.0
+        if abs(float(property_data["failRate"]) - expected_rate) > 1e-12:
+            raise ValueError(f"{where}.property: failRate disagrees with failCount/runs")
+        if property_data["shrinkSteps"] < 0 or property_data["shrinkCandidates"] < property_data["shrinkSteps"]:
+            raise ValueError(f"{where}.property: invalid shrink work counters")
+        if property_data["shrinkTermination"] not in {
+            "notRun", "minimal", "stepLimit", "candidateLimit", "timeLimit"
+        }:
+            raise ValueError(f"{where}.property: invalid shrink termination")
+        if bool(property_data["failCount"]) == (property_data["shrinkTermination"] == "notRun"):
+            raise ValueError(f"{where}.property: shrink termination disagrees with failures")
+        if bool(property_data["failCount"]) != bool(property_data["failureSignature"]):
+            raise ValueError(f"{where}.property: failure signature presence must match failures")
     for snap_index, snapshot in enumerate(row["snapshots"]):
         require(snapshot, {"backend", "name", "status", "path", "timestamp"}, f"{where}.snapshots[{snap_index}]")
         iso8601(snapshot["timestamp"], f"{where}.snapshots[{snap_index}].timestamp")

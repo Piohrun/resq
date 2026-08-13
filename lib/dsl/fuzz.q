@@ -3,7 +3,7 @@ fuzzListMaxLength:100
 
 typeNames: `boolean`guid`byte`short`int`long`real`float`char`symbol`timestamp`month`date`datetime`timespan`minute`second`time
 typeCodes: 1 2 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19h
-typeDefaults:(0b;0Ng;0x00;0h;0;0j;0e;0f;" ";`symbol;0p;2000.01m;2000.01.01;2000.01.01T00:00:00.000;0D00:00:00.000000000;00:00;00:00:00;00:00:00.000)
+typeDefaults:(0b;0Ng;0x00;0h;0i;0j;0e;0f;" ";`symbol;0p;2000.01m;2000.01.01;2000.01.01T00:00:00.000;0D00:00:00.000000000;00:00;00:00:00;00:00:00.000)
 typeFuzzN: typeNames!typeDefaults
 typeFuzzC: typeCodes!typeDefaults
 
@@ -53,14 +53,22 @@ privateScalar:{[default;seed;counter;stream]
     word:.tst.privateWord[seed;counter;stream];
     $[tc=-1h;0b+word mod 2;
       tc=-2h;.tst.privateGuid[seed;counter;stream];
-      tc=-4h;"x"$word mod 256;
-      tc=-5h;"h"$word mod 32767;
-      tc=-6h;"i"$word mod 2000000000;
+      tc=-4h;"x"$(word mod 256);
+      tc=-5h;"h"$(word mod 32767);
+      tc=-6h;"i"$(word mod 2000000000);
       tc=-7h;word;
       tc=-8h;"e"$word%4294967296f;
       tc=-9h;word%4294967296f;
       tc=-10h;.Q.a .tst.privateIndex[seed;counter;stream;count .Q.a];
       tc=-11h;`a`b`c`d`e`f`g .tst.privateIndex[seed;counter;stream;7];
+      tc=-12h;2000.01.01D00:00:00.000000000+word*1000000000;
+      tc=-13h;2000.01m+("i"$(word mod 2400));
+      tc=-14h;2000.01.01+("i"$(word mod 36525));
+      tc=-15h;2000.01.01T00:00:00.000+("f"$(word mod 3155760000j))%86400f;
+      tc=-16h;0D00:00:00.000000000+word*1000000;
+      tc=-17h;00:00+("i"$(word mod 1440));
+      tc=-18h;00:00:00+("i"$(word mod 86400));
+      tc=-19h;00:00:00.000+("i"$(word mod 86400000));
       default]
  };
 
@@ -179,16 +187,93 @@ pickListFuzz:{[x;runs]
    ]
  }
 
-shrink:{[code;typeCode;val]
-  if[(t:type val) within 0 19h;
-    if[1 >= count val; :val];
-    v1: (floor (count val)%2) # val;
-    v2: (floor (count val)%2) _ val;
-    if[0<count (fuzzRunCollector[code;v1])`fuzzFailures; :shrink[code;typeCode;v1]];
-    if[0<count (fuzzRunCollector[code;v2])`fuzzFailures; :shrink[code;typeCode;v2]];
-    :val;
+.tst.fuzzFailureClass:{[message]
+  text:.tst.toString message;
+  marker:"\n--- diff ---\n";
+  positions:ss[text;marker];
+  if[count positions;
+    tail:((first positions)+count marker)_text;
+    :first "\n" vs tail];
+  if[text like "Error during fuzz run: *";:text];
+  if[count ss[text;"expected it NOT to equal"];:"assertion:not-equal"];
+  if[count ss[text;"expected it to be less than"];:"assertion:less-than"];
+  if[count ss[text;"expected it to be greater than"];:"assertion:greater-than"];
+  if[count ss[text;" to not be in "];:"assertion:not-in"];
+  if[count ss[text;" to be within "];:"assertion:within"];
+  if[count ss[text;" to be like "];:"assertion:like"];
+  if[count ss[text;" to be in "];:"assertion:in"];
+  if[(4#text)~"Got ";:"assertion:equal"];
+  first "\n" vs text
+ };
+
+.tst.fuzzFailureSignature:{[result]
+  failures:$[`fuzzFailures in key result;(),result`fuzzFailures;()];
+  if[not count failures;:""];
+  classes:.tst.fuzzFailureClass each failures;
+  "fuzz-failure-v1/",string[count failures],"/",raze string md5 "|" sv classes
+ };
+
+.tst.shrinkLimits:{[props]
+  steps:"j"$$[`shrinkSteps in key props;props`shrinkSteps;100];
+  candidates:"j"$$[`shrinkCandidates in key props;props`shrinkCandidates;1000];
+  timeMs:"f"$$[`shrinkTimeMs in key props;props`shrinkTimeMs;1000f];
+  if[(steps<0) or candidates<0 or timeMs<0;
+    '"property shrink limits must be non-negative"];
+  `steps`candidates`timeMs!(steps;candidates;timeMs)
+ };
+
+.tst.shrinkElapsedMs:{[started]
+  ("f"$.z.p-started)%1000000f
+ };
+
+/ Deterministic greedy walk over each node's ordered shrink candidates. Every
+/ accepted child must fail with the same stable failure class as the original.
+/ Three independent ceilings make pathological custom shrinkers safe in CI.
+.tst.shrinkTree:{[code;generator;original;initial;limits]
+  current:original;
+  signature:.tst.fuzzFailureSignature initial;
+  steps:0j;tested:0j;started:.z.p;termination:`minimal;done:0b;
+  while[not done;
+    if[steps>=limits`steps;termination:`stepLimit;done:1b];
+    if[(not done) and tested>=limits`candidates;termination:`candidateLimit;done:1b];
+    if[(not done) and .tst.shrinkElapsedMs[started]>=limits`timeMs;
+      termination:`timeLimit;done:1b];
+    if[not done;
+      candidates:.resq.gen.shrinkCandidates[generator;current];
+      if[not count candidates;termination:`minimal;done:1b];
+    ];
+    if[not done;
+      accepted:0b;i:0j;
+      while[(i<count candidates) and not accepted and not done;
+        if[tested>=limits`candidates;termination:`candidateLimit;done:1b];
+        if[(not done) and .tst.shrinkElapsedMs[started]>=limits`timeMs;
+          termination:`timeLimit;done:1b];
+        if[not done;
+          candidateResult:.tst.fuzzRunCollector[code;candidates i];
+          tested+:1;
+          if[(count candidateResult`fuzzFailures) and
+             signature~.tst.fuzzFailureSignature candidateResult;
+            current:candidates i;steps+:1;accepted:1b];
+          i+:1];
+      ];
+      if[(not done) and not accepted;termination:`minimal;done:1b];
+    ];
   ];
-  val
+  `original`minimal`steps`candidates`termination`failureSignature`durationMs!(
+    original;current;steps;tested;termination;signature;.tst.shrinkElapsedMs started)
+ };
+
+/ Backward-compatible internal helper. New code should use the public
+/ .resq.gen shrink protocol and .tst.shrinkTree telemetry.
+shrink:{[code;typeCode;val]
+  generator:$[(type val)>=0h;
+    element:$[(abs type val) in .tst.typeCodes;
+      .tst.typeNames .tst.typeCodes?abs type val;`long];
+    .resq.gen.list[.resq.gen.typed element;0;count val];
+    .resq.gen.adapt val];
+  initial:.tst.fuzzRunCollector[code;val];
+  (.tst.shrinkTree[code;generator;val;initial;
+    `steps`candidates`timeMs!(100j;1000j;1000f)])`minimal
  }
 
 runners[`fuzz]:{[expec]
@@ -207,17 +292,46 @@ runners[`fuzz]:{[expec]
   props[`seed]:seed;
   expec[`props]:props;
   expec[`seed]:seed;
-  fuzzValues:.tst.pickFuzzSeeded[expec`vars;expec`runs;seed;"root"];
-  fuzzResults:fuzzRunCollector[expec`code] each fuzzValues;
+  generator:.resq.gen.adapt expec`vars;
+  expec[`generatorProtocol]:.resq.gen.PROTOCOL;
+  fuzzValues:.resq.gen.sampleList[generator;expec`runs;seed;"root"];
+  fuzzResults:{[code;input;idx]
+    result:.tst.fuzzRunCollector[code;input];
+    result[`fuzzIndex]:idx;
+    result
+  }'[expec[`runs]#enlist expec`code;fuzzValues;til expec`runs];
   fails: select from fuzzResults where 0 < count each fuzzFailures;
 
   expec[`shrunkFailure]: (::);
+  expec[`originalFailure]: (::);
+  expec[`replayToken]:"";
+  expec[`replayTokens]:();
+  expec[`shrinkSteps]:0j;
+  expec[`shrinkCandidates]:0j;
+  expec[`shrinkTermination]:`notRun;
+  expec[`shrinkFailureSignature]:"";
+  expec[`shrinkDurationMs]:0f;
   if[0<count fails;
-    firstFail: (first fails)`failedFuzz;
+    firstFailResult:first fails;
+    firstFail:firstFailResult`failedFuzz;
+    tokens:.resq.gen.replayToken[seed;] each fails`fuzzIndex;
+    expec[`originalFailure]:firstFail;
+    expec[`replayToken]:first tokens;
+    expec[`replayTokens]:tokens;
     -1 "  Fuzz failure detected. Attempting to shrink...";
-    shrunk: shrink[expec`code; abs type firstFail; firstFail];
-    -1 "  Minimal Reproducible Case: ", .Q.s1 shrunk;
-    expec[`shrunkFailure]: shrunk;
+    -1 "  Replay: ",first tokens;
+    shrinkInfo:.tst.shrinkTree[
+      expec`code;generator;firstFail;firstFailResult;.tst.shrinkLimits props];
+    -1 "  Original failing input: ",.Q.s1 shrinkInfo`original;
+    -1 "  Minimal reproducible input: ",.Q.s1 shrinkInfo`minimal;
+    -1 "  Shrink: ",string[shrinkInfo`steps]," accepted / ",
+       string[shrinkInfo`candidates]," tried (",string[shrinkInfo`termination],")";
+    expec[`shrunkFailure]:shrinkInfo`minimal;
+    expec[`shrinkSteps]:shrinkInfo`steps;
+    expec[`shrinkCandidates]:shrinkInfo`candidates;
+    expec[`shrinkTermination]:shrinkInfo`termination;
+    expec[`shrinkFailureSignature]:shrinkInfo`failureSignature;
+    expec[`shrinkDurationMs]:shrinkInfo`durationMs;
   ];
 
   expec[`failedFuzz]: exec failedFuzz from fuzzResults where 0 < count each fuzzFailures;
@@ -239,9 +353,12 @@ runners[`fuzz]:{[expec]
  }
 
 fuzzRunCollector:{[code;fuzz]
+ origState:.tst.assertState;
  .tst.assertState:.tst.defaultAssertState;
  @[code; fuzz; { [e] .tst.assertState.failures,: enlist "Error during fuzz run: ",e }];
- $[0<count .tst.assertState.failures;
+ result:$[0<count .tst.assertState.failures;
    `failedFuzz`fuzzFailures`assertsRun!(fuzz;.tst.assertState.failures;.tst.assertState.assertsRun);
-   `failedFuzz`fuzzFailures`assertsRun!(fuzz;();.tst.assertState.assertsRun)]
+   `failedFuzz`fuzzFailures`assertsRun!(fuzz;();.tst.assertState.assertsRun)];
+ .tst.assertState:origState;
+ result
  }

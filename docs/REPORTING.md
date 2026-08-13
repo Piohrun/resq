@@ -131,6 +131,14 @@ begins. The child's per-suite listing, summary and report-file lines are dropped
 the parent re-renders all of that from the merged rows, and the child's report
 named a private scratch directory that no longer exists by the time you read it.
 
+For `kind="fuzz"`, `property` carries the deterministic generator protocol,
+effective seed, declared runs/tolerance, pass/fail totals, every failed input and
+its replay token, first original/minimal input, legacy `shrunkInput`, shrink
+step/candidate/duration counters, preserved failure signature, and an explicit
+termination reason. Passing properties use an empty replay token/list and
+`shrinkTermination="notRun"`; failing properties have exactly one replay token
+per failed input. The dependency-free validator checks those invariants.
+
 Consumers should branch on `schemaVersion`, ignore unknown fields, and use the
 numeric `durationSeconds` for calculations. Do not derive pass/fail from the
 process log; use the process exit code and aggregate counts.
@@ -155,8 +163,10 @@ so identity remains useful across checkout directories. Suites carry the run
 timestamp/hostname and the root contains resQ/q/run-ID properties. Testcases
 include portable `file`/`line`, `resq-test-id`, retry count, and flaky marker.
 Failures, runtime errors, skips, and pending tests map to their corresponding
-JUnit elements. Captured isolated-child output is written as `<system-out>` on
-the row that owns the file transcript.
+JUnit elements. Property rows add a standard testcase `<properties>` block for
+the generator protocol, seed, replay token, original/minimal inputs, shrink
+work, termination, signature, and duration. Captured isolated-child output is
+written as `<system-out>` on the row that owns the file transcript.
 
 For a multiline failure, the element's `message` attribute contains a one-line
 summary while the full newline-preserving message remains in the element body.
@@ -168,8 +178,9 @@ xUnit output uses suite titles for collection names and test `type`, with
 `source-file` and `source-line` when known. Because xUnit v2 has no distinct
 per-test Error result, resQ maps both assertion failures and runtime errors to
 `Fail`; the failure's `exception-type` distinguishes `resQ.AssertionFailure`
-from `resQ.Error`. Captured isolated-child output is written in the test's
-`<output>` element.
+from `resQ.Error`. Property telemetry uses standard per-test `<traits>` with the
+same values as JUnit's property block. Captured isolated-child output is written
+in the test's `<output>` element.
 
 The assembly ID and timestamps come from the canonical run metadata. Test UUIDs
 derive from `testId`, so they remain stable across checkout directories. A run

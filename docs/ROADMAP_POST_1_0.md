@@ -98,14 +98,14 @@ appear complete.
 
 ## 1.5.0 — Property generator and shrink protocol
 
-- [ ] Publish deterministic `.resq.gen` sampling and shrinking protocols while
+- [x] Publish deterministic `.resq.gen` sampling and shrinking protocols while
   adapting all legacy `vars` forms.
-- [ ] Add bounded scalar/boundary, nullable, weighted choice, collection,
+- [x] Add bounded scalar/boundary, nullable, weighted choice, collection,
   dictionary, tuple, table, map, and filter generators without consuming q's
   global random stream or interning unbounded symbols.
-- [ ] Replace vector bisection with deterministic, type-aware shrink trees that
+- [x] Replace vector bisection with deterministic, type-aware shrink trees that
   preserve the failure signature and obey step/time/candidate limits.
-- [ ] Emit replay tokens, original/minimal inputs, shrink counts, and explicit
+- [x] Emit replay tokens, original/minimal inputs, shrink counts, and explicit
   termination reasons across console and machine reports.
 
 ## 1.6.0 — Flake classification and quarantine

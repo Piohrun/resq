@@ -6,6 +6,18 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Property testing now has a public, deterministic `.resq.gen` protocol with
+  bounded scalar and boundary generators, weighted choice, nullability,
+  collections, dictionaries, tuples, tables, mapping, filtering, and custom
+  sampling/shrinking. Every legacy `vars` spelling is adapted at the boundary;
+  built-ins use resQ's private counter hash, never q's global random stream, and
+  symbol generation remains confined to a fixed interned pool.
+- The old vector-only bisection is replaced by bounded, deterministic,
+  type-aware shrink trees. Shrinks preserve the original failure class and
+  independently enforce accepted-step, candidate, and wall-time ceilings.
+  Portable replay tokens, original/minimal inputs, work counts, failure
+  signatures, duration, and explicit termination reasons now appear in the
+  console and schema-v2 property object.
 - Native sharding now supports backward-compatible `file`, stable parent
   `test`, and declarative `case` units. The new `shouldEach` DSL registers table
   rows without executing their bodies, emits first-class case identities and

@@ -243,7 +243,7 @@ Define a property-based (fuzz) test.
 | Name | Type | Description |
 |------|------|-------------|
 | `description` | string/symbol | Property description |
-| `props` | dict | Configuration: `runs`, `vars`, `maxFailRate` |
+| `props` | dict | Configuration: `runs`, `vars`, failure tolerance, seed, and shrink limits |
 | `code` | function | Property to verify (receives generated values) |
 
 **Example:**
@@ -276,6 +276,10 @@ separate desc blocks.
 | `runs` | int | 100 | Number of test iterations |
 | `vars` | any | required | Type specification for generated values |
 | `maxFailRate` | float | 0.0 | Maximum allowed failure rate (0.0-1.0) |
+| `seed` | long | stable test-derived | Private deterministic sampling seed |
+| `shrinkSteps` | long | 100 | Maximum accepted shrink steps |
+| `shrinkCandidates` | long | 1000 | Maximum candidates executed by shrinking |
+| `shrinkTimeMs` | float | 1000 | Maximum shrink wall time in milliseconds |
 
 ---
 
@@ -1255,6 +1259,7 @@ Runtime errors remain fail-fast and are reported as errors.
 | Choice | `` `opt1`opt2`opt3 `` | Random selection |
 | Function | `{...}` | Custom generator |
 | Dict | `` `a`b!(`int;`float) `` | Multiple params |
+| Protocol generator | `.resq.gen.*` | Deterministic composable generator |
 
 **Examples:**
 
@@ -1311,6 +1316,48 @@ Generate random values according to specification.
 
 **Returns:** List of generated values
 
+Legacy random helpers remain for qspec compatibility. `holds` adapts `vars` to
+the public deterministic protocol and samples through `.resq.gen`; new code
+should use that API directly.
+
+---
+
+### `.resq.gen` protocol
+
+```q
+g:.resq.gen.scalar[`int;-100;100];
+.resq.gen.sample[g;seed;counter;stream]
+.resq.gen.sampleList[g;runs;seed;stream]
+.resq.gen.shrinkCandidates[g;value]
+.resq.gen.replay[g;"resq-pbt-v1/4242/17"]
+```
+
+All protocol generators are dictionaries with `protocol`, `kind`, and
+`options`; `protocol` is `resq-generator-v1`. Sampling is a pure function of
+the four arguments and built-ins never consume q's global random stream.
+
+| Constructor | Signature |
+|-------------|-----------|
+| Typed value | `.resq.gen.typed typeName` |
+| Bounded scalar | `.resq.gen.scalar[typeName;lower;upper]` |
+| Boundary choice | `.resq.gen.boundary values` |
+| Weighted choice | `.resq.gen.weightedChoice[values;weights]` |
+| Nullable | `.resq.gen.nullable[generator;nullRate]` |
+| Collection | `.resq.gen.list[generator;minLength;maxLength]` |
+| Dictionary | `.resq.gen.dictionary generators` (alias `dict`) |
+| Tuple | `.resq.gen.tuple generators` |
+| Table | `.resq.gen.table[schema;minRows;maxRows]` |
+| Map | `.resq.gen.map[generator;function]` |
+| Filter | `.resq.gen.filter[generator;predicate;maxAttempts]` |
+| Custom | `.resq.gen.custom[label;sampleFunction;shrinkFunction]` |
+
+The custom sample function receives `[seed;counter;stream]`; the custom shrink
+function receives the current value and returns ordered candidates. A filter
+throws if no value satisfies its predicate within `maxAttempts`. Built-in
+symbols come only from a fixed seven-symbol pool, avoiding unbounded symbol
+interning. See [Property-Based Testing](PBT.md) for composite examples,
+determinism boundaries, replay stability, and shrinking behavior.
+
 ---
 
 ### shrink
@@ -1319,12 +1366,16 @@ Generate random values according to specification.
 .tst.shrink[code; typeCode; value]
 ```
 
-Shrink a failing input to minimal reproducing case.
+Backward-compatible wrapper that shrinks a failing input to a reproducing case.
 
 **Notes:**
 - Automatically called when a fuzz test fails
-- Works by binary search on lists
-- Minimal case is printed to console
+- New property runs use `.tst.shrinkTree` and `.resq.gen.shrinkCandidates` for
+  deterministic type-aware trees.
+- Only candidates preserving the original failure signature are accepted.
+- `shrinkSteps`, `shrinkCandidates`, and `shrinkTimeMs` independently bound work.
+- Console and JSON report original/minimal inputs, replay token, work counts,
+  duration, signature, and `minimal`/`stepLimit`/`candidateLimit`/`timeLimit`.
 
 ---
 

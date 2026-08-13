@@ -131,11 +131,47 @@
         "flaky": {"type": "boolean"},
         "attemptHistory": {"type": "array", "items": {"$ref": "#/$defs/attempt"}},
         "parameterCases": {"type": "array", "items": {"$ref": "#/$defs/case"}},
-        "property": {"type": "object"},
+        "property": {
+          "oneOf": [
+            {"type": "object", "maxProperties": 0},
+            {"$ref": "#/$defs/property"}
+          ]
+        },
         "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
         "snapshots": {"type": "array", "items": {"$ref": "#/$defs/snapshot"}},
         "benchmark": {"type": "object"}
       }
+    },
+    "property": {
+      "type": "object",
+      "required": [
+        "seed", "runs", "maxFailRate", "failRate", "passCount", "failCount",
+        "failedInputs", "shrunkInput", "generatorProtocol", "replayToken",
+        "replayTokens", "originalInput", "minimalInput", "shrinkSteps",
+        "shrinkCandidates", "shrinkTermination", "failureSignature",
+        "shrinkDurationMs"
+      ],
+      "properties": {
+        "seed": {"type": "integer"},
+        "runs": {"type": "integer", "minimum": 0},
+        "maxFailRate": {"type": "number", "minimum": 0, "maximum": 1},
+        "failRate": {"type": "number", "minimum": 0, "maximum": 1},
+        "passCount": {"type": "integer", "minimum": 0},
+        "failCount": {"type": "integer", "minimum": 0},
+        "failedInputs": {"type": "array"},
+        "shrunkInput": {},
+        "generatorProtocol": {"const": "resq-generator-v1"},
+        "replayToken": {"type": "string", "pattern": "^(?:resq-pbt-v1/-?[0-9]+/[0-9]+)?$"},
+        "replayTokens": {"type": "array", "items": {"type": "string", "pattern": "^resq-pbt-v1/-?[0-9]+/[0-9]+$"}},
+        "originalInput": {},
+        "minimalInput": {},
+        "shrinkSteps": {"type": "integer", "minimum": 0},
+        "shrinkCandidates": {"type": "integer", "minimum": 0},
+        "shrinkTermination": {"enum": ["notRun", "minimal", "stepLimit", "candidateLimit", "timeLimit"]},
+        "failureSignature": {"type": "string"},
+        "shrinkDurationMs": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": true
     },
     "attempt": {
       "type": "object",

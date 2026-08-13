@@ -37,7 +37,7 @@ the public [stable identity contract](IDENTITY.md).
 | Pass/error/skip rate and duration | `summary`, `tests[]` |
 | Flake rate | `tests[].flaky`, `attemptHistory` |
 | Parameter hot spots | `parameterCases[]` |
-| Property reproducibility | `property.seed`, failing/shrunk inputs |
+| Property reproducibility | generator protocol, seed, replay tokens, original/minimal inputs, failure signature, shrink work/termination |
 | Benchmark drift | `performance[]`, `tests[].benchmark` |
 | Function/statement/branch coverage and gate health | `coverage.json` summary/files/functions/branchSites/fallbacks/gates |
 | Framework hygiene | run/test `diagnostics[]` |

@@ -66,6 +66,10 @@ jobs:
         shell: bash
         run: tools/verify_shard_merge.py --q q
 
+      - name: Property generator and shrink protocol
+        shell: bash
+        run: tools/verify_property_protocol.py --q q
+
       - name: Hostile environment and interruption audit
         shell: bash
         run: tools/verify_hostile_env.py --q q
