@@ -23,6 +23,10 @@ if[not `xmlOutput in key `.tst.app; .tst.app.xmlOutput: 0b];
 if[not `runPerformance in key `.tst.app; .tst.app.runPerformance: 0b];
 if[not `runCoverage in key `.tst.app; .tst.app.runCoverage: 0b];
 if[not `coverageBranches in key `.tst;.tst.coverageBranches:0b];
+if[not `coverageContexts in key `.tst;.tst.coverageContexts:0b];
+if[not `coverageAttemptContexts in key `.tst;.tst.coverageAttemptContexts:0b];
+if[not `coverageContextMax in key `.tst;.tst.coverageContextMax:10000j];
+if[not `coverageContextEntryMax in key `.tst;.tst.coverageContextEntryMax:250000j];
 if[not `coverageBranchMin in key `.tst.app; .tst.app.coverageBranchMin:0];
 if[not `coverageBranchCompletenessMin in key `.tst.app;
     .tst.app.coverageBranchCompletenessMin:0];
@@ -217,3 +221,10 @@ internals[`perfObj]: internals[`defaultExpecObj], ((),`type)!(),`perf
 
 / Callbacks - must exist before any test loading
 if[not `callbacks in key `.tst; .tst.callbacks.descLoaded: {[specObj]}; .tst.callbacks.expecRan: {[spec;expec]}];
+
+/ Coverage is loaded lazily, after the expectation runner. These no-op hooks
+/ let the runner own an unconditional attempt boundary without making normal
+/ (non-coverage) runs load the coverage rewriter. lib/coverage.q replaces them.
+if[not `coverageBeginAttempt in key `.tst;
+    .tst.coverageBeginAttempt:{[spec;expec;attempt] ::}];
+if[not `coverageEndAttempt in key `.tst;.tst.coverageEndAttempt:{[] ::}];

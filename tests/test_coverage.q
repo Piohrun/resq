@@ -146,6 +146,197 @@
     };
 };
 
+.tst.desc["Coverage: bounded test and attempt contexts"]{
+    before{
+        `.tst.coverageData mock ()!();
+        `.tst.trackedFiles mock `symbol$();
+        `.tst.coverageEnabled mock 1b;
+        `.tst.coverageContexts mock 1b;
+        `.tst.coverageAttemptContexts mock 0b;
+        `.tst.coverageContextMax mock 10000j;
+        `.tst.coverageContextEntryMax mock 250000j;
+        `.tst.coverageContextRegistry mock ()!();
+        `.tst.coverageContextMetricMeta mock ()!();
+        `.tst.coverageContextMetricHits mock (`symbol$())!`long$();
+        `.tst.coverageActiveContext mock ()!();
+        `.tst.coverageContextOverflowActivations mock 0j;
+        `.tst.coverageContextDroppedHits mock 0j;
+        `.tst.lineCoverageData mock ()!();
+        `.tst.statementCoverageData mock (`symbol$())!`long$();
+        `.tst.branchCoverageData mock (`symbol$())!();
+    };
+
+    should["preserve aggregate counts and label work outside attempts unattributed"]{
+        file:`$"src/context.q";
+        / Setup/beforeAll-style work has no active attempt.
+        .tst.recordExecution[file;`.context.f];
+        .tst.coverageActiveContext:.tst.ensureCoverageContext
+            .tst.coverageContextMeta[
+                "test_alpha";"test";"test_alpha";0j;"suite";"alpha";
+                "tests/context.q"];
+        .tst.recordExecution[file;`.context.f];
+        .tst.recordExecution[file;`.context.f];
+        .tst.covS["statement_alpha";file;7];
+        .tst.covC["branch_alpha";1b];
+        .tst.covC["branch_alpha";0b];
+        .tst.coverageEndAttempt[];
+        / afterAll/timer-style late work is also outside the boundary.
+        .tst.recordExecution[file;`.context.f];
+
+        .tst.coverageData[file;`.context.f] musteq 4j;
+        .tst.statementCoverageData[`statement_alpha] musteq 1j;
+        .tst.branchCoverageData[`branch_alpha] musteq 1 1j;
+        contextModel:.tst.coverageContextModel[];
+        contextModel[`summary;`functionHits] musteq 4j;
+        contextModel[`summary;`statementHits] musteq 1j;
+        contextModel[`summary;`branchHits] musteq 2j;
+        contextModel[`summary;`unattributedHits] musteq 2j;
+        contextIds:{x`contextId} each contextModel`contexts;
+        contextIds mustmatch asc ("test_alpha";"unattributed");
+    };
+
+    should["share retries by test by default and split them only when requested"]{
+        spec:`title`tstPath!(`retry_suite;`$"tests/retry.q");
+        expec:enlist[`desc]!enlist `eventually_passes;
+        .tst.coverageBeginAttempt[spec;expec;1j];
+        firstId:.tst.coverageActiveContext`contextId;
+        .tst.recordCoverageContextMetric[
+            `function;`$"src/retry.q";`.retry.f;`; -1j];
+        .tst.coverageEndAttempt[];
+        .tst.coverageBeginAttempt[spec;expec;2j];
+        secondId:.tst.coverageActiveContext`contextId;
+        .tst.recordCoverageContextMetric[
+            `function;`$"src/retry.q";`.retry.f;`; -1j];
+        .tst.coverageEndAttempt[];
+        firstId musteq secondId;
+        testModel:.tst.coverageContextModel[];
+        (count testModel`contexts) musteq 1;
+        (first[testModel`contexts])[`metrics;0;`hits] musteq 2j;
+
+        .tst.coverageContextRegistry:()!();
+        .tst.coverageContextMetricMeta:()!();
+        .tst.coverageContextMetricHits:(`symbol$())!`long$();
+        .tst.coverageAttemptContexts:1b;
+        .tst.coverageBeginAttempt[spec;expec;1j];
+        firstId:.tst.coverageActiveContext`contextId;
+        .tst.recordCoverageContextMetric[
+            `function;`$"src/retry.q";`.retry.f;`; -1j];
+        .tst.coverageEndAttempt[];
+        .tst.coverageBeginAttempt[spec;expec;2j];
+        secondId:.tst.coverageActiveContext`contextId;
+        .tst.recordCoverageContextMetric[
+            `function;`$"src/retry.q";`.retry.f;`; -1j];
+        .tst.coverageEndAttempt[];
+        must[not firstId~secondId;
+             "attempt-detail contexts must have distinct stable IDs"];
+        attemptModel:.tst.coverageContextModel[];
+        (attemptModel`detail) musteq "attempt";
+        attempts:asc "j"${x`attempt} each attemptModel`contexts;
+        attempts musteq 1 2j;
+    };
+
+    should["bound context cardinality and unique metric memory without changing aggregates"]{
+        .tst.coverageContextMax:1j;
+        .tst.coverageContextEntryMax:1j;
+        firstContext:.tst.coverageContextMeta[
+            "test_a";"test";"test_a";0j;"s";"a";"tests/a.q"];
+        secondContext:.tst.coverageContextMeta[
+            "test_b";"test";"test_b";0j;"s";"b";"tests/b.q"];
+        .tst.coverageActiveContext:.tst.ensureCoverageContext firstContext;
+        .tst.recordExecution[`$"src/bounds.q";`.bounds.a];
+        .tst.recordExecution[`$"src/bounds.q";`.bounds.a];
+        .tst.coverageActiveContext:.tst.ensureCoverageContext secondContext;
+        .tst.recordExecution[`$"src/bounds.q";`.bounds.b];
+        .tst.coverageData[`$"src/bounds.q";`.bounds.a] musteq 2j;
+        .tst.coverageData[`$"src/bounds.q";`.bounds.b] musteq 1j;
+        bounded:.tst.coverageContextModel[];
+        bounded[`summary;`contextsStored] musteq 1j;
+        bounded[`summary;`metricEntriesStored] musteq 1j;
+        bounded[`summary;`overflowActivations] musteq 1j;
+        bounded[`summary;`droppedMetricHits] musteq 1j;
+        bounded[`summary;`truncated] musteq 1b;
+        must[all `test_a`overflow in key .tst.coverageContextRegistry;
+             "overflow must be explicit without exceeding the real-context limit"];
+    };
+
+    should["merge worker and shard contexts by stable identity independent of arrival order"]{
+        .tst.coverageActiveContext:.tst.ensureCoverageContext
+            .tst.coverageContextMeta[
+                "test_a";"test";"test_a";0j;"s";"a";"tests/a.q"];
+        .tst.recordCoverageContextMetric[
+            `function;`$"src/merge.q";`.merge.f;`; -1j];
+        shardA:.tst.coverageContextModel[];
+
+        .tst.coverageContextRegistry:()!();
+        .tst.coverageContextMetricMeta:()!();
+        .tst.coverageContextMetricHits:(`symbol$())!`long$();
+        .tst.coverageActiveContext:.tst.ensureCoverageContext
+            .tst.coverageContextMeta[
+                "test_a";"test";"test_a";0j;"s";"a";"tests/a.q"];
+        .tst.recordCoverageContextMetric[
+            `function;`$"src/merge.q";`.merge.f;`; -1j];
+        .tst.recordCoverageContextMetric[
+            `statement;`$"src/merge.q";`;"statement_merge";-1j];
+        .tst.coverageActiveContext:.tst.ensureCoverageContext
+            .tst.coverageContextMeta[
+                "test_b";"test";"test_b";0j;"s";"b";"tests/b.q"];
+        .tst.recordCoverageContextMetric[
+            `function;`$"src/merge.q";`.merge.g;`; -1j];
+        shardB:.tst.coverageContextModel[];
+
+        mergedAB:.tst.mergeCoverageContexts (shardA;shardB);
+        mergedBA:.tst.mergeCoverageContexts (shardB;shardA);
+        mergedAB mustmatch mergedBA;
+        mergedAB[`summary;`contextsStored] musteq 2j;
+        mergedAB[`summary;`metricEntriesStored] musteq 3j;
+        mergedAB[`summary;`functionHits] musteq 3j;
+        mergedAB[`summary;`statementHits] musteq 1j;
+
+        shardA[`contextLimit]:1j;shardB[`contextLimit]:1j;
+        shardA[`entryLimit]:1j;shardB[`entryLimit]:1j;
+        boundedMerge:.tst.mergeCoverageContexts (shardB;shardA);
+        boundedMerge[`summary;`contextsStored] musteq 1j;
+        boundedMerge[`summary;`metricEntriesStored] musteq 1j;
+        boundedMerge[`summary;`overflowActivations] musteq 1j;
+        must[boundedMerge[`summary;`droppedMetricHits]>0;
+             "the deterministic merge must disclose bounded-away hits"];
+    };
+
+    should["publish contexts in schema-v2 JSON, state v5, and HTML"]{
+        .tst.coverageActiveContext:.tst.ensureCoverageContext
+            .tst.coverageContextMeta[
+                "test_output";"test";"test_output";0j;"s";"output";
+                "tests/output.q"];
+        .tst.recordCoverageContextMetric[
+            `function;`$"src/output.q";`.output.f;`; -1j];
+        model:.tst.coverageModel[];
+        state:.tst.coverageStateLines model;
+        first[state] musteq "# resQ coverage state v5";
+        must[any state like "C test_output *";
+             "state output must include the stable context"];
+        must[any state like "M test_output *";
+             "state output must include attributed metrics"];
+
+        out:.tst.coverageTestOutput[];
+        idx:(count out)-(reverse out)?"/";
+        outDir:idx#out;
+        `.tst.lastCoverageModel mock model;
+        jsonPath:outDir,"/contexts.json";
+        htmlPath:outDir,"/contexts.html";
+        .tst.generateCoverageJSON jsonPath;
+        .tst.generateHTML htmlPath;
+        payload:.j.k raze read0 hsym `$jsonPath;
+        (payload`schemaVersion) musteq 2f;
+        payload[`contextMeasurement;`enabled] musteq 1b;
+        outputContext:.tst.coverageCollectionAt[
+            payload[`contextMeasurement;`contexts];0];
+        (outputContext`contextId) musteq "test_output";
+        html:"\n" sv read0 hsym `$htmlPath;
+        must[0<count ss[html;"Coverage contexts"];
+             "HTML must render the context section"];
+    };
+};
+
 .tst.desc["Coverage: instrumentation completeness"]{
     before{
         `.tst.origCompletenessData mock .tst.coverageData;

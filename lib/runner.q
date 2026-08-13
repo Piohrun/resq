@@ -479,6 +479,9 @@
     runAfterAll: not .tst.halt;
 
     runOutcome: @[{[s] (0b; .tst.runSpecBody s)}; spec; {[err] (1b; err)}];
+    / Framework faults must not leak the last test's attribution into afterAll
+    / or the suite finalizer. Normal attempts already clear this boundary.
+    .tst.coverageEndAttempt[];
     if[runAfterAll;
         @[.tst.finalizeSpecAfterAll; spec; {[err]
             .tst.recordCleanupError[`specFinalizer;

@@ -16,6 +16,10 @@
   cfg[`covBranches] musteq 0b;
   cfg[`coverageBranchMin] musteq 0;
   cfg[`coverageBranchCompletenessMin] musteq 0;
+  cfg[`covContexts] musteq 0b;
+  cfg[`covAttemptContexts] musteq 0b;
+  cfg[`coverageContextMax] musteq 10000j;
+  cfg[`coverageContextEntryMax] musteq 250000j;
   cfg[`coverageSources] mustmatch ();
   cfg[`randomOrder] musteq 0b;
   cfg[`seed] musteq 0j;
@@ -114,6 +118,29 @@
   must[all `coverageBranchMin`coverageBranchCompletenessMin in
       .tst.invalidConfigKeys `coverageBranchMin`coverageBranchCompletenessMin!(101;-1);
       "branch coverage percentages must stay in 0..100"];
+  };
+ should["validate and apply bounded coverage context settings"]{
+  previousContexts:@[get;`.tst.coverageContexts;0b];
+  previousAttempts:@[get;`.tst.coverageAttemptContexts;0b];
+  previousMax:@[get;`.tst.coverageContextMax;10000j];
+  previousEntryMax:@[get;`.tst.coverageContextEntryMax;250000j];
+  cfg:`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax!(
+      0b;1b;25j;500j);
+  .tst.validateConfig[cfg] mustmatch ();
+  .tst.applyConfig cfg;
+  .tst.coverageContexts musteq 1b;
+  .tst.coverageAttemptContexts musteq 1b;
+  .tst.coverageContextMax musteq 25j;
+  .tst.coverageContextEntryMax musteq 500j;
+  .tst.coverageContexts:previousContexts;
+  .tst.coverageAttemptContexts:previousAttempts;
+  .tst.coverageContextMax:previousMax;
+  .tst.coverageContextEntryMax:previousEntryMax;
+  must[all `coverageContextMax`coverageContextEntryMax in
+      .tst.invalidConfigKeys `coverageContextMax`coverageContextEntryMax!(0;-1);
+      "coverage context limits must be positive"];
+  .tst.invalidConfigKeys[(enlist `covContexts)!enlist "yes"]
+      musteq enlist `covContexts;
   };
  should["load and parse JSON config file"]{
   / Create test config file

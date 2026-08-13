@@ -346,7 +346,11 @@ runExpec:{[spec;expec];
  while[(attempt < maxAttempts) and not done;
    attempt+: 1;
    attemptStart:.z.p;
+   .tst.coverageBeginAttempt[spec;expec;attempt];
    res: .tst.runExpecAttempt[spec; expec];
+   / The active interval is exactly before/body/fixture teardown/after. Retry
+   / cleanup, final teardown, suite hooks, and late timer work are unattributed.
+   .tst.coverageEndAttempt[];
    expec: res`expec;
    beforeBad: res`beforeBad;
    attemptStatus:.tst.normalizeResultStatus expec`result;

@@ -19,6 +19,16 @@
 .tst.loadingStack: ();
 .tst._covMissing: `resqCovMissing;
 
+/ Optional attribution is deliberately separate from the aggregate maps above.
+/ Aggregate probes are updated first; context accounting is trapped and bounded,
+/ so enabling it cannot change application execution or a coverage gate.
+.tst.coverageContextRegistry:()!();       / context id -> stable metadata
+.tst.coverageContextMetricMeta:()!();     / entry id -> stable metric metadata
+.tst.coverageContextMetricHits:(`symbol$())!`long$();
+.tst.coverageActiveContext:()!();
+.tst.coverageContextOverflowActivations:0j;
+.tst.coverageContextDroppedHits:0j;
+
 / Functions that must never be wrapped (avoid recursion/self-instrumentation)
 .tst.coverageSkipNames: `$(".tst.initCoverage";".tst.recordExecution";".tst.resolvePath";".tst.wrapFunc";".tst.instrumentFile";".tst.loadSource";".tst.generateLCOV";".tst.generateHTML");
 
@@ -58,6 +68,100 @@
         .tst.coverageData[fileSym]: ()!();
         .tst.trackedFiles,: fileSym;
     ];
+ };
+
+.tst.coverageContextReserved:`unattributed`overflow;
+
+.tst.coverageContextMeta:{[contextId;kind;testId;attempt;suite;description;file]
+    `contextId`kind`testId`attempt`suite`description`file!(
+        .tst.toString contextId;.tst.toString kind;.tst.toString testId;
+        "j"$attempt;.tst.toString suite;.tst.toString description;
+        .tst.repoRelativePath .tst.toString file)
+ };
+
+/ Register one context or fold it into the reserved overflow bucket. The limit
+/ applies only to test/attempt contexts; the two reserved buckets never evict a
+/ real context and make unattributed/overflow work visible even at the limit.
+.tst.ensureCoverageContext:{[metadata]
+    id:`$.tst.toString metadata`contextId;
+    if[id in key .tst.coverageContextRegistry;
+        :.tst.coverageContextRegistry id];
+    if[(not id in .tst.coverageContextReserved) and
+       count[(key .tst.coverageContextRegistry) except .tst.coverageContextReserved]>=
+         "j"$@[get;`.tst.coverageContextMax;10000j];
+        .tst.coverageContextOverflowActivations+:1;
+        id:`overflow;
+        metadata:.tst.coverageContextMeta[
+            "overflow";"overflow";"";0j;"";"contexts beyond the configured limit";""]];
+    if[not id in key .tst.coverageContextRegistry;
+        .tst.coverageContextRegistry[id]:metadata];
+    .tst.coverageContextRegistry id
+ };
+
+.tst.coverageCurrentContext:{[]
+    if[(99h=type .tst.coverageActiveContext) and
+       `contextId in key .tst.coverageActiveContext;
+        :.tst.coverageActiveContext];
+    .tst.ensureCoverageContext .tst.coverageContextMeta[
+        "unattributed";"unattributed";"";0j;"";
+        "work outside an active test attempt";""]
+ };
+
+/ Begin/end are called by the expectation runner. In test-detail mode every
+/ retry shares one context; attempt-detail mode creates a stable child context.
+.tst.coverageBeginAttempt:{[spec;expec;attempt]
+    if[not 1b~@[get;`.tst.coverageContexts;0b];
+        .tst.coverageActiveContext:()!();:()];
+    testId:.tst.rerunTestId[spec;expec];
+    detail:1b~@[get;`.tst.coverageAttemptContexts;0b];
+    contextId:$[detail;
+        "attempt_",.tst.stableHash[testId,"\n",string["j"$attempt]];
+        testId];
+    file:$[`tstPath in key spec;.utl.pathToString spec`tstPath;""];
+    metadata:.tst.coverageContextMeta[
+        contextId;$[detail;"attempt";"test"];testId;
+        $[detail;"j"$attempt;0j];
+        $[`title in key spec;spec`title;`];
+        $[`desc in key expec;expec`desc;`];file];
+    .tst.coverageActiveContext:.tst.ensureCoverageContext metadata;
+    ::
+ };
+
+.tst.coverageEndAttempt:{[]
+    .tst.coverageActiveContext:()!();
+    ::
+ };
+
+.tst.coverageMetricMeta:{[contextId;metricId;kind;file;functionName;siteId;edgeIndex]
+    `contextId`metricId`kind`file`function`siteId`edgeIndex`edgeLabel!(
+        .tst.toString contextId;.tst.toString metricId;.tst.toString kind;
+        .tst.repoRelativePath .tst.toString file;.tst.toString functionName;
+        .tst.toString siteId;"j"$edgeIndex;
+        $[0=edgeIndex;"true";1=edgeIndex;"false";""])
+ };
+
+/ Add one attributed hit. A unique context/metric pair consumes one bounded
+/ entry; once full, existing entries keep counting and only new pairs are
+/ dropped. The aggregate hit has already been recorded by every caller.
+.tst.recordCoverageContextMetric:{[kind;file;functionName;siteId;edgeIndex]
+    if[not 1b~@[get;`.tst.coverageContexts;0b];:()];
+    ctx:.tst.coverageCurrentContext[];
+    contextId:.tst.toString ctx`contextId;
+    path:.tst.repoRelativePath .tst.toString file;
+    identity:(.tst.toString kind),"\n",path,"\n",
+        (.tst.toString functionName),"\n",(.tst.toString siteId),"\n",
+        string["j"$edgeIndex];
+    metricId:"metric_",.tst.stableHash identity;
+    entryId:`$"entry_",.tst.stableHash[contextId,"\n",metricId];
+    if[entryId in key .tst.coverageContextMetricHits;
+        .tst.coverageContextMetricHits[entryId]+:1j;:()];
+    if[count[.tst.coverageContextMetricHits]>=
+       "j"$@[get;`.tst.coverageContextEntryMax;250000j];
+        .tst.coverageContextDroppedHits+:1j;:()];
+    .tst.coverageContextMetricMeta[entryId]:.tst.coverageMetricMeta[
+        contextId;metricId;kind;path;functionName;siteId;edgeIndex];
+    .tst.coverageContextMetricHits[entryId]:1j;
+    ::
  };
 
 / Apply include/exclude rules consistently to both statically inventoried files
@@ -163,6 +267,8 @@
     ];
 
     .tst.coverageData[fileSym;funcName]+: 1;
+    .[.tst.recordCoverageContextMetric;
+        (`function;fileSym;funcName;`; -1j);{[e] ::}];
  };
 
 / @param name (symbol) Function name (e.g. `.user.create`)
@@ -409,6 +515,12 @@
     .tst.statementSiteInstrumented:: ()!();
     .tst.branchCoverageData:: (`symbol$())!();
     .tst.branchInstrumented:: ()!();
+    .tst.coverageContextRegistry::()!();
+    .tst.coverageContextMetricMeta::()!();
+    .tst.coverageContextMetricHits::(`symbol$())!`long$();
+    .tst.coverageActiveContext::()!();
+    .tst.coverageContextOverflowActivations::0j;
+    .tst.coverageContextDroppedHits::0j;
     .tst.coverageEnabled:: 1b;
 
     .tst.seedCoverageFile each fs;
@@ -524,7 +636,9 @@
     siteKey:`$.tst.toString siteId;
     .tst.statementCoverageData[siteKey]:1+$[siteKey in key .tst.statementCoverageData;
         .tst.statementCoverageData siteKey;0j];
-    .tst.covL[f;n]
+    .tst.covL[f;n];
+    .[.tst.recordCoverageContextMetric;
+        (`statement;f;`;siteId;-1j);{[e] ::}]
  };
 
 / Record one condition evaluation and return the value byte-for-byte. q control
@@ -540,7 +654,9 @@
             .tst.branchCoverageData siteKey;0 0j];
         edge:$[last outcome;0;1];
         hits[edge]+:1;
-        .tst.branchCoverageData[siteKey]:hits];
+        .tst.branchCoverageData[siteKey]:hits;
+        .[.tst.recordCoverageContextMetric;
+            (`branch;`;`;siteId;"j"$edge);{[e] ::}]];
     condition
  };
 
@@ -1242,6 +1358,205 @@
         fnRows;lineRows;statementSiteRows;branchRows;srcLines)
  };
 
+.tst.coverageContextMetricRowsFrom:{[contextId;metricMetadata;metricHits]
+    rows:();
+    entryIds:key metricMetadata;
+    i:0;
+    while[i<count entryIds;
+        entryId:entryIds i;
+        metadata:metricMetadata entryId;
+        if[contextId~.tst.toString metadata`contextId;
+            rows,:enlist metadata,enlist[`hits]!enlist
+                "j"$metricHits entryId];
+        i+:1];
+    if[count rows;
+        order:iasc {.tst.toString x`metricId} each rows;
+        rows:rows order];
+    rows
+ };
+
+.tst.coverageContextRowsFrom:{[registry;metricMetadata;metricHits]
+    rows:();
+    ids:key registry;
+    if[count ids;ids:ids iasc string each ids];
+    i:0;
+    while[i<count ids;
+        metadata:registry ids i;
+        metrics:.tst.coverageContextMetricRowsFrom[
+            .tst.toString metadata`contextId;metricMetadata;metricHits];
+        rows,:enlist metadata,enlist[`metrics]!enlist metrics;
+        i+:1];
+    rows
+ };
+
+.tst.coverageContextDocument:{[state]
+    enabled:1b~state`enabled;
+    attemptDetail:enabled and 1b~state`attemptDetail;
+    registry:state`registry;
+    metricMetadata:state`metricMetadata;
+    metricHits:state`metricHits;
+    contexts:$[enabled;.tst.coverageContextRowsFrom[
+        registry;metricMetadata;metricHits];()];
+    metrics:$[count contexts;raze {x`metrics} each contexts;()];
+    kinds:$[count metrics;{`$.tst.toString x`kind} each metrics;`symbol$()];
+    hits:$[count metrics;"j"${x`hits} each metrics;`long$()];
+    unattributedHits:0j;
+    if[count contexts;
+        unattributed:where {"unattributed"~.tst.toString x`contextId} each contexts;
+        if[count unattributed;
+            unattributedHits:sum 0j,"j"${x`hits} each
+                (contexts first unattributed)`metrics]];
+    normalIds:(key registry) except
+        .tst.coverageContextReserved;
+    summary:`contextsStored`metricEntriesStored`functionHits`statementHits`branchHits`unattributedHits`overflowActivations`droppedMetricHits`truncated!(
+        "j"$count normalIds;"j"$count metricHits;
+        sum 0j,hits where kinds=`function;
+        sum 0j,hits where kinds=`statement;
+        sum 0j,hits where kinds=`branch;
+        unattributedHits;"j"$state`overflowActivations;
+        "j"$state`droppedMetricHits;
+        (0<state`overflowActivations) or 0<state`droppedMetricHits);
+    `schemaVersion`enabled`detail`contextLimit`entryLimit`summary`contexts!(
+        1j;enabled;$[attemptDetail;"attempt";"test"];
+        "j"$state`contextLimit;"j"$state`entryLimit;
+        summary;contexts)
+ };
+
+.tst.coverageContextModel:{[]
+    .tst.coverageContextDocument
+        `enabled`attemptDetail`contextLimit`entryLimit`overflowActivations`droppedMetricHits`registry`metricMetadata`metricHits!(
+            1b~@[get;`.tst.coverageContexts;0b];
+            1b~@[get;`.tst.coverageAttemptContexts;0b];
+            "j"$@[get;`.tst.coverageContextMax;10000j];
+            "j"$@[get;`.tst.coverageContextEntryMax;250000j];
+            "j"$.tst.coverageContextOverflowActivations;
+            "j"$.tst.coverageContextDroppedHits;
+            .tst.coverageContextRegistry;.tst.coverageContextMetricMeta;
+            .tst.coverageContextMetricHits)
+ };
+
+.tst.coverageCollectionCount:{[items]
+    $[(::)~items;0j;99h=type items;1j;"j"$count items]
+ };
+
+.tst.coverageCollectionAt:{[items;index]
+    $[99h=type items;items;items index]
+ };
+
+/ Deterministically merge context documents from workers or shards. Stable IDs
+/ are the join keys, duplicate metrics are summed, and limits are applied after
+/ lexical sorting so input arrival order cannot decide which data survives.
+.tst.mergeCoverageContexts:{[measurements]
+    n:.tst.coverageCollectionCount measurements;
+    if[0=n;:.tst.coverageContextDocument
+        `enabled`attemptDetail`contextLimit`entryLimit`overflowActivations`droppedMetricHits`registry`metricMetadata`metricHits!(
+            0b;0b;10000j;250000j;0j;0j;()!();()!();(`symbol$())!`long$())];
+    firstMeasurement:.tst.coverageCollectionAt[measurements;0];
+    if[not 99h=type firstMeasurement;'"coverage context merge expects dictionaries"];
+    enabled:1b~firstMeasurement`enabled;
+    detail:.tst.toString firstMeasurement`detail;
+    contextLimit:1j|"j"$firstMeasurement`contextLimit;
+    entryLimit:1j|"j"$firstMeasurement`entryLimit;
+    allRegistry:()!();
+    inputOverflow:0j;
+    inputDropped:0j;
+    i:0;
+    while[i<n;
+        measurement:.tst.coverageCollectionAt[measurements;i];
+        if[not 99h=type measurement;
+            '"coverage context merge expects dictionaries"];
+        if[not enabled~1b~measurement`enabled;
+            '"cannot merge enabled and disabled coverage contexts"];
+        if[not detail~.tst.toString measurement`detail;
+            '"cannot merge test-detail and attempt-detail coverage contexts"];
+        contextLimit:min contextLimit,1j|"j"$measurement`contextLimit;
+        entryLimit:min entryLimit,1j|"j"$measurement`entryLimit;
+        inputSummary:$[`summary in key measurement;measurement`summary;()!()];
+        if[99h=type inputSummary;
+            if[`overflowActivations in key inputSummary;
+                inputOverflow+:"j"$inputSummary`overflowActivations];
+            if[`droppedMetricHits in key inputSummary;
+                inputDropped+:"j"$inputSummary`droppedMetricHits]];
+        ctxRows:$[`contexts in key measurement;measurement`contexts;()];
+        j:0;
+        while[j<.tst.coverageCollectionCount ctxRows;
+            ctxRow:.tst.coverageCollectionAt[ctxRows;j];
+            contextId:`$.tst.toString ctxRow`contextId;
+            metadataKeys:(key ctxRow) except `metrics;
+            metadata:metadataKeys!ctxRow metadataKeys;
+            if[contextId in key allRegistry;
+                if[not metadata~allRegistry contextId;
+                    '"coverage context metadata conflict for ",string contextId]];
+            if[not contextId in key allRegistry;
+                allRegistry[contextId]:metadata];
+            j+:1];
+        i+:1];
+    normalIds:(key allRegistry) except .tst.coverageContextReserved;
+    if[count normalIds;normalIds:normalIds iasc string each normalIds];
+    keepIds:(contextLimit & count normalIds)#normalIds;
+    collapsedIds:normalIds except keepIds;
+    reservedIds:.tst.coverageContextReserved where
+        .tst.coverageContextReserved in key allRegistry;
+    registry:(keepIds,reservedIds)#allRegistry;
+    if[count collapsedIds;
+        if[not `overflow in key registry;
+            registry[`overflow]:.tst.coverageContextMeta[
+                "overflow";"overflow";"";0j;"";
+                "contexts beyond the configured limit";""]]];
+
+    metricMetadata:()!();
+    metricHits:(`symbol$())!`long$();
+    i:0;
+    while[i<n;
+        measurement:.tst.coverageCollectionAt[measurements;i];
+        ctxRows:$[`contexts in key measurement;measurement`contexts;()];
+        j:0;
+        while[j<.tst.coverageCollectionCount ctxRows;
+            ctxRow:.tst.coverageCollectionAt[ctxRows;j];
+            sourceId:`$.tst.toString ctxRow`contextId;
+            targetId:$[sourceId in collapsedIds;`overflow;sourceId];
+            metricRows:$[`metrics in key ctxRow;ctxRow`metrics;()];
+            k:0;
+            while[k<.tst.coverageCollectionCount metricRows;
+                metricRow:.tst.coverageCollectionAt[metricRows;k];
+                metricId:.tst.toString metricRow`metricId;
+                entryKey:`$"merge_",.tst.stableHash[
+                    string[targetId],"\n",metricId];
+                metricKeys:(key metricRow) except `hits;
+                metricMetadataRow:metricKeys!metricRow metricKeys;
+                metricMetadataRow[`contextId]:.tst.toString targetId;
+                if[entryKey in key metricMetadata;
+                    existing:metricMetadata entryKey;
+                    if[not existing~metricMetadataRow;
+                        '"coverage metric metadata conflict for ",metricId]];
+                if[not entryKey in key metricMetadata;
+                    metricMetadata[entryKey]:metricMetadataRow;
+                    metricHits[entryKey]:0j];
+                metricHits[entryKey]+:"j"$metricRow`hits;
+                k+:1];
+            j+:1];
+        i+:1];
+    entryKeys:key metricMetadata;
+    if[count entryKeys;
+        entryOrder:iasc {[allMetadata;entryId]
+            row:allMetadata entryId;
+            (.tst.toString row`contextId),"\n",
+                .tst.toString row`metricId
+          }[metricMetadata;] each entryKeys;
+        entryKeys:entryKeys entryOrder];
+    keptEntryKeys:(entryLimit & count entryKeys)#entryKeys;
+    droppedEntryKeys:entryKeys except keptEntryKeys;
+    droppedMetricHits:inputDropped+sum 0j,$[count droppedEntryKeys;
+        "j"$metricHits droppedEntryKeys;`long$()];
+    metricMetadata:keptEntryKeys#metricMetadata;
+    metricHits:keptEntryKeys#metricHits;
+    .tst.coverageContextDocument
+        `enabled`attemptDetail`contextLimit`entryLimit`overflowActivations`droppedMetricHits`registry`metricMetadata`metricHits!(
+            enabled;"attempt"~detail;contextLimit;entryLimit;
+            inputOverflow+count collapsedIds;droppedMetricHits;
+            registry;metricMetadata;metricHits)
+ };
+
 .tst.coverageModel:{[]
     fileRows:.tst.coverageFileModel each key .tst.coverageData;
     fnFound:sum 0,{x`functionFound} each fileRows;
@@ -1271,7 +1586,8 @@
         $[0=branchSitesEligible;0f;100f*branchSitesInstrumented%branchSitesEligible];
         branchMode and 0<branchSitesEligible and branchSitesEligible=branchSitesInstrumented);
     instrumentation:.tst.coverageInstrumentationSummary[];
-    `summary`files!(base,instrumentation;fileRows)
+    `summary`files`contextMeasurement!(
+        base,instrumentation;fileRows;.tst.coverageContextModel[])
  };
 
 .tst.coveragePublicFile:{[fileRow]
@@ -1280,15 +1596,20 @@
  };
 
 .tst.coveragePublicModel:{[model]
-    `summary`files!(model`summary;.tst.coveragePublicFile each model`files)
+    `summary`files`contextMeasurement!(
+        model`summary;.tst.coveragePublicFile each model`files;
+        $[`contextMeasurement in key model;model`contextMeasurement;
+            .tst.coverageContextModel[]])
  };
 
 .tst.coverageStateLines:{[model]
-    lines:("# resQ coverage state v4";
+    lines:("# resQ coverage state v5";
         "# F path function hits functionInstrumented statementInstrumented fallback";
         "# S path siteId function line column lambdaId lambdaDepth anonymous eligible instrumented hits fallback";
         "# B path siteId function kind conditionIndex line column lambdaId lambdaDepth anonymous eligible instrumented fallback";
-        "# E siteId edgeId index label hits covered");
+        "# E siteId edgeId index label hits covered";
+        "# C contextId kind testId attempt file";
+        "# M contextId metricId kind file function siteId edgeIndex edgeLabel hits");
     fileRows:model`files;
     i:0;
     do[count fileRows;
@@ -1333,6 +1654,33 @@
                 k+:1];
             j+:1];
         i+:1];
+    contextMeasurement:$[`contextMeasurement in key model;
+        model`contextMeasurement;.tst.coverageContextModel[]];
+    if[1b~contextMeasurement`enabled;
+        contexts:contextMeasurement`contexts;
+        i:0;
+        while[i<count contexts;
+            ctx:contexts i;
+            stateText:{[v]
+                s:.tst.toString v;
+                if[0=count s;:enlist "-"];
+                $[-10h=type s;enlist s;s]
+            };
+            lines,:enlist " " sv (enlist "C";stateText ctx`contextId;
+                stateText ctx`kind;stateText ctx`testId;
+                stateText ctx`attempt;stateText ctx`file);
+            metrics:ctx`metrics;
+            j:0;
+            while[j<count metrics;
+                metric:metrics j;
+                lines,:enlist " " sv (enlist "M";
+                    stateText ctx`contextId;stateText metric`metricId;
+                    stateText metric`kind;stateText metric`file;
+                    stateText metric`function;stateText metric`siteId;
+                    stateText metric`edgeIndex;stateText metric`edgeLabel;
+                    stateText metric`hits);
+                j+:1];
+            i+:1]];
     lines
  };
 
@@ -1408,9 +1756,9 @@
     model:$[(99h=type .tst.lastCoverageModel) and `files in key .tst.lastCoverageModel;
         .tst.lastCoverageModel;.tst.coverageModel[]];
     public:.tst.coveragePublicModel model;
-    payload:`schemaVersion`framework`frameworkVersion`summary`files!(
-        1;"resQ";.tst.toString @[get;`.resq.VERSION;{"unknown"}];
-        public`summary;public`files);
+    payload:`schemaVersion`framework`frameworkVersion`summary`files`contextMeasurement!(
+        2;"resQ";.tst.toString @[get;`.resq.VERSION;{"unknown"}];
+        public`summary;public`files;public`contextMeasurement);
     (hsym (`$":" , outPath)) 0:enlist .j.j payload;
     -1 "Coverage JSON written to: ",outPath;
     outPath
@@ -1467,6 +1815,29 @@
     "</td><td>",string[site`lambdaDepth],"</td><td>",edgeText,
     "</td><td>",string[site`instrumented],"</td><td>",
     .tst.coverageHtmlEscape[site`fallbackReason],"</td></tr>"
+ };
+
+.tst.coverageContextHtml:{[context]
+    html:"<details><summary>",.tst.coverageHtmlEscape[context`contextId],
+        " — ",.tst.coverageHtmlEscape[context`kind]," — ",
+        .tst.coverageHtmlEscape[context`description],"</summary>";
+    html,:"<p>testId=",.tst.coverageHtmlEscape[context`testId],
+        "; attempt=",string[context`attempt],"; file=",
+        .tst.coverageHtmlEscape[context`file],"</p>";
+    html,:"<table><thead><tr><th>Metric</th><th>Kind</th><th>File</th><th>Function</th><th>Site</th><th>Edge</th><th>Hits</th></tr></thead><tbody>";
+    metrics:context`metrics;
+    i:0;
+    while[i<count metrics;
+        metric:metrics i;
+        html,:"<tr><td>",.tst.coverageHtmlEscape[metric`metricId],
+            "</td><td>",.tst.coverageHtmlEscape[metric`kind],
+            "</td><td>",.tst.coverageHtmlEscape[metric`file],
+            "</td><td>",.tst.coverageHtmlEscape[metric`function],
+            "</td><td>",.tst.coverageHtmlEscape[metric`siteId],
+            "</td><td>",.tst.coverageHtmlEscape[metric`edgeLabel],
+            "</td><td>",string[metric`hits],"</td></tr>";
+        i+:1];
+    html,"</tbody></table></details>"
  };
 
 .tst.coverageSourceHtml:{[fileRow]
@@ -1534,6 +1905,20 @@
             html,:"</tbody></table></details>"];
         html,:.tst.coverageSourceHtml[fileRow],"</section>";
         i+:1];
+    contextMeasurement:$[`contextMeasurement in key model;
+        model`contextMeasurement;.tst.coverageContextModel[]];
+    if[1b~contextMeasurement`enabled;
+        cs:contextMeasurement`summary;
+        html,:"<section><h2>Coverage contexts</h2><p>Detail: ",
+            .tst.coverageHtmlEscape[contextMeasurement`detail],
+            "; contexts stored: ",string[cs`contextsStored],
+            "; metric entries: ",string[cs`metricEntriesStored],
+            "; unattributed hits: ",string[cs`unattributedHits],
+            "; overflow activations: ",string[cs`overflowActivations],
+            "; dropped metric hits: ",string[cs`droppedMetricHits],
+            "; truncated: ",string[cs`truncated],".</p>";
+        html,:raze .tst.coverageContextHtml each contextMeasurement`contexts;
+        html,:"</section>"];
     html,:"<p>Machine-readable detail: coverage.json. Raw state: coverage_state.txt.</p></body></html>";
     (hsym (`$":" , outPath)) 0:enlist html;
     -1 "HTML report written to: ",outPath;

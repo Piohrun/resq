@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j)
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -81,7 +81,7 @@ loadConfig:{[path]
     ];
     if[10h = type merged`shardIndex;merged[`shardIndex]:"J"$merged`shardIndex];
     if[10h = type merged`shardCount;merged[`shardCount]:"J"$merged`shardCount];
-    coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin;
+    coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax;
     {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
     if[`testFilePatterns in key merged;
         if[.tst.validTestFilePatterns merged`testFilePatterns;
@@ -185,7 +185,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -204,10 +204,12 @@ validateConfig:{[cfg]
             "lastFailed must be a boolean";
             "failedFirst must be a boolean";
             "strictPlugins must be a boolean";
-            "covBranches must be a boolean");
+            "covBranches must be a boolean";
+            "covContexts must be a boolean";
+            "covAttemptContexts must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`seed`shardIndex`shardCount;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount;
   intMsgs:("fuzzLimit must be an integer scalar";
            "maxTestTime must be an integer scalar";
            "reportLimit must be an integer scalar";
@@ -220,6 +222,8 @@ validateConfig:{[cfg]
            "coverageCompletenessMin must be an integer scalar";
            "coverageBranchMin must be an integer scalar";
            "coverageBranchCompletenessMin must be an integer scalar";
+           "coverageContextMax must be an integer scalar";
+           "coverageContextEntryMax must be an integer scalar";
            "seed must be an integer scalar";
            "shardIndex must be an integer scalar";
            "shardCount must be an integer scalar");
@@ -249,6 +253,8 @@ validateConfig:{[cfg]
              "coverageCompletenessMin must be between 0 and 100";
              "coverageBranchMin must be between 0 and 100";
              "coverageBranchCompletenessMin must be between 0 and 100";
+             "coverageContextMax must be > 0";
+             "coverageContextEntryMax must be > 0";
              "seed must be >= 0";
              "shardIndex must be >= 0";
              "shardCount must be > 0");
@@ -269,6 +275,14 @@ validateConfig:{[cfg]
     if[(type cfg`shardCount) in -5 -6 -7h;
       if[(not null cfg`shardCount) and 1>cfg`shardCount;
         warnings,:enlist "shardCount must be > 0"]]];
+  if[`coverageContextMax in key cfg;
+    if[(type cfg`coverageContextMax) in -5 -6 -7h;
+      if[(not null cfg`coverageContextMax) and 1>cfg`coverageContextMax;
+        warnings,:enlist "coverageContextMax must be > 0"]]];
+  if[`coverageContextEntryMax in key cfg;
+    if[(type cfg`coverageContextEntryMax) in -5 -6 -7h;
+      if[(not null cfg`coverageContextEntryMax) and 1>cfg`coverageContextEntryMax;
+        warnings,:enlist "coverageContextEntryMax must be > 0"]]];
   if[all `shardIndex`shardCount in key cfg;
     if[(type cfg`shardIndex) in -5 -6 -7h;
       if[(type cfg`shardCount) in -5 -6 -7h;
@@ -326,7 +340,7 @@ invalidConfigKeys:{[cfg]
   ];
 
   / Boolean-typed keys: must be a single boolean.
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
   / Integer-typed keys: must be a single integer-like value, not null, AND
@@ -334,7 +348,7 @@ invalidConfigKeys:{[cfg]
   / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
   / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
   / with a warning, default retained (the warn-and-ignore contract).
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`seed`shardIndex`shardCount;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount;
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
@@ -353,6 +367,14 @@ invalidConfigKeys:{[cfg]
   if[`shardCount in key cfg;
     if[(type cfg`shardCount) in -5 -6 -7h;
       if[(not null cfg`shardCount) and 1>cfg`shardCount;invalid,:`shardCount]]];
+  if[`coverageContextMax in key cfg;
+    if[(type cfg`coverageContextMax) in -5 -6 -7h;
+      if[(not null cfg`coverageContextMax) and 1>cfg`coverageContextMax;
+        invalid,:`coverageContextMax]]];
+  if[`coverageContextEntryMax in key cfg;
+    if[(type cfg`coverageContextEntryMax) in -5 -6 -7h;
+      if[(not null cfg`coverageContextEntryMax) and 1>cfg`coverageContextEntryMax;
+        invalid,:`coverageContextEntryMax]]];
   if[all `shardIndex`shardCount in key cfg;
     if[(type cfg`shardIndex) in -5 -6 -7h;
       if[(type cfg`shardCount) in -5 -6 -7h;
@@ -453,6 +475,14 @@ applyConfig:{[cfg]
     if[ok`coverageCompletenessMin;
         .tst.app.coverageCompletenessMin: cfg`coverageCompletenessMin];
     if[ok`covBranches;.tst.coverageBranches:cfg`covBranches];
+    if[ok`covContexts;.tst.coverageContexts:cfg`covContexts];
+    if[ok`covAttemptContexts;
+        .tst.coverageAttemptContexts:cfg`covAttemptContexts;
+        if[cfg`covAttemptContexts;.tst.coverageContexts:1b]];
+    if[ok`coverageContextMax;
+        .tst.coverageContextMax:"j"$cfg`coverageContextMax];
+    if[ok`coverageContextEntryMax;
+        .tst.coverageContextEntryMax:"j"$cfg`coverageContextEntryMax];
     if[ok`coverageBranchMin;
         .tst.app.coverageBranchMin:cfg`coverageBranchMin;
         if[0<cfg`coverageBranchMin;.tst.coverageBranches:1b]];

@@ -79,9 +79,9 @@ appear complete.
   with whole-function semantic rollback.
 - [x] Represent anonymous sites under stable enclosing-function identities
   without fabricating named LCOV functions.
-- [ ] Add opt-in per-test coverage contexts and optional attempt detail while
+- [x] Add opt-in per-test coverage contexts and optional attempt detail while
   preserving identical aggregate counts.
-- [ ] Keep late work unattributed, bound context cardinality/memory, and merge
+- [x] Keep late work unattributed, bound context cardinality/memory, and merge
   contexts deterministically across workers and shards.
 
 ## 1.4.0 — Case-level distributed execution

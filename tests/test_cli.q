@@ -190,6 +190,21 @@
         parsed[`args] musteq enlist "suite.q";
     };
 
+    should["parse bounded test and retry-attempt coverage contexts"]{
+        parsed:.tst.parseCLI ("cover";"suite.q";"--cov-contexts";
+            "--cov-attempt-contexts";"--cov-context-max";"25";
+            "--cov-context-entry-max";"500");
+        parsed[`ok] musteq 1b;
+        parsed[`options;`covContexts] musteq 1b;
+        parsed[`options;`covAttemptContexts] musteq 1b;
+        parsed[`options;`coverageContextMax] musteq 25j;
+        parsed[`options;`coverageContextEntryMax] musteq 500j;
+        .tst.cliParseFails[("cover";"suite.q";"-cov-context-max";"0");
+            "Value must be > 0 for *"] musteq 1b;
+        .tst.cliParseFails[("cover";"suite.q";"-cov-context-entry-max";"-1");
+            "Value must be > 0 for *"] musteq 1b;
+    };
+
     should["treat --source as a value option rather than a test path"]{
         parsed: .tst.parseCLI ("cover"; "tests"; "--source"; "src,shared");
         parsed[`ok] musteq 1b;

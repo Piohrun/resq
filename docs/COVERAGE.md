@@ -268,15 +268,47 @@ Reports are written to `outDir` (default: `.`):
 | File | Contents |
 |------|----------|
 | `coverage.lcov` | Standard LCOV function records, `DA`/`LF`/`LH` under statement mode, and `BRDA`/`BRF`/`BRH` under branch mode. |
-| `coverage.json` | Detailed canonical model: totals, eligibility/completeness, fallbacks, files, functions, line roll-ups, stable statement sites, anonymous owners, branch sites, edges, and hits. |
-| `coverage.html` | Annotated source/function tables plus branch-site locations, edge hits, completeness, and fallbacks. |
-| `coverage_state.txt` | Grep-friendly v4 `F` function, `S` statement-site, `B` branch-site, and `E` edge records, including zero-hit and anonymous-owner state. |
+| `coverage.json` | Schema v2 detailed canonical model: totals, eligibility/completeness, fallbacks, files, functions, line roll-ups, stable statement sites, anonymous owners, branch sites, edges, hits, and optional bounded contexts. |
+| `coverage.html` | Annotated source/function tables plus branch-site locations, edge hits, completeness, fallbacks, and optional context detail. |
+| `coverage_state.txt` | Grep-friendly v5 `F` function, `S` statement-site, `B` branch-site, `E` edge, `C` context, and `M` attributed-metric records, including zero-hit and anonymous-owner state. |
 
 LCOV, detailed JSON, HTML, and state are rendered from the same in-memory
 coverage snapshot. The self-suite parses their outputs and requires function,
 statement, and branch totals to agree. `test-results.json` embeds the same
 aggregate summary and independent gate decisions; `coverage.json` carries the
 detailed model.
+
+### Per-test and per-attempt attribution (opt-in)
+
+`-cov-contexts` records the function, statement, and branch hits produced while
+each test attempt is active and groups retries under the stable `testId`.
+`-cov-attempt-contexts` implies it and instead records one stable context per
+attempt. LCOV and every aggregate counter/gate are unchanged: aggregate probes
+are updated first and context accounting is a separate trapped data plane.
+
+```bash
+resq cover tests/ --source src/ -cov-statements -cov-branches \
+  -cov-contexts -cov-context-max 10000 \
+  -cov-context-entry-max 250000
+```
+
+The active interval includes the expectation's `before`, body, fixture
+teardown, and `after`. Source loading, `beforeAll`/`afterAll`, retry cleanup,
+registered/final teardown, and work that runs after the attempt boundary (for
+example a timer callback) are stored under the reserved `unattributed` context.
+Contexts beyond `-cov-context-max` are folded into `overflow`. After
+`-cov-context-entry-max` unique context/metric pairs, existing pairs continue
+counting but new pairs are dropped. `contextMeasurement.summary` exposes
+`overflowActivations`, `droppedMetricHits`, and `truncated`; loss is never
+silent. Configuration keys are `covContexts`, `covAttemptContexts`,
+`coverageContextMax`, and `coverageContextEntryMax`.
+
+`.tst.mergeCoverageContexts` merges coverage JSON `contextMeasurement`
+documents by stable context and metric identity. It validates detail modes and
+metadata, sums duplicate hits, applies the lowest declared bounds after stable
+sorting, and is commutative. This is the deterministic primitive used by
+worker/shard artifact merging. Coverage itself remains a separate non-isolated
+command because in-process instrumentation cannot observe isolated children.
 
 ### Generating HTML locally
 

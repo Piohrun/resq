@@ -11,10 +11,10 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`covBranches`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`seed`shardIndex`shardCount`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("cov-branches";"covBranches");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins"));
-.tst.cli.specKinds:(29 # `flag), 23 # `value;
-.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`seed`shardIndex`shardCount;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins"));
+.tst.cli.specKinds:(31 # `flag), 25 # `value;
+.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount;
 .tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
@@ -152,12 +152,12 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     invalidRanges: where
         (numericValues < 0) or
         ((numericOptionNames = `isolateTimeout) and numericValues = 0) or
-        ((numericOptionNames in `isolateWorkers`shardCount) and numericValues = 0) or
+        ((numericOptionNames in `isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax) and numericValues = 0) or
         ((numericOptionNames in .tst.cli.percentNames) and numericValues > 100);
     if[count invalidRanges;
         badIndex: first invalidRanges;
         numericValuePositions: valuePositions where numericMask;
-        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers`shardCount; "> 0";
+        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax; "> 0";
                        numericOptionNames[badIndex] in .tst.cli.percentNames; "between 0 and 100";
                        ">= 0"];
         :.tst.cli.error "Value must be ", requirement, " for ",
@@ -266,6 +266,9 @@ printUsage:{[]
         "  -cov-statements       Measure per-STATEMENT coverage. Without it coverage";
         "                        is function-level only and reports no line data";
         "  -cov-branches         Measure if/while/$ conditional edges";
+        "  -cov-contexts         Attribute hits to stable test IDs (opt-in)";
+        "  -cov-attempt-contexts Attribute retry hits to stable attempt IDs";
+        "  -cov-context-max N / -cov-context-entry-max N  Bound attribution memory";
         "  -cov-min N            Fail the run below N% coverage (0-100)";
         "  -cov-functions-min N  Gate complete function reachability";
         "  -cov-lines-min N      Gate measured statements; partial data fails closed";
@@ -332,6 +335,10 @@ initCLI:{[parsed]
     if[options`covBranches;
         .tst.coverageBranches:1b;
         .tst.app.runCoverage:1b];
+    if[options`covContexts;.tst.coverageContexts:1b];
+    if[options`covAttemptContexts;
+        .tst.coverageAttemptContexts:1b;
+        .tst.coverageContexts:1b];
     if[options`allowPartialLineCoverage; .tst.app.allowPartialLineCoverage: 1b];
     if[options`noLineAnnotations; .tst.app.expectationLineAnnotations: 0b];
     if[options`quiet; .tst.app.quiet: 1b];
@@ -366,6 +373,9 @@ initCLI:{[parsed]
     if[options`coverage; .tst.app.runCoverage: 1b];
     if[options`covBranches;.tst.app.runCoverage:1b];
     if[1b~@[get;`.tst.coverageBranches;0b];.tst.app.runCoverage:1b];
+    if[(options`covContexts) or options`covAttemptContexts;
+        .tst.app.runCoverage:1b];
+    if[1b~@[get;`.tst.coverageContexts;0b];.tst.app.runCoverage:1b];
     if[not 10h = type options`coverageMin;
         .tst.app.coverageMin: options`coverageMin;
         .tst.app.runCoverage: 1b];
@@ -389,6 +399,10 @@ initCLI:{[parsed]
         .tst.app.coverageBranchCompletenessMin:options`coverageBranchCompletenessMin;
         .tst.coverageBranches:1b;
         .tst.app.runCoverage:1b];
+    if[not 10h=type options`coverageContextMax;
+        .tst.coverageContextMax:"j"$options`coverageContextMax];
+    if[not 10h=type options`coverageContextEntryMax;
+        .tst.coverageContextEntryMax:"j"$options`coverageContextEntryMax];
     
     / Coverage include/exclude filters.
     if[0 < count options`coverageInclude;

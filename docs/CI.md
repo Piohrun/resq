@@ -109,6 +109,16 @@ conditional-edge coverage for eligible `if`, `while`, and `$` conditions, not
 path coverage or MC/DC; detailed site/edge identities and fallback reasons are
 available in `coverage.json`.
 
+Add `-cov-contexts` when a quality dashboard needs to answer which tests cover
+which functions/statements/branches. Use `-cov-attempt-contexts` only when retry
+detail is worth the extra cardinality, and set explicit
+`-cov-context-max`/`-cov-context-entry-max` values for CI. The context summary
+marks overflow or dropped pairs as `truncated`; reject that state when complete
+attribution is required. LCOV and aggregate gates remain identical with the
+feature on or off. Coverage still runs separately from `-isolate`; shard
+collectors merge `coverage.json.contextMeasurement` by stable identity rather
+than relying on arrival order.
+
 ## Reporter artifacts
 
 A single XML reporter writes `test-results.xml`. When multiple formats are

@@ -1743,6 +1743,10 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
 | `-cov-branches` | Measure true/false edges for eligible `if`, `while`, and lazy `$` conditions (opt-in rewrite) |
+| `-cov-contexts` | Attribute function/statement/branch hits to stable test IDs without changing aggregates or gates |
+| `-cov-attempt-contexts` | As above, but create a stable context for every retry attempt; implies `-cov-contexts` |
+| `-cov-context-max N` | Maximum real test/attempt contexts retained (default 10,000); excess contexts fold into `overflow` |
+| `-cov-context-entry-max N` | Maximum unique context/metric pairs retained (default 250,000); truncation is disclosed |
 | `-no-line-annotations` | Disable expectation source-line rewriting if a suite hits an unsupported lexical edge case; file/line fields become unavailable and incomplete-constructor auditing is disabled |
 | `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses the complete function inventory (`-cov-statements` line data remains diagnostic) |
 | `-cov-functions-min N` | Gate complete static function reachability at N% |
@@ -1826,10 +1830,13 @@ empty discovery still returns the ordinary no-tests exit code.
 
 Coverage runs additionally write `coverage.lcov`, `coverage.json`,
 `coverage.html`, and `coverage_state.txt`. All four are projections of one
-canonical coverage model. `coverage.json` contains aggregate measurement and
+canonical coverage model. `coverage.json` schema v2 contains aggregate measurement and
 instrumentation totals plus per-file, per-function, measured-line, stable
 statement-site, anonymous-lambda owner, branch-site, and edge records; see
-[Runtime code coverage](COVERAGE.md).
+[Runtime code coverage](COVERAGE.md). With `-cov-contexts`, its
+`contextMeasurement` adds stable test/attempt attribution, reserved
+`unattributed`/`overflow` buckets, explicit bounds/truncation, and metrics that
+can be deterministically merged by `.tst.mergeCoverageContexts`.
 
 **Filtering examples:**
 ```bash
