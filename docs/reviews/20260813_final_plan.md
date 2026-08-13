@@ -52,7 +52,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | Step | Deliverable | Status |
 |---:|---|---|
 | 0 | Merge and publish the final plan | complete |
-| 1 | Regression corpus and deterministic benchmark harness | pending |
+| 1 | Regression corpus and deterministic benchmark harness | complete |
 | 2 | Loader semantic correctness, diagnostics, and scaling | pending |
 | 3 | Strict report validator and immutable canonical run snapshot | pending |
 | 4 | Deterministic CLI/pass/isolation contract | pending |

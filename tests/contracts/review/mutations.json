@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "base": "../report-v2.json",
+  "cases": [
+    {
+      "name": "selected-result-cardinality",
+      "operation": "increment-selected-count",
+      "expectedError": "selectedTestCount",
+      "requiredByStep": 3
+    },
+    {
+      "name": "manifest-result-orphan",
+      "operation": "append-selected-manifest-test",
+      "expectedError": "selected execution",
+      "requiredByStep": 3
+    },
+    {
+      "name": "run-duration-disagreement",
+      "operation": "inflate-run-duration",
+      "expectedError": "durationSeconds",
+      "requiredByStep": 3
+    },
+    {
+      "name": "green-error-diagnostic",
+      "operation": "append-live-error-diagnostic",
+      "expectedError": "error diagnostic",
+      "requiredByStep": 3
+    },
+    {
+      "name": "duplicate-result-identity",
+      "operation": "duplicate-result-row",
+      "expectedError": "duplicate execution identity",
+      "requiredByStep": 3
+    },
+    {
+      "name": "projected-event-time",
+      "operation": "project-all-events-to-run-boundaries",
+      "expectedError": "lifecycle interval",
+      "requiredByStep": 5
+    },
+    {
+      "name": "duplicate-shard-index",
+      "operation": "duplicate-shard-index",
+      "expectedError": "duplicate shard index",
+      "requiredByStep": 9
+    },
+    {
+      "name": "incomplete-shard-set",
+      "operation": "drop-final-shard",
+      "expectedError": "incomplete shard union",
+      "requiredByStep": 9
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "kind": "resq-review-baseline",
+  "baselineCommit": "299fb3691e8f0e9ad4b788991bb885f7d6116049",
+  "source": "20260813 cross-review reproductions",
+  "loaderSeconds": {
+    "expectationCounts": [50, 100, 200],
+    "observed": [0.56, 3.0, 11.0],
+    "classification": "quadratic"
+  },
+  "fullReport": {
+    "tests": 696,
+    "bytes": 3251763,
+    "bytesPerTest": 4672.0733,
+    "eventsBytes": 2083671,
+    "testsBytes": 706804,
+    "manifestBytes": 424748
+  },
+  "selfReportContradiction": {
+    "resultRows": 696,
+    "selectedTestCount": 2,
+    "manifestTests": 698,
+    "allFileCount": 0,
+    "selectedFileCount": 77
+  },
+  "canonicalModelBuilds": {
+    "formats": ["text", "junit", "xunit", "json"],
+    "observedBuildCount": 4,
+    "targetBuildCount": 1
+  },
+  "budgetPolicy": {
+    "loader": "relative growth plus a named certified-host ceiling",
+    "artifacts": "bytes per test, peak bytes, and conversion wall time",
+    "failureEvidence": "bounded per-test transcript with explicit completeness"
+  }
+}
