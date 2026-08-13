@@ -28,7 +28,7 @@ appear complete.
 
 ## 1.0.1 — Audit cleanup
 
-- [ ] Sum property-test assertions across generated cases and expose the true
+- [x] Sum property-test assertions across generated cases and expose the true
   executed assertion count in console and machine reports.
 - [ ] Make DSL shadowing scope-aware so a local named `should` does not hide an
   enclosing constructor; retain an actionable diagnostic for ambiguous source.
@@ -41,7 +41,7 @@ appear complete.
 
 ### 1.0.1 gate
 
-- [ ] Property assertion totals equal the sum of executed generated cases.
+- [x] Property assertion totals equal the sum of executed generated cases.
 - [ ] Every documented DSL-shaped local, including `should`, has a regression.
 - [ ] The default self-suite no longer pays the oversized-lambda subprocess
   cost, while nightly CI still proves the real q diagnostic.

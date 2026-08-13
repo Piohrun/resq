@@ -61,6 +61,33 @@
   ran musteq 5;
   };
 
+ should["sum assertions across generated cases without counting shrink probes"]{
+  / Keep both declarations' generator shape compatible: q stores every holds
+  / row in one expectation table for the surrounding desc block.
+  holds["five executions"; `runs`vars!(5;{til 8})]{[x]
+   x musteq x;
+   };
+  passing:getExpec[];
+  passing:.tst.runners[`fuzz][passing];
+  passing[`assertsRun] musteq 5;
+
+  / The failing vector is shrunk by re-running the property several times.
+  / Those minimization probes are diagnostics, not part of the five declared
+  / property executions, so the public assertion count must remain five.
+  holds["five failing executions"; `runs`vars!(5;{til 8})]{[x]
+   count[x] musteq 0;
+   };
+  failing:getExpec[];
+  failing:.tst.runners[`fuzz][failing];
+  failing[`assertsRun] musteq 5;
+
+  .tst.beginRunMetadata[];
+  row:.tst.oneResultTable `suite`description`status`file`assertsRun!(
+   `property;"five executions";`pass;"tests/test_fuzz.q";passing`assertsRun);
+  model:.tst.canonicalRunModel row;
+  model[`summary;`assertionCount] musteq 5;
+  };
+
  should["provide fuzz variables to the function"]{
   `capturedX mock (::);
   holds["run this"; `runs`vars!(1; `a`b`c!(`symbol; 1 2 3; 20#0Nd))]{[x]

@@ -223,7 +223,11 @@ runners[`fuzz]:{[expec]
   expec[`failedFuzz]: exec failedFuzz from fuzzResults where 0 < count each fuzzFailures;
   expec[`fuzzFailureMessages]: exec fuzzFailures from fuzzResults where 0 < count each fuzzFailures;
 
-  assertsRun:$[not count fuzzResults;0;max fuzzResults[`assertsRun]];
+  / Assertion totals describe executions, not assertion sites. Every generated
+  / case owns a fresh assertState, so add those per-case counters. Shrink probes
+  / are deliberately absent from fuzzResults and therefore remain diagnostic
+  / work rather than inflating the public test/run assertion count.
+  assertsRun:$[not count fuzzResults;0;sum fuzzResults[`assertsRun]];
   / Strict '>' so the default maxFailRate 0f means "no failures tolerated":
   / failRate 0 does NOT exceed 0, so an all-passing holds block passes.
   $[(expec[`failRate]:(count expec`failedFuzz)%expec`runs) > expec`maxFailRate;

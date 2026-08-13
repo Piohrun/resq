@@ -4,6 +4,12 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Property tests now sum assertions executed by every generated case instead
+  of reporting only the largest per-case count. Shrink probes remain diagnostic
+  work and do not inflate test or run assertion totals.
+
 ## [1.0.0] - 2026-08-12 - Production Trust, Coverage & Observability
 
 ### Added
