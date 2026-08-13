@@ -133,7 +133,8 @@ portable `file`, stable `testId`, optional top-level declarative `caseId` and
 `parameters`, `kind`, retry flags and `attemptHistory`, independently identified
 runtime `parameterCases`, structured `property`, `snapshots`, `benchmark`,
 `quarantine` (raw evidence plus owner/reason/issue/creation/expiry), and typed
-`diagnostics`. The public statuses are `pass`, `fail`,
+`diagnostics`. Current producers add nullable `startedAt`/`finishedAt` intervals
+to tests, attempts, and runtime parameter cases. The public statuses are `pass`, `fail`,
 `error`, `skip`, and `pending`. `message` and `output` are always strings and
 `failures` is always a list of strings, including on passing rows. Missing
 source lines serialize as JSON null. Paths beneath the invocation directory are
@@ -158,6 +159,12 @@ per failed input. The dependency-free validator checks those invariants.
 Consumers should branch on `schemaVersion`, ignore unknown fields, and use the
 numeric `durationSeconds` for calculations. Do not derive pass/fail from the
 process log; use the process exit code and aggregate counts.
+
+`run.durationSeconds` is retained for compatibility and means elapsed run wall
+time; `run.wallDurationSeconds` is its unambiguous alias. Likewise,
+`summary.durationSeconds` is the sum of test durations and
+`summary.testDurationSumSeconds` is its alias. Summed test time can exceed wall
+time when isolated workers overlap and must not be used as elapsed run time.
 
 Optional fields and classifier values may be added within schema v2 in a minor
 release. The published schema and dependency-free validator therefore accept

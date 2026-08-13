@@ -15,19 +15,20 @@
       .tst.beginRunMetadata[];
       .tst.finishRunMetadata[]};()];
     metadataKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
-      `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection`shard;
+      `wallDurationSeconds`qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection`shard;
     key[runInfo] mustin metadataKeys;
     runInfo[`id] mustlike "run_*";
     count[runInfo`finishedAt] mustgt 0;
     must[runInfo[`durationSeconds]>=0f;"run duration must be non-negative"];
+    runInfo[`wallDurationSeconds] musteq runInfo`durationSeconds;
     `sha`branch`dirty mustin key runInfo`vcs;
   };
 
   should["preserve complete retry history and mark only late passes flaky"]{
     spec:(enlist `title)!enlist `suite;
     hist:(
-      `attempt`status`duration`durationSeconds`message`failures`assertsRun!(1;`fail;"0D00:00:00.1";0.1;"no";enlist "no";1);
-      `attempt`status`duration`durationSeconds`message`failures`assertsRun!(2;`pass;"0D00:00:00.1";0.1;"";();1));
+      `attempt`status`duration`durationSeconds`startedAt`finishedAt`message`failures`assertsRun!(1;`fail;"0D00:00:00.1";0.1;"2026-08-14T10:00:00.000000000Z";"2026-08-14T10:00:00.100000000Z";"no";enlist "no";1);
+      `attempt`status`duration`durationSeconds`startedAt`finishedAt`message`failures`assertsRun!(2;`pass;"0D00:00:00.1";0.1;"2026-08-14T10:00:00.100000000Z";"2026-08-14T10:00:00.200000000Z";"";();1));
     expec:`desc`type`result`attempts`retried`flaky`attemptHistory!(
       "eventually";`test;`pass;2;1b;1b;hist);
     telemetry:.tst.expectationTelemetry[spec;expec;"tests/test_retry.q"];
@@ -35,6 +36,8 @@
     telemetry[`retried] musteq 1b;
     telemetry[`flaky] musteq 1b;
     count[telemetry`attemptHistory] musteq 2;
+    first[telemetry`attemptHistory][`startedAt]
+      musteq "2026-08-14T10:00:00.000000000Z";
   };
 
   should["record parameter cases independently with stable case identities"]{
@@ -49,6 +52,8 @@
     all[{x like "case_*"} each cases[;`caseId]] musteq 1b;
     count[distinct cases[;`caseId]] musteq 4;
     all[cases[;`status]=`pass] musteq 1b;
+    must[all {all `startedAt`finishedAt in key x} each cases;
+         "parameter cases must retain observed intervals"];
   };
 
   should["replay property generation from a private seed without touching q random"]{

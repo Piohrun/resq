@@ -32,6 +32,10 @@ The adapter maps pass/fail/error/skip to Allure status, uses `testId` as
 tags and flake state as labels, and writes executor/environment metadata. Use a
 fresh output directory per run so files from an older invocation cannot be
 mistaken for current results.
+Allure `start`/`stop` are emitted only when the test row contains an observed
+interval (current event-v2 reports). Legacy event-v1 reports lack per-test
+observations, so the adapter omits timeline fields instead of fabricating them
+from run boundaries.
 Benchmark tests add ID/classification/change/adjusted-p-value parameters, while
 `environment.properties` carries comparison/gate state and classification
 counts.

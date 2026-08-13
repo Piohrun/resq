@@ -4,18 +4,28 @@ Every JSON schema-v2 report produced by resQ includes two additive, independentl
 versioned contracts:
 
 - `manifest` is execution-manifest schema v2;
-- `events[]` is an ordered lifecycle stream whose records use event schema v1.
+- `events[]` is an ordered lifecycle stream whose current records use event
+  schema v2; event v1 remains readable for compatibility.
 
 The report remains the durable artifact. In-process callbacks are for trusted,
 run-local integration; historical storage and network export should normally be
 performed after the run from `test-results.json`.
 
-## Event protocol v1
+## Event protocols v1 and v2
 
 Each event contains `schemaVersion`, one-based `sequence`, `type`, `runId`,
 `entityId`, `parentId`, `occurredAt`, and an object-valued `payload`. Sequence is
 authoritative within one run. Timestamps describe the underlying lifecycle but
 are not ordering keys.
+
+Event v1 projected entity timestamps onto the run start/finish boundaries. Its
+sequence and relationships remain valid, but consumers must not interpret those
+timestamps as an observed test timeline. Event v2 records nullable
+`startedAt`/`finishedAt` on test, attempt, and runtime parameter-case evidence,
+then projects test/attempt/case events from those intervals. File and suite
+boundaries are the minimum/maximum observed child intervals. Concurrent
+isolated files can overlap, so v2 `occurredAt` values are intentionally not
+globally monotonic; `sequence` remains the logical order.
 
 The canonical order is:
 
@@ -54,7 +64,7 @@ tools/validate_report.py reports/test-results.json
 ```
 
 Event schema changes follow the public versioning policy. Additive payload
-members do not change schema v1; a required-field removal, field-type change,
+members do not change the current version; a required-field removal, field-type change,
 or semantic reinterpretation requires a new event schema version.
 
 ## Execution manifest v2

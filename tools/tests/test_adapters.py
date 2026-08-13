@@ -154,6 +154,28 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "executionId"):
             validate(bad_manifest)
 
+    def test_validator_accepts_legacy_events_and_enforces_v2_observed_time(self) -> None:
+        legacy = json.loads(
+            (ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8")
+        )
+        validate(legacy)
+        observed = deepcopy(legacy)
+        started = "2026-08-12T12:00:00.100000000Z"
+        finished = "2026-08-12T12:00:00.101000000Z"
+        row = observed["tests"][0]
+        row.update(startedAt=started, finishedAt=finished)
+        row["attemptHistory"][0].update(startedAt=started, finishedAt=finished)
+        for event in observed["events"]:
+            event["schemaVersion"] = 2
+            if event["type"] in {"test.started", "attempt.started"}:
+                event["occurredAt"] = started
+            if event["type"] in {"test.finished", "attempt.finished"}:
+                event["occurredAt"] = finished
+        validate(observed)
+        observed["events"][4]["occurredAt"] = "2026-08-12T12:00:00.200000000Z"
+        with self.assertRaisesRegex(ValueError, "test.started timing differs"):
+            validate(observed)
+
     def test_validator_rejects_duplicate_stable_ids(self) -> None:
         duplicate = report()
         duplicate["tests"][1]["testId"] = duplicate["tests"][0]["testId"]
@@ -229,6 +251,10 @@ class AdapterTests(unittest.TestCase):
             source = root / "report.json"
             output = root / "allure-results"
             document = report()
+            document["tests"][0].update(
+                startedAt="2026-08-12T12:00:00.100000000Z",
+                finishedAt="2026-08-12T12:00:00.101000000Z",
+            )
             document["tests"][0]["parameters"] = {"region": "eu", "size": 3}
             document["tests"][0]["quarantine"] = {
                 "schemaVersion": 1, "state": "quarantined", "active": True,
@@ -265,6 +291,8 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(f"test_{'c' * 32}", failed["historyId"])
             self.assertEqual("boom", failed["statusDetails"]["message"])
             self.assertIn({"name": "tag", "value": "unit"}, failed["labels"])
+            self.assertNotIn("start", failed)
+            self.assertNotIn("stop", failed)
             self.assertIn(
                 {"name": "propertyReplayToken", "value": "resq-pbt-v1/42/0"},
                 failed["parameters"],
@@ -280,6 +308,7 @@ class AdapterTests(unittest.TestCase):
                 {"name": "quarantineState", "value": "quarantined"},
                 passed["parameters"],
             )
+            self.assertEqual(1, passed["stop"] - passed["start"])
             self.assertTrue((output / "executor.json").is_file())
             self.assertTrue((output / "environment.properties").is_file())
 

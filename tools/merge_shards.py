@@ -556,6 +556,7 @@ def summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "errorCount": statuses.count("error"),
         "skipCount": sum(status in {"skip", "pending"} for status in statuses),
         "duration": f"{seconds:.9f}s", "durationSeconds": seconds,
+        "testDurationSumSeconds": seconds,
     }
 
 
@@ -574,9 +575,19 @@ def lifecycle(
     snapshot_inventory: dict[str, Any], benchmark_analysis: dict[str, Any],
 ) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
+    def observed(record: dict[str, Any], field: str, fallback: str) -> str:
+        value = record.get(field)
+        return value if isinstance(value, str) and value else fallback
+    def interval(records: list[dict[str, Any]], start: str, finish: str) -> tuple[str, str]:
+        if not records:
+            return start, finish
+        return (
+            min(observed(record, "startedAt", start) for record in records),
+            max(observed(record, "finishedAt", finish) for record in records),
+        )
     def emit(kind: str, entity: str, parent: str, occurred: str, payload: dict[str, Any]) -> None:
         events.append({
-            "schemaVersion": 1, "sequence": len(events) + 1, "type": kind,
+            "schemaVersion": 2, "sequence": len(events) + 1, "type": kind,
             "runId": run["id"], "entityId": entity, "parentId": parent,
             "occurredAt": occurred, "payload": payload,
         })
@@ -594,17 +605,21 @@ def lifecycle(
             "sourceDigest": "", "assignedShard": -1, "selected": True, "shardable": False,
         })
         file_id = file_entry["fileId"]
-        emit("file.started", file_id, run["id"], run["startedAt"], file_entry)
+        file_started, file_finished = interval(file_rows, run["startedAt"], run["finishedAt"])
+        emit("file.started", file_id, run["id"], file_started, file_entry)
         for suite in dict.fromkeys(row["suite"] for row in file_rows):
             suite_rows = [row for row in file_rows if row["suite"] == suite]
             first_entry = inventory[execution_id(suite_rows[0])]
             suite_id = first_entry["suiteId"]
-            emit("suite.started", suite_id, file_id, run["startedAt"], {
+            suite_started, suite_finished = interval(suite_rows, file_started, file_finished)
+            emit("suite.started", suite_id, file_id, suite_started, {
                 "file": file_path, "suite": suite, "testCount": len(suite_rows),
             })
             for row in suite_rows:
                 identity = execution_id(row)
-                emit("test.started", identity, suite_id, run["startedAt"], {
+                test_started = observed(row, "startedAt", suite_started)
+                test_finished = observed(row, "finishedAt", suite_finished)
+                emit("test.started", identity, suite_id, test_started, {
                     "file": file_path, "suite": suite, "description": row["description"],
                     "line": row["line"], "kind": row["kind"], "tags": row["tags"],
                     "testId": row["testId"], "caseId": row["caseId"],
@@ -613,26 +628,31 @@ def lifecycle(
                 attempts = row.get("attemptHistory") or [{
                     "attempt": 1, "status": row["status"], "duration": row["time"],
                     "durationSeconds": row.get("durationSeconds", 0),
+                    "startedAt": row.get("startedAt"), "finishedAt": row.get("finishedAt"),
                     "message": row.get("message", ""), "failures": row.get("failures", []),
                     "assertsRun": row.get("assertsRun", 0),
                 }]
                 for index, attempt in enumerate(attempts, start=1):
                     attempt_number = int(attempt.get("attempt", index))
                     attempt_id = f"{identity}/attempt/{attempt_number}"
-                    emit("attempt.started", attempt_id, identity, run["startedAt"], {
+                    attempt_started = observed(attempt, "startedAt", test_started)
+                    attempt_finished = observed(attempt, "finishedAt", test_finished)
+                    emit("attempt.started", attempt_id, identity, attempt_started, {
                         "attempt": attempt_number,
                     })
-                    emit("attempt.finished", attempt_id, identity, run["finishedAt"], attempt)
+                    emit("attempt.finished", attempt_id, identity, attempt_finished, attempt)
                 for index, case in enumerate(row.get("parameterCases", [])):
                     case_id = str(case.get("caseId") or (
                         "case_" + stable_hash(
                             f"{row['testId']}\n{index}\n{canonical(case.get('parameters', {}))}"
                         )
                     ))
-                    emit("case.started", case_id, row["testId"], run["startedAt"], {
+                    case_started = observed(case, "startedAt", test_started)
+                    case_finished = observed(case, "finishedAt", test_finished)
+                    emit("case.started", case_id, row["testId"], case_started, {
                         "index": index, "parameters": case.get("parameters", {}),
                     })
-                    emit("case.finished", case_id, row["testId"], run["finishedAt"], case)
+                    emit("case.finished", case_id, row["testId"], case_finished, case)
                 benchmark = row.get("benchmark") or {}
                 if benchmark:
                     emit(
@@ -644,7 +664,7 @@ def lifecycle(
                         f"{identity}\n{index}\n{canonical(diagnostic)}"
                     )
                     emit("diagnostic.recorded", diagnostic_id, identity, run["finishedAt"], diagnostic)
-                emit("test.finished", identity, suite_id, run["finishedAt"], {
+                emit("test.finished", identity, suite_id, test_finished, {
                     "status": row["status"], "duration": row["time"],
                     "durationSeconds": row.get("durationSeconds", 0),
                     "assertsRun": row["assertsRun"], "attempts": row["attempts"],
@@ -652,8 +672,8 @@ def lifecycle(
                     "caseId": row["caseId"],
                     "quarantine": row.get("quarantine", {}),
                 })
-            emit("suite.finished", suite_id, file_id, run["finishedAt"], status_summary(suite_rows))
-        emit("file.finished", file_id, run["id"], run["finishedAt"], status_summary(file_rows))
+            emit("suite.finished", suite_id, file_id, suite_finished, status_summary(suite_rows))
+        emit("file.finished", file_id, run["id"], file_finished, status_summary(file_rows))
     if coverage:
         emit("coverage.finished", "coverage", run["id"], run["finishedAt"], coverage)
     if snapshot_inventory.get("enabled"):
@@ -716,7 +736,8 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
     run = first_run
     run.update(
         id=run_id, startedAt=timestamp(started), finishedAt=timestamp(finished),
-        durationSeconds=(finished - started).total_seconds(), hostname="merged",
+        durationSeconds=(finished - started).total_seconds(),
+        wallDurationSeconds=(finished - started).total_seconds(), hostname="merged",
         shard=merged_shard,
         merge={"strict": True, "shardCount": shard_count, "unit": unit, "childRunIds": run_ids},
     )
@@ -724,6 +745,11 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
         run["config"].update(shardIndex=-1, shardCount=shard_count, shardUnit=unit)
     if isinstance(run.get("selection"), dict):
         run["selection"]["selectedTestCount"] = len(inventory)
+    run["completion"] = {
+        "state": "complete", "complete": True, "truncated": False,
+        "reason": "completed", "selectedTestCount": len(inventory),
+        "resultCount": len(rows), "missingExecutionIds": [],
+    }
     manifest = copy.deepcopy(documents[0]["manifest"])
     manifest.update(revision=revision, shard=merged_shard, files=files, tests=inventory)
     stats = summary(rows)

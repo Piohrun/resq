@@ -353,6 +353,7 @@ callExpec:{[expec];
 
 runExpec:{[spec;expec];
  time:.z.p;
+ expec[`startedAt]:.tst.isoTimestamp time;
  startExpec:expec;
  .tst.currentParameterCases:();
  .tst.currentSnapshots:();
@@ -366,7 +367,9 @@ runExpec:{[spec;expec];
     expec[`result]: exStatus;
     expec[`failures]: ();
     expec[`assertsRun]: 0i;
-    expec[`time]: .z.p - time;
+    finishedTime:.z.p;
+    expec[`time]: finishedTime - time;
+    expec[`finishedAt]:.tst.isoTimestamp finishedTime;
     expec:.tst.teardownExpec[spec;expec];
     :expec
  ];
@@ -399,9 +402,11 @@ runExpec:{[spec;expec];
    attemptStatus:.tst.normalizeResultStatus expec`result;
    passed: `pass ~ attemptStatus;
    attemptFailures:$[`failures in key expec;(),expec`failures;()];
-   attemptHistory,:enlist `attempt`status`duration`durationSeconds`message`failures`assertsRun!(
-       attempt;attemptStatus;string[.z.p-attemptStart];
-       ("f"$.z.p-attemptStart)%1000000000;
+   attemptFinished:.z.p;
+   attemptHistory,:enlist `attempt`status`duration`durationSeconds`startedAt`finishedAt`message`failures`assertsRun!(
+       attempt;attemptStatus;string[attemptFinished-attemptStart];
+       ("f"$attemptFinished-attemptStart)%1000000000;
+       .tst.isoTimestamp attemptStart;.tst.isoTimestamp attemptFinished;
        $[count attemptFailures;.tst.renderReportMessage attemptFailures;""];
        attemptFailures;$[`assertsRun in key expec;expec`assertsRun;0i]);
    / Stop if passed, if halt fired, or if no attempts remain.
@@ -435,7 +440,9 @@ runExpec:{[spec;expec];
     ];
  ];
 
- expec[`time]:.z.p - time;
+ finishedTime:.z.p;
+ expec[`time]:finishedTime - time;
+ expec[`finishedAt]:.tst.isoTimestamp finishedTime;
  expec:.tst.teardownExpec[spec;expec];
  if[.tst.halt and 1b~@[get;`.tst.app.failHard;0b];
     .tst.stageBadExpec[spec;startExpec;beforeBad]];

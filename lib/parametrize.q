@@ -24,10 +24,12 @@ runParamCase:{[pNames;args;func]
         .tst.toString[last outcome]," (Params: ",params,")";
         count caseFailures;.tst.renderReportMessage caseFailures;""];
     if[not `currentParameterCases in key `.tst;.tst.currentParameterCases:()];
-    .tst.currentParameterCases,:enlist `parameters`status`message`failures`assertsRun`duration`durationSeconds!(
+    caseFinished:.z.p;
+    .tst.currentParameterCases,:enlist `parameters`status`message`failures`assertsRun`duration`durationSeconds`startedAt`finishedAt!(
         pNames!args;caseStatus;caseMessage;caseFailures;
-        .tst.assertState.assertsRun-oldAsserts;string[.z.p-caseStart];
-        ("f"$.z.p-caseStart)%1000000000);
+        .tst.assertState.assertsRun-oldAsserts;string[caseFinished-caseStart];
+        ("f"$caseFinished-caseStart)%1000000000;
+        .tst.isoTimestamp caseStart;.tst.isoTimestamp caseFinished);
     if[first outcome;'caseMessage];
  };
 

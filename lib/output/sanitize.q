@@ -92,12 +92,14 @@
 
 .tst.sanitizeExpectation:{[suite; file; ns; tags; ex]
     if[not 99h = type ex;
-        :`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+        :`suite`description`status`message`time`startedAt`finishedAt`failures`assertsRun`file`line`namespace`tags`output!(
             suite;
             "Unavailable expectation";
             `pass;
             "";
             0Nn;
+            (::);
+            (::);
             ();
             0;
             file;
@@ -139,12 +141,16 @@
     exOutput: .tst.stripAnsi exOutput;
 
     exLine: $[`line in key ex; "i"$ex`line; 0Ni];
-    `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+    exStarted:$[`startedAt in key ex;ex`startedAt;(::)];
+    exFinished:$[`finishedAt in key ex;ex`finishedAt;(::)];
+    `suite`description`status`message`time`startedAt`finishedAt`failures`assertsRun`file`line`namespace`tags`output!(
         suite;
         exDesc;
         exResult;
         exMsg;
         exTime;
+        exStarted;
+        exFinished;
         exFailures;
         exAsserts;
         file;
@@ -162,12 +168,14 @@
     exs:   $[`expectations in key spec; .tst.sanitizeExpectations spec`expectations; ()];
 
     if[0 = count exs;
-        :enlist `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+        :enlist `suite`description`status`message`time`startedAt`finishedAt`failures`assertsRun`file`line`namespace`tags`output!(
             suite;
             "No expectations";
             .tst.normalizeResultStatus $[`result in key spec; spec`result; `pass];
             "";
             0Nn;
+            (::);
+            (::);
             ();
             0i;
             file;
@@ -295,9 +303,9 @@
  };
 
 .tst.completeResultRow:{[row]
-    fields:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
+    fields:`suite`description`status`message`time`startedAt`finishedAt`failures`assertsRun`file`line`namespace`tags`output,
         `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine;
-    defaults:fields!(`;`;`pass;"";0Nn;();0i;"";0Ni;"";`symbol$();"";
+    defaults:fields!(`;`;`pass;"";0Nn;(::);(::);();0i;"";0Ni;"";`symbol$();"";
         "";"";`test;()!();1i;0b;0b;();();()!();();();()!();()!());
     if[99h=type row;defaults[key row]:value row];
     if[0=count defaults`testId;
@@ -329,7 +337,7 @@
  };
 
 .tst.emptyResultTable:{[]
-    columns:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
+    columns:`suite`description`status`message`time`startedAt`finishedAt`failures`assertsRun`file`line`namespace`tags`output,
         `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine;
     flip columns!(
         ();
@@ -337,6 +345,8 @@
         `symbol$();
         ();
         `timespan$();
+        ();
+        ();
         ();
         `int$();
         ();
@@ -517,10 +527,10 @@
         1b~@[get;`.tst.app.randomOrder;0b];
         "j"$@[get;`.tst.app.executionSeed;0j];
         "md5-counter-v1");
-    metaKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
+    metaKeys:`id`startedAt`finishedAt`durationSeconds`wallDurationSeconds`hostname`cwd,
         `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection`shard;
     .tst.app.runMetadata:metaKeys!(
-        runId;.tst.isoTimestamp started;"";0f;host;root;string .z.K;
+        runId;.tst.isoTimestamp started;"";0f;0f;host;root;string .z.K;
         string .z.k;string .z.o;$[`VERSION in key `.resq;.resq.VERSION;"unknown"];
         .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[];ordering;
         .tst.selectionMetadata[];.tst.shardMetadata[]);
@@ -539,6 +549,7 @@
     .tst.app.runFinishedAt:finished;
     runMeta[`finishedAt]:.tst.isoTimestamp finished;
     runMeta[`durationSeconds]:0f|("f"$finished-started)%1000000000;
+    runMeta[`wallDurationSeconds]:runMeta`durationSeconds;
     runMeta[`selection]:$[`selection in key snapshot;
         snapshot`selection;.tst.selectionMetadata[]];
     runMeta[`shard]:$[`shard in key snapshot;
@@ -638,10 +649,11 @@
     stats:.tst.resultSummary rawRows;
     rows:rawRows;
     summaryKeys:`suiteCount`testCount`assertionCount`passCount`failCount`errorCount,
-        `skipCount`duration`durationSeconds;
+        `skipCount`duration`durationSeconds`testDurationSumSeconds;
     summary:summaryKeys!(
         stats`suiteCount;stats`testCount;stats`assertsRun;stats`passCount;
         stats`failCount;stats`errorCount;stats`skipCount;string stats`duration;
+        .tst.output.jsonDurationSeconds[stats`duration];
         .tst.output.jsonDurationSeconds stats`duration);
     performance:@[get;`.tst.app.perfResults;{()}];
     if[98h=type performance;performance:0!performance];

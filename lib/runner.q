@@ -526,8 +526,10 @@
         expecTags: $[`tags in key e; (),e`tags; ()];
         rowTags: distinct specTags, expecTags;
         sourceLine: $[`line in key e; "i"$e`line; 0Ni];
-        baseRow:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+        baseRow:`suite`description`status`message`time`startedAt`finishedAt`failures`assertsRun`file`line`namespace`tags`output!(
             toSym s[`title];toSym e[`desc];status;messageText;dur;
+            $[`startedAt in key e;e`startedAt;(::)];
+            $[`finishedAt in key e;e`finishedAt;(::)];
             $[`failures in key e;e`failures;()];
             $[`assertsRun in key e;e`assertsRun;0i];
             fileText;sourceLine;namespaceText;rowTags;"");

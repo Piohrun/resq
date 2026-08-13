@@ -44,6 +44,7 @@
         "startedAt": {"type": "string", "format": "date-time"},
         "finishedAt": {"type": "string", "format": "date-time"},
         "durationSeconds": {"type": "number", "minimum": 0},
+        "wallDurationSeconds": {"type": "number", "minimum": 0},
         "hostname": {"type": "string"},
         "cwd": {"type": "string"},
         "qVersion": {"type": "string"},
@@ -132,7 +133,8 @@
         "errorCount": {"type": "integer", "minimum": 0},
         "skipCount": {"type": "integer", "minimum": 0},
         "duration": {"type": "string"},
-        "durationSeconds": {"type": "number", "minimum": 0}
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "testDurationSumSeconds": {"type": "number", "minimum": 0}
       }
     },
     "test": {
@@ -146,6 +148,8 @@
         "message": {"type": "string"},
         "time": {"type": "string"},
         "durationSeconds": {"type": "number", "minimum": 0},
+        "startedAt": {"type": ["string", "null"], "format": "date-time"},
+        "finishedAt": {"type": ["string", "null"], "format": "date-time"},
         "failures": {"type": "array", "items": {"type": "string"}},
         "assertsRun": {"type": "integer", "minimum": 0},
         "file": {"type": "string"},
@@ -266,6 +270,8 @@
         "status": {"enum": ["pass", "fail", "error", "skip", "pending"]},
         "duration": {"type": "string"},
         "durationSeconds": {"type": "number", "minimum": 0},
+        "startedAt": {"type": ["string", "null"], "format": "date-time"},
+        "finishedAt": {"type": ["string", "null"], "format": "date-time"},
         "message": {"type": "string"},
         "failures": {"type": "array", "items": {"type": "string"}},
         "assertsRun": {"type": "integer", "minimum": 0}
@@ -284,7 +290,9 @@
         "failures": {"type": "array", "items": {"type": "string"}},
         "assertsRun": {"type": "integer", "minimum": 0},
         "duration": {"type": "string"},
-        "durationSeconds": {"type": "number", "minimum": 0}
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "startedAt": {"type": ["string", "null"], "format": "date-time"},
+        "finishedAt": {"type": ["string", "null"], "format": "date-time"}
       },
       "additionalProperties": true
     },
@@ -318,7 +326,7 @@
       "type": "object",
       "required": ["schemaVersion", "kind", "enabled", "generatedAt", "complete", "completenessReasons", "roots", "entries", "counts", "gate"],
       "properties": {
-        "schemaVersion": {"const": 1},
+        "schemaVersion": {"enum": [1, 2]},
         "kind": {"const": "resq-snapshot-inventory"},
         "enabled": {"type": "boolean"},
         "generatedAt": {"type": "string", "format": "date-time"},

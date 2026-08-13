@@ -134,10 +134,14 @@
 / retry, parameter/property case, diagnostic, snapshot, or benchmark back to
 / the pre-v2 row shape while merging processes.
 .tst.isolate.telemetryFromJson:{[t;base]
-    fields:`testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine;
+    fields:`startedAt`finishedAt`testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark`quarantine;
     out:.tst.completeResultRow base;
     present:fields inter key t;
     if[count present;out[present]:t present];
+    if[`startedAt in present;
+        out[`startedAt]:$[-9h=type out`startedAt;(::);.tst.toString out`startedAt]];
+    if[`finishedAt in present;
+        out[`finishedAt]:$[-9h=type out`finishedAt;(::);.tst.toString out`finishedAt]];
     if[`kind in present;out[`kind]:`$.tst.toString out`kind];
     if[`attempts in present;out[`attempts]:"i"$out`attempts];
     if[`retried in present;out[`retried]:1b~out`retried];
@@ -146,12 +150,14 @@
  };
 
 .tst.isolate.rowWithMeta:{[suite;dsc;status;message;tm;failures;asserts;rowMeta]
-    flip `suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output!(
+    flip `suite`description`status`message`time`startedAt`finishedAt`failures`assertsRun`file`line`namespace`tags`output!(
         enlist suite;
         enlist dsc;
         enlist status;
         enlist message;
         enlist tm;
+        enlist $[`startedAt in key rowMeta;rowMeta`startedAt;(::)];
+        enlist $[`finishedAt in key rowMeta;rowMeta`finishedAt;(::)];
         enlist failures;
         enlist `int$asserts;
         enlist $[`file in key rowMeta; rowMeta`file; ""];
@@ -166,7 +172,11 @@
  };
 
 .tst.isolate.errorRow:{[suiteSym; file; msg]
-    .tst.isolate.row[suiteSym; `$file; `error; msg; 0Nn; enlist msg; 0i]
+    stamp:.tst.isoTimestamp .z.p;
+    timingMeta:`startedAt`finishedAt!(stamp;stamp);
+    base:first .tst.isolate.rowWithMeta[
+        suiteSym;`$file;`error;msg;0Nn;enlist msg;0i;timingMeta];
+    .tst.oneResultTable base
  };
 
 .tst.isolate.processExitRow:{[file; code; unexpected]
@@ -299,7 +309,10 @@
         rowTags: $[`tags in key t; `$(),t`tags; `symbol$()];
         sourceLine: $[`line in key t; "i"$t`line; 0Ni];
         sourceOutput: $[`output in key t; .tst.toString t`output; ""];
-        rowMeta: `file`line`namespace`tags`output!(sourcePath;sourceLine;sourceNs;rowTags;sourceOutput);
+        rowMeta: `file`line`namespace`tags`output`startedAt`finishedAt!(
+            sourcePath;sourceLine;sourceNs;rowTags;sourceOutput;
+            $[`startedAt in key t;t`startedAt;(::)];
+            $[`finishedAt in key t;t`finishedAt;(::)]);
         base:first .tst.isolate.rowWithMeta[suite;dsc;status;msg;tm;fails;asserts;rowMeta];
         .tst.oneResultTable .tst.isolate.telemetryFromJson[t;base]
     } each tests

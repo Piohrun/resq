@@ -70,7 +70,9 @@
         .tst.isotest.qExe[]];
     qExe: .utl.shellQuote nestedQ;
     outerTimeout: .utl.shellQuote .tst.isotest.timeoutExe[];
-    envPrefix: "TMPDIR=", qTmp, " ";
+    / This harness starts q directly, not through bin/resq. Never let a nested
+    / probe arm or mark the outer launcher's completion guard.
+    envPrefix: "RESQ_RUN_GUARD_DIR='' RESQ_ISOLATE_ROOT='' TMPDIR=", qTmp, " ";
     if[noTimeoutPath; envPrefix: "PATH='/nonexistent' ", envPrefix];
     cmd: "mkdir -p ", qWd, " && cd ", qWd,
          " && ", envPrefix, outerTimeout, " -k 5 45 ", qExe, " ", qHome,

@@ -2,7 +2,7 @@
 / in-process plugin registration. Events are projected after execution from the
 / merged canonical model, so isolation/concurrency cannot reorder semantics.
 
-.tst.EVENT_SCHEMA_VERSION:1j;
+.tst.EVENT_SCHEMA_VERSION:2j;
 .tst.MANIFEST_SCHEMA_VERSION:2j;
 
 / Persistent registries: watch/repeated runs keep registrations, while each run
@@ -164,7 +164,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
         runShard`selectedExecutionIds;()];
     testEntries:{[ids;entry]
         out:entry;
-        out[`selected]:.tst.toString[out`executionId] in ids;
+        out[`selected]:any .tst.toString[out`executionId]~/:ids;
         out
       }[selectedIds;] each testEntries;
     fileRows:.tst.eventRows fileEntries;
@@ -220,6 +220,19 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
       ()]
  };
 
+.tst.eventTimestamp:{[row;field;fallback]
+    if[not field in key row;:fallback];
+    raw:row field;
+    $[10h=type raw;raw;fallback]
+ };
+
+.tst.eventInterval:{[rows;fallbackStart;fallbackFinished]
+    if[0=count rows;:(fallbackStart;fallbackFinished)];
+    starts:{[fallback;row].tst.eventTimestamp[row;`startedAt;fallback]}[fallbackStart;] each rows;
+    finishes:{[fallback;row].tst.eventTimestamp[row;`finishedAt;fallback]}[fallbackFinished;] each rows;
+    (first asc starts;last asc finishes)
+ };
+
 .tst.lifecycleEvents:{[runModel;manifest]
     run:runModel`run;
     runId:.tst.toString run`id;
@@ -252,7 +265,8 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
         filePath:.tst.toString fileEntry`path;
         fileId:.tst.toString fileEntry`fileId;
         fileRows:rows where {[path;x].tst.toString[x`file]~path}[filePath;] each rows;
-        events,:.tst.oneEventTable .tst.eventRecord[sequence;"file.started";runId;fileId;runId;started;fileEntry];
+        fileInterval:.tst.eventInterval[fileRows;started;finished];
+        events,:.tst.oneEventTable .tst.eventRecord[sequence;"file.started";runId;fileId;runId;first fileInterval;fileEntry];
         sequence+:1;
         suites:distinct {.tst.toString x`suite} each fileRows;
         si:0;
@@ -260,7 +274,8 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
             suiteName:suites si;
             suiteId:.tst.manifestSuiteId[filePath;suiteName];
             suiteRows:fileRows where {[name;x].tst.toString[x`suite]~name}[suiteName;] each fileRows;
-            events,:.tst.oneEventTable .tst.eventRecord[sequence;"suite.started";runId;suiteId;fileId;started;
+            suiteInterval:.tst.eventInterval[suiteRows;first fileInterval;last fileInterval];
+            events,:.tst.oneEventTable .tst.eventRecord[sequence;"suite.started";runId;suiteId;fileId;first suiteInterval;
                 `file`suite`testCount!(filePath;suiteName;"j"$count suiteRows)];
             sequence+:1;
             ti:0;
@@ -269,11 +284,13 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                 testId:.tst.toString row`testId;
                 caseId:.tst.toString row`caseId;
                 executionId:$[count caseId;caseId;testId];
+                testStarted:.tst.eventTimestamp[row;`startedAt;first suiteInterval];
+                testFinished:.tst.eventTimestamp[row;`finishedAt;last suiteInterval];
                 identity:`file`suite`description`line`kind`tags`testId`caseId`parameters!(
                     filePath;suiteName;.tst.toString row`description;"j"$row`line;
                     .tst.toString row`kind;string each (),row`tags;testId;caseId;
                     $[`parameters in key row;row`parameters;()!()]);
-                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.started";runId;executionId;suiteId;started;identity];
+                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.started";runId;executionId;suiteId;testStarted;identity];
                 sequence+:1;
                 attempts:.tst.caseRows row`attemptHistory;
                 if[0=count attempts;
@@ -285,10 +302,12 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                     attempt:attempts ai;
                     attemptNo:"j"$$[`attempt in key attempt;attempt`attempt;ai+1];
                     attemptId:executionId,"/attempt/",string attemptNo;
-                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"attempt.started";runId;attemptId;executionId;started;
+                    attemptStarted:.tst.eventTimestamp[attempt;`startedAt;testStarted];
+                    attemptFinished:.tst.eventTimestamp[attempt;`finishedAt;testFinished];
+                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"attempt.started";runId;attemptId;executionId;attemptStarted;
                         enlist[`attempt]!enlist attemptNo];
                     sequence+:1;
-                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"attempt.finished";runId;attemptId;executionId;finished;attempt];
+                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"attempt.finished";runId;attemptId;executionId;attemptFinished;attempt];
                     sequence+:1;
                     ai+:1];
                 cases:.tst.caseRows row`parameterCases;
@@ -297,10 +316,12 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                     case:cases ci;
                     caseId:$[`caseId in key case;.tst.toString case`caseId;
                         "case_",.tst.stableHash[testId,"\n",string ci,"\n",.Q.s1 case`parameters]];
-                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"case.started";runId;caseId;testId;started;
+                    caseStarted:.tst.eventTimestamp[case;`startedAt;testStarted];
+                    caseFinished:.tst.eventTimestamp[case;`finishedAt;testFinished];
+                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"case.started";runId;caseId;testId;caseStarted;
                         `index`parameters!("j"$ci;case`parameters)];
                     sequence+:1;
-                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"case.finished";runId;caseId;testId;finished;case];
+                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"case.finished";runId;caseId;testId;caseFinished;case];
                     sequence+:1;
                     ci+:1];
                 bench:row`benchmark;
@@ -316,7 +337,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                     events,:.tst.oneEventTable .tst.eventRecord[sequence;"diagnostic.recorded";runId;diagId;testId;finished;diagnostic];
                     sequence+:1;
                     di+:1];
-                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.finished";runId;executionId;suiteId;finished;
+                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.finished";runId;executionId;suiteId;testFinished;
                     `status`duration`durationSeconds`assertsRun`attempts`retried`flaky`caseId`quarantine!(
                         .tst.toString row`status;string row`time;
                         .tst.output.jsonDurationSeconds row`time;
@@ -324,11 +345,11 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                         $[`quarantine in key row;row`quarantine;()!()])];
                 sequence+:1;
                 ti+:1];
-            events,:.tst.oneEventTable .tst.eventRecord[sequence;"suite.finished";runId;suiteId;fileId;finished;
+            events,:.tst.oneEventTable .tst.eventRecord[sequence;"suite.finished";runId;suiteId;fileId;last suiteInterval;
                 .tst.resultStatusSummary suiteRows];
             sequence+:1;
             si+:1];
-        events,:.tst.oneEventTable .tst.eventRecord[sequence;"file.finished";runId;fileId;runId;finished;
+        events,:.tst.oneEventTable .tst.eventRecord[sequence;"file.finished";runId;fileId;runId;last fileInterval;
             .tst.resultStatusSummary fileRows];
         sequence+:1;
         fi+:1];

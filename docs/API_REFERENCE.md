@@ -1930,7 +1930,9 @@ same value as `<system-out>` and xUnit v2 as `<output>`. A reporter error fails
 the run after every selected reporter has been attempted.
 
 JSON additionally embeds execution-manifest schema v2 and lifecycle-event
-schema v1. Trusted plugins can consume the same canonical stream through
+schema v2 (while validators continue to accept legacy event v1). Event v2 uses
+recorded test/attempt/case intervals rather than run-boundary projections.
+Trusted plugins can consume the same canonical stream through
 `.resq.registerObserver` and `.resq.registerReporter`; callback return values
 are ignored and direct verdict-state mutations are restored. See
 [Lifecycle events, execution manifests, and plugins](EVENTS_AND_PLUGINS.md).

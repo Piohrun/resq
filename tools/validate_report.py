@@ -45,6 +45,27 @@ def require_non_negative_number(value: Any, where: str) -> None:
         raise ValueError(f"{where}: expected non-negative number")
 
 
+def validate_interval(record: dict[str, Any], where: str, duration_key: str = "durationSeconds") -> None:
+    present = "startedAt" in record or "finishedAt" in record
+    if not present:
+        return
+    if "startedAt" not in record or "finishedAt" not in record:
+        raise ValueError(f"{where}: startedAt and finishedAt must appear together")
+    started, finished = record["startedAt"], record["finishedAt"]
+    if started is None and finished is None:
+        return
+    if started is None or finished is None:
+        raise ValueError(f"{where}: timing interval must be fully known or null")
+    parsed_start = iso8601(started, f"{where}.startedAt")
+    parsed_finish = iso8601(finished, f"{where}.finishedAt")
+    if parsed_finish < parsed_start:
+        raise ValueError(f"{where}: finishedAt precedes startedAt")
+    if duration_key in record:
+        elapsed = (parsed_finish - parsed_start).total_seconds()
+        if abs(float(record[duration_key]) - elapsed) > 0.001:
+            raise ValueError(f"{where}.{duration_key} disagrees with timing interval")
+
+
 def validate_diagnostic(diagnostic: Any, where: str) -> None:
     if not isinstance(diagnostic, dict):
         raise ValueError(f"{where}: expected object")
@@ -166,6 +187,7 @@ def validate_test(row: Any, index: int) -> None:
     if row["status"] not in STATUSES:
         raise ValueError(f"{where}.status: unknown value {row['status']!r}")
     require_non_negative_number(row["durationSeconds"], f"{where}.durationSeconds")
+    validate_interval(row, where)
     if not isinstance(row["assertsRun"], int) or isinstance(row["assertsRun"], bool) or row["assertsRun"] < 0:
         raise ValueError(f"{where}.assertsRun: expected non-negative integer")
     if not isinstance(row["testId"], str) or not HEX_ID.fullmatch(row["testId"]):
@@ -197,6 +219,7 @@ def validate_test(row: Any, index: int) -> None:
             {"attempt", "status", "duration", "durationSeconds", "message", "failures", "assertsRun"},
             attempt_where,
         )
+        validate_interval(attempt, attempt_where)
         if attempt["attempt"] != attempt_index:
             raise ValueError(f"{attempt_where}.attempt: expected {attempt_index}")
         if attempt["status"] not in STATUSES:
@@ -209,6 +232,7 @@ def validate_test(row: Any, index: int) -> None:
             raise ValueError(f"{where}.parameterCases[{case_index}].caseId: invalid")
         if case["status"] not in STATUSES:
             raise ValueError(f"{where}.parameterCases[{case_index}].status: unknown value")
+        validate_interval(case, f"{where}.parameterCases[{case_index}]")
         case_ids.append(case["caseId"])
         case_indices.append(case["index"])
     if len(case_ids) != len(set(case_ids)) or len(case_indices) != len(set(case_indices)):
@@ -521,8 +545,8 @@ def validate_events(events: Any, document: dict[str, Any]) -> None:
             {"schemaVersion", "sequence", "type", "runId", "entityId", "parentId", "occurredAt", "payload"},
             where,
         )
-        if event["schemaVersion"] != 1:
-            raise ValueError(f"{where}.schemaVersion: expected 1")
+        if event["schemaVersion"] not in {1, 2}:
+            raise ValueError(f"{where}.schemaVersion: expected 1 or 2")
         if event["sequence"] != index + 1:
             raise ValueError(f"{where}.sequence: expected {index + 1}")
         if event["runId"] != run_id:
@@ -535,12 +559,51 @@ def validate_events(events: Any, document: dict[str, Any]) -> None:
         if not isinstance(event["payload"], dict):
             raise ValueError(f"{where}.payload: expected object")
     types = [event["type"] for event in events]
+    versions = {event["schemaVersion"] for event in events}
+    if len(versions) != 1:
+        raise ValueError("events: mixed schema versions")
     if types[:2] != ["run.started", "manifest.published"] or types[-1] != "run.finished":
         raise ValueError("events: invalid run lifecycle boundary")
     if events[1]["entityId"] != document["manifest"]["digest"]:
         raise ValueError("events[1]: manifest identity differs from report manifest")
     if events[-1]["payload"] != document["summary"]:
         raise ValueError("events[-1]: run summary differs from report summary")
+    if versions == {2}:
+        run_start = iso8601(document["run"]["startedAt"], "run.startedAt")
+        run_finish = iso8601(document["run"]["finishedAt"], "run.finishedAt")
+        for index, event in enumerate(events):
+            occurred = iso8601(event["occurredAt"], f"events[{index}].occurredAt")
+            if occurred < run_start or occurred > run_finish:
+                raise ValueError(f"events[{index}].occurredAt lies outside run interval")
+        by_key = {(event["type"], event["entityId"]): event for event in events}
+        def linked(kind: str, entity: str) -> dict[str, Any]:
+            event = by_key.get((kind, entity))
+            if event is None:
+                raise ValueError(f"events: missing {kind} for {entity}")
+            return event
+        for test_index, row in enumerate(document["tests"]):
+            identity = row["caseId"] or row["testId"]
+            if row.get("startedAt") is not None:
+                if linked("test.started", identity)["occurredAt"] != row["startedAt"]:
+                    raise ValueError(f"events: test.started timing differs for tests[{test_index}]")
+                if linked("test.finished", identity)["occurredAt"] != row["finishedAt"]:
+                    raise ValueError(f"events: test.finished timing differs for tests[{test_index}]")
+            for attempt_index, attempt in enumerate(row["attemptHistory"], start=1):
+                if attempt.get("startedAt") is None:
+                    continue
+                attempt_id = f"{identity}/attempt/{attempt_index}"
+                if linked("attempt.started", attempt_id)["occurredAt"] != attempt["startedAt"]:
+                    raise ValueError(f"events: attempt.started timing differs for tests[{test_index}]")
+                if linked("attempt.finished", attempt_id)["occurredAt"] != attempt["finishedAt"]:
+                    raise ValueError(f"events: attempt.finished timing differs for tests[{test_index}]")
+            for case_index, case in enumerate(row["parameterCases"]):
+                if case.get("startedAt") is None:
+                    continue
+                case_id = case["caseId"]
+                if linked("case.started", case_id)["occurredAt"] != case["startedAt"]:
+                    raise ValueError(f"events: case.started timing differs for tests[{test_index}]")
+                if linked("case.finished", case_id)["occurredAt"] != case["finishedAt"]:
+                    raise ValueError(f"events: case.finished timing differs for tests[{test_index}]")
 
 
 def validate(document: Any) -> None:
@@ -572,6 +635,10 @@ def validate(document: Any) -> None:
     elapsed = (finished_at - started_at).total_seconds()
     if abs(float(run["durationSeconds"]) - elapsed) > 0.001:
         raise ValueError("run.durationSeconds disagrees with run timestamps")
+    if "wallDurationSeconds" in run:
+        require_non_negative_number(run["wallDurationSeconds"], "run.wallDurationSeconds")
+        if abs(float(run["wallDurationSeconds"]) - elapsed) > 0.001:
+            raise ValueError("run.wallDurationSeconds disagrees with run timestamps")
     summary = document["summary"]
     if run["resqVersion"] != document["frameworkVersion"]:
         raise ValueError("run.resqVersion does not match frameworkVersion")
@@ -584,6 +651,10 @@ def validate(document: Any) -> None:
         if not isinstance(summary[key], int) or isinstance(summary[key], bool) or summary[key] < 0:
             raise ValueError(f"summary.{key}: expected non-negative integer")
     require_non_negative_number(summary["durationSeconds"], "summary.durationSeconds")
+    if "testDurationSumSeconds" in summary:
+        require_non_negative_number(summary["testDurationSumSeconds"], "summary.testDurationSumSeconds")
+        if abs(float(summary["testDurationSumSeconds"]) - float(summary["durationSeconds"])) > 1e-12:
+            raise ValueError("summary.testDurationSumSeconds disagrees with durationSeconds")
     actual_statuses = {
         "passCount": sum(row.get("status") == "pass" for row in document["tests"]),
         "failCount": sum(row.get("status") == "fail" for row in document["tests"]),

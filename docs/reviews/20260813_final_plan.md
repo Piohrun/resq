@@ -56,7 +56,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 2 | Loader semantic correctness, diagnostics, and scaling | complete |
 | 3 | Strict report validator and immutable canonical run snapshot | complete |
 | 4 | Deterministic CLI/pass/isolation contract | complete |
-| 5 | Real lifecycle time, event v2, and duration semantics | pending |
+| 5 | Real lifecycle time, event v2, and duration semantics | complete |
 | 6 | Report profiles, payload cleanup, and scale budgets | pending |
 | 7 | Safe labels, VCS/CI context, and ingestion contract | pending |
 | 8 | Coverage schema and adversarial coverage validation | pending |
@@ -167,6 +167,14 @@ Within report v2 add optional, unambiguous aliases:
 Retain the old fields through a documented deprecation period.
 
 **Validation:** intervals are ordered and lie within the run within tolerance; interval lengths agree with monotonic durations; sequential tests no longer share one start; isolated tests may overlap; q and Python lifecycle projectors agree; old fixtures validate without fabricated Allure times.
+
+Completed 2026-08-14: the full strict report validated with event schema v2,
+702 test rows (701 pass, 1 skip), 2,201 assertions, and 702 distinct observed
+test starts. A three-worker sleep fixture proved overlapping intervals and the
+wall/summed-duration distinction (0.57s wall versus 0.61s summed). The complete
+execution and shard-merge matrices passed, 23 Python contracts accepted legacy
+event v1 while rejecting false v2 timing, and Allure omitted unobserved legacy
+timelines.
 
 ## Step 6 — Reduce artifact cost without weakening evidence
 

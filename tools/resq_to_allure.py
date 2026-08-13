@@ -116,11 +116,9 @@ def parameters(row: dict[str, Any]) -> list[dict[str, str]]:
 
 def allure_result(document: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     run = document["run"]
-    start = epoch_millis(run["startedAt"])
-    stop = start + max(0, int(float(row.get("durationSeconds", 0)) * 1000))
     history_id = row["testId"] + (f":{row['caseId']}" if row.get("caseId") else "")
     full_name = f"{row['file']}::{row['suite']}::{row['description']}"
-    return {
+    result = {
         "uuid": result_uuid(run["id"], row["testId"], str(row.get("caseId", ""))),
         "historyId": history_id,
         "testCaseId": row["testId"],
@@ -129,12 +127,15 @@ def allure_result(document: dict[str, Any], row: dict[str, Any]) -> dict[str, An
         "status": STATUS[row["status"]],
         "statusDetails": detail(row),
         "stage": "finished",
-        "start": start,
-        "stop": stop,
         "labels": labels(document, row),
         "parameters": parameters(row),
         "links": [],
     }
+    started, finished = row.get("startedAt"), row.get("finishedAt")
+    if isinstance(started, str) and started and isinstance(finished, str) and finished:
+        result["start"] = epoch_millis(started)
+        result["stop"] = epoch_millis(finished)
+    return result
 
 
 def convert(source: Path, destination: Path) -> int:
