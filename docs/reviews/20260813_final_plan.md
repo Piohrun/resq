@@ -57,7 +57,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 3 | Strict report validator and immutable canonical run snapshot | complete |
 | 4 | Deterministic CLI/pass/isolation contract | complete |
 | 5 | Real lifecycle time, event v2, and duration semantics | complete |
-| 6 | Report profiles, payload cleanup, and scale budgets | pending |
+| 6 | Report profiles, payload cleanup, and scale budgets | complete |
 | 7 | Safe labels, VCS/CI context, and ingestion contract | pending |
 | 8 | Coverage schema and adversarial coverage validation | pending |
 | 9 | Licence-free validator, merger, and adapter hardening | pending |
@@ -196,6 +196,20 @@ Default behavior stays compatible. Sharding, merging, and release qualification 
 Set measured CI budgets for full/results/telemetry/JUnit/Allure at 10k green tests and a failure-heavy corpus: bytes per test, peak model/serialization/conversion memory, wall time, and bounded transcript completeness.
 
 **Validation:** manifest data is serialized once; non-quarantined cases have no quarantine boilerplate; profile/completeness schema checks pass; scale jobs meet recorded budgets without silent evidence truncation.
+
+Completed 2026-08-14: current JSON reports declare `full`, `results`, or
+`telemetry` with exact completeness metadata; sharding, merging, isolation-child
+transport, and release qualification fail closed on anything weaker than full
+evidence. The full strict suite passed 707 tests (706 pass, 1 skip) and 2,223
+assertions; its 405,296-byte manifest appeared once while the linked lifecycle
+notice was 249 bytes, with no empty quarantine rows or repeated test IDs in
+start payloads. The 10,000-test green/failure-heavy gate measured full JSON at
+2,352/4,402 bytes per test, telemetry at 347/859, NDJSON at 990/1,502 with a
+2,015-byte maximum record, q JUnit at 253/1,277 with a 128 MiB peak, and Allure
+at 717/1,741. All bounded failure messages remained byte-complete. Twenty-five
+licence-free contracts, the execution and shard-merge matrices, the quarantine
+gate, compact isolated output, static verification, and all three profile
+validators passed.
 
 ## Step 7 — Add safe deployment context and an ingestion contract
 

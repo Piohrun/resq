@@ -245,7 +245,11 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
         `frameworkVersion`ordering`selection`shard!(
             runModel`frameworkVersion;run`ordering;run`selection;run`shard)];
     sequence+:1;
-    events,:.tst.oneEventTable .tst.eventRecord[sequence;"manifest.published";runId;manifest`digest;runId;started;manifest];
+    manifestNotice:`schemaVersion`kind`digest`digestAlgorithm`identityAlgorithm`frameworkVersion`fileCount`testCount!(
+        manifest`schemaVersion;manifest`kind;manifest`digest;manifest`digestAlgorithm;
+        manifest`identityAlgorithm;manifest`frameworkVersion;
+        "j"$count manifest`files;"j"$count manifest`tests);
+    events,:.tst.oneEventTable .tst.eventRecord[sequence;"manifest.published";runId;manifest`digest;runId;started;manifestNotice];
     sequence+:1;
 
     manifestFiles:.tst.eventRows manifest`files;
@@ -286,9 +290,9 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                 executionId:$[count caseId;caseId;testId];
                 testStarted:.tst.eventTimestamp[row;`startedAt;first suiteInterval];
                 testFinished:.tst.eventTimestamp[row;`finishedAt;last suiteInterval];
-                identity:`file`suite`description`line`kind`tags`testId`caseId`parameters!(
+                identity:`file`suite`description`line`kind`tags`parameters!(
                     filePath;suiteName;.tst.toString row`description;"j"$row`line;
-                    .tst.toString row`kind;string each (),row`tags;testId;caseId;
+                    .tst.toString row`kind;string each (),row`tags;
                     $[`parameters in key row;row`parameters;()!()]);
                 events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.started";runId;executionId;suiteId;testStarted;identity];
                 sequence+:1;
@@ -337,12 +341,14 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                     events,:.tst.oneEventTable .tst.eventRecord[sequence;"diagnostic.recorded";runId;diagId;testId;finished;diagnostic];
                     sequence+:1;
                     di+:1];
-                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.finished";runId;executionId;suiteId;testFinished;
-                    `status`duration`durationSeconds`assertsRun`attempts`retried`flaky`caseId`quarantine!(
+                testFinishedPayload:`status`duration`durationSeconds`assertsRun`attempts`retried`flaky!(
                         .tst.toString row`status;string row`time;
                         .tst.output.jsonDurationSeconds row`time;
-                        "j"$row`assertsRun;"j"$row`attempts;row`retried;row`flaky;.tst.toString row`caseId;
-                        $[`quarantine in key row;row`quarantine;()!()])];
+                        "j"$row`assertsRun;"j"$row`attempts;row`retried;row`flaky);
+                qstate:$[`quarantine in key row;row`quarantine;()!()];
+                if[(99h=type qstate) and 0<count qstate;
+                    testFinishedPayload[`quarantine]:qstate];
+                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.finished";runId;executionId;suiteId;testFinished;testFinishedPayload];
                 sequence+:1;
                 ti+:1];
             events,:.tst.oneEventTable .tst.eventRecord[sequence;"suite.finished";runId;suiteId;fileId;last suiteInterval;

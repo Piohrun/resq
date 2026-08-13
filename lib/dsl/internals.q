@@ -60,6 +60,7 @@ if[not `stateFile in key `.tst.app; .tst.app.stateFile: ".resq/last-run.json"];
 if[not `shardIndex in key `.tst.app; .tst.app.shardIndex: 0j];
 if[not `shardCount in key `.tst.app; .tst.app.shardCount: 1j];
 if[not `shardUnit in key `.tst.app; .tst.app.shardUnit: `file];
+if[not `reportProfile in key `.tst.app; .tst.app.reportProfile: `full];
 if[not `emptyShard in key `.tst.app; .tst.app.emptyShard: 0b];
 if[not `allSpecs in key `.tst.app; .tst.app.allSpecs: ()];
 if[not `passed in key `.tst.app; .tst.app.passed: 1b];

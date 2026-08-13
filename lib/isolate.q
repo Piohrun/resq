@@ -408,6 +408,9 @@
     argv:.tst.isolate.appendValue[argv;"-shard-index";childIndex];
     argv:.tst.isolate.appendValue[argv;"-shard-count";childCount];
     argv:.tst.isolate.appendValue[argv;"-shard-unit";string unit];
+    / The child JSON is an internal merge protocol and must retain detailed rows
+    / even when the parent will publish a compact external profile.
+    argv:.tst.isolate.appendValue[argv;"-report-profile";"full"];
     / Marks where the child's own report starts so readCaptured can forward the
     / test output without the child's duplicate summary and scratch-path
     / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.

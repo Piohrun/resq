@@ -20,6 +20,19 @@ a warehouse without reconstructing identity from display names.
 The run record includes `benchmarkAnalysis`; each benchmark event retains raw
 samples, stable identity, environment, and its corrected comparison.
 
+The converter writes records incrementally instead of assembling the complete
+NDJSON body in memory. Standard-library JSON decoding is not incremental, so it
+checks the input size before decoding and defaults to a documented 256 MiB
+ceiling. Change it deliberately with `--max-input-bytes`; inputs above the
+ceiling fail before allocation. Records carry the source `profile` and
+`completeness`; sections omitted by a compact profile are absent from the run
+record rather than synthesized as empty evidence.
+To keep each record bounded, `resq.run.run.shard` replaces the two unbounded
+identity/path arrays with `selectedExecutionIdCount` and
+`selectedFilePathCount`. `recordSchema` and `recordOmissions` declare that
+adapter-level normalization; individual `resq.test` records retain the join
+identity.
+
 ## Allure 2 results
 
 ```bash

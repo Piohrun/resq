@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit`quarantineNonBlocking`flakeProposals`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow`snapshotAudit`snapshotGate`benchmarkBaseline`benchmarkGate`benchmarkAcceptEnvironment`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file;0b;0b;".resq/flake-history.json";".resq/quarantine.json";".resq/quarantine-proposals.json";3j;2j;20j;0b;0b;"";0b;0b;5j;5j;5j)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit`quarantineNonBlocking`flakeProposals`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow`snapshotAudit`snapshotGate`benchmarkBaseline`benchmarkGate`benchmarkAcceptEnvironment`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`reportProfile!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file;0b;0b;".resq/flake-history.json";".resq/quarantine.json";".resq/quarantine-proposals.json";3j;2j;20j;0b;0b;"";0b;0b;5j;5j;5j;`full)
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -82,6 +82,7 @@ loadConfig:{[path]
     if[10h = type merged`shardIndex;merged[`shardIndex]:"J"$merged`shardIndex];
     if[10h = type merged`shardCount;merged[`shardCount]:"J"$merged`shardCount];
     if[10h=type merged`shardUnit;merged[`shardUnit]:`$lower merged`shardUnit];
+    if[10h=type merged`reportProfile;merged[`reportProfile]:`$lower merged`reportProfile];
     coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples;
     {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
     if[`testFilePatterns in key merged;
@@ -330,6 +331,13 @@ validateConfig:{[cfg]
         if[(not null cfg`shardIndex) and (not null cfg`shardCount) and
            cfg[`shardIndex]>=cfg`shardCount;
           warnings,:enlist "shardIndex must be less than shardCount"]]]];
+  if[`reportProfile in key cfg;
+    if[(not -11h=type cfg`reportProfile) or not (cfg`reportProfile) in `full`results`telemetry;
+      warnings,:enlist "reportProfile must be one of: full, results, telemetry"]];
+  if[all `reportProfile`shardCount in key cfg;
+    if[(type cfg`shardCount) in -5 -6 -7h;
+      if[((not null cfg`shardCount) and cfg[`shardCount]>1) and not ((cfg`reportProfile)~`full);
+        warnings,:enlist "sharded runs require reportProfile full"]]];
 
   warnings,: raze checkType[cfg;;(10h;-10h;11h);]'[enlist `outDir; enlist "outDir must be a string or symbol"];
   warnings,: raze checkType[cfg;;(10h;-10h);]'[enlist `stateFile; enlist "stateFile must be a nonempty string or symbol"];
@@ -464,6 +472,13 @@ invalidConfigKeys:{[cfg]
   if[`shardUnit in key cfg;
     if[(not -11h=type cfg`shardUnit) or not (cfg`shardUnit) in `file`test`case;
       invalid,:`shardUnit]];
+  if[`reportProfile in key cfg;
+    if[(not -11h=type cfg`reportProfile) or not (cfg`reportProfile) in `full`results`telemetry;
+      invalid,:`reportProfile]];
+  if[all `reportProfile`shardCount in key cfg;
+    if[(type cfg`shardCount) in -5 -6 -7h;
+      if[((not null cfg`shardCount) and cfg[`shardCount]>1) and not ((cfg`reportProfile)~`full);
+        invalid,:`reportProfile]]];
   if[(1b~$[`lastFailed in key cfg;cfg`lastFailed;0b]) and
      1b~$[`failedFirst in key cfg;cfg`failedFirst;0b];
       invalid,:`lastFailed`failedFirst];
@@ -542,6 +557,7 @@ applyConfig:{[cfg]
     if[ok`shardIndex; .tst.app.shardIndex:"j"$cfg`shardIndex];
     if[ok`shardCount; .tst.app.shardCount:"j"$cfg`shardCount];
     if[ok`shardUnit;.tst.app.shardUnit:cfg`shardUnit];
+    if[ok`reportProfile;.tst.app.reportProfile:cfg`reportProfile];
     if[ok`quarantineNonBlocking;.tst.app.quarantineNonBlocking:cfg`quarantineNonBlocking];
     if[ok`flakeProposals;.tst.app.flakeProposalsEnabled:cfg`flakeProposals];
     if[ok`snapshotAudit;.tst.app.snapshotAudit:cfg`snapshotAudit];

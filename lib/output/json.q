@@ -38,9 +38,47 @@
     if[not `diagnostics in key out;out[`diagnostics]:()];
     if[not `snapshots in key out;out[`snapshots]:()];
     if[not `benchmark in key out;out[`benchmark]:()!()];
-    if[not `quarantine in key out;out[`quarantine]:()!()];
+    if[`quarantine in key out;
+        qstate:out`quarantine;
+        if[(not 99h=type qstate) or 0=count qstate;
+            out:(key[out] except enlist `quarantine)#out]];
     rawOutput: $[`output in key out; out`output; ""];
     out[`output]: .tst.stripAnsi .tst.renderReportMessage rawOutput;
+    out
+ };
+
+/ JSON evidence profiles are projections of the one immutable canonical model.
+/ An omitted section is absent and declared below; it is never encoded as an
+/ empty object/list that could be mistaken for an observed empty measurement.
+.tst.output.profileCompleteness:{[profile]
+    omittedSections:$[profile~`full;();
+        ("performance";"coverage";"flake";"snapshotInventory";
+         "benchmarkAnalysis";"manifest";"events")];
+    omittedTestFields:$[profile~`telemetry;
+        ("time";"failures";"namespace";"tags";"output";"parameters";
+         "attemptHistory";"parameterCases";"property";"diagnostics";
+         "snapshots";"benchmark";"quarantine");()];
+    boundedFields:$[profile~`telemetry;
+        ("tests.message";"diagnostics.message");()];
+    `evidenceComplete`omittedSections`omittedTestFields`boundedFields!(
+        profile~`full;omittedSections;omittedTestFields;boundedFields)
+ };
+
+.tst.output.telemetryRow:{[row]
+    fields:`suite`description`status`message`durationSeconds`assertsRun`file`line,
+        `testId`caseId`kind`attempts`retried`flaky`startedAt`finishedAt;
+    (fields inter key row)#row
+ };
+
+.tst.output.profileRunModel:{[model;profile]
+    out:model;
+    if[profile in `results`telemetry;
+        keep:`schemaVersion`framework`frameworkVersion`run`summary`tests`diagnostics;
+        out:(keep inter key out)#out];
+    if[profile~`telemetry;
+        out[`tests]:.tst.output.telemetryRow each .tst.resultRows out];
+    out[`profile]:.tst.toString profile;
+    out[`completeness]:.tst.output.profileCompleteness profile;
     out
  };
 
@@ -50,6 +88,8 @@
     payload:$[isModel;results;.tst.canonicalRunModel results];
     jsonPayload:payload;
     jsonPayload[`tests]:.tst.output.jsonRow each .tst.resultRows payload;
+    profile:`$lower .tst.toString @[get;`.tst.app.reportProfile;`full];
+    jsonPayload:.tst.output.profileRunModel[jsonPayload;profile];
     jsonReport: .j.j jsonPayload;
 
     outDirStr: .tst.toString .resq.config.outDir;

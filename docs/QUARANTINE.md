@@ -7,7 +7,8 @@ The reviewed quarantine manifest is the only authority that can mark a stable
 
 ## States and evidence
 
-Every executable test/case/property/benchmark row has `tests[].quarantine`:
+Every executable test/case/property/benchmark row is classified. Actionable or
+evidence-backed states are exposed as `tests[].quarantine`:
 
 - `insufficient`: fewer than `flakeEvidenceMin` observations (default 3). A
   first failure always lands here.
@@ -17,6 +18,11 @@ Every executable test/case/property/benchmark row has `tests[].quarantine`:
   late-pass retry, inside the last `flakeWindow` observations (default 20).
 - `quarantined`: an active, unexpired manifest entry exists.
 - `expired`: the manifest entry is past `expiresAt`; the test is blocking again.
+
+`insufficient` remains visible in the aggregate `flake.insufficient` count but
+is omitted from individual JSON rows/events and from JUnit/xUnit property
+groups. Absence is therefore the compact representation of “not enough
+evidence yet,” not a policy decision.
 
 History defaults to `.resq/flake-history.json` and is atomically replaced after
 a real run. Shards suffix their history files so concurrent jobs never race.
@@ -68,8 +74,9 @@ failure counts remain unchanged, and the console says that the run passed with
 quarantined failures. Expired entries and malformed policy remain blocking even
 when the flag is present.
 
-JSON exposes per-row state plus the aggregate top-level `flake` object. The
-`test.finished` lifecycle event carries the same state. JUnit testcase
+JSON exposes actionable per-row state plus the aggregate top-level `flake`
+object. The `test.finished` lifecycle event carries the same state when one is
+present. JUnit testcase
 properties and xUnit traits use `resq.quarantine.*` names for state, ownership,
 reason, evidence counters, issue, creation, and expiry.
 

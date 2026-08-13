@@ -262,6 +262,7 @@ def verify(q_executable: str) -> None:
             ("digest", lambda d: (
                 d["manifest"].update(digest="manifest_" + "0" * 32),
                 d["events"][1].update(entityId="manifest_" + "0" * 32),
+                d["events"][1]["payload"].update(digest="manifest_" + "0" * 32),
             ), "mixed manifest digest"),
         ):
             tampered = root / f"tampered-{label}.json"

@@ -401,7 +401,7 @@
         `runCoverage`coverageStatements`coverageMin`coverageFunctionMin,
         `coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage,
         `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
-        `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
+        `qspecCompat`annotationEnabled`reportFormats`reportProfile`runSpecs`excludeSpecs,
         `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`shardUnit,
         `quarantineNonBlocking`flakeProposalsEnabled`flakeHistoryFile`quarantineFile,
         `flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow,

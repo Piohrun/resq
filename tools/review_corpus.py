@@ -46,7 +46,7 @@ def _event(
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "sequence": sequence,
         "type": event_type,
         "runId": run_id,
@@ -235,7 +235,17 @@ def scale_report(
             )
 
         emit("run.started", run_id, "", start)
-        emit("manifest.published", digest, run_id, start)
+        manifest = document["manifest"]
+        emit("manifest.published", digest, run_id, start, {
+            "schemaVersion": manifest["schemaVersion"],
+            "kind": manifest["kind"],
+            "digest": manifest["digest"],
+            "digestAlgorithm": manifest["digestAlgorithm"],
+            "identityAlgorithm": manifest["identityAlgorithm"],
+            "frameworkVersion": manifest["frameworkVersion"],
+            "fileCount": len(manifest["files"]),
+            "testCount": len(manifest["tests"]),
+        })
         emit("file.started", file_id, run_id, start)
         emit("suite.started", suite_id, file_id, start, {"testCount": test_count})
         for row in test_rows:
@@ -286,6 +296,7 @@ def main() -> int:
     report.add_argument("--coverage", action="store_true")
     report.add_argument("--property", action="store_true")
     report.add_argument("--benchmark", action="store_true")
+    report.add_argument("--profile", choices=("full", "results", "telemetry"))
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.mode == "loader":
@@ -301,6 +312,9 @@ def main() -> int:
             include_property=args.property,
             include_benchmark=args.benchmark,
         )
+        if args.profile:
+            from report_profiles import project
+            document = project(document, args.profile)
         args.output.write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 

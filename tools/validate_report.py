@@ -26,6 +26,20 @@ ENVIRONMENT_ID = re.compile(r"^environment_[0-9a-f]{32}$")
 REPLAY_TOKEN = re.compile(r"^resq-pbt-v1/-?\d+/\d+$")
 STATUSES = {"pass", "fail", "error", "skip", "pending"}
 BENCHMARK_CLASSES = {"improved", "stable", "inconclusive", "regressed"}
+PROFILE_OMITTED_SECTIONS = [
+    "performance", "coverage", "flake", "snapshotInventory",
+    "benchmarkAnalysis", "manifest", "events",
+]
+TELEMETRY_OMITTED_TEST_FIELDS = [
+    "time", "failures", "namespace", "tags", "output", "parameters",
+    "attemptHistory", "parameterCases", "property", "diagnostics",
+    "snapshots", "benchmark", "quarantine",
+]
+TELEMETRY_TEST_FIELDS = {
+    "suite", "description", "status", "message", "durationSeconds",
+    "assertsRun", "file", "line", "testId", "caseId", "kind",
+    "attempts", "retried", "flaky", "startedAt", "finishedAt",
+}
 
 
 def require(obj: dict[str, Any], keys: set[str], where: str) -> None:
@@ -324,6 +338,72 @@ def validate_test(row: Any, index: int) -> None:
             raise ValueError(f"{where}.quarantine: pass/failure evidence exceeds observations")
 
 
+def validate_telemetry_test(row: Any, index: int) -> None:
+    where = f"tests[{index}]"
+    if not isinstance(row, dict):
+        raise ValueError(f"{where}: expected object")
+    required = TELEMETRY_TEST_FIELDS - {"startedAt", "finishedAt"}
+    require(row, required, where)
+    unexpected = set(row) & set(TELEMETRY_OMITTED_TEST_FIELDS)
+    if unexpected:
+        raise ValueError(f"{where}: telemetry contains declared omitted fields {sorted(unexpected)!r}")
+    if row["status"] not in STATUSES:
+        raise ValueError(f"{where}.status: unknown value {row['status']!r}")
+    require_non_negative_number(row["durationSeconds"], f"{where}.durationSeconds")
+    validate_interval(row, where)
+    if not isinstance(row["assertsRun"], int) or isinstance(row["assertsRun"], bool) or row["assertsRun"] < 0:
+        raise ValueError(f"{where}.assertsRun: expected non-negative integer")
+    if not isinstance(row["testId"], str) or not HEX_ID.fullmatch(row["testId"]):
+        raise ValueError(f"{where}.testId: invalid stable identity")
+    if not isinstance(row["caseId"], str) or (row["caseId"] and not HEX_ID.fullmatch(row["caseId"])):
+        raise ValueError(f"{where}.caseId: invalid stable identity")
+    if not isinstance(row["message"], str):
+        raise ValueError(f"{where}.message: expected bounded string")
+    if not isinstance(row["attempts"], int) or row["attempts"] < 1:
+        raise ValueError(f"{where}.attempts: expected positive integer")
+    if not isinstance(row["retried"], bool) or not isinstance(row["flaky"], bool):
+        raise ValueError(f"{where}: retry flags must be boolean")
+    if row["retried"] != (row["attempts"] > 1):
+        raise ValueError(f"{where}: retried must agree with attempts")
+
+
+def validate_profile(document: dict[str, Any]) -> str:
+    profile = document.get("profile")
+    if profile is None:
+        return "legacy-full"
+    if profile not in {"full", "results", "telemetry"}:
+        raise ValueError("report.profile: expected full, results, or telemetry")
+    completeness = document.get("completeness")
+    if not isinstance(completeness, dict):
+        raise ValueError("report.completeness: expected object")
+    require(
+        completeness,
+        {"evidenceComplete", "omittedSections", "omittedTestFields", "boundedFields"},
+        "report.completeness",
+    )
+    expected_sections = [] if profile == "full" else PROFILE_OMITTED_SECTIONS
+    expected_fields = TELEMETRY_OMITTED_TEST_FIELDS if profile == "telemetry" else []
+    expected_bounded = ["tests.message", "diagnostics.message"] if profile == "telemetry" else []
+    if completeness["evidenceComplete"] is not (profile == "full"):
+        raise ValueError("report.completeness.evidenceComplete disagrees with profile")
+    if completeness["omittedSections"] != expected_sections:
+        raise ValueError("report.completeness.omittedSections disagrees with profile")
+    if completeness["omittedTestFields"] != expected_fields:
+        raise ValueError("report.completeness.omittedTestFields disagrees with profile")
+    if completeness["boundedFields"] != expected_bounded:
+        raise ValueError("report.completeness.boundedFields disagrees with profile")
+    omitted_present = sorted(set(expected_sections) & document.keys())
+    if omitted_present:
+        raise ValueError(f"report: declared omitted sections are present {omitted_present!r}")
+    if profile == "full":
+        require(
+            document,
+            {"performance", "coverage", "flake", "snapshotInventory", "benchmarkAnalysis", "manifest", "events"},
+            "full report",
+        )
+    return profile
+
+
 def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
     if not isinstance(manifest, dict):
         raise ValueError("manifest: expected object")
@@ -569,6 +649,19 @@ def validate_events(events: Any, document: dict[str, Any]) -> None:
     if events[-1]["payload"] != document["summary"]:
         raise ValueError("events[-1]: run summary differs from report summary")
     if versions == {2}:
+        manifest = document["manifest"]
+        expected_notice = {
+            "schemaVersion": manifest["schemaVersion"],
+            "kind": manifest["kind"],
+            "digest": manifest["digest"],
+            "digestAlgorithm": manifest["digestAlgorithm"],
+            "identityAlgorithm": manifest["identityAlgorithm"],
+            "frameworkVersion": manifest["frameworkVersion"],
+            "fileCount": len(manifest["files"]),
+            "testCount": len(manifest["tests"]),
+        }
+        if events[1]["payload"] != expected_notice:
+            raise ValueError("events[1]: manifest notice must contain digest/version/counts only")
         run_start = iso8601(document["run"]["startedAt"], "run.startedAt")
         run_finish = iso8601(document["run"]["finishedAt"], "run.finishedAt")
         for index, event in enumerate(events):
@@ -583,10 +676,18 @@ def validate_events(events: Any, document: dict[str, Any]) -> None:
             return event
         for test_index, row in enumerate(document["tests"]):
             identity = row["caseId"] or row["testId"]
+            started_event = linked("test.started", identity)
+            finished_event = linked("test.finished", identity)
+            if {"testId", "caseId"} & started_event["payload"].keys():
+                raise ValueError(f"events: test.started repeats identity for tests[{test_index}]")
+            if "caseId" in finished_event["payload"]:
+                raise ValueError(f"events: test.finished repeats identity for tests[{test_index}]")
+            if not row.get("quarantine") and "quarantine" in finished_event["payload"]:
+                raise ValueError(f"events: test.finished carries empty quarantine for tests[{test_index}]")
             if row.get("startedAt") is not None:
-                if linked("test.started", identity)["occurredAt"] != row["startedAt"]:
+                if started_event["occurredAt"] != row["startedAt"]:
                     raise ValueError(f"events: test.started timing differs for tests[{test_index}]")
-                if linked("test.finished", identity)["occurredAt"] != row["finishedAt"]:
+                if finished_event["occurredAt"] != row["finishedAt"]:
                     raise ValueError(f"events: test.finished timing differs for tests[{test_index}]")
             for attempt_index, attempt in enumerate(row["attemptHistory"], start=1):
                 if attempt.get("startedAt") is None:
@@ -609,11 +710,11 @@ def validate_events(events: Any, document: dict[str, Any]) -> None:
 def validate(document: Any) -> None:
     if not isinstance(document, dict):
         raise ValueError("report: expected object")
-    require(
-        document,
-        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics"},
-        "report",
-    )
+    profile = validate_profile(document)
+    required = {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "diagnostics"}
+    if profile == "legacy-full":
+        required.update({"performance", "coverage"})
+    require(document, required, "report")
     if document["schemaVersion"] != 2 or document["framework"] != "resQ":
         raise ValueError("report: expected resQ schemaVersion 2")
     run = document["run"]
@@ -710,7 +811,7 @@ def validate(document: Any) -> None:
                 raise ValueError(f"{where}.status: invalid")
             if entry["backend"] not in {"binary", "text"}:
                 raise ValueError(f"{where}.backend: invalid")
-    performance = rows_for_validation(document["performance"])
+    performance = rows_for_validation(document.get("performance", []))
     performance_ids: list[str] = []
     for index, measurement in enumerate(performance):
         where = f"performance[{index}]"
@@ -772,9 +873,12 @@ def validate(document: Any) -> None:
     execution_ids: list[str] = []
     case_ids: list[str] = []
     for index, row in enumerate(document["tests"]):
-        validate_test(row, index)
+        if profile == "telemetry":
+            validate_telemetry_test(row, index)
+        else:
+            validate_test(row, index)
         execution_ids.append(row["caseId"] or row["testId"])
-        case_ids.extend(case["caseId"] for case in row["parameterCases"])
+        case_ids.extend(case["caseId"] for case in row.get("parameterCases", []))
     if len(execution_ids) != len(set(execution_ids)):
         raise ValueError("tests: duplicate execution identity")
     if len(case_ids) != len(set(case_ids)):
@@ -796,9 +900,9 @@ def validate(document: Any) -> None:
         raise ValueError("diagnostics: all-green report contains verdict-bearing error diagnostics")
     row_benchmark_ids = [
         row["benchmark"]["benchmarkId"] for row in document["tests"]
-        if row["benchmark"] and "benchmarkId" in row["benchmark"]
+        if row.get("benchmark") and "benchmarkId" in row["benchmark"]
     ]
-    if set(row_benchmark_ids) != set(performance_ids):
+    if "performance" in document and set(row_benchmark_ids) != set(performance_ids):
         raise ValueError("performance: identities differ from test benchmark telemetry")
     if "manifest" in document or "events" in document:
         require(document, {"manifest", "events"}, "report lifecycle extension")

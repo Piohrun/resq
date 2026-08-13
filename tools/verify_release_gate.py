@@ -75,6 +75,8 @@ def load_report(directory: Path) -> dict[str, Any]:
     report_path = directory / "test-results.json"
     document = json.loads(report_path.read_text(encoding="utf-8"))
     validate(document)
+    if document.get("profile") != "full" or not document.get("completeness", {}).get("evidenceComplete"):
+        raise RuntimeError(f"release qualification requires full evidence: {report_path}")
     ElementTree.parse(directory / "test-results.junit.xml")
     return document
 
@@ -239,7 +241,8 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             "full strict suite",
             [
                 str(ROOT / "bin/resq"), "test", "tests", "-strict", "-json", "-junit",
-                "-quiet", "-outDir", str(normal_dir), "-state-file", str(output / "normal-state.json"),
+                "-quiet", "-report-profile", "full", "-outDir", str(normal_dir),
+                "-state-file", str(output / "normal-state.json"),
             ],
             timeout=1800,
         )
@@ -252,7 +255,8 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             [
                 str(ROOT / "bin/resq"), "test", "tests", "-strict", "-isolate",
                 "-isolateTimeout", "90", "-isolateWorkers", "4", "-json", "-junit",
-                "-quiet", "-outDir", str(isolated_dir), "-state-file", str(output / "isolated-state.json"),
+                "-quiet", "-report-profile", "full", "-outDir", str(isolated_dir),
+                "-state-file", str(output / "isolated-state.json"),
             ],
             timeout=1800,
         )

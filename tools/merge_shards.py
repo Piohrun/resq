@@ -47,6 +47,8 @@ def load_report(path: Path) -> dict[str, Any]:
         validate(document)
     except (TypeError, ValueError) as exc:
         raise MergeError(f"{path}: invalid report: {exc}") from exc
+    if document.get("profile", "full") != "full":
+        raise MergeError(f"{path}: shard merge requires report profile full")
     return document
 
 
@@ -543,7 +545,7 @@ def iso(value: str) -> datetime:
 
 
 def timestamp(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return value.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -595,7 +597,16 @@ def lifecycle(
         "frameworkVersion": manifest["frameworkVersion"],
         "ordering": run["ordering"], "selection": run["selection"], "shard": run["shard"],
     })
-    emit("manifest.published", manifest["digest"], run["id"], run["startedAt"], manifest)
+    emit("manifest.published", manifest["digest"], run["id"], run["startedAt"], {
+        "schemaVersion": manifest["schemaVersion"],
+        "kind": manifest["kind"],
+        "digest": manifest["digest"],
+        "digestAlgorithm": manifest["digestAlgorithm"],
+        "identityAlgorithm": manifest["identityAlgorithm"],
+        "frameworkVersion": manifest["frameworkVersion"],
+        "fileCount": len(manifest["files"]),
+        "testCount": len(manifest["tests"]),
+    })
     files = {entry["path"]: entry for entry in manifest["files"]}
     inventory = {entry["executionId"]: entry for entry in manifest["tests"]}
     for file_path in dict.fromkeys(row["file"] for row in rows):
@@ -622,7 +633,6 @@ def lifecycle(
                 emit("test.started", identity, suite_id, test_started, {
                     "file": file_path, "suite": suite, "description": row["description"],
                     "line": row["line"], "kind": row["kind"], "tags": row["tags"],
-                    "testId": row["testId"], "caseId": row["caseId"],
                     "parameters": row.get("parameters", {}),
                 })
                 attempts = row.get("attemptHistory") or [{
@@ -664,14 +674,15 @@ def lifecycle(
                         f"{identity}\n{index}\n{canonical(diagnostic)}"
                     )
                     emit("diagnostic.recorded", diagnostic_id, identity, run["finishedAt"], diagnostic)
-                emit("test.finished", identity, suite_id, test_finished, {
+                finished_payload = {
                     "status": row["status"], "duration": row["time"],
                     "durationSeconds": row.get("durationSeconds", 0),
                     "assertsRun": row["assertsRun"], "attempts": row["attempts"],
                     "retried": row["retried"], "flaky": row["flaky"],
-                    "caseId": row["caseId"],
-                    "quarantine": row.get("quarantine", {}),
-                })
+                }
+                if row.get("quarantine"):
+                    finished_payload["quarantine"] = row["quarantine"]
+                emit("test.finished", identity, suite_id, test_finished, finished_payload)
             emit("suite.finished", suite_id, file_id, suite_finished, status_summary(suite_rows))
         emit("file.finished", file_id, run["id"], file_finished, status_summary(file_rows))
     if coverage:
@@ -766,7 +777,7 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
             minimum=minimum, passed=coverage_passed,
         )
     flake = copy.deepcopy(documents[0]["flake"])
-    states = [row.get("quarantine", {}).get("state") for row in rows]
+    states = [row.get("quarantine", {}).get("state", "insufficient") for row in rows]
     flake.update(
         historyPath="<merged shard histories>",
         historyStatus="ok" if all(document["flake"]["historyStatus"] == "ok" for document in documents) else "missing",
@@ -832,6 +843,11 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
     benchmark_analysis = merge_benchmark_analysis(documents, performance, rows)
     report = {
         "schemaVersion": 2, "framework": "resQ", "frameworkVersion": framework_version,
+        "profile": "full",
+        "completeness": {
+            "evidenceComplete": True, "omittedSections": [],
+            "omittedTestFields": [], "boundedFields": [],
+        },
         "run": run, "summary": stats, "tests": rows, "performance": performance,
         "coverage": report_coverage, "diagnostics": diagnostics, "flake": flake,
         "snapshotInventory": snapshot_inventory,

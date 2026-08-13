@@ -150,6 +150,7 @@
     (argv 1 + argv ? "-flake-history") musteq "/tmp/isolate/flake-history.json";
     (argv 1 + argv ? "-flake-proposal-file") musteq "/tmp/isolate/quarantine-proposals.json";
     must["-quarantine-file" in argv; "the reviewed quarantine manifest must reach the child"];
+    (argv 1 + argv ? "-report-profile") musteq "full";
   };
  };
 

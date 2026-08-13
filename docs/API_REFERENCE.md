@@ -1895,6 +1895,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-shard-index I` | Select zero-based native shard `I` |
 | `-shard-count N` | Partition the selected shard unit across `N > 0` shards (default `1`) |
 | `-shard-unit U` | Select `file` (default), `test`, or declarative `case` assignment |
+| `-report-profile P` | JSON evidence profile: `full` (default), `results`, or `telemetry`; sharded/release runs require `full` |
 | `-plugin FILES` | Load comma-separated trusted q plugin files before discovery; files register public observers/reporters under `.resq` |
 | `-strict-plugins` | Turn a trapped plugin callback error into a canonical error row and failing exit status (default: warning only) |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
@@ -1932,6 +1933,11 @@ the run after every selected reporter has been attempted.
 JSON additionally embeds execution-manifest schema v2 and lifecycle-event
 schema v2 (while validators continue to accept legacy event v1). Event v2 uses
 recorded test/attempt/case intervals rather than run-boundary projections.
+Its manifest publication event carries linkage metadata and counts rather than
+duplicating the top-level manifest. JSON declares `profile` and exact
+`completeness` omissions; `full` is the compatible release/shard default,
+`results` omits non-result sections, and `telemetry` additionally normalizes
+test rows to bounded ingestion fields.
 Trusted plugins can consume the same canonical stream through
 `.resq.registerObserver` and `.resq.registerReporter`; callback return values
 are ignored and direct verdict-state mutations are restored. See
@@ -2064,6 +2070,7 @@ Create `resq.json` in project root:
     "shardIndex": 0,
     "shardCount": 1,
     "shardUnit": "file",
+    "reportProfile": "full",
     "strictPlugins": false,
     "pluginFiles": [],
     "pollutionGuard": true,
@@ -2129,6 +2136,7 @@ Create `resq.json` in project root:
 | `shardIndex` | `0` | Zero-based native shard index |
 | `shardCount` | `1` | Number of deterministic shards |
 | `shardUnit` | `"file"` | Assignment unit: `file`, `test`, or declarative `case` |
+| `reportProfile` | `"full"` | JSON evidence profile: `full`, `results`, or `telemetry`; sharded runs require `full` |
 | `strictPlugins` | `false` | Fail the run when a registered plugin callback throws |
 | `pluginFiles` | empty | Trusted q plugin file path or list of paths, loaded before discovery |
 | `pollutionGuard` | `true` | Detect and restore application-namespace changes per suite |

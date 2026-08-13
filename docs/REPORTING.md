@@ -120,6 +120,18 @@ Its stable top-level fields are:
 | `flake` | Evidence thresholds, history/manifest health, policy mode, and state counts |
 | `snapshotInventory` | Complete/partial snapshot roots, identities, classifications, counts, and gate decision |
 
+Every current JSON report declares `profile` and `completeness`. The default
+`full` profile is the canonical release and shard artifact: it includes every
+section above plus `manifest` and `events`, and sets
+`completeness.evidenceComplete=true`. `-report-profile results` retains
+run/summary/full test rows/diagnostics and explicitly lists the omitted
+measurement and lifecycle sections. `-report-profile telemetry` retains the
+same run/summary/diagnostic envelope but projects each test to bounded,
+normalized identity/verdict/timing fields; `omittedTestFields` and
+`boundedFields` name the exact tradeoff. Omitted evidence is absent, never an
+empty object that could be mistaken for an observed zero. Multi-shard runs,
+the strict merger, and release qualification require `full`.
+
 The original schema-v2 core comprises `schemaVersion`, `framework`,
 `frameworkVersion`, `run`, `summary`, `tests`, `performance`, `coverage`, and
 `diagnostics`. Current 1.8 producers also always emit `flake`,
@@ -132,7 +144,7 @@ Each `tests` row retains those diagnostic fields and additionally contains a
 portable `file`, stable `testId`, optional top-level declarative `caseId` and
 `parameters`, `kind`, retry flags and `attemptHistory`, independently identified
 runtime `parameterCases`, structured `property`, `snapshots`, `benchmark`,
-`quarantine` (raw evidence plus owner/reason/issue/creation/expiry), and typed
+actionable `quarantine` state (raw evidence plus owner/reason/issue/creation/expiry), and typed
 `diagnostics`. Current producers add nullable `startedAt`/`finishedAt` intervals
 to tests, attempts, and runtime parameter cases. The public statuses are `pass`, `fail`,
 `error`, `skip`, and `pending`. `message` and `output` are always strings and
@@ -204,8 +216,12 @@ JUnit elements. Property rows add a standard testcase `<properties>` block for
 the generator protocol, seed, replay token, original/minimal inputs, shrink
 work, termination, signature, and duration. Captured isolated-child output is
 written as `<system-out>` on the row that owns the file transcript.
-Quarantine rows add `resq.quarantine.*` properties without changing the
+Suspect, quarantined, expired, and evidence-backed healthy rows add
+`resq.quarantine.*` properties without changing the
 testcase failure/error element or its underlying status.
+Insufficient evidence is counted in top-level `flake.insufficient` but emits no
+per-test JSON object, JUnit property group, xUnit trait group, or lifecycle
+payload boilerplate.
 
 For a multiline failure, the element's `message` attribute contains a one-line
 summary while the full newline-preserving message remains in the element body.

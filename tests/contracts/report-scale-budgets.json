@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "kind": "resq-report-scale-budgets",
+  "corpusTests": 10000,
+  "failureEvery": 2,
+  "failureBytes": 1024,
+  "referenceMeasurement": {
+    "date": "2026-08-14",
+    "greenBytesPerTest": {"full": 2352.2276, "results": 684.0225, "telemetry": 347.0418, "ndjson": 990.0702, "junit": 252.8981, "allure": 717.0},
+    "failureHeavyBytesPerTest": {"full": 4402.2278, "results": 2734.0227, "telemetry": 859.042, "ndjson": 1502.0704, "junit": 1276.8981, "allure": 1741.0}
+  },
+  "limits": {
+    "model": {"maxBytesPerTest": 0, "maxPeakBytes": 536870912, "maxWallSeconds": 30, "maxRecordBytes": 0},
+    "full": {"maxBytesPerTest": 5000, "maxPeakBytes": 268435456, "maxWallSeconds": 30, "maxRecordBytes": 0},
+    "results": {"maxBytesPerTest": 3000, "maxPeakBytes": 268435456, "maxWallSeconds": 30, "maxRecordBytes": 0},
+    "telemetry": {"maxBytesPerTest": 1000, "maxPeakBytes": 268435456, "maxWallSeconds": 30, "maxRecordBytes": 0},
+    "ndjson": {"maxBytesPerTest": 1800, "maxPeakBytes": 268435456, "maxWallSeconds": 30, "maxRecordBytes": 4096},
+    "junit": {"maxBytesPerTest": 1500, "maxPeakBytes": 268435456, "maxWallSeconds": 30, "maxRecordBytes": 0},
+    "allure": {"maxBytesPerTest": 2200, "maxPeakBytes": 268435456, "maxWallSeconds": 30, "maxRecordBytes": 4096}
+  }
+}

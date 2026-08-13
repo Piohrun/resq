@@ -70,7 +70,7 @@ def state(report: dict[str, Any]) -> dict[str, Any]:
     tests = report["tests"]
     if len(tests) != 1:
         raise AssertionError(f"expected one result, got {len(tests)}")
-    return tests[0]["quarantine"]
+    return tests[0].get("quarantine") or {"state": "insufficient"}
 
 
 def expect_code(completed: subprocess.CompletedProcess[str], expected: int, name: str) -> None:

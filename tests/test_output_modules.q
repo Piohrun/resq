@@ -230,6 +230,50 @@
 / meaningless output and stay green. These build a mixed result set and assert
 / on the generated document directly.
 .tst.desc["Reporter XML structure"]{
+    should["omit empty quarantine and optional property boilerplate"]{
+        row:.tst.completeResultRow `suite`description`status`assertsRun!(
+            `S;"plain";`pass;1i);
+        prevTop:@[get;`.tst.output.top;{::}];
+        prevReport:.resq.report;
+        .tst.loadOutputModule["junit"];
+        junitProps:.tst.output.junitPropertyNode row;
+        .tst.loadOutputModule["xunit"];
+        xunitProps:.tst.output.xunitPropertyNode row;
+        .tst.loadOutputModule["json"];
+        jsonRow:.tst.output.jsonRow row;
+        .tst.output.top:prevTop;.resq.report:prevReport;
+        junitProps musteq "";
+        xunitProps musteq "";
+        must[not `quarantine in key jsonRow;
+             "an empty quarantine object must not be serialized"];
+    };
+
+    should["declare exact full results and telemetry profile projections"]{
+        prevTop:@[get;`.tst.output.top;{::}];
+        prevReport:.resq.report;
+        .tst.loadOutputModule["json"];
+        row:.tst.output.jsonRow .tst.completeResultRow
+            `suite`description`status`assertsRun!("S";"plain";`pass;1i);
+        model:`schemaVersion`framework`frameworkVersion`run`summary`tests`performance`coverage`diagnostics`flake`snapshotInventory`benchmarkAnalysis`manifest`events!(
+            2;"resQ";"1.8.0";()!();()!();enlist row;();()!();();()!();()!();()!();()!();());
+        full:.tst.output.profileRunModel[model;`full];
+        results:.tst.output.profileRunModel[model;`results];
+        telemetry:.tst.output.profileRunModel[model;`telemetry];
+        .tst.output.top:prevTop;.resq.report:prevReport;
+        full[`completeness;`evidenceComplete] musteq 1b;
+        must[all `manifest`events`coverage in key full;
+             "full must preserve release evidence"];
+        must[not any `manifest`events`coverage in key results;
+             "results must omit and declare non-result sections"];
+        results[`completeness;`omittedSections] mustmatch
+            ("performance";"coverage";"flake";"snapshotInventory";
+             "benchmarkAnalysis";"manifest";"events");
+        must[not `attemptHistory in key first telemetry`tests;
+             "telemetry rows must omit detailed histories"];
+        must[all `testId`status`message`durationSeconds in key first telemetry`tests;
+             "telemetry must retain normalized ingestion identity and verdict"];
+    };
+
     / A test's `namespace` is its generated SANDBOX name, which embeds the file's
     / absolute path. Using it as classname/type made CI grouping depend on the
     / checkout directory, so historical runs could never be matched. The SUITE

@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
+from report_profiles import project  # noqa: E402
 
 
 def test_row(name: str, status: str, suffix: str) -> dict:
@@ -171,6 +172,17 @@ class AdapterTests(unittest.TestCase):
                 event["occurredAt"] = started
             if event["type"] in {"test.finished", "attempt.finished"}:
                 event["occurredAt"] = finished
+        manifest = observed["manifest"]
+        observed["events"][1]["payload"] = {
+            "schemaVersion": manifest["schemaVersion"],
+            "kind": manifest["kind"],
+            "digest": manifest["digest"],
+            "digestAlgorithm": manifest["digestAlgorithm"],
+            "identityAlgorithm": manifest["identityAlgorithm"],
+            "frameworkVersion": manifest["frameworkVersion"],
+            "fileCount": len(manifest["files"]),
+            "testCount": len(manifest["tests"]),
+        }
         validate(observed)
         observed["events"][4]["occurredAt"] = "2026-08-12T12:00:00.200000000Z"
         with self.assertRaisesRegex(ValueError, "test.started timing differs"):
@@ -244,6 +256,45 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(["resq.run", "resq.test", "resq.test"], [e["eventType"] for e in events])
             self.assertTrue(all(e["runId"] == f"run_{'a' * 32}" for e in events))
             self.assertEqual(f"test_{'b' * 32}", events[1]["test"]["testId"])
+
+    def test_declared_profiles_validate_and_omissions_are_exact(self) -> None:
+        base = json.loads(
+            (ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8")
+        )
+        for profile in ("full", "results", "telemetry"):
+            document = project(base, profile)
+            validate(document)
+            self.assertEqual(profile, document["profile"])
+        telemetry = project(base, "telemetry")
+        self.assertNotIn("manifest", telemetry)
+        self.assertNotIn("attemptHistory", telemetry["tests"][0])
+        dishonest = deepcopy(telemetry)
+        dishonest["coverage"] = {}
+        with self.assertRaisesRegex(ValueError, "declared omitted sections are present"):
+            validate(dishonest)
+
+    def test_ndjson_streams_profiles_and_enforces_input_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "telemetry.json"
+            output = root / "events.ndjson"
+            source.write_text(json.dumps(project(report(), "telemetry")), encoding="utf-8")
+            accepted = subprocess.run(
+                [sys.executable, str(ROOT / "tools/resq_to_ndjson.py"), str(source),
+                 "-o", str(output), "--max-input-bytes", str(source.stat().st_size)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(0, accepted.returncode, accepted.stderr)
+            first = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual("telemetry", first["profile"])
+            self.assertNotIn("coverage", first)
+            rejected = subprocess.run(
+                [sys.executable, str(ROOT / "tools/resq_to_ndjson.py"), str(source),
+                 "--max-input-bytes", str(source.stat().st_size - 1)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(1, rejected.returncode)
+            self.assertIn("converter ceiling", rejected.stderr)
 
     def test_allure_maps_status_history_and_labels(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

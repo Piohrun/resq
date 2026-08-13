@@ -58,6 +58,13 @@
     result[`observations] musteq 1j;
   };
 
+  should["omit insufficient per-row boilerplate while retaining aggregate state"]{
+    .tst.app.flakeHistory:.tst.emptyFlakeHistory `missing;
+    .tst.app.quarantineManifest:.tst.emptyQuarantineManifest `missing;
+    annotated:.tst.annotateFlakeRow .tst.quarantineTest.row `pass;
+    annotated[`quarantine] mustmatch ()!();
+  };
+
   should["classify only a sufficiently observed pass/fail pattern as suspect"]{
     observations:(.tst.quarantineTest.observation[`fail;0b];
       .tst.quarantineTest.observation[`pass;0b]);

@@ -211,7 +211,10 @@
     out:.tst.completeResultRow row;
     if[not .tst.flakeEligibleRow out;:out];
     classification:.tst.flakeClassification out;
-    out[`quarantine]:classification;
+    / The first observations have no actionable classification. Preserve the
+    / aggregate flake count, but do not repeat fourteen empty/default policy
+    / fields in JSON, lifecycle payloads, JUnit, and xUnit for every test.
+    out[`quarantine]:$[(classification`state)~`insufficient;()!();classification];
     if[(classification`state) in `suspect`quarantined`expired;
         diagnostic:.tst.diagnostic[`flake;
             $[(classification`state)~`healthy;`info;`warning];`classification;
@@ -339,7 +342,8 @@
     rows:.tst.resultRows .resq.state.results;
     states:{[row]
         qstate:$[`quarantine in key row;row`quarantine;()!()];
-        $[not 99h=type qstate;"unclassified";
+        $[.tst.flakeEligibleRow[row] and ((not 99h=type qstate) or not `state in key qstate);"insufficient";
+          not 99h=type qstate;"unclassified";
           not `state in key qstate;"unclassified";
           .tst.toString qstate`state]
       } each rows;

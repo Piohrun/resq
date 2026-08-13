@@ -38,6 +38,14 @@ The canonical order is:
    `benchmarks.compared`, then run diagnostics;
 4. `run.finished` with the same summary object as the report.
 
+In event v2, `manifest.published.payload` is a compact linkage notice containing
+the manifest schema/kind/digest/algorithms/framework version and file/test
+counts. The authoritative manifest is serialized once at top level. Test event
+identity lives in `entityId` and `parentId`, so `test.started` does not repeat
+`testId`/`caseId` and `test.finished` does not repeat `caseId`. An absent
+quarantine payload means the evidence is still insufficient; actionable state
+is included when present.
+
 Attempt and case pairs are `attempt.started`/`attempt.finished` and
 `case.started`/`case.finished`. Diagnostics use `diagnostic.recorded`. Files are
 ordered by the execution manifest; suites and tests retain canonical result

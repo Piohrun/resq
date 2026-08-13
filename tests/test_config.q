@@ -197,6 +197,18 @@
   cfg[`diffLargeTableThreshold] musteq 1000;
   cfg[`diffHugeTableThreshold] musteq 10000;
   };
+ should["validate and apply report evidence profiles"]{
+  .tst.validateConfig[(enlist `reportProfile)!enlist `telemetry] mustmatch ();
+  must[`reportProfile in .tst.invalidConfigKeys `reportProfile`shardCount!(`results;2j);
+    "multi-shard configuration must reject compact evidence"];
+  must[`reportProfile in .tst.invalidConfigKeys (enlist `reportProfile)!enlist `tiny;
+    "unknown report profiles must be invalid"];
+  previous:@[get;`.tst.app.reportProfile;`full];
+  .tst.applyConfig[(enlist `reportProfile)!enlist `results];
+  applied:.tst.app.reportProfile;
+  .tst.app.reportProfile:previous;
+  applied musteq `results;
+  };
  should["warn if diff-table thresholds are non-integer"]{
   / Build the dict explicitly: shorthand `key!`sym is parsed as enum, not dict.
   warnings: .tst.validateConfig (enlist `diffLargeTableThreshold)!enlist 1.5;

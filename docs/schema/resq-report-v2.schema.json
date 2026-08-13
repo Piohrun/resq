@@ -4,14 +4,56 @@
   "title": "resQ test report v2",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics"],
+  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "diagnostics"],
+  "allOf": [
+    {
+      "if": {"required": ["profile"], "properties": {"profile": {"const": "full"}}},
+      "then": {
+        "required": ["completeness", "performance", "coverage", "flake", "snapshotInventory", "benchmarkAnalysis", "manifest", "events"],
+        "properties": {"tests": {"type": "array", "items": {"$ref": "#/$defs/test"}}}
+      }
+    },
+    {
+      "if": {"required": ["profile"], "properties": {"profile": {"const": "results"}}},
+      "then": {
+        "required": ["completeness"],
+        "properties": {
+          "performance": false, "coverage": false, "flake": false,
+          "snapshotInventory": false, "benchmarkAnalysis": false,
+          "manifest": false, "events": false,
+          "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}}
+        }
+      }
+    },
+    {
+      "if": {"required": ["profile"], "properties": {"profile": {"const": "telemetry"}}},
+      "then": {
+        "required": ["completeness"],
+        "properties": {
+          "performance": false, "coverage": false, "flake": false,
+          "snapshotInventory": false, "benchmarkAnalysis": false,
+          "manifest": false, "events": false,
+          "tests": {"type": "array", "items": {"$ref": "#/$defs/telemetryTest"}}
+        }
+      }
+    },
+    {
+      "if": {"not": {"required": ["profile"]}},
+      "then": {
+        "required": ["performance", "coverage"],
+        "properties": {"tests": {"type": "array", "items": {"$ref": "#/$defs/test"}}}
+      }
+    }
+  ],
   "properties": {
     "schemaVersion": {"const": 2},
     "framework": {"const": "resQ"},
     "frameworkVersion": {"type": "string", "minLength": 1},
     "run": {"$ref": "#/$defs/run"},
     "summary": {"$ref": "#/$defs/summary"},
-    "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}},
+    "profile": {"enum": ["full", "results", "telemetry"]},
+    "completeness": {"$ref": "#/$defs/completeness"},
+    "tests": {"type": "array"},
     "performance": {
       "oneOf": [
         {
@@ -35,6 +77,40 @@
     "events": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/event"}}
   },
   "$defs": {
+    "completeness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidenceComplete", "omittedSections", "omittedTestFields", "boundedFields"],
+      "properties": {
+        "evidenceComplete": {"type": "boolean"},
+        "omittedSections": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "omittedTestFields": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "boundedFields": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      }
+    },
+    "telemetryTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["suite", "description", "status", "message", "durationSeconds", "assertsRun", "file", "line", "testId", "caseId", "kind", "attempts", "retried", "flaky"],
+      "properties": {
+        "suite": {"type": "string"},
+        "description": {"type": "string"},
+        "status": {"enum": ["pass", "fail", "error", "skip", "pending"]},
+        "message": {"type": "string"},
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "assertsRun": {"type": "integer", "minimum": 0},
+        "file": {"type": "string"},
+        "line": {"type": ["integer", "null"]},
+        "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
+        "caseId": {"type": "string"},
+        "kind": {"type": "string"},
+        "attempts": {"type": "integer", "minimum": 1},
+        "retried": {"type": "boolean"},
+        "flaky": {"type": "boolean"},
+        "startedAt": {"type": ["string", "null"], "format": "date-time"},
+        "finishedAt": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
     "run": {
       "type": "object",
       "additionalProperties": true,

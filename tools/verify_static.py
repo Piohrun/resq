@@ -18,6 +18,7 @@ from xml.etree import ElementTree
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
+from report_profiles import project  # noqa: E402
 
 
 REQUIRED = {
@@ -29,6 +30,8 @@ REQUIRED = {
     "tools/verify_hostile_env.py", "tools/verify_external_pilots.py",
     "tools/verify_release_gate.py", "tools/verify_benchmark_regression.py",
     "tools/update_benchmark_baseline.py",
+    "tools/report_profiles.py", "tools/verify_report_scale.py",
+    "tests/contracts/report-scale-budgets.json",
     "docs/schema/resq-benchmark-baseline-v1.schema.json",
     "docs/RELEASE_CHECKLIST.md",
     "docs/PRODUCTION_AUDIT_1_8.md",
@@ -71,6 +74,7 @@ def check_package(expected_tag: str = "") -> None:
         "tools/verify_static.py", "tools/verify_hostile_env.py",
         "tools/verify_external_pilots.py", "tools/verify_release_gate.py",
         "tools/verify_benchmark_regression.py", "tools/update_benchmark_baseline.py",
+        "tools/verify_report_scale.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
@@ -140,12 +144,12 @@ def check_contracts() -> None:
         raise ValueError("report schema must declare JSON Schema draft 2020-12")
     if schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
         raise ValueError("report schema does not describe schemaVersion 2")
-    v2_core = {
+    profile_core = {
         "schemaVersion", "framework", "frameworkVersion", "run", "summary",
-        "tests", "performance", "coverage", "diagnostics",
+        "tests", "diagnostics",
     }
-    if set(schema.get("required", [])) != v2_core:
-        raise ValueError("report schema v2 changed its original required top-level core")
+    if set(schema.get("required", [])) != profile_core:
+        raise ValueError("report schema profile core is inconsistent")
     baseline_schema = json.loads(
         (ROOT / "docs/schema/resq-benchmark-baseline-v1.schema.json").read_text(
             encoding="utf-8"
@@ -166,6 +170,8 @@ def check_contracts() -> None:
         raise ValueError("report-v2 objects must accept additive minor-version fields")
     report = json.loads((ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8"))
     validate(report)
+    for profile in ("full", "results", "telemetry"):
+        validate(project(report, profile))
     legacy = copy.deepcopy(report)
     for name in ("flake", "snapshotInventory", "benchmarkAnalysis", "manifest", "events"):
         legacy.pop(name, None)

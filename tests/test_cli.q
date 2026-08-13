@@ -102,6 +102,22 @@
         single[`args] musteq enlist "suite.q";
     };
 
+    should["parse declared report profiles and keep sharding on full evidence"]{
+        compact: .tst.parseCLI ("test"; "-report-profile"; "telemetry"; "suite.q");
+        compact[`ok] musteq 1b;
+        compact[`options;`reportProfile] musteq "telemetry";
+        alias: .tst.parseCLI ("test"; "--reportProfile"; "results"; "suite.q");
+        alias[`ok] musteq 1b;
+        invalid: .tst.parseCLI ("test"; "-report-profile"; "tiny"; "suite.q");
+        invalid[`ok] musteq 0b;
+        must[invalid[`error] like "report-profile must be one of*";
+             "unknown profiles must fail at the CLI boundary"];
+        sharded: .tst.parseCLI ("test"; "-shard-count"; "2";
+            "-report-profile"; "results"; "suite.q");
+        sharded[`ok] musteq 0b;
+        sharded[`error] musteq "sharded runs require report-profile full";
+    };
+
     should["validate -isolateWorkers as a positive integer"]{
         ok: .tst.parseCLI ("test"; "-isolateWorkers"; "4"; "suite.q");
         ok[`ok] musteq 1b;
