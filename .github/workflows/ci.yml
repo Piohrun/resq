@@ -36,7 +36,7 @@ jobs:
     # q on PATH and these labels; see docs/CI.md. Do not commit a license.
     runs-on: [self-hosted, linux, x64, kdb]
     needs: static
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -99,14 +99,14 @@ jobs:
             -isolateWorkers 4 \
             -junit -json -outDir artifacts/isolate
 
-      # -cov-statements adds diagnostic line records. The legacy -cov-min gate
-      # deliberately remains on the complete function inventory until line
-      # instrumentation completeness has its own enforceable contract.
+      # Every independent denominator is complete before its threshold can pass.
       - name: Coverage gate
         shell: bash
         run: |
-          ./bin/resq cover examples/quickstart/test -strict -cov-statements \
-            -cov-include '*/examples/quickstart/src/*' -cov-min 70 \
+          ./bin/resq cover examples/quickstart/test -strict \
+            --source examples/quickstart/src -cov-statements -cov-branches \
+            -cov-min 70 -cov-lines-min 80 -cov-completeness-min 100 \
+            -cov-branches-min 50 -cov-branch-completeness-min 100 \
             -junit -json -outDir artifacts/coverage
 
       - name: Validate machine-readable artifacts
@@ -145,8 +145,16 @@ jobs:
               raise SystemExit(f"legacy gate must use functions: {coverage!r}")
           if coverage["functionsFound"] != 20:
               raise SystemExit(f"quickstart function inventory drifted: {coverage!r}")
-          if coverage["linesFound"] != 17:
+          if coverage["linesFound"] != 59 or coverage["linesHit"] != 48:
               raise SystemExit(f"quickstart measured-line inventory drifted: {coverage!r}")
+          if coverage["statementSitesFound"] != 72 or coverage["statementSitesHit"] != 51:
+              raise SystemExit(f"quickstart statement-site inventory drifted: {coverage!r}")
+          if coverage["branchesFound"] != 34 or coverage["branchesHit"] != 19:
+              raise SystemExit(f"quickstart branch inventory drifted: {coverage!r}")
+          if coverage["statementInstrumentationPercent"] != 100:
+              raise SystemExit(f"statement instrumentation is incomplete: {coverage!r}")
+          if coverage["branchInstrumentationPercent"] != 100:
+              raise SystemExit(f"branch instrumentation is incomplete: {coverage!r}")
           if not coverage["passed"] or coverage["functionPercent"] < 70:
               raise SystemExit(f"coverage gate/report disagreement: {coverage!r}")
           PY

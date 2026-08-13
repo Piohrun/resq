@@ -51,7 +51,7 @@ def report() -> dict:
     return {
         "schemaVersion": 2,
         "framework": "resQ",
-        "frameworkVersion": "1.0.0",
+        "frameworkVersion": "1.8.0",
         "run": {
             "id": f"run_{'a' * 32}",
             "startedAt": "2026-08-12T12:00:00.000000000Z",
@@ -62,7 +62,7 @@ def report() -> dict:
             "qVersion": "4.1",
             "qRelease": "2024.01.01",
             "os": "linux",
-            "resqVersion": "1.0.0",
+            "resqVersion": "1.8.0",
             "vcs": {"sha": "deadbeef", "branch": "main", "dirty": False},
             "ci": {"CI": "true"},
             "config": {},

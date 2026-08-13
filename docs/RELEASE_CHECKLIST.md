@@ -16,7 +16,7 @@ The command fails closed and produces `release-audit.json` plus the underlying
 normal, isolated, and coverage artifacts. It verifies:
 
 - the licence-free package, documentation, JSON schema, XML, and adapter tests;
-- at least 640 self-tests and 1,800 assertions, with required correctness
+- at least 690 self-tests and 2,100 assertions, with required correctness
   contracts present and passing;
 - `.q` immutability, application-local compatibility, finalizer behavior,
   exact file-handle cleanup, and structured cleanup diagnostics;
@@ -30,7 +30,8 @@ normal, isolated, and coverage artifacts. It verifies:
 - hostile path, permission, artifact, signal, and child-reaping behavior;
 - both pinned external adoption pilots; and
 - agreement among console, result JSON, detailed coverage JSON, LCOV, HTML,
-  and state totals for the complete quickstart source manifest.
+  and state totals for the complete quickstart source manifest, including
+  complete function, statement, and conditional-edge denominators.
 
 The manual/tagged GitHub release workflow runs the same command on the licensed
 self-hosted runner and uploads its evidence.
@@ -49,6 +50,7 @@ After the automated gate is green:
    legitimately executes it).
 5. Tag only the exact audited commit and retain the uploaded audit artifact.
 
-Post-1.0 work has its own [delivery ledger](ROADMAP_POST_1_0.md). Unchecked
-items there are explicitly not part of the 1.0.0 gate and must not be described
-as current branch coverage or automation.
+For a post-1.0 release, every milestone up to its version in the
+[delivery ledger](ROADMAP_POST_1_0.md) is release scope. No unchecked capability
+may be described as shipped; the final completion gate is closed only after its
+exact pushed commit passes this checklist from a clean checkout.

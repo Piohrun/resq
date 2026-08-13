@@ -140,10 +140,9 @@ def validate_test(row: Any, index: int) -> None:
             "suite", "description", "status", "message", "time",
             "durationSeconds", "failures", "assertsRun", "file", "line",
             "namespace", "tags", "output", "testId", "caseId", "kind",
-            "parameters",
             "attempts", "retried", "flaky", "attemptHistory",
             "parameterCases", "property", "diagnostics", "snapshots",
-            "benchmark", "quarantine",
+            "benchmark",
         },
         where,
     )
@@ -155,9 +154,11 @@ def validate_test(row: Any, index: int) -> None:
         row["caseId"] and not HEX_ID.fullmatch(row["caseId"])
     ):
         raise ValueError(f"{where}.caseId: invalid stable identity")
+    if not isinstance(row["kind"], str):
+        raise ValueError(f"{where}.kind: expected string")
     if row["kind"] == "case" and not row["caseId"]:
         raise ValueError(f"{where}: declarative case requires caseId")
-    if not isinstance(row["parameters"], dict):
+    if not isinstance(row.get("parameters", {}), dict):
         raise ValueError(f"{where}.parameters: expected object")
     if not isinstance(row["attempts"], int) or row["attempts"] < 1:
         raise ValueError(f"{where}.attempts: expected positive integer")
@@ -193,7 +194,9 @@ def validate_test(row: Any, index: int) -> None:
     if len(case_ids) != len(set(case_ids)) or len(case_indices) != len(set(case_indices)):
         raise ValueError(f"{where}.parameterCases: identities and indices must be unique")
     property_data = row["property"]
-    if property_data:
+    if not isinstance(property_data, dict):
+        raise ValueError(f"{where}.property: expected object")
+    if property_data and "generatorProtocol" in property_data:
         require(
             property_data,
             {
@@ -234,13 +237,17 @@ def validate_test(row: Any, index: int) -> None:
             raise ValueError(f"{where}.property: failure signature presence must match failures")
     for snap_index, snapshot in enumerate(row["snapshots"]):
         require(snapshot, {"backend", "name", "status", "path", "timestamp"}, f"{where}.snapshots[{snap_index}]")
-        require(snapshot, {"root"}, f"{where}.snapshots[{snap_index}]")
         iso8601(snapshot["timestamp"], f"{where}.snapshots[{snap_index}].timestamp")
-    if row["benchmark"]:
-        validate_benchmark_telemetry(row["benchmark"], f"{where}.benchmark", row["testId"])
+    benchmark = row["benchmark"]
+    if not isinstance(benchmark, dict):
+        raise ValueError(f"{where}.benchmark: expected object")
+    if benchmark and "benchmarkId" in benchmark:
+        validate_benchmark_telemetry(benchmark, f"{where}.benchmark", row["testId"])
         if row["kind"] != "perf":
             raise ValueError(f"{where}: only perf rows may carry benchmark telemetry")
-    quarantine = row["quarantine"]
+    quarantine = row.get("quarantine", {})
+    if not isinstance(quarantine, dict):
+        raise ValueError(f"{where}.quarantine: expected object")
     if quarantine:
         require(
             quarantine,
@@ -439,7 +446,7 @@ def validate(document: Any) -> None:
         raise ValueError("report: expected object")
     require(
         document,
-        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake", "snapshotInventory", "benchmarkAnalysis"},
+        {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics"},
         "report",
     )
     if document["schemaVersion"] != 2 or document["framework"] != "resQ":
@@ -450,7 +457,6 @@ def validate(document: Any) -> None:
         {
             "id", "startedAt", "finishedAt", "durationSeconds", "hostname", "cwd",
             "qVersion", "qRelease", "os", "resqVersion", "vcs", "ci", "config",
-            "ordering", "selection", "shard",
         },
         "run",
     )
@@ -466,50 +472,56 @@ def validate(document: Any) -> None:
         raise ValueError("summary.testCount does not match tests length")
     if summary["testCount"] != sum(summary[k] for k in ("passCount", "failCount", "errorCount", "skipCount")):
         raise ValueError("summary status counts do not add up")
-    flake = document["flake"]
-    require(
-        flake,
-        {
-            "schemaVersion", "historyPath", "historyStatus", "manifestPath",
-            "manifestStatus", "nonBlockingEnabled", "evidenceMin", "failureMin",
-            "window", "healthy", "suspect", "quarantined", "expired",
-            "insufficient", "proposalCount",
-        },
-        "flake",
-    )
-    if flake["schemaVersion"] != 1:
-        raise ValueError("flake: unsupported schema")
-    if flake["historyStatus"] not in {"ok", "missing", "invalid", "unsupported"}:
-        raise ValueError("flake.historyStatus: invalid")
-    if flake["manifestStatus"] not in {"ok", "missing", "invalid", "unsupported"}:
-        raise ValueError("flake.manifestStatus: invalid")
-    if flake["evidenceMin"] < 2 or flake["failureMin"] < 1 or flake["window"] < flake["evidenceMin"]:
-        raise ValueError("flake: invalid evidence thresholds")
-    snapshots = document["snapshotInventory"]
-    require(
-        snapshots,
-        {"schemaVersion", "kind", "enabled", "generatedAt", "complete", "completenessReasons", "roots", "entries", "counts", "gate"},
-        "snapshotInventory",
-    )
-    if snapshots["schemaVersion"] != 1 or snapshots["kind"] != "resq-snapshot-inventory":
-        raise ValueError("snapshotInventory: unsupported schema")
-    iso8601(snapshots["generatedAt"], "snapshotInventory.generatedAt")
-    if not isinstance(snapshots["complete"], bool) or not isinstance(snapshots["enabled"], bool):
-        raise ValueError("snapshotInventory: enabled/complete must be boolean")
-    if not snapshots["complete"] and not snapshots["completenessReasons"]:
-        raise ValueError("snapshotInventory: partial inventory requires reasons")
-    require(snapshots["gate"], {"enabled", "passed", "reasons"}, "snapshotInventory.gate")
-    for index, entry in enumerate(snapshots["entries"]):
-        where = f"snapshotInventory.entries[{index}]"
-        require(entry, {"backend", "name", "path", "root", "absoluteRoot", "absolutePath", "status", "referenced", "declared", "dynamic", "exists", "unsafe", "executionIds", "observedStatuses"}, where)
-        if entry["status"] not in {"referenced", "missing", "obsolete", "unverified"}:
-            raise ValueError(f"{where}.status: invalid")
-        if entry["backend"] not in {"binary", "text"}:
-            raise ValueError(f"{where}.backend: invalid")
+    if "flake" in document:
+        flake = document["flake"]
+        require(
+            flake,
+            {
+                "schemaVersion", "historyPath", "historyStatus", "manifestPath",
+                "manifestStatus", "nonBlockingEnabled", "evidenceMin", "failureMin",
+                "window", "healthy", "suspect", "quarantined", "expired",
+                "insufficient", "proposalCount",
+            },
+            "flake",
+        )
+        if flake["schemaVersion"] != 1:
+            raise ValueError("flake: unsupported schema")
+        if flake["historyStatus"] not in {"ok", "missing", "invalid", "unsupported"}:
+            raise ValueError("flake.historyStatus: invalid")
+        if flake["manifestStatus"] not in {"ok", "missing", "invalid", "unsupported"}:
+            raise ValueError("flake.manifestStatus: invalid")
+        if flake["evidenceMin"] < 2 or flake["failureMin"] < 1 or flake["window"] < flake["evidenceMin"]:
+            raise ValueError("flake: invalid evidence thresholds")
+    if "snapshotInventory" in document:
+        snapshots = document["snapshotInventory"]
+        require(
+            snapshots,
+            {"schemaVersion", "kind", "enabled", "generatedAt", "complete", "completenessReasons", "roots", "entries", "counts", "gate"},
+            "snapshotInventory",
+        )
+        if snapshots["schemaVersion"] != 1 or snapshots["kind"] != "resq-snapshot-inventory":
+            raise ValueError("snapshotInventory: unsupported schema")
+        iso8601(snapshots["generatedAt"], "snapshotInventory.generatedAt")
+        if not isinstance(snapshots["complete"], bool) or not isinstance(snapshots["enabled"], bool):
+            raise ValueError("snapshotInventory: enabled/complete must be boolean")
+        if not snapshots["complete"] and not snapshots["completenessReasons"]:
+            raise ValueError("snapshotInventory: partial inventory requires reasons")
+        require(snapshots["gate"], {"enabled", "passed", "reasons"}, "snapshotInventory.gate")
+        for index, entry in enumerate(snapshots["entries"]):
+            where = f"snapshotInventory.entries[{index}]"
+            require(entry, {"backend", "name", "path", "root", "absoluteRoot", "absolutePath", "status", "referenced", "declared", "dynamic", "exists", "unsafe", "executionIds", "observedStatuses"}, where)
+            if entry["status"] not in {"referenced", "missing", "obsolete", "unverified"}:
+                raise ValueError(f"{where}.status: invalid")
+            if entry["backend"] not in {"binary", "text"}:
+                raise ValueError(f"{where}.backend: invalid")
     performance = rows_for_validation(document["performance"])
     performance_ids: list[str] = []
     for index, measurement in enumerate(performance):
         where = f"performance[{index}]"
+        if not isinstance(measurement, dict):
+            raise ValueError(f"{where}: expected object")
+        if "benchmarkId" not in measurement:
+            continue
         require(
             measurement,
             {"benchmarkId", "testId", "file", "suite", "description", "metric", "unit", "runs", "avgTimeMs", "minTimeMs", "medTimeMs", "maxTimeMs", "devTimeMs", "avgSpaceBytes", "maxSpaceBytes", "timeLimitMs", "spaceLimitBytes", "workload", "samples", "measurement", "environment", "comparison"},
@@ -528,37 +540,39 @@ def validate(document: Any) -> None:
         performance_ids.append(measurement["benchmarkId"])
     if len(performance_ids) != len(set(performance_ids)):
         raise ValueError("performance: duplicate benchmark identity")
-    analysis = document["benchmarkAnalysis"]
-    require(
-        analysis,
-        {"schemaVersion", "kind", "enabled", "baselinePath", "baselineStatus", "method", "config", "environment", "counts", "comparisons", "gate"},
-        "benchmarkAnalysis",
-    )
-    if analysis["schemaVersion"] != 1 or analysis["kind"] != "resq-benchmark-analysis":
-        raise ValueError("benchmarkAnalysis: unsupported schema")
-    if analysis["baselineStatus"] not in {"disabled", "notLoaded", "ok", "missing", "invalid", "unsupported"}:
-        raise ValueError("benchmarkAnalysis.baselineStatus: invalid")
-    validate_benchmark_environment(analysis["environment"], "benchmarkAnalysis.environment")
-    comparison_ids: list[str] = []
-    for index, comparison in enumerate(analysis["comparisons"]):
-        validate_benchmark_comparison(comparison, f"benchmarkAnalysis.comparisons[{index}]")
-        comparison_ids.append(comparison["benchmarkId"])
-    if len(comparison_ids) != len(set(comparison_ids)):
-        raise ValueError("benchmarkAnalysis: duplicate comparison identity")
-    if analysis["enabled"] and set(comparison_ids) != set(performance_ids):
-        raise ValueError("benchmarkAnalysis: comparisons must cover every performance record")
-    benchmark_gate = analysis["gate"]
-    require(
-        benchmark_gate, {"enabled", "deferred", "passed", "reasons"},
-        "benchmarkAnalysis.gate",
-    )
-    if not all(isinstance(benchmark_gate[name], bool) for name in ("enabled", "deferred", "passed")):
-        raise ValueError("benchmarkAnalysis.gate: enabled/deferred/passed must be boolean")
-    if benchmark_gate["deferred"]:
-        if not benchmark_gate["enabled"] or not benchmark_gate["passed"] or benchmark_gate["reasons"]:
-            raise ValueError("benchmarkAnalysis.gate: deferred shard gate must be enabled, non-blocking, and reason-free")
-        if int(run["shard"].get("count", 1)) <= 1 or run["shard"].get("merged", False):
-            raise ValueError("benchmarkAnalysis.gate: only an unmerged multi-shard run may defer")
+    if "benchmarkAnalysis" in document:
+        analysis = document["benchmarkAnalysis"]
+        require(
+            analysis,
+            {"schemaVersion", "kind", "enabled", "baselinePath", "baselineStatus", "method", "config", "environment", "counts", "comparisons", "gate"},
+            "benchmarkAnalysis",
+        )
+        if analysis["schemaVersion"] != 1 or analysis["kind"] != "resq-benchmark-analysis":
+            raise ValueError("benchmarkAnalysis: unsupported schema")
+        if analysis["baselineStatus"] not in {"disabled", "notLoaded", "ok", "missing", "invalid", "unsupported"}:
+            raise ValueError("benchmarkAnalysis.baselineStatus: invalid")
+        validate_benchmark_environment(analysis["environment"], "benchmarkAnalysis.environment")
+        comparison_ids: list[str] = []
+        for index, comparison in enumerate(analysis["comparisons"]):
+            validate_benchmark_comparison(comparison, f"benchmarkAnalysis.comparisons[{index}]")
+            comparison_ids.append(comparison["benchmarkId"])
+        if len(comparison_ids) != len(set(comparison_ids)):
+            raise ValueError("benchmarkAnalysis: duplicate comparison identity")
+        if analysis["enabled"] and set(comparison_ids) != set(performance_ids):
+            raise ValueError("benchmarkAnalysis: comparisons must cover every performance record")
+        benchmark_gate = analysis["gate"]
+        require(
+            benchmark_gate, {"enabled", "deferred", "passed", "reasons"},
+            "benchmarkAnalysis.gate",
+        )
+        if not all(isinstance(benchmark_gate[name], bool) for name in ("enabled", "deferred", "passed")):
+            raise ValueError("benchmarkAnalysis.gate: enabled/deferred/passed must be boolean")
+        if benchmark_gate["deferred"]:
+            if not benchmark_gate["enabled"] or not benchmark_gate["passed"] or benchmark_gate["reasons"]:
+                raise ValueError("benchmarkAnalysis.gate: deferred shard gate must be enabled, non-blocking, and reason-free")
+            shard = run.get("shard", {})
+            if int(shard.get("count", 1)) <= 1 or shard.get("merged", False):
+                raise ValueError("benchmarkAnalysis.gate: only an unmerged multi-shard run may defer")
     execution_ids: list[str] = []
     case_ids: list[str] = []
     for index, row in enumerate(document["tests"]):
@@ -570,7 +584,8 @@ def validate(document: Any) -> None:
     if len(case_ids) != len(set(case_ids)):
         raise ValueError("tests: duplicate parameter caseId")
     row_benchmark_ids = [
-        row["benchmark"]["benchmarkId"] for row in document["tests"] if row["benchmark"]
+        row["benchmark"]["benchmarkId"] for row in document["tests"]
+        if row["benchmark"] and "benchmarkId" in row["benchmark"]
     ]
     if set(row_benchmark_ids) != set(performance_ids):
         raise ValueError("performance: identities differ from test benchmark telemetry")
@@ -579,16 +594,18 @@ def validate(document: Any) -> None:
         validate_manifest(document["manifest"], document)
         validate_events(document["events"], document)
         audited = [event for event in document["events"] if event["type"] == "snapshots.audited"]
-        expected_audits = 1 if document["snapshotInventory"]["enabled"] else 0
+        snapshot_inventory = document.get("snapshotInventory", {})
+        expected_audits = 1 if snapshot_inventory.get("enabled") else 0
         if len(audited) != expected_audits:
             raise ValueError("events: snapshots.audited presence disagrees with snapshot inventory")
-        if audited and audited[0]["payload"] != document["snapshotInventory"]:
+        if audited and audited[0]["payload"] != snapshot_inventory:
             raise ValueError("events: snapshots.audited payload differs from report")
         benchmark_events = [event for event in document["events"] if event["type"] == "benchmarks.compared"]
-        expected_benchmark_events = 1 if document["benchmarkAnalysis"]["enabled"] else 0
+        benchmark_analysis = document.get("benchmarkAnalysis", {})
+        expected_benchmark_events = 1 if benchmark_analysis.get("enabled") else 0
         if len(benchmark_events) != expected_benchmark_events:
             raise ValueError("events: benchmarks.compared presence disagrees with benchmark analysis")
-        if benchmark_events and benchmark_events[0]["payload"] != document["benchmarkAnalysis"]:
+        if benchmark_events and benchmark_events[0]["payload"] != benchmark_analysis:
             raise ValueError("events: benchmarks.compared payload differs from report")
 
 

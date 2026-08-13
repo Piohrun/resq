@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Run the complete, evidence-producing resQ 1.0 release gate."""
+"""Run the complete, evidence-producing resQ 1.x release gate."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,8 +22,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
 
 
-MIN_SELF_TESTS = 640
-MIN_SELF_ASSERTIONS = 1800
+MIN_SELF_TESTS = 690
+MIN_SELF_ASSERTIONS = 2100
 REQUIRED_CONTRACT_TESTS = {
     "leave .q byte-for-byte equivalent while loading the framework",
     "load application functions using DSL-shaped locals while test DSL stays unqualified",
@@ -35,6 +36,10 @@ REQUIRED_CONTRACT_TESTS = {
     "refuse a line gate over partial instrumentation by default",
     "derive stable test identities from repository-relative paths",
     "replay property generation from a private seed without touching q random",
+    "wrap conditions only and keep lazy branch values untouched",
+    "instrument anonymous statements and branches without fake functions",
+    "never classify a first failure as suspect",
+    "match the reference Mann-Whitney asymptotic result",
 }
 
 
@@ -72,6 +77,24 @@ def load_report(directory: Path) -> dict[str, Any]:
     validate(document)
     ElementTree.parse(directory / "test-results.junit.xml")
     return document
+
+
+def release_version() -> str:
+    init = (ROOT / "lib/init.q").read_text(encoding="utf-8")
+    match = re.search(r'^\.resq\.VERSION:\s*"([^"]+)";', init, re.MULTILINE)
+    if not match:
+        raise RuntimeError("lib/init.q does not declare .resq.VERSION")
+    return match.group(1)
+
+
+def require_version(document: dict[str, Any], expected: str, label: str) -> None:
+    observed = {
+        document.get("frameworkVersion"),
+        document.get("run", {}).get("resqVersion"),
+        document.get("manifest", {}).get("frameworkVersion"),
+    }
+    if observed != {expected}:
+        raise RuntimeError(f"{label}: report version mismatch {sorted(str(value) for value in observed)!r}")
 
 
 def require_green(document: dict[str, Any], label: str) -> None:
@@ -118,7 +141,7 @@ def verify_self_contract(document: dict[str, Any]) -> None:
 
 
 def lcov_totals(path: Path) -> dict[str, int]:
-    totals = {"LF": 0, "LH": 0, "FNF": 0, "FNH": 0}
+    totals = {"LF": 0, "LH": 0, "FNF": 0, "FNH": 0, "BRF": 0, "BRH": 0}
     for line in path.read_text(encoding="utf-8").splitlines():
         key, separator, raw = line.partition(":")
         if separator and key in totals:
@@ -135,32 +158,45 @@ def verify_coverage(output: Path, stdout: str) -> dict[str, Any]:
     lcov = lcov_totals(output / "coverage.lcov")
     expected = {
         "functionsFound": 20, "functionsHit": 14,
-        "linesFound": 17, "linesHit": 15,
+        "linesFound": 59, "linesHit": 48,
+        "statementSitesFound": 72, "statementSitesHit": 51,
+        "branchesFound": 34, "branchesHit": 19,
     }
     for key, value in expected.items():
         if int(summary[key]) != value or int(coverage[key]) != value:
             raise RuntimeError(f"coverage {key} disagrees: {summary!r} / {coverage!r}")
-    if lcov != {"FNF": 20, "FNH": 14, "LF": 17, "LH": 15}:
+    if lcov != {"FNF": 20, "FNH": 14, "LF": 59, "LH": 48, "BRF": 34, "BRH": 19}:
         raise RuntimeError(f"LCOV totals disagree: {lcov!r}")
     if len(detail["files"]) != 5:
         raise RuntimeError("quickstart source manifest must contain five files")
     html = (output / "coverage.html").read_text(encoding="utf-8")
-    if "14 / 20" not in html or "15 / 17" not in html:
+    if not all(total in html for total in ("14 / 20", "48 / 59", "51 / 72", "19 / 34", "17 / 17")):
         raise RuntimeError("HTML does not render canonical coverage totals")
     state_rows = [
         line for line in (output / "coverage_state.txt").read_text(encoding="utf-8").splitlines()
         if line and not line.startswith("#")
     ]
-    if len(state_rows) != 20:
-        raise RuntimeError("coverage state does not contain every function")
+    state_counts = {
+        prefix: sum(row.startswith(prefix + " ") for row in state_rows)
+        for prefix in ("F", "S", "B", "E")
+    }
+    if state_counts != {"F": 20, "S": 72, "B": 17, "E": 34}:
+        raise RuntimeError(f"coverage state inventory disagrees: {state_counts!r}")
     if "Coverage:" not in stdout or "functions (14/20)" not in stdout:
         raise RuntimeError("console does not render canonical function coverage")
     if coverage["basis"] != "functions" or not coverage["passed"]:
         raise RuntimeError(f"coverage gate basis/verdict disagrees: {coverage!r}")
+    if summary["statementInstrumentationPercent"] != 100 or summary["branchInstrumentationPercent"] != 100:
+        raise RuntimeError(f"coverage instrumentation is incomplete: {summary!r}")
+    if not coverage["branchMode"] or coverage["branchInstrumentationPercent"] != 100:
+        raise RuntimeError(f"coverage branch contract disagrees: {coverage!r}")
     return {
         "functionsFound": 20, "functionsHit": 14,
-        "linesFound": 17, "linesHit": 15,
+        "linesFound": 59, "linesHit": 48,
+        "statementSitesFound": 72, "statementSitesHit": 51,
+        "branchesFound": 34, "branchesHit": 19,
         "statementInstrumentationPercent": summary["statementInstrumentationPercent"],
+        "branchInstrumentationPercent": summary["branchInstrumentationPercent"],
     }
 
 
@@ -184,6 +220,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         raise RuntimeError("release audit requires a clean worktree")
     output, temporary = prepare_output(requested_output)
     audit = Audit(q_executable)
+    expected_version = release_version()
     started_at = datetime.now(timezone.utc)
     try:
         audit.run("licence-free contracts", [str(ROOT / "tools/verify_static.py")])
@@ -203,6 +240,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             timeout=1800,
         )
         normal_report = load_report(normal_dir)
+        require_version(normal_report, expected_version, "normal self suite")
         verify_self_contract(normal_report)
 
         audit.run(
@@ -215,6 +253,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             timeout=1800,
         )
         isolated_report = load_report(isolated_dir)
+        require_version(isolated_report, expected_version, "isolated self suite")
         verify_self_contract(isolated_report)
         if verdict(normal_report) != verdict(isolated_report):
             raise RuntimeError("full isolated verdicts differ from normal verdicts")
@@ -233,13 +272,16 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             "canonical quickstart coverage",
             [
                 str(ROOT / "bin/resq"), "cover", "examples/quickstart/test",
-                "--source", "examples/quickstart/src", "-strict", "-cov-statements",
-                "-cov-min", "70", "-json", "-junit", "-quiet",
+                "--source", "examples/quickstart/src", "-strict", "-cov-statements", "-cov-branches",
+                "-cov-min", "70", "-cov-lines-min", "80", "-cov-completeness-min", "100",
+                "-cov-branches-min", "50", "-cov-branch-completeness-min", "100",
+                "-json", "-junit", "-quiet",
                 "-outDir", str(coverage_dir), "-state-file", str(output / "coverage-state.json"),
             ],
             timeout=300,
         )
         coverage_summary = verify_coverage(coverage_dir, coverage_run.stdout + coverage_run.stderr)
+        require_version(load_report(coverage_dir), expected_version, "quickstart coverage")
 
         finished_at = datetime.now(timezone.utc)
         commit = subprocess.run(

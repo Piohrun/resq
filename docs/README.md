@@ -12,17 +12,17 @@
 7. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
 
 ### Going deeper
-7. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
-8. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
-9. [Property-based testing](PBT.md) — Generative tests with `holds`
-10. [Coverage](COVERAGE.md) — Instrumenting application coverage and reading LCOV output
-11. [Optional resQ self-coverage](SELF_COVERAGE.md) — Independent, partial framework evidence
-12. [Watch mode](WATCH.md) — File-watch mode
-13. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
-14. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
-15. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
-16. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
-17. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
+8. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
+9. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
+10. [Property-based testing](PBT.md) — Generative tests with `holds`
+11. [Coverage](COVERAGE.md) — Instrumenting application coverage and reading LCOV output
+12. [Optional resQ self-coverage](SELF_COVERAGE.md) — Independent, partial framework evidence
+13. [Watch mode](WATCH.md) — File-watch mode
+14. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
+15. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
+16. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
+17. [Parallel execution](PARALLEL.md) — Isolated workers, file/test/case sharding, and strict artifact merging
+18. [Performance](PERFORMANCE.md) — Benchmark assertions, versioned baselines, and regression analysis
 
 ### Migration
 - [Async helpers](ASYNC.md) — Deferreds, polling helpers, and callback spies

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import argparse
+import copy
 import json
 import os
 import re
@@ -47,7 +49,15 @@ def tracked_files() -> set[str]:
     return {item.decode() for item in completed.stdout.split(b"\0") if item}
 
 
-def check_package() -> None:
+def package_version() -> str:
+    init = (ROOT / "lib/init.q").read_text(encoding="utf-8")
+    match = re.search(r'^\.resq\.VERSION:\s*"([^"]+)";', init, re.MULTILINE)
+    if not match:
+        raise ValueError("lib/init.q does not declare .resq.VERSION")
+    return match.group(1)
+
+
+def check_package(expected_tag: str = "") -> None:
     tracked = tracked_files()
     missing = sorted(relative for relative in REQUIRED if not (ROOT / relative).is_file())
     if missing:
@@ -63,19 +73,21 @@ def check_package() -> None:
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
-    init = (ROOT / "lib/init.q").read_text(encoding="utf-8")
-    match = re.search(r'^\.resq\.VERSION:\s*"([^"]+)";', init, re.MULTILINE)
-    if not match:
-        raise ValueError("lib/init.q does not declare .resq.VERSION")
-    version = match.group(1)
+    version = package_version()
     version_contracts = {
         "README.md": f"--branch v{version}",
         "docs/GETTING_STARTED.md": f"--branch v{version}",
         "CHANGELOG.md": f"## [{version}]",
+        "docs/API_REFERENCE.md": f"Generated for resQ v{version}",
+        "docs/TROUBLESHOOTING.md": f"Generated for resQ v{version}",
     }
     for relative, marker in version_contracts.items():
         if marker not in (ROOT / relative).read_text(encoding="utf-8"):
             raise ValueError(f"release version {version} missing from {relative}")
+    if expected_tag and expected_tag != f"v{version}":
+        raise ValueError(
+            f"release tag {expected_tag!r} does not match package version v{version}"
+        )
 
 
 def link_target(markdown: Path, raw: str) -> Path | None:
@@ -127,6 +139,12 @@ def check_contracts() -> None:
         raise ValueError("report schema must declare JSON Schema draft 2020-12")
     if schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
         raise ValueError("report schema does not describe schemaVersion 2")
+    v2_core = {
+        "schemaVersion", "framework", "frameworkVersion", "run", "summary",
+        "tests", "performance", "coverage", "diagnostics",
+    }
+    if set(schema.get("required", [])) != v2_core:
+        raise ValueError("report schema v2 changed its original required top-level core")
     baseline_schema = json.loads(
         (ROOT / "docs/schema/resq-benchmark-baseline-v1.schema.json").read_text(
             encoding="utf-8"
@@ -147,10 +165,23 @@ def check_contracts() -> None:
         raise ValueError("report-v2 objects must accept additive minor-version fields")
     report = json.loads((ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8"))
     validate(report)
+    legacy = copy.deepcopy(report)
+    for name in ("flake", "snapshotInventory", "benchmarkAnalysis", "manifest", "events"):
+        legacy.pop(name, None)
+    for name in ("ordering", "selection", "shard"):
+        legacy["run"].pop(name, None)
+    for row in legacy["tests"]:
+        row.pop("parameters", None)
+        row.pop("quarantine", None)
+        for snapshot in row["snapshots"]:
+            snapshot.pop("root", None)
+    validate(legacy)
     init = (ROOT / "lib/init.q").read_text(encoding="utf-8")
     version = re.search(r'^\.resq\.VERSION:\s*"([^"]+)";', init, re.MULTILINE).group(1)
     if report["frameworkVersion"] != version or report["run"]["resqVersion"] != version:
         raise ValueError("checked-in report contract version differs from .resq.VERSION")
+    if report.get("manifest", {}).get("frameworkVersion") != version:
+        raise ValueError("checked-in manifest contract version differs from .resq.VERSION")
     for name, root_name, row_name in (
         ("junit.xml", "testsuites", "testcase"),
         ("xunit.xml", "assemblies", "test"),
@@ -166,8 +197,14 @@ def check_contracts() -> None:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--expected-tag", default="",
+        help="require the package version to match this vMAJOR.MINOR.PATCH tag",
+    )
+    args = parser.parse_args()
     try:
-        check_package()
+        check_package(args.expected_tag)
         links = check_docs()
         check_contracts()
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError, ElementTree.ParseError, ValueError) as exc:

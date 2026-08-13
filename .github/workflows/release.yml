@@ -12,10 +12,15 @@ permissions:
 jobs:
   release-gate:
     runs-on: [self-hosted, linux, x64, kdb]
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: tools/verify_static.py --expected-tag "${GITHUB_REF_NAME}"
 
       - name: Verify release candidate
         shell: bash

@@ -5,7 +5,8 @@
 discovery framework for **kdb+/q**. Existing qspec suites can run through the
 `qspec` launcher without rewriting their DSL, assertions, fixtures, mocks, fuzz
 tests, or perf blocks. resQ adds automated discovery, JUnit/JSON/xUnit reporters,
-coverage, watch mode, process isolation, and rich diff output.
+deep coverage, distributed execution, lifecycle telemetry, watch mode, process
+isolation, benchmark regression analysis, and rich diff output.
 
 The compatibility promise is executable: resQ runs a pinned, unmodified copy of
 qspec's seven public test files in its own test suite. qspec's private runner and
@@ -28,9 +29,16 @@ assistance.
 
 ## Key Features
 
-- **High-Resolution Benchmarking**: Professional stats (min, max, avg, percentiles) and ASCII histograms built-in.
+- **High-Resolution Benchmarking**: Raw samples, stable identities, explicit
+  versioned baselines, reference-validated statistics, shard-safe regression
+  gates, and ASCII histograms are built in.
 - **Automated Discovery**: Scans test source for unreferenced functions, writes an HTML report, and can generate boilerplate templates on request.
 - **CI/CD Integration**: JUnit XML, xUnit XML, and JSON reporters with detailed metrics.
+- **Observability contracts**: Stable execution manifests and ordered lifecycle
+  events support trusted plugins, NDJSON/Allure adapters, and external quality
+  dashboards without parsing console text.
+- **Distributed execution**: Deterministic file/test/case sharding and a strict
+  merger validate topology, provenance, identities, and all shared totals.
 - **Retry support**: `retry[n; "desc"]{...}` re-runs a flaky test up to n+1 total attempts.
 - **Evidence-based quarantine**: bounded stable-ID history proposes suspects,
   reviewed manifests carry owner/reason/issue/expiry, tests always run with raw
@@ -57,7 +65,7 @@ assistance.
 Clone the repo at a release tag and put the launchers on your `PATH`:
 
 ```bash
-git clone --branch v1.0.0 https://github.com/Piohrun/resq.git ~/.local/share/resq
+git clone --branch v1.8.0 https://github.com/Piohrun/resq.git ~/.local/share/resq
 ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq   # adjust to taste
 ln -s ~/.local/share/resq/bin/qspec ~/.local/bin/qspec # drop-in qspec command
 ```

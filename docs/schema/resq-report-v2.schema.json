@@ -4,7 +4,7 @@
   "title": "resQ test report v2",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics", "flake", "snapshotInventory", "benchmarkAnalysis"],
+  "required": ["schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "performance", "coverage", "diagnostics"],
   "properties": {
     "schemaVersion": {"const": 2},
     "framework": {"const": "resQ"},
@@ -14,8 +14,16 @@
     "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}},
     "performance": {
       "oneOf": [
-        {"type": "array", "items": {"$ref": "#/$defs/benchmarkMeasurement"}},
-        {"type": "object", "maxProperties": 0}
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"$ref": "#/$defs/legacyBenchmarkMeasurement"},
+              {"$ref": "#/$defs/benchmarkMeasurement"}
+            ]
+          }
+        },
+        {"$ref": "#/$defs/legacyBenchmarkMeasurement"}
       ]
     },
     "coverage": {"type": "object"},
@@ -30,7 +38,7 @@
     "run": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "startedAt", "finishedAt", "durationSeconds", "hostname", "cwd", "qVersion", "qRelease", "os", "resqVersion", "vcs", "ci", "config", "ordering", "selection", "shard"],
+      "required": ["id", "startedAt", "finishedAt", "durationSeconds", "hostname", "cwd", "qVersion", "qRelease", "os", "resqVersion", "vcs", "ci", "config"],
       "properties": {
         "id": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"},
         "startedAt": {"type": "string", "format": "date-time"},
@@ -80,7 +88,7 @@
         "shard": {
           "type": "object",
           "additionalProperties": true,
-          "required": ["index", "count", "unit", "algorithm", "allFileCount", "selectedFileCount", "allUnitCount", "selectedUnitCount", "selectedFiles", "selectedExecutionIds"],
+          "required": ["index", "count", "algorithm", "allFileCount", "selectedFileCount", "selectedFiles"],
           "properties": {
             "index": {"type": "integer", "minimum": -1},
             "count": {"type": "integer", "minimum": 1},
@@ -115,7 +123,7 @@
     "test": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["suite", "description", "status", "message", "time", "durationSeconds", "failures", "assertsRun", "file", "line", "namespace", "tags", "output", "testId", "caseId", "kind", "parameters", "attempts", "retried", "flaky", "attemptHistory", "parameterCases", "property", "diagnostics", "snapshots", "benchmark", "quarantine"],
+      "required": ["suite", "description", "status", "message", "time", "durationSeconds", "failures", "assertsRun", "file", "line", "namespace", "tags", "output", "testId", "caseId", "kind", "attempts", "retried", "flaky", "attemptHistory", "parameterCases", "property", "diagnostics", "snapshots", "benchmark"],
       "properties": {
         "suite": {"type": "string"},
         "description": {"type": "string"},
@@ -132,7 +140,7 @@
         "output": {"type": "string"},
         "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
         "caseId": {"type": "string"},
-        "kind": {"enum": ["test", "case", "fuzz", "perf", "load", "cleanup", "framework", "plugin"]},
+        "kind": {"type": "string"},
         "parameters": {"type": "object"},
         "attempts": {"type": "integer", "minimum": 1},
         "retried": {"type": "boolean"},
@@ -141,7 +149,7 @@
         "parameterCases": {"type": "array", "items": {"$ref": "#/$defs/case"}},
         "property": {
           "oneOf": [
-            {"type": "object", "maxProperties": 0},
+            {"type": "object", "not": {"required": ["generatorProtocol"]}},
             {"$ref": "#/$defs/property"}
           ]
         },
@@ -149,7 +157,7 @@
         "snapshots": {"type": "array", "items": {"$ref": "#/$defs/snapshot"}},
         "benchmark": {
           "oneOf": [
-            {"type": "object", "maxProperties": 0},
+            {"type": "object", "not": {"required": ["benchmarkId"]}},
             {"$ref": "#/$defs/benchmarkTelemetry"}
           ]
         },
@@ -280,7 +288,7 @@
     },
     "snapshot": {
       "type": "object",
-      "required": ["backend", "name", "status", "path", "root", "timestamp"],
+      "required": ["backend", "name", "status", "path", "timestamp"],
       "properties": {
         "backend": {"enum": ["binary", "text"]},
         "name": {"type": "string"},
@@ -397,6 +405,11 @@
           ]
         }
       },
+      "additionalProperties": true
+    },
+    "legacyBenchmarkMeasurement": {
+      "type": "object",
+      "not": {"required": ["benchmarkId"]},
       "additionalProperties": true
     },
     "benchmarkMeasurement": {

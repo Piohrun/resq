@@ -4,6 +4,10 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [1.8.0] - 2026-08-13 - Production Automation & Deep Coverage
+
 ### Added
 
 - Benchmark regression analysis now assigns stable benchmark identities and

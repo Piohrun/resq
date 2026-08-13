@@ -116,6 +116,14 @@ Its stable top-level fields are:
 | `flake` | Evidence thresholds, history/manifest health, policy mode, and state counts |
 | `snapshotInventory` | Complete/partial snapshot roots, identities, classifications, counts, and gate decision |
 
+The original schema-v2 core comprises `schemaVersion`, `framework`,
+`frameworkVersion`, `run`, `summary`, `tests`, `performance`, `coverage`, and
+`diagnostics`. Current 1.8 producers also always emit `flake`,
+`snapshotInventory`, `benchmarkAnalysis`, `manifest`, and `events`, but those
+post-1.0 additions remain optional to a schema-v2 reader so an artifact produced
+by resQ 1.0 is still valid. When a recognized extension is present, the
+published validator enforces its complete versioned contract.
+
 Each `tests` row retains those diagnostic fields and additionally contains a
 portable `file`, stable `testId`, optional top-level declarative `caseId` and
 `parameters`, `kind`, retry flags and `attemptHistory`, independently identified
@@ -147,9 +155,10 @@ Consumers should branch on `schemaVersion`, ignore unknown fields, and use the
 numeric `durationSeconds` for calculations. Do not derive pass/fail from the
 process log; use the process exit code and aggregate counts.
 
-Optional fields may be added within schema v2 in a minor release. The published
-schema and dependency-free validator therefore accept unknown object members
-while continuing to enforce every required v2 field/type/invariant; see the
+Optional fields and classifier values may be added within schema v2 in a minor
+release. The published schema and dependency-free validator therefore accept
+unknown object members while continuing to enforce the original required v2
+core and every recognized extension invariant; see the
 [versioning policy](VERSIONING.md).
 
 With `-snapshot-audit` or `-snapshot-gate`, the same inventory is also written
