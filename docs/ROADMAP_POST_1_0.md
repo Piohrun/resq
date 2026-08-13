@@ -144,14 +144,32 @@ appear complete.
 
 ## Final completion gate
 
-- [ ] Every item above is checked with linked executable evidence.
-- [ ] The complete normal/isolated/concurrent/repeated/watch/sharded matrix is
+- [x] Every item above is checked with linked executable evidence.
+- [x] The complete normal/isolated/concurrent/repeated/watch/sharded matrix is
   green and produces equivalent stable verdicts.
-- [ ] Console, JSON, XML, LCOV, HTML, state, events, manifests, and merged
+- [x] Console, JSON, XML, LCOV, HTML, state, events, manifests, and merged
   artifacts agree on their shared totals and identities.
-- [ ] The qspec contract, production application corpus, external pilots,
+- [x] The qspec contract, production application corpus, external pilots,
   licence-free checks, hostile-environment audit, and supported q matrix pass.
-- [ ] Defaults contain no new false green, silent data loss, implicit history
+- [x] Defaults contain no new false green, silent data loss, implicit history
   mutation, or unsafe filesystem mutation.
-- [ ] A clean-checkout release audit passes at the final version and the audited
+- [x] A clean-checkout release audit passes at the final version and the audited
   commit is pushed before the roadmap is declared complete.
+
+## Executable evidence
+
+The consolidated [resQ 1.8.0 production audit](PRODUCTION_AUDIT_1_8.md) records
+the clean-clone result. Each milestone is independently exercised by the
+following checked-in contracts; the final release gate invokes all of them:
+
+| Milestone | Executable evidence |
+|---|---|
+| 1.0.1 cleanup | [strict self-suite](../tests), [static/package contracts](../tools/verify_static.py), [independent self-coverage adapter](../tools/run_self_coverage.py) |
+| 1.1 events/manifests | [execution matrix](../tools/verify_execution_matrix.py), [event/plugin tests](../tests/test_events_plugins.q) |
+| 1.2–1.3 deep coverage | [coverage contracts](../tests/test_coverage.q), [semantic differential](../tests/test_coverage_differential.q), [nightly hardening](../.github/workflows/nightly.yml) |
+| 1.4 distributed cases | [strict shard merger matrix](../tools/verify_shard_merge.py), [declarative-case tests](../tests/test_declarative_cases.q) |
+| 1.5 property protocol | [property verifier](../tools/verify_property_protocol.py), [generator tests](../tests/test_generators.q) |
+| 1.6 flake policy | [quarantine verifier](../tools/verify_quarantine.py), [policy tests](../tests/test_quarantine.q) |
+| 1.7 snapshot lifecycle | [snapshot verifier](../tools/verify_snapshot_inventory.py), [snapshot tests](../tests/test_snapshot.q) |
+| 1.8 benchmark analysis | [benchmark verifier](../tools/verify_benchmark_regression.py), [performance tests](../tests/test_perf.q) |
+| Production boundary | [hostile-environment audit](../tools/verify_hostile_env.py), [external pilots](../tools/verify_external_pilots.py), [complete release gate](../tools/verify_release_gate.py) |

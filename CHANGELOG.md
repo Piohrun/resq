@@ -93,6 +93,11 @@ _No changes yet._
 
 ### Fixed
 
+- Assertion-dense test files now discover infix DSL candidates by native token
+  occurrence instead of rescanning every character against every assertion
+  after each rewrite. The release audit reduced the 45-test configuration
+  file's isolated runtime from a 90-second timeout to about 5.6 seconds without
+  changing q binding, shadowing, adverb, or RHS semantics.
 - `-fail-fast` now stops remaining expectations even without `-exit`; the
   unconditional cleanup tail still restores application state before return.
 - Property tests now sum assertions executed by every generated case instead

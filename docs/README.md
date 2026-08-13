@@ -32,6 +32,7 @@
 - [Road to resQ 1.0](ROADMAP_1_0.md) — Production-readiness delivery ledger and release gates
 - [Post-1.0 delivery ledger](ROADMAP_POST_1_0.md) — Branch coverage, distributed execution, quality automation, and completion gates
 - [Release checklist](RELEASE_CHECKLIST.md) — Executable release gate and human sign-off
+- [resQ 1.8.0 production audit](PRODUCTION_AUDIT_1_8.md) — Clean-clone release evidence and supported claim
 - [Hostile-environment audit](HARDENING_AUDIT.md) — Process/filesystem trust-boundary evidence
 - [Support policy](SUPPORT.md) — Supported versions/platforms, support window, and severity
 - [Versioning policy](VERSIONING.md) — Public SemVer surface and deprecation lifecycle
@@ -71,6 +72,7 @@
 | `ROADMAP_1_0.md` | Contributors | Production-readiness delivery ledger and release gates |
 | `ROADMAP_POST_1_0.md` | Contributors | Post-1.0 delivery tasks, dependencies, and release gates |
 | `RELEASE_CHECKLIST.md` | Maintainers | One-command release evidence and manual sign-off |
+| `PRODUCTION_AUDIT_1_8.md` | Users / maintainers | resQ 1.8.0 clean-clone production evidence and limits |
 | `HARDENING_AUDIT.md` | Users / maintainers | Shell, path, temp, symlink, interrupt, and artifact hardening contract |
 | `SUPPORT.md` | Users | Runtime/release support, issue evidence, and severity policy |
 | `VERSIONING.md` | Users / maintainers | SemVer surface, schema evolution, deprecation, and releases |

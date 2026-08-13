@@ -31,6 +31,7 @@ REQUIRED = {
     "tools/update_benchmark_baseline.py",
     "docs/schema/resq-benchmark-baseline-v1.schema.json",
     "docs/RELEASE_CHECKLIST.md",
+    "docs/PRODUCTION_AUDIT_1_8.md",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
     "tests/contracts/xunit.xml",
 }
