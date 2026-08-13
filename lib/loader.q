@@ -447,40 +447,53 @@
 .tst.rightmostInfixAssertion:{[masked;shadowed;limit]
     names: string key[.tst.asserts],`mock;
     names: names iasc neg count each names;
-    i: limit - 1;
-    while[i >= 0;
-        bare: {[source;at;name] .tst.bareTokenAt[source;at;name]}[masked;i;] each names;
-        qualified: {[source;at;name]
-            token: ".tst.",name;
-            rightAt: at + count token;
-            leftOk: (0 = at) or not source[at - 1] in .Q.a,.Q.A,.Q.n,"_`";
-            rightOk: (rightAt = count source) or
-                not source[rightAt] in .Q.a,.Q.A,.Q.n,"_";
-            leftOk and rightOk and token ~ (count token) # at _ source
-        }[masked;i;] each names;
-        unshadowed:{[ctx;at;name]
-            not .tst.dslNameShadowed[ctx;name;at]
-          }[shadowed;i;] each `$names;
-        candidates: where qualified or (bare and unshadowed);
-        if[count candidates;
-            name: names first candidates;
-            width: count name;
-            if[qualified first candidates; width+: 5];
-            after: i + width;
-            adverb: "";
-            if[(after < count masked) and "'" = masked after;
-                adverb: "'";
-                after+: 1];
-            while[(after < count masked) and masked[after] in " \t\n"; after+: 1];
-            / A qualified helper can also be an ordinary value on the RHS of
-            / another expression (`actual mustmatch .tst.mock`). Only classify
-            / it as infix when a real right operand follows.
-            if[(after < count masked) and not masked[after] in "[;])}";
-                :(i;name;width;adverb;qualified first candidates)];
-        ];
-        i-: 1;
-    ];
-    (-1;"";0;"";0b)
+    / Search only actual token occurrences. The old implementation walked every
+    / character and tested every assertion name at each position. Since this
+    / function is called again after each rewrite, one ordinary desc containing
+    / dozens of assertions became cubic-looking work and could spend minutes in
+    / loadTests. `ss` performs the same substring discovery in native code; the
+    / exact boundary, shadow, adverb and RHS checks below preserve classification.
+    best:(-1;"";0;"";0b);
+    ni:0;
+    while[ni<count names;
+        name:names ni;
+        qualifiedToken:".tst.",name;
+        forms:(name;qualifiedToken);
+        qualifiedFlags:01b;
+        fi:0;
+        while[fi<2;
+            token:forms fi;
+            qualified:qualifiedFlags fi;
+            positions:(masked ss token);
+            positions:positions where positions<limit;
+            pi:0;
+            while[pi<count positions;
+                at:"j"$positions pi;
+                width:count token;
+                valid:$[qualified;
+                    [rightAt:at+width;
+                     leftOk:(0=at) or not masked[at-1] in .Q.a,.Q.A,.Q.n,"_`";
+                     rightOk:(rightAt=count masked) or
+                         not masked[rightAt] in .Q.a,.Q.A,.Q.n,"_";
+                     leftOk and rightOk];
+                    .tst.bareTokenAt[masked;at;name] and
+                        not .tst.dslNameShadowed[shadowed;`$name;at]];
+                if[valid;
+                    after:at+width;
+                    adverb:"";
+                    if[(after<count masked) and "'"=masked after;
+                        adverb:"'";
+                        after+:1];
+                    while[(after<count masked) and masked[after] in " \t\n";
+                        after+:1];
+                    / A qualified helper can also be an ordinary RHS value.
+                    if[(after<count masked) and not masked[after] in "[;])}";
+                        if[at>first best;
+                            best:(at;name;width;adverb;qualified)]]];
+                pi+:1];
+            fi+:1];
+        ni+:1];
+    best
  };
 
 / Fully-qualified q functions cannot be used in infix syntax. Rewrite each
