@@ -139,6 +139,26 @@ def report() -> dict:
 
 
 class AdapterTests(unittest.TestCase):
+    def test_validator_enforces_bounded_deterministic_run_labels(self) -> None:
+        base = report()
+        base["run"]["labels"] = {"environment": "test", "service": "orders"}
+        validate(base)
+
+        unsorted = deepcopy(base)
+        unsorted["run"]["labels"] = {"service": "orders", "environment": "test"}
+        with self.assertRaisesRegex(ValueError, "deterministic lexical order"):
+            validate(unsorted)
+
+        reserved = deepcopy(base)
+        reserved["run"]["labels"] = {"resq.secret": "no"}
+        with self.assertRaisesRegex(ValueError, "invalid key"):
+            validate(reserved)
+
+        oversized = deepcopy(base)
+        oversized["run"]["labels"] = {"service": "x" * 257}
+        with self.assertRaisesRegex(ValueError, "at most 256"):
+            validate(oversized)
+
     def test_validator_enforces_manifest_and_event_linkage(self) -> None:
         contract = json.loads(
             (ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8")

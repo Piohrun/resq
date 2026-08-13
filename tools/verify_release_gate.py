@@ -273,6 +273,8 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         audit.run("snapshot inventory and recoverable pruning", [str(ROOT / "tools/verify_snapshot_inventory.py"), "--q", q_executable])
         audit.run("benchmark regression baselines and telemetry", [str(ROOT / "tools/verify_benchmark_regression.py")])
         audit.run("hostile environment audit", [str(ROOT / "tools/verify_hostile_env.py"), "--q", q_executable])
+        audit.run("bounded labels and execution context", [str(ROOT / "tools/verify_labels_context.py")])
+        audit.run("normalized ingestion contract", [str(ROOT / "tools/verify_ingestion_contract.py")])
         audit.run("external adoption pilots", [str(ROOT / "tools/verify_external_pilots.py"), "--q", q_executable])
 
         coverage_dir = output / "coverage"

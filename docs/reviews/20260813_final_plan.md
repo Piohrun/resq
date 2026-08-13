@@ -58,7 +58,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 4 | Deterministic CLI/pass/isolation contract | complete |
 | 5 | Real lifecycle time, event v2, and duration semantics | complete |
 | 6 | Report profiles, payload cleanup, and scale budgets | complete |
-| 7 | Safe labels, VCS/CI context, and ingestion contract | pending |
+| 7 | Safe labels, VCS/CI context, and ingestion contract | complete |
 | 8 | Coverage schema and adversarial coverage validation | pending |
 | 9 | Licence-free validator, merger, and adapter hardening | pending |
 | 10 | qspec migration, documentation, diagnostics, and hygiene | pending |
@@ -222,6 +222,18 @@ Collapse VCS discovery to one cached probe per run/model build, add a safe opt-o
 Publish normalized run/test/attempt/benchmark/coverage/diagnostic table contracts, stable join keys, coverage site/context joins, reference SQL, low-cardinality metric mappings, and Grafana dashboard examples. Explicitly keep run IDs, SHAs, test IDs, paths, and error strings out of Prometheus/Loki label sets.
 
 **Validation:** hostile/oversized label inputs fail clearly without symbol growth; supported provider fixtures map deterministically; VCS executes at most once; reference ingestion examples validate against a generated fixture.
+
+Completed 2026-08-14: bounded config/environment/CLI labels use deterministic
+precedence and ordering, reject hostile keys before JSON decoding without symbol
+growth, and publish standard deployment keys with redaction/cardinality
+guidance. GitHub, GitLab, Azure, Jenkins, generic, disabled, and unavailable
+context paths are covered; Git runs once per model and isolated children skip
+redundant probes. The versioned ingestion converter/schema, SQL, and Grafana
+examples passed stable run/test/attempt/benchmark/diagnostic and coverage
+file/function/site/edge/context joins. The strict self-suite passed 712 tests
+(711 pass, 1 skip) and 2,251 assertions, its full report validated and converted,
+28 licence-free contracts passed, and static, execution-matrix, shard-merge,
+label/context, and ingestion gates all passed.
 
 ## Step 8 — Fully specify and adversarially verify coverage
 

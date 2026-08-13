@@ -209,6 +209,26 @@
   .tst.app.reportProfile:previous;
   applied musteq `results;
   };
+ should["validate, normalize, and apply run labels and VCS policy"]{
+  labels:`service`environment!("orders";"prod");
+  cfg:`labels`vcsProbe!(labels;0b);
+  .tst.validateConfig[cfg] mustmatch ();
+  previousLabels:.tst.app.labels;
+  previousProbe:.tst.app.vcsProbe;
+  .tst.app.labels:()!();
+  .tst.applyConfig cfg;
+  appliedLabels:.tst.app.labels;
+  appliedProbe:.tst.app.vcsProbe;
+  .tst.app.labels:previousLabels;
+  .tst.app.vcsProbe:previousProbe;
+  key[appliedLabels] musteq `environment`service;
+  appliedLabels[`service] musteq "orders";
+  appliedProbe musteq 0b;
+  .tst.invalidConfigKeys[(enlist `labels)!enlist ((enlist `service)!enlist 42)]
+      musteq enlist `labels;
+  .tst.invalidConfigKeys[(enlist `vcsProbe)!enlist "no"]
+      musteq enlist `vcsProbe;
+  };
  should["warn if diff-table thresholds are non-integer"]{
   / Build the dict explicitly: shorthand `key!`sym is parsed as enum, not dict.
   warnings: .tst.validateConfig (enlist `diffLargeTableThreshold)!enlist 1.5;

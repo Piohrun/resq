@@ -89,6 +89,10 @@ config: .tst.loadConfig[::];
 .resq.config.validationWarnings: .tst.validateConfig[config];
 .tst.printConfigWarnings .resq.config.validationWarnings;
 .tst.applyConfig[config];
+.resq.labelEnvironmentError:.tst.applyEnvironmentLabels[];
+if[count .resq.labelEnvironmentError;
+    -2 "LABEL ERROR: RESQ_LABELS_JSON: ",.resq.labelEnvironmentError;
+    exit .resq.EXIT.FAIL];
 
 / Ensure text reporter is loaded before mode dispatch
 textReporterLoaded: .tst.loadOutputModule "text";

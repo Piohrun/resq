@@ -8,8 +8,9 @@
 3. [Test Reporting](REPORTING.md) — Console output and JSON/JUnit/xUnit contracts
 4. [Test observability](OBSERVABILITY.md) — Stable identity, quality signals, and ingestion
 5. [External adapters](ADAPTERS.md) — NDJSON and Allure 2 transforms
-6. [Lifecycle events and plugins](EVENTS_AND_PLUGINS.md) — Ordered events, manifests, and trusted callbacks
-7. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
+6. [Ingestion contract](INGESTION.md) — Normalized joins, SQL, metric cardinality, and Grafana example
+7. [Lifecycle events and plugins](EVENTS_AND_PLUGINS.md) — Ordered events, manifests, and trusted callbacks
+8. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
 
 ### Going deeper
 8. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
@@ -53,6 +54,7 @@
 | `REPORTING.md` | Users / CI consumers | Console, JSON, JUnit, and xUnit contracts |
 | `OBSERVABILITY.md` | Users / platform teams | Stable identities and external observability ingestion |
 | `ADAPTERS.md` | Platform teams | Stateless NDJSON and Allure 2 adapters |
+| `INGESTION.md` | Platform teams | Normalized evidence tables, stable joins, and cardinality guidance |
 | `EVENTS_AND_PLUGINS.md` | Platform teams / plugin authors | Versioned lifecycle events, execution manifests, and trusted callbacks |
 | `ARCHITECTURE.md` | Contributors | Namespace layout, exit codes, file tree |
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |

@@ -127,13 +127,22 @@
         "qRelease": {"type": "string"},
         "os": {"type": "string"},
         "resqVersion": {"type": "string"},
+        "labels": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {
+            "pattern": "^(?!resq\\.|vcs\\.|ci\\.|__)[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+          },
+          "additionalProperties": {"type": "string", "maxLength": 256}
+        },
         "vcs": {
           "type": "object",
           "required": ["sha", "branch", "dirty"],
           "properties": {
             "sha": {"type": "string"},
             "branch": {"type": "string"},
-            "dirty": {"type": "boolean"}
+            "dirty": {"type": "boolean"},
+            "status": {"enum": ["ok", "unavailable", "disabled"]}
           },
           "additionalProperties": false
         },

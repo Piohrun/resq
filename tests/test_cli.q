@@ -118,6 +118,33 @@
         sharded[`error] musteq "sharded runs require report-profile full";
     };
 
+    should["parse bounded labels without interning rejected keys"]{
+        parsed:.tst.parseCLI ("test";"-labels";
+            "{\"service\":\"orders\",\"environment\":\"prod\"}";"suite.q");
+        parsed[`ok] musteq 1b;
+        parsed[`options;`labels;`environment] musteq "prod";
+        parsed[`options;`labels;`service] musteq "orders";
+        key[parsed[`options;`labels]] musteq `environment`service;
+
+        nonString:.tst.parseCLI ("test";"-labels";"{\"service\":42}";"suite.q");
+        nonString[`ok] musteq 0b;
+        reserved:.tst.parseCLI ("test";"-labels";"{\"resq.secret\":\"x\"}";"suite.q");
+        reserved[`ok] musteq 0b;
+
+        symsBefore:.Q.w[]`syms;
+        hostile:"{\"",(65#"x"),"\":\"value\"}";
+        rejected:.tst.parseCLI ("test";"-labels";hostile;"suite.q");
+        symsAfter:.Q.w[]`syms;
+        rejected[`ok] musteq 0b;
+        symsAfter musteq symsBefore;
+    };
+
+    should["parse the VCS discovery opt-out"]{
+        parsed:.tst.parseCLI ("test";"--no-vcs";"suite.q");
+        parsed[`ok] musteq 1b;
+        parsed[`options;`noVcs] musteq 1b;
+    };
+
     should["validate -isolateWorkers as a positive integer"]{
         ok: .tst.parseCLI ("test"; "-isolateWorkers"; "4"; "suite.q");
         ok[`ok] musteq 1b;

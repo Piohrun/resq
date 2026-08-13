@@ -710,6 +710,7 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
     revision = same(documents, lambda d: d["manifest"]["revision"], "revision")
     same(documents, lambda d: d["run"]["qVersion"], "q version")
     same(documents, lambda d: d["run"]["ordering"], "execution ordering")
+    same(documents, lambda d: d["run"].get("labels", {}), "run labels")
     same(
         documents,
         lambda d: {

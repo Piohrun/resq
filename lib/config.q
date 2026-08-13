@@ -4,7 +4,140 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit`quarantineNonBlocking`flakeProposals`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow`snapshotAudit`snapshotGate`benchmarkBaseline`benchmarkGate`benchmarkAcceptEnvironment`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`reportProfile!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file;0b;0b;".resq/flake-history.json";".resq/quarantine.json";".resq/quarantine-proposals.json";3j;2j;20j;0b;0b;"";0b;0b;5j;5j;5j;`full)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit`quarantineNonBlocking`flakeProposals`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow`snapshotAudit`snapshotGate`benchmarkBaseline`benchmarkGate`benchmarkAcceptEnvironment`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`reportProfile`labels`vcsProbe!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file;0b;0b;".resq/flake-history.json";".resq/quarantine.json";".resq/quarantine-proposals.json";3j;2j;20j;0b;0b;"";0b;0b;5j;5j;5j;`full;()!();1b)
+
+.tst.LABEL_MAX_COUNT:32j;
+.tst.LABEL_MAX_KEY:64j;
+.tst.LABEL_MAX_VALUE:256j;
+.tst.LABEL_MAX_TOTAL:4096j;
+.tst.standardLabelKeys:("environment";"service";"deploymentId";"artifactDigest";
+    "cluster";"region";"hostGroup");
+
+.tst.labelSkipWhitespace:{[text;start]
+    i:start;
+    while[(i<count text) and text[i] in " \t\r\n";i+:1];
+    i
+ };
+
+.tst.labelScanString:{[text;start;allowEscapes]
+    if[(start>=count text) or not "\""=text start;
+        :`ok`error`next`value!(0b;"expected JSON string";start;"")];
+    i:start+1;escaped:0b;
+    while[i<count text;
+        ch:text i;
+        wasEscaped:escaped;
+        if[wasEscaped;escaped:0b;i+:1];
+        if[not wasEscaped;
+            if[ch="\\";
+                if[not allowEscapes;
+                    :`ok`error`next`value!(0b;"label keys must not contain JSON escapes";i;"")];
+                escaped:1b;i+:1];
+            if[(not escaped) and ch="\"";
+                :`ok`error`next`value!(1b;"";i+1;(i-(start+1))#(start+1)_text)];
+            if[(not escaped) and ("i"$ch)<32;
+                :`ok`error`next`value!(0b;"label strings must not contain control characters";i;"")];
+            if[not escaped;i+:1]
+        ];
+    ];
+    `ok`error`next`value!(0b;"unterminated JSON string";i;"")
+ };
+
+.tst.validLabelKey:{[keyText]
+    if[not 10h=type keyText;:0b];
+    if[(0=count keyText) or count[keyText]>.tst.LABEL_MAX_KEY;:0b];
+    letters:"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    allowed:letters,"0123456789_.-";
+    if[not first[keyText] in letters;:0b];
+    if[not all keyText in allowed;:0b];
+    if[(keyText like "resq.*") or (keyText like "vcs.*") or
+       (keyText like "ci.*") or keyText like "__*";:0b];
+    1b
+ };
+
+/ Lexically validate the flat string-to-string JSON object before .j.k can
+/ intern object keys. Invalid/oversized hostile input therefore causes no
+/ symbol-table growth; only at most 32 already-valid keys reach the decoder.
+.tst.preflightLabelJson:{[raw]
+    text:.tst.toString raw;
+    fail:{[message] `ok`error`labelKeys!(0b;message;())};
+    if[count[text]>.tst.LABEL_MAX_TOTAL;:fail "labels JSON exceeds 4096 bytes"];
+    i:.tst.labelSkipWhitespace[text;0];
+    if[(i>=count text) or not "{"=text i;:fail "labels must be a JSON object"];
+    i:.tst.labelSkipWhitespace[text;i+1];
+    labelKeys:();
+    if[(i<count text) and "}"=text i;
+        i:.tst.labelSkipWhitespace[text;i+1];
+        if[i=count text;:`ok`error`labelKeys!(1b;"";labelKeys)]];
+    while[i<count text;
+        scanned:.tst.labelScanString[text;i;0b];
+        if[not scanned`ok;:fail scanned`error];
+        keyText:scanned`value;
+        if[not .tst.validLabelKey keyText;
+            :fail "invalid label key: ",keyText];
+        if[any keyText~/:labelKeys;:fail "duplicate label key: ",keyText];
+        labelKeys,:enlist keyText;
+        if[count[labelKeys]>.tst.LABEL_MAX_COUNT;:fail "labels exceed maximum count 32"];
+        i:.tst.labelSkipWhitespace[text;scanned`next];
+        if[(i>=count text) or not ":"=text i;:fail "expected ':' after label key"];
+        i:.tst.labelSkipWhitespace[text;i+1];
+        scanned:.tst.labelScanString[text;i;1b];
+        if[not scanned`ok;:fail "label values must be JSON strings"];
+        i:.tst.labelSkipWhitespace[text;scanned`next];
+        if[i>=count text;:fail "unterminated labels object"];
+        delimiter:text i;
+        if[","=delimiter;i:.tst.labelSkipWhitespace[text;i+1]];
+        if["}"=delimiter;
+            i:.tst.labelSkipWhitespace[text;i+1];
+            if[not i=count text;:fail "unexpected content after labels object"];
+            :`ok`error`labelKeys!(1b;"";labelKeys)];
+        if[not delimiter in ",}";:fail "expected ',' or '}' after label value"];
+    ];
+    fail "unterminated labels object"
+ };
+
+.tst.validLabels:{[labels]
+    if[not 99h=type labels;:0b];
+    if[0=count labels;:1b];
+    names:.tst.toString each key labels;
+    if[count[names]>.tst.LABEL_MAX_COUNT;:0b];
+    if[not all .tst.validLabelKey each names;:0b];
+    vals:{[d;k]d k}[labels;] each key labels;
+    if[not all 10h=type each vals;:0b];
+    if[any (count each vals)>.tst.LABEL_MAX_VALUE;:0b];
+    ((sum (count each names))+(sum (count each vals)))<=.tst.LABEL_MAX_TOTAL
+ };
+
+.tst.normalizeLabels:{[labels]
+    if[not .tst.validLabels labels;:()!()];
+    order:iasc .tst.toString each key labels;
+    (key[labels] order)!value[labels] order
+ };
+
+.tst.parseLabelJson:{[raw]
+    checked:.tst.preflightLabelJson raw;
+    if[not checked`ok;:`ok`error`labels!(0b;checked`error;()!())];
+    decoded:@[{[text](0b;.j.k text)};.tst.toString raw;{[err](1b;err)}];
+    if[first decoded;:`ok`error`labels!(0b;"invalid labels JSON: ",.tst.toString last decoded;()!())];
+    labels:last decoded;
+    if[not .tst.validLabels labels;
+        :`ok`error`labels!(0b;"labels require at most 32 string values of at most 256 bytes";()!())];
+    `ok`error`labels!(1b;"";.tst.normalizeLabels labels)
+ };
+
+.tst.mergeLabels:{[base;overlay]
+    left:$[.tst.validLabels base;base;()!()];
+    right:$[.tst.validLabels overlay;overlay;()!()];
+    .tst.normalizeLabels left,right
+ };
+
+.tst.applyEnvironmentLabels:{[]
+    raw:getenv `RESQ_LABELS_JSON;
+    if[0=count raw;:""];
+    parsed:.tst.parseLabelJson raw;
+    if[not parsed`ok;:parsed`error];
+    .tst.app.labels:.tst.mergeLabels[.tst.app.labels;parsed`labels];
+    ""
+ };
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -187,7 +320,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`vcsProbe;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -214,7 +347,8 @@ validateConfig:{[cfg]
             "snapshotAudit must be a boolean";
             "snapshotGate must be a boolean";
             "benchmarkGate must be a boolean";
-            "benchmarkAcceptEnvironment must be a boolean");
+            "benchmarkAcceptEnvironment must be a boolean";
+            "vcsProbe must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
   intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples;
@@ -334,6 +468,9 @@ validateConfig:{[cfg]
   if[`reportProfile in key cfg;
     if[(not -11h=type cfg`reportProfile) or not (cfg`reportProfile) in `full`results`telemetry;
       warnings,:enlist "reportProfile must be one of: full, results, telemetry"]];
+  if[`labels in key cfg;
+    if[not .tst.validLabels cfg`labels;
+      warnings,:enlist "labels must be a bounded string-to-string object with valid keys"]];
   if[all `reportProfile`shardCount in key cfg;
     if[(type cfg`shardCount) in -5 -6 -7h;
       if[((not null cfg`shardCount) and cfg[`shardCount]>1) and not ((cfg`reportProfile)~`full);
@@ -399,7 +536,7 @@ invalidConfigKeys:{[cfg]
   ];
 
   / Boolean-typed keys: must be a single boolean.
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`vcsProbe;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
   / Integer-typed keys: must be a single integer-like value, not null, AND
@@ -475,6 +612,8 @@ invalidConfigKeys:{[cfg]
   if[`reportProfile in key cfg;
     if[(not -11h=type cfg`reportProfile) or not (cfg`reportProfile) in `full`results`telemetry;
       invalid,:`reportProfile]];
+  if[`labels in key cfg;
+    if[not .tst.validLabels cfg`labels;invalid,:`labels]];
   if[all `reportProfile`shardCount in key cfg;
     if[(type cfg`shardCount) in -5 -6 -7h;
       if[((not null cfg`shardCount) and cfg[`shardCount]>1) and not ((cfg`reportProfile)~`full);
@@ -558,6 +697,8 @@ applyConfig:{[cfg]
     if[ok`shardCount; .tst.app.shardCount:"j"$cfg`shardCount];
     if[ok`shardUnit;.tst.app.shardUnit:cfg`shardUnit];
     if[ok`reportProfile;.tst.app.reportProfile:cfg`reportProfile];
+    if[ok`labels;.tst.app.labels:.tst.mergeLabels[.tst.app.labels;cfg`labels]];
+    if[ok`vcsProbe;.tst.app.vcsProbe:cfg`vcsProbe];
     if[ok`quarantineNonBlocking;.tst.app.quarantineNonBlocking:cfg`quarantineNonBlocking];
     if[ok`flakeProposals;.tst.app.flakeProposalsEnabled:cfg`flakeProposals];
     if[ok`snapshotAudit;.tst.app.snapshotAudit:cfg`snapshotAudit];

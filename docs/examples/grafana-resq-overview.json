@@ -1,0 +1,34 @@
+{
+  "title": "resQ test overview",
+  "description": "Example only: low-cardinality dimensions are labels; IDs, paths, revisions, and messages stay fields.",
+  "schemaVersion": 39,
+  "tags": ["resq", "testing"],
+  "templating": {
+    "list": [
+      {"name": "service", "type": "query", "label": "Service", "query": "label_values(resq_tests_total, service)"},
+      {"name": "environment", "type": "query", "label": "Environment", "query": "label_values(resq_tests_total, environment)"}
+    ]
+  },
+  "panels": [
+    {
+      "title": "Failures by service/environment",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (service, environment, status) (rate(resq_tests_total{service=\"$service\",environment=\"$environment\",status=~\"fail|error\"}[5m]))",
+          "legendFormat": "{{service}} / {{environment}} / {{status}}"
+        }
+      ]
+    },
+    {
+      "title": "Run duration",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, service, environment) (rate(resq_run_duration_seconds_bucket{service=\"$service\",environment=\"$environment\"}[15m])))",
+          "legendFormat": "p95 {{service}} / {{environment}}"
+        }
+      ]
+    }
+  ]
+}

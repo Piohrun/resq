@@ -24,6 +24,7 @@ SUITE_ID = re.compile(r"^suite_[0-9a-f]{32}$")
 BENCHMARK_ID = re.compile(r"^benchmark_[0-9a-f]{32}$")
 ENVIRONMENT_ID = re.compile(r"^environment_[0-9a-f]{32}$")
 REPLAY_TOKEN = re.compile(r"^resq-pbt-v1/-?\d+/\d+$")
+LABEL_KEY = re.compile(r"^(?!resq\.|vcs\.|ci\.|__)[A-Za-z][A-Za-z0-9_.-]{0,63}$")
 STATUSES = {"pass", "fail", "error", "skip", "pending"}
 BENCHMARK_CLASSES = {"improved", "stable", "inconclusive", "regressed"}
 PROFILE_OMITTED_SECTIONS = [
@@ -743,6 +744,26 @@ def validate(document: Any) -> None:
     summary = document["summary"]
     if run["resqVersion"] != document["frameworkVersion"]:
         raise ValueError("run.resqVersion does not match frameworkVersion")
+    labels = run.get("labels", {})
+    if not isinstance(labels, dict) or len(labels) > 32:
+        raise ValueError("run.labels: expected object with at most 32 entries")
+    if list(labels) != sorted(labels):
+        raise ValueError("run.labels: keys must use deterministic lexical order")
+    if sum(len(str(key)) + len(str(value)) for key, value in labels.items()) > 4096:
+        raise ValueError("run.labels: total key/value content exceeds 4096 characters")
+    for key, value in labels.items():
+        if not isinstance(key, str) or not LABEL_KEY.fullmatch(key):
+            raise ValueError(f"run.labels: invalid key {key!r}")
+        if not isinstance(value, str) or len(value) > 256:
+            raise ValueError(f"run.labels.{key}: expected string of at most 256 characters")
+    vcs = run["vcs"]
+    require(vcs, {"sha", "branch", "dirty"}, "run.vcs")
+    if not isinstance(vcs["sha"], str) or not isinstance(vcs["branch"], str):
+        raise ValueError("run.vcs: sha and branch must be strings")
+    if not isinstance(vcs["dirty"], bool):
+        raise ValueError("run.vcs.dirty: expected boolean")
+    if "status" in vcs and vcs["status"] not in {"ok", "unavailable", "disabled"}:
+        raise ValueError("run.vcs.status: invalid")
     require(summary, {"suiteCount", "testCount", "assertionCount", "passCount", "failCount", "errorCount", "skipCount", "duration", "durationSeconds"}, "summary")
     if summary["testCount"] != len(document["tests"]):
         raise ValueError("summary.testCount does not match tests length")

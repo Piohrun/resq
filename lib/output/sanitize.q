@@ -396,12 +396,17 @@
       ""]
  };
 
+.tst.commandLines:{[command]
+    got:@[system;command;{()}];
+    $[10h=type got;enlist got;0h=type got;got;()]
+ };
+
 .tst.selectedConfig:{[]
     names:`strict`quiet`failFast`failHard`passOnly`describeOnly`pollutionGuard,
         `runCoverage`coverageStatements`coverageMin`coverageFunctionMin,
         `coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage,
         `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
-        `qspecCompat`annotationEnabled`reportFormats`reportProfile`runSpecs`excludeSpecs,
+        `qspecCompat`annotationEnabled`reportFormats`reportProfile`vcsProbe`runSpecs`excludeSpecs,
         `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`shardUnit,
         `quarantineNonBlocking`flakeProposalsEnabled`flakeHistoryFile`quarantineFile,
         `flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow,
@@ -418,21 +423,90 @@
  };
 
 .tst.vcsContext:{[root]
+    disabled:`sha`branch`dirty`status!("";"";0b;"disabled");
+    if[not 1b~@[get;`.tst.app.vcsProbe;1b];:disabled];
+    cached:@[get;`.tst.app.vcsContextCache;{()!()}];
+    cachedRoot:@[get;`.tst.app.vcsContextCacheRoot;{""}];
+    if[(99h=type cached) and (0<count cached) and root~cachedRoot;:cached];
     quoted:.utl.shellQuote root;
-    prefix:"git -C ",quoted," ";
-    sha:.tst.firstCommandLine prefix,"rev-parse HEAD 2>/dev/null";
-    branch:.tst.firstCommandLine prefix,"rev-parse --abbrev-ref HEAD 2>/dev/null";
-    dirty:0<count .tst.firstCommandLine prefix,"status --porcelain 2>/dev/null";
-    `sha`branch`dirty!(sha;branch;dirty)
+    .tst.app.vcsProbeCount:1j+"j"$@[get;`.tst.app.vcsProbeCount;0j];
+    lines:.tst.commandLines "git -C ",quoted,
+        " status --porcelain=v2 --branch --untracked-files=normal 2>/dev/null";
+    oidLines:lines where lines like "# branch.oid *";
+    headLines:lines where lines like "# branch.head *";
+    sha:$[count oidLines;13 _ first oidLines;""];
+    branch:$[count headLines;14 _ first headLines;""];
+    if[sha~"(initial)";sha:""];
+    if[branch~"(detached)";branch:""];
+    dirty:any not lines like "# *";
+    status:$[(count oidLines)+(count headLines);"ok";"unavailable"];
+    result:`sha`branch`dirty`status!(sha;branch;dirty;status);
+    .tst.app.vcsContextCacheRoot:root;
+    .tst.app.vcsContextCache:result;
+    result
+ };
+
+.tst.envValue:{[environment;name]
+    if[not name in key environment;:""];
+    rawValue:environment name;
+    if[(0h=type rawValue) and (1=count rawValue) and 10h=type first rawValue;
+        rawValue:first rawValue];
+    .tst.toString rawValue
+ };
+
+.tst.ciContextFrom:{[environment]
+    getv:.tst.envValue[environment;];
+    provider:$[0<count getv `GITHUB_ACTIONS;"github";
+        0<count getv `GITLAB_CI;"gitlab";
+        0<count getv `TF_BUILD;"azure";
+        0<count getv `JENKINS_URL;"jenkins";
+        0<count getv `CI;"generic";"none"];
+    pipelineId:"";jobId:"";attempt:"";commitSha:"";branch:"";
+    repository:"";workflow:"";buildUrl:"";
+    if[provider~"github";
+        pipelineId:getv `GITHUB_RUN_ID;jobId:getv `GITHUB_JOB;
+        attempt:getv `GITHUB_RUN_ATTEMPT;commitSha:getv `GITHUB_SHA;
+        branch:getv `GITHUB_REF_NAME;repository:getv `GITHUB_REPOSITORY;
+        workflow:getv `GITHUB_WORKFLOW;
+        if[all 0<count each (getv `GITHUB_SERVER_URL;repository;pipelineId);
+            buildUrl:(getv `GITHUB_SERVER_URL),"/",repository,"/actions/runs/",pipelineId]];
+    if[provider~"gitlab";
+        pipelineId:getv `CI_PIPELINE_ID;jobId:getv `CI_JOB_ID;
+        attempt:getv `CI_JOB_RETRY;commitSha:getv `CI_COMMIT_SHA;
+        branch:getv `CI_COMMIT_BRANCH;repository:getv `CI_PROJECT_PATH;
+        workflow:getv `CI_JOB_NAME;buildUrl:getv `CI_JOB_URL];
+    if[provider~"azure";
+        pipelineId:getv `BUILD_BUILDID;jobId:getv `SYSTEM_JOBID;
+        attempt:getv `SYSTEM_JOBATTEMPT;commitSha:getv `BUILD_SOURCEVERSION;
+        branch:getv `BUILD_SOURCEBRANCHNAME;repository:getv `BUILD_REPOSITORY_NAME;
+        workflow:getv `BUILD_DEFINITIONNAME;
+        if[all 0<count each (getv `SYSTEM_TEAMFOUNDATIONCOLLECTIONURI;
+                getv `SYSTEM_TEAMPROJECT;pipelineId);
+            buildUrl:(getv `SYSTEM_TEAMFOUNDATIONCOLLECTIONURI),
+                (getv `SYSTEM_TEAMPROJECT),"/_build/results?buildId=",pipelineId]];
+    if[provider~"jenkins";
+        pipelineId:getv `BUILD_ID;jobId:getv `JOB_NAME;
+        attempt:getv `BUILD_NUMBER;commitSha:getv `GIT_COMMIT;
+        branch:getv `GIT_BRANCH;repository:getv `GIT_URL;
+        workflow:getv `JOB_NAME;buildUrl:getv `BUILD_URL];
+    if[provider~"generic";
+        pipelineId:getv `CI_PIPELINE_ID;jobId:getv `CI_JOB_ID;
+        commitSha:getv `CI_COMMIT_SHA;branch:getv `CI_COMMIT_BRANCH];
+    `provider`pipelineId`jobId`attempt`commitSha`branch`repository`workflow`buildUrl!(
+        provider;pipelineId;jobId;attempt;commitSha;branch;repository;workflow;buildUrl)
  };
 
 .tst.ciContext:{[]
-    names:`CI`CI_JOB_ID`CI_PIPELINE_ID`CI_COMMIT_SHA`CI_COMMIT_BRANCH,
-        `GITHUB_ACTIONS`GITHUB_RUN_ID`GITHUB_RUN_ATTEMPT`GITHUB_SHA,
-        `GITHUB_REF_NAME`BUILD_BUILDID`BUILD_SOURCEVERSION`JENKINS_URL;
-    vals:getenv each names;
-    mask:0<count each vals;
-    (names where mask)!(vals where mask)
+    names:`CI`GITHUB_ACTIONS`GITHUB_RUN_ID`GITHUB_RUN_ATTEMPT`GITHUB_SHA,
+        `GITHUB_REF_NAME`GITHUB_REPOSITORY`GITHUB_WORKFLOW`GITHUB_JOB`GITHUB_SERVER_URL,
+        `GITLAB_CI`CI_JOB_ID`CI_PIPELINE_ID`CI_JOB_RETRY`CI_COMMIT_SHA,
+        `CI_COMMIT_BRANCH`CI_PROJECT_PATH`CI_JOB_NAME`CI_JOB_URL,
+        `TF_BUILD`BUILD_BUILDID`SYSTEM_JOBID`SYSTEM_JOBATTEMPT`BUILD_SOURCEVERSION,
+        `BUILD_SOURCEBRANCHNAME`BUILD_REPOSITORY_NAME`BUILD_DEFINITIONNAME,
+        `SYSTEM_TEAMFOUNDATIONCOLLECTIONURI`SYSTEM_TEAMPROJECT,
+        `JENKINS_URL`BUILD_ID`JOB_NAME`BUILD_NUMBER`GIT_COMMIT`GIT_BRANCH`GIT_URL`BUILD_URL;
+    vals:{getenv x} each names;
+    .tst.ciContextFrom names!vals
  };
 
 .tst.shardMetadata:{[]
@@ -485,7 +559,8 @@
     `allDiscoveredFiles`discoveredFiles`executionInventory,
     `shardAllUnitCount`shardSelectedUnitCount`shardAllFileCount,
     `shardSelectedFileCount`executionState`executionIncompleteReason,
-    `cleanupErrors`sandboxNamespaces;
+    `cleanupErrors`sandboxNamespaces`labels`vcsProbe,
+    `vcsContextCache`vcsContextCacheRoot`vcsProbeCount;
 
 .tst.captureRunState:{[]
     present:.tst.runStateKeys inter key `.tst.app;
@@ -523,15 +598,19 @@
     runId:"run_",.tst.stableHash[string[started],"\n",root,"\n",host];
     .tst.app.runStartedAt:started;
     .tst.app.runFinishedAt:0Np;
+    .tst.app.vcsContextCache:()!();
+    .tst.app.vcsContextCacheRoot:"";
+    .tst.app.vcsProbeCount:0j;
     ordering:`randomized`seed`algorithm!(
         1b~@[get;`.tst.app.randomOrder;0b];
         "j"$@[get;`.tst.app.executionSeed;0j];
         "md5-counter-v1");
     metaKeys:`id`startedAt`finishedAt`durationSeconds`wallDurationSeconds`hostname`cwd,
-        `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection`shard;
+        `qVersion`qRelease`os`resqVersion`labels`vcs`ci`config`ordering`selection`shard;
     .tst.app.runMetadata:metaKeys!(
         runId;.tst.isoTimestamp started;"";0f;0f;host;root;string .z.K;
         string .z.k;string .z.o;$[`VERSION in key `.resq;.resq.VERSION;"unknown"];
+        .tst.normalizeLabels @[get;`.tst.app.labels;{()!()}];
         .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[];ordering;
         .tst.selectionMetadata[];.tst.shardMetadata[]);
     .tst.app.diagnostics:();

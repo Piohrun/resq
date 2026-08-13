@@ -33,6 +33,9 @@ Additional boundaries:
 
 - assertion values, exceptions, paths, stdout/stderr, snapshots, and coverage
   source can enter retained artifacts; treat them as sensitive build logs;
+- run labels are retained in JSON and ingestion outputs; never place secrets,
+  tokens, customer identifiers, or unreviewed test text in config,
+  `RESQ_LABELS_JSON`, or `-labels`;
 - statement coverage rewrites code under test and is opt-in; the differential
   corpus checks semantics but cannot prove every possible q construct;
 - snapshot/update, report, discovery-scaffold, coverage, and rerun-state paths

@@ -37,6 +37,8 @@ assistance.
 - **Observability contracts**: Stable execution manifests and ordered lifecycle
   events support trusted plugins, NDJSON/Allure adapters, and external quality
   dashboards without parsing console text.
+- **Deployment context and ingestion**: Bounded run labels, normalized CI/VCS
+  metadata, and documented warehouse/coverage joins with safe metric dimensions.
 - **Distributed execution**: Deterministic file/test/case sharding and a strict
   merger validate topology, provenance, identities, and all shared totals.
 - **Retry support**: `retry[n; "desc"]{...}` re-runs a flaky test up to n+1 total attempts.

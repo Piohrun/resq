@@ -33,6 +33,10 @@ REQUIRED = {
     "tools/report_profiles.py", "tools/verify_report_scale.py",
     "tests/contracts/report-scale-budgets.json",
     "docs/schema/resq-benchmark-baseline-v1.schema.json",
+    "docs/schema/resq-ingestion-tables-v1.schema.json", "docs/INGESTION.md",
+    "docs/examples/resq_ingestion.sql", "docs/examples/grafana-resq-overview.json",
+    "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
+    "tools/verify_labels_context.py",
     "docs/RELEASE_CHECKLIST.md",
     "docs/PRODUCTION_AUDIT_1_8.md",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
@@ -75,6 +79,8 @@ def check_package(expected_tag: str = "") -> None:
         "tools/verify_external_pilots.py", "tools/verify_release_gate.py",
         "tools/verify_benchmark_regression.py", "tools/update_benchmark_baseline.py",
         "tools/verify_report_scale.py",
+        "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
+        "tools/verify_labels_context.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
@@ -161,6 +167,13 @@ def check_contracts() -> None:
         raise ValueError("benchmark baseline schema does not describe schemaVersion 1")
     if baseline_schema.get("properties", {}).get("kind", {}).get("const") != "resq-benchmark-baseline":
         raise ValueError("benchmark baseline schema has the wrong document kind")
+    ingestion_schema = json.loads(
+        (ROOT / "docs/schema/resq-ingestion-tables-v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    if ingestion_schema.get("properties", {}).get("schemaVersion", {}).get("const") != 1:
+        raise ValueError("ingestion schema does not describe schemaVersion 1")
     definitions = schema.get("$defs", {})
     extensible = [schema, *(definitions[name] for name in (
         "run", "summary", "test", "attempt", "case", "diagnostic",

@@ -411,6 +411,9 @@
     / The child JSON is an internal merge protocol and must retain detailed rows
     / even when the parent will publish a compact external profile.
     argv:.tst.isolate.appendValue[argv;"-report-profile";"full"];
+    / Only the aggregate parent publishes repository context. Avoid one Git
+    / traversal per isolated file, especially in large worktrees.
+    argv,:enlist "-no-vcs";
     / Marks where the child's own report starts so readCaptured can forward the
     / test output without the child's duplicate summary and scratch-path
     / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.

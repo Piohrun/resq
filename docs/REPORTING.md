@@ -110,7 +110,7 @@ Its stable top-level fields are:
 |-------|---------|
 | `schemaVersion` | Currently `2` |
 | `framework`, `frameworkVersion` | Producer identity |
-| `run` | Unique run ID, UTC timestamps, q/resQ/OS/host, VCS/CI context, and effective configuration |
+| `run` | Unique run ID, UTC timestamps, q/resQ/OS/host, bounded labels, normalized VCS/CI context, and effective configuration |
 | `summary` | Counts and total duration |
 | `tests` | Ordered test-result rows |
 | `performance` | Benchmark time/space rows (empty when no benchmark ran) |
@@ -131,6 +131,12 @@ normalized identity/verdict/timing fields; `omittedTestFields` and
 `boundedFields` name the exact tradeoff. Omitted evidence is absent, never an
 empty object that could be mistaken for an observed zero. Multi-shard runs,
 the strict merger, and release qualification require `full`.
+
+Run labels are explicit string metadata from config, `RESQ_LABELS_JSON`, or
+`-labels JSON` in that precedence order. They are sorted, size/count bounded,
+and reserved-prefix checked. See the [ingestion contract](INGESTION.md) before
+mapping any value to a Prometheus or Loki label. VCS discovery uses one cached
+probe per run and can be disabled with `-no-vcs`.
 
 The original schema-v2 core comprises `schemaVersion`, `framework`,
 `frameworkVersion`, `run`, `summary`, `tests`, `performance`, `coverage`, and

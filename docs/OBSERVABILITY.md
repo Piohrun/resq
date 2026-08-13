@@ -11,6 +11,9 @@ The same report embeds a versioned execution `manifest` and canonical ordered
 
 - `run.id` identifies one invocation. Use `run.startedAt`, VCS/CI context, q and
   resQ versions, host, and effective config as run dimensions.
+- `run.labels` carries explicitly supplied, bounded deployment context. Prefer
+  `environment`, `service`, `deploymentId`, `artifactDigest`, `cluster`,
+  `region`, and `hostGroup`; never use it for secrets or arbitrary test text.
 - `run.ordering` records whether execution was randomized, the replay seed, and
   the private PRNG algorithm. It never depends on or advances q's global seed.
 - `run.selection` records all/last-failed/failed-first mode, history health,
@@ -24,7 +27,8 @@ The same report embeds a versioned execution `manifest` and canonical ordered
 - A top-level `tests[].caseId` identifies a declarative `shouldEach` execution;
   its `parameters` object is directly dashboard-ready. Runtime-created
   `parameterCases[].caseId` remains nested under its atomic parent test.
-- `suite` and `description` are labels, not database keys. `namespace` is empty
+- `suite` and `description` are display dimensions, not database keys or safe
+  metrics labels. `namespace` is empty
   for generated sandboxes so path-derived runtime noise cannot fragment trends.
 
 The exact algorithms, uniqueness requirement, and identity-changing edits are
@@ -64,6 +68,8 @@ Validate before sending:
 
 ```bash
 tools/validate_report.py reports/test-results.json
+python3 tools/resq_to_tables.py reports/test-results.json \
+  --coverage reports/coverage.json --out reports/resq-tables.json
 ```
 
 Then map the versioned JSON to Allure, ReportPortal, OpenTelemetry, or your data
@@ -87,3 +93,6 @@ non-gating unless the run records explicit acceptance.
 
 The checked-in [external adapters](ADAPTERS.md) provide NDJSON events and
 Allure 2 result files without adding dependencies to the q runner.
+The [normalized ingestion contract](INGESTION.md) publishes stable
+run/test/attempt/benchmark/coverage/diagnostic joins, reference SQL, and a
+low-cardinality Grafana example.

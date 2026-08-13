@@ -15,13 +15,56 @@
       .tst.beginRunMetadata[];
       .tst.finishRunMetadata[]};()];
     metadataKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
-      `wallDurationSeconds`qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection`shard;
+      `wallDurationSeconds`qVersion`qRelease`os`resqVersion`labels`vcs`ci`config`ordering`selection`shard;
     key[runInfo] mustin metadataKeys;
     runInfo[`id] mustlike "run_*";
     count[runInfo`finishedAt] mustgt 0;
     must[runInfo[`durationSeconds]>=0f;"run duration must be non-negative"];
     runInfo[`wallDurationSeconds] musteq runInfo`durationSeconds;
-    `sha`branch`dirty mustin key runInfo`vcs;
+    `sha`branch`dirty`status mustin key runInfo`vcs;
+  };
+
+  should["probe VCS at most once and honor the safe opt-out"]{
+    probes:.tst.withIsolatedRunState[{[]
+      .tst.app.vcsProbe:1b;
+      .tst.beginRunMetadata[];
+      ignored:.tst.vcsContext .utl.normalizePath system "cd";
+      .tst.app.vcsProbeCount};()];
+    probes musteq 1j;
+    disabled:.tst.withIsolatedRunState[{[]
+      .tst.app.vcsProbe:0b;
+      .tst.beginRunMetadata[];
+      (.tst.app.runMetadata`vcs;.tst.app.vcsProbeCount)};()];
+    first[disabled][`status] musteq "disabled";
+    last[disabled] musteq 0j;
+  };
+
+  should["normalize supported CI providers deterministically"]{
+    githubEnv:(`GITHUB_ACTIONS`GITHUB_RUN_ID`GITHUB_RUN_ATTEMPT,
+      `GITHUB_SHA`GITHUB_REF_NAME`GITHUB_REPOSITORY`GITHUB_WORKFLOW`GITHUB_JOB`GITHUB_SERVER_URL)!(
+        "true";"41";"2";"abc";"main";"acme/orders";"verify";"test";"https://github.example");
+    github:.tst.ciContextFrom githubEnv;
+    github[`provider] musteq "github";
+    github[`pipelineId] musteq "41";
+    github[`buildUrl] musteq "https://github.example/acme/orders/actions/runs/41";
+    gitlabEnv:(`GITLAB_CI`CI_PIPELINE_ID`CI_JOB_ID`CI_COMMIT_SHA,
+      `CI_COMMIT_BRANCH`CI_PROJECT_PATH`CI_JOB_NAME`CI_JOB_URL)!(
+        "true";"51";"9";"def";"release";"acme/orders";"verify";"https://gitlab/job/9");
+    gitlab:.tst.ciContextFrom gitlabEnv;
+    gitlab[`provider] musteq "gitlab";
+    gitlab[`jobId] musteq enlist "9";
+    azureEnv:(`TF_BUILD`BUILD_BUILDID`SYSTEM_JOBID`BUILD_SOURCEVERSION,
+      `BUILD_SOURCEBRANCHNAME`BUILD_REPOSITORY_NAME`BUILD_DEFINITIONNAME)!(
+        "True";"61";"job";"fed";"main";"orders";"verify");
+    azure:.tst.ciContextFrom azureEnv;
+    azure[`provider] musteq "azure";
+    azure[`pipelineId] musteq "61";
+    jenkinsEnv:(`JENKINS_URL`BUILD_ID`JOB_NAME`BUILD_NUMBER,
+      `GIT_COMMIT`GIT_BRANCH`BUILD_URL)!(
+        "https://jenkins";"71";"orders";"3";"cab";"main";"https://jenkins/71");
+    jenkins:.tst.ciContextFrom jenkinsEnv;
+    jenkins[`provider] musteq "jenkins";
+    jenkins[`buildUrl] musteq "https://jenkins/71";
   };
 
   should["preserve complete retry history and mark only late passes flaky"]{

@@ -69,8 +69,15 @@ machine-readable reporter:
 
 ```bash
 resq test tests/ -strict -isolate -isolateTimeout 120 \
+  -labels '{"environment":"ci","service":"orders"}' \
   -junit -json -outDir artifacts/tests
 ```
+
+The same labels may come from config or `RESQ_LABELS_JSON`; CLI values win.
+resQ normalizes GitHub Actions, GitLab CI, Azure Pipelines, and Jenkins fields
+into `run.ci`. Unknown providers should use explicit labels. Repository context
+is collected with one cached Git probe; add `-no-vcs` where the checkout is
+absent or intentionally hidden.
 
 `-strict` rejects empty, all-skipped, and assertion-free green runs. `-isolate`
 runs every test file in a separate q process, so `exit`, an infinite loop, or a
