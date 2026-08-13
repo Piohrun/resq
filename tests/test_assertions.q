@@ -248,6 +248,25 @@
   };
  };
 
+.tst.desc["typed comparison diagnostics"]{
+ should["turn invalid operands into concise assertion usage errors"]{
+  cases:(
+    ("mustlt";{mustlt[`abc;5]});
+    ("mustgt";{mustgt[5;`abc]});
+    ("mustin";{mustin[1;`abc]});
+    ("mustnin";{mustnin[1;`abc]});
+    ("mustwithin";{mustwithin[1;`abc]});
+    ("mustdelta";{mustdelta[`bad;1;2]}));
+  {[row]
+    captured:.tst.captureAssertionCode row 1;
+    must[first captured;"invalid ",row[0]," operands must signal"];
+    message:.tst.toString last captured;
+    must[message like "*",row[0],"*";"error must name the assertion: ",message];
+    must[message like "*operand types*";"error must name operand types: ",message];
+  } each cases;
+ };
+};
+
 / resQ is meant to be a drop-in replacement for qspec (nugend/qspec). The
 / assertion NAMES are already identical; three semantics differ, and
 / -qspec-compat / "qspecCompat": true restores qspec's for an unported suite.

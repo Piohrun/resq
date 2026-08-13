@@ -101,6 +101,28 @@
     musteq[qualified; "  .tst.retryEntry[43][2;\"flaky\"]{ 1b }"];
   };
 
+  should["constructor annotation preserves DSL-shaped string contents"]{
+    source:"should[\"retry[3] and testOnly[ stay literal\"]{ 1 musteq 1 };";
+    rewritten:.tst.annotateExpectationLine[10;source];
+    rewritten musteq
+      ".tst.shouldEntry[10][\"retry[3] and testOnly[ stay literal\"]{ 1 musteq 1 };";
+  };
+
+  should["preserve every constructor token inside one literal"]{
+    literal:"should[ it[ shouldEach[ holds[ perf[ skip[ pending[ skipIf[ retry[ testOnly[";
+    source:"should[\"",literal,"\"]{1};";
+    rewritten:.tst.annotateExpectationLine[12;source];
+    expected:".tst.shouldEntry[12][\"",literal,"\"]{1};";
+    rewritten musteq expected;
+  };
+
+  should["annotation rewrites both constructors on one physical line"]{
+    source:"should[\"first\"]{1}; should[\"second\"]{2};";
+    rewritten:.tst.annotateExpectationLine[11;source];
+    occurrences:count rewritten ss ".tst.shouldEntry";
+    occurrences musteq 2;
+  };
+
   should["line annotation can be disabled without disabling the DSL"]{
     previous: @[get;`.tst.app.expectationLineAnnotations;1b];
     .tst.app.expectationLineAnnotations: 0b;

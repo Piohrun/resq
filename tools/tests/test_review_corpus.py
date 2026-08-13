@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from review_corpus import loader_source, scale_report  # noqa: E402
+from benchmark_review_regressions import growth_ratios  # noqa: E402
 from validate_report import validate  # noqa: E402
 
 
@@ -20,6 +21,14 @@ class ReviewCorpusTests(unittest.TestCase):
         self.assertEqual(source, loader_source(110))
         self.assertEqual(110, source.count('should["generated case'))
         self.assertTrue(source.endswith("::\n"))
+
+    def test_loader_growth_ratios_are_adjacent_and_deterministic(self) -> None:
+        measurements = [
+            {"expectations": 50, "preprocessSeconds": 0.1},
+            {"expectations": 100, "preprocessSeconds": 0.21},
+            {"expectations": 200, "preprocessSeconds": 0.44},
+        ]
+        self.assertEqual([2.1, 2.095238], growth_ratios(measurements))
 
     def test_constructor_fixture_covers_every_affected_token(self) -> None:
         source = (ROOT / "tests/fixtures/review/loader_constructor_literals.q").read_text(

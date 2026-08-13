@@ -77,6 +77,10 @@
     escaped: 0b;
     i: 0;
     while[i < count txt;
+        / Every iteration performs exactly one scanner action. Constructors and
+        / quotes advance `i`; without this guard the later blocks observed the
+        / new position in the same iteration and inverted string polarity.
+        consumed: 0b;
         c: txt i;
         if[inString;
             out,: c;
@@ -85,20 +89,22 @@
               c = "\""; inString: 0b;
               ::];
             i+: 1;
+            consumed: 1b;
         ];
-        if[(i < count txt) and not inString;
+        if[(i < count txt) and (not consumed) and not inString;
             c: txt i;
-            if[c = "\""; inString: 1b; out,: c; i+: 1];
+            if[c = "\""; inString: 1b; out,: c; i+: 1; consumed: 1b];
         ];
-        if[(i < count txt) and not inString;
+        if[(i < count txt) and (not consumed) and not inString;
             c: txt i;
             / An inline comment ends scanning; preserve its text verbatim.
             if[(c = "/") and ((i = 0) or txt[i - 1] in " \t");
                 out,: i _ txt;
                 i: count txt;
+                consumed: 1b;
             ];
         ];
-        if[(i < count txt) and not inString;
+        if[(i < count txt) and (not consumed) and not inString;
             qualified: (5 <= i) and ".tst." ~ 5 # (i - 5) _ txt;
             boundary: qualified or (i = 0) or not txt[i - 1] in .Q.a,.Q.A,.Q.n,"_.";
             candidates: where {[source;at;verb]
@@ -118,9 +124,10 @@
                 / out; preserve it and replace only the constructor name.
                 out,: $[qualified; verb; ".tst.",verb],"Entry[",string[lineNo],"][";
                 i+: 1 + count verb;
+                consumed: 1b;
             ];
         ];
-        if[(i < count txt) and not inString;
+        if[(i < count txt) and not consumed;
             out,: txt i;
             i+: 1;
         ];
@@ -510,14 +517,16 @@
     scopeArg:$[noScopedNames;`symbol$();.tst.dslScopeWithGlobals[txt;globals]];
     hasScopedShadows:$[noScopedNames;0b;
         (0<count globals) or 0<count scopeArg`ranges];
-    pair: .tst.rightmostInfixAssertion[.tst.maskQLine txt;scopeArg;limit];
+    / Keep the mask that located the assertion. The old loop immediately
+    / recomputed the same byte-for-byte mask before binding its left operand.
+    masked: .tst.maskQLine txt;
+    pair: .tst.rightmostInfixAssertion[masked;scopeArg;limit];
     while[0 <= first pair;
         at: first pair;
         name: pair 1;
         width: pair 2;
         adverb: pair 3;
         explicitlyQualified: pair 4;
-        masked: .tst.maskQLine txt;
         leftStart: .tst.dslAssertionLeftStart[txt;masked;at;width;adverb];
         if[0N ~ leftStart;
             '"resQ could not safely bind infix DSL call ",name];
@@ -533,7 +542,8 @@
         / still terminates without maintaining fragile shifted offsets.
         limit: count txt;
         if[hasScopedShadows;scopeArg:.tst.dslScopeWithGlobals[txt;globals]];
-        pair: .tst.rightmostInfixAssertion[.tst.maskQLine txt;scopeArg;limit];
+        masked: .tst.maskQLine txt;
+        pair: .tst.rightmostInfixAssertion[masked;scopeArg;limit];
     ];
     txt
  };
@@ -583,7 +593,19 @@
     out: enlist ();
     i: 0;
     while[i < count statements;
-        joined: "\n" sv statements[i;1];
+        statementLines:statements[i;1];
+        / Most suites have no local whose name collides with the DSL. Rewrite
+        / their self-contained physical lines first, then run one statement-wide
+        / pass for operator-leading continuations. This preserves multiline q
+        / binding while avoiding one whole-desc copy/rescan per ordinary assert.
+        / A line that cannot bind by itself is left for the statement-wide pass.
+        if[shadowed~`resqNoDslShadows;
+            statementLines:{[ln]
+                .[.tst.rewriteInfixAssertions;
+                  (`resqNoDslShadows;ln);
+                  {[source;err]source}[ln;]]
+              } each statementLines];
+        joined: "\n" sv statementLines;
         rewritten: .tst.rewriteInfixAssertions[shadowed;joined];
         scopeArg:$[shadowed~`resqNoDslShadows;`symbol$();
             .tst.dslScopeWithGlobals[rewritten;shadowed]];

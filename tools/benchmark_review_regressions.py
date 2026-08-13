@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import platform
 import subprocess
 import tempfile
@@ -38,33 +37,59 @@ def loader_measurements(q_executable: str, counts: list[int]) -> list[dict[str, 
     measurements: list[dict[str, float | int]] = []
     with tempfile.TemporaryDirectory(prefix="resq-review-loader-") as directory:
         root = Path(directory)
-        environment = dict(os.environ)
-        environment["QBIN"] = q_executable
+        repo = json.dumps(str(ROOT))
+        driver = root / "measure-preprocess.q"
+        driver.write_text(
+            "\n".join(
+                (
+                    f".resq.HOME:{repo};",
+                    f'system "l {ROOT}/lib/bootstrap.q";',
+                    f'.utl.require "{ROOT}/lib/init.q";',
+                    "source:first .z.x;",
+                    "started:.z.p;",
+                    "rewritten:.tst.preprocessScript read0 hsym `$source;",
+                    'elapsed:("f"$.z.p-started)%1000000000;',
+                    "-1 string elapsed;",
+                    "exit 0;",
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
         for count in counts:
             source = root / f"loader-{count}.q"
             source.write_text(loader_source(count), encoding="utf-8")
-            started = time.monotonic()
             completed = subprocess.run(
-                [
-                    str(ROOT / "bin/resq"), "test", str(source), "-pass",
-                    "-state-file", str(root / f"state-{count}.json"),
-                ],
+                [q_executable, str(driver), str(source), "-q"],
                 cwd=ROOT,
-                env=environment,
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 check=False,
                 timeout=180,
             )
-            elapsed = time.monotonic() - started
             if completed.returncode != 0:
                 raise RuntimeError(
                     f"loader corpus {count} exited {completed.returncode}: "
                     f"{completed.stderr or completed.stdout}"
                 )
-            measurements.append({"expectations": count, "wallSeconds": round(elapsed, 6)})
+            lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+            if not lines:
+                raise RuntimeError(f"loader corpus {count} produced no timing")
+            measurements.append(
+                {"expectations": count, "preprocessSeconds": round(float(lines[-1]), 6)}
+            )
     return measurements
+
+
+def growth_ratios(measurements: list[dict[str, float | int]]) -> list[float]:
+    """Return adjacent timing ratios for an increasing loader corpus."""
+    ratios: list[float] = []
+    for previous, current in zip(measurements, measurements[1:]):
+        before = float(previous["preprocessSeconds"])
+        after = float(current["preprocessSeconds"])
+        ratios.append(round(after / before, 6) if before else float("inf"))
+    return ratios
 
 
 def main() -> int:
@@ -73,8 +98,22 @@ def main() -> int:
     parser.add_argument("--report-tests", type=int, default=10_000)
     parser.add_argument("--failure-every", type=int, default=0)
     parser.add_argument("--loader-counts", type=int, nargs="+", default=[50, 100, 200])
+    parser.add_argument(
+        "--max-loader-growth-ratio",
+        type=float,
+        default=0,
+        help="fail when any adjacent preprocessing ratio exceeds this value",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    loader = loader_measurements(args.q, args.loader_counts) if args.q else []
+    ratios = growth_ratios(loader)
+    if args.max_loader_growth_ratio and any(
+        ratio > args.max_loader_growth_ratio for ratio in ratios
+    ):
+        raise RuntimeError(
+            f"loader growth ratio exceeded {args.max_loader_growth_ratio}: {ratios!r}"
+        )
     result = {
         "schemaVersion": 1,
         "kind": "resq-review-benchmark",
@@ -83,7 +122,8 @@ def main() -> int:
             "platform": platform.platform(),
         },
         "report": report_measurement(args.report_tests, args.failure_every),
-        "loader": loader_measurements(args.q, args.loader_counts) if args.q else [],
+        "loader": loader,
+        "loaderGrowthRatios": ratios,
     }
     encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:

@@ -204,19 +204,39 @@ asserts[`mustne]:{[l;r];
   cond: $[1b ~ @[get; `.tst.app.qspecCompat; 0b]; l <> r; not l ~ r];
   .tst.asserts[`must][cond; .tst.deferAssertionMessage[{[a;b]
     "Got ",.tst.assertValueText[a]," — expected it NOT to equal ",.tst.assertValueText[b]};(l;r)]]}
-asserts[`mustlt]:{[l;r]; .tst.asserts[`must][l<r; .tst.deferAssertionMessage[{[a;b]
-  "Got ",.tst.assertValueText[a]," — expected it to be less than ",.tst.assertValueText[b]};(l;r)]]}
-asserts[`mustgt]:{[l;r]; .tst.asserts[`must][l>r; .tst.deferAssertionMessage[{[a;b]
-  "Got ",.tst.assertValueText[a]," — expected it to be greater than ",.tst.assertValueText[b]};(l;r)]]}
+
+/ Evaluate a comparison under a functional trap. Invalid assertion operands
+/ remain test errors (never ordinary mismatches), but the signal names the user
+/ verb and q operand types instead of leaking a bare primitive `type/`length.
+.tst.assertTypedComparison:{[name;fn;args;message]
+  outcome:@[{[pair](0b;.[pair 0;pair 1])};(fn;args);{[err](1b;err)}];
+  if[first outcome;
+    .tst.assertState.assertsRun+:1;
+    typeText:("h and " sv string type each args),"h";
+    '"Assertion ",name," cannot compare operand types ",typeText,
+      " (",.tst.toString[last outcome],")"];
+  .tst.asserts[`must][last outcome;message]
+ };
+
+asserts[`mustlt]:{[l;r]; .tst.assertTypedComparison["mustlt";{[a;b]a<b};(l;r);
+  .tst.deferAssertionMessage[{[a;b]
+    "Got ",.tst.assertValueText[a]," — expected it to be less than ",.tst.assertValueText[b]};(l;r)]]}
+asserts[`mustgt]:{[l;r]; .tst.assertTypedComparison["mustgt";{[a;b]a>b};(l;r);
+  .tst.deferAssertionMessage[{[a;b]
+    "Got ",.tst.assertValueText[a]," — expected it to be greater than ",.tst.assertValueText[b]};(l;r)]]}
 asserts[`mustlike]:{[l;r]; .tst.asserts[`must][l like r; .tst.deferAssertionMessage[{[a;b]
   "Expected ",.tst.assertValueText[a]," to be like ",.tst.assertValueText[b]};(l;r)]]}
-asserts[`mustin]:{[l;r]; .tst.asserts[`must][l in r; .tst.deferAssertionMessage[{[a;b]
+asserts[`mustin]:{[l;r]; .tst.assertTypedComparison["mustin";{[a;b]a in b};(l;r);
+  .tst.deferAssertionMessage[{[a;b]
   "Expected ",.tst.assertValueText[a]," to be in ",.tst.assertValueText[b]};(l;r)]]}
-asserts[`mustnin]:{[l;r]; .tst.asserts[`must][not l in r; .tst.deferAssertionMessage[{[a;b]
+asserts[`mustnin]:{[l;r]; .tst.assertTypedComparison["mustnin";{[a;b]not a in b};(l;r);
+  .tst.deferAssertionMessage[{[a;b]
   "Expected ",.tst.assertValueText[a]," to not be in ",.tst.assertValueText[b]};(l;r)]]}
-asserts[`mustwithin]:{[l;r]; .tst.asserts[`must][l within r; .tst.deferAssertionMessage[{[a;b]
+asserts[`mustwithin]:{[l;r]; .tst.assertTypedComparison["mustwithin";{[a;b]a within b};(l;r);
+  .tst.deferAssertionMessage[{[a;b]
   "Expected ",.tst.assertValueText[a]," to be within ",.tst.assertValueText[b]};(l;r)]]}
-asserts[`mustdelta]:{[tol;l;r]; .tst.asserts[`must][l within (r - abs tol;r + abs tol);
+asserts[`mustdelta]:{[tol;l;r]; .tst.assertTypedComparison["mustdelta";
+  {[t;a;b]a within (b - abs t;b + abs t)};(tol;l;r);
   .tst.deferAssertionMessage[{[t;a;b] "Expected ",.tst.assertValueText[a],
     " to be within +/-",.tst.assertValueText[t]," of ",.tst.assertValueText[b]};(tol;l;r)]]}
 
