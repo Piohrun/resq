@@ -67,7 +67,7 @@ def write_hang(path: Path, pid_path: Path, label: str) -> None:
 def run_checked(command: list[str], environment: dict[str, str], cwd: Path) -> subprocess.CompletedProcess[str]:
     completed = subprocess.run(
         command, cwd=cwd, env=environment, text=True, capture_output=True,
-        timeout=90, check=False,
+        stdin=subprocess.DEVNULL, timeout=90, check=False,
     )
     if completed.returncode != 0:
         raise RuntimeError(
@@ -150,6 +150,7 @@ def verify(q_executable: str) -> None:
             ],
             cwd=hostile_parent,
             env=environment,
+            stdin=subprocess.DEVNULL,
             text=True,
             capture_output=True,
             timeout=90,
@@ -184,6 +185,7 @@ def verify(q_executable: str) -> None:
             ],
             cwd=hostile_parent,
             env=environment,
+            stdin=subprocess.DEVNULL,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

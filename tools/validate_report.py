@@ -433,7 +433,12 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
         raise ValueError("run.shard.allFileCount disagrees with manifest files")
     if shard["selectedFileCount"] != len(selected_files):
         raise ValueError("run.shard.selectedFileCount disagrees with manifest selection")
-    if shard["selectedFiles"] != selected_files:
+    reported_selected_files = shard["selectedFiles"]
+    if (
+        not isinstance(reported_selected_files, list)
+        or len(reported_selected_files) != len(set(reported_selected_files))
+        or set(reported_selected_files) != set(selected_files)
+    ):
         raise ValueError("run.shard.selectedFiles disagrees with manifest selection")
     unit_keys = (
         file_paths

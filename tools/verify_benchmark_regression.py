@@ -22,11 +22,14 @@ from validate_report import validate  # noqa: E402
 
 def run_q(q_executable: str, fixture: Path, output: Path, extra: list[str], expected: int = 0) -> tuple[dict[str, Any], subprocess.CompletedProcess[str]]:
     command = [
-        q_executable, str(ROOT / "resq.q"), "test", str(fixture), "-perf", "-json",
+        q_executable, str(ROOT / "resq.q"), "-q", "test", str(fixture), "-perf", "-json",
         "-quiet", "-outDir", str(output), "-state-file", str(output / "state.json"),
         *extra, "-exit",
     ]
-    completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False, timeout=180)
+    completed = subprocess.run(
+        command, cwd=ROOT, text=True, stdin=subprocess.DEVNULL,
+        capture_output=True, check=False, timeout=180,
+    )
     if completed.returncode != expected:
         report_path = output / "test-results.json"
         report_detail = ""
@@ -111,10 +114,16 @@ def verify(q_executable: str) -> None:
             sys.executable, str(ROOT / "tools" / "update_benchmark_baseline.py"),
             str(work / "reference" / "test-results.json"), "--baseline", str(baseline),
         ]
-        dry = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+        dry = subprocess.run(
+            command, cwd=ROOT, text=True, stdin=subprocess.DEVNULL,
+            capture_output=True, check=False,
+        )
         if dry.returncode != 0 or baseline.exists() or "dry-run only" not in dry.stdout:
             raise AssertionError("baseline update is not dry-run-first")
-        written = subprocess.run([*command, "--write"], cwd=ROOT, text=True, capture_output=True, check=False)
+        written = subprocess.run(
+            [*command, "--write"], cwd=ROOT, text=True, stdin=subprocess.DEVNULL,
+            capture_output=True, check=False,
+        )
         if written.returncode != 0 or not baseline.exists():
             raise AssertionError(f"explicit baseline update failed: {written.stdout}\n{written.stderr}")
         built = json.loads(baseline.read_text(encoding="utf-8"))

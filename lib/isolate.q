@@ -258,7 +258,9 @@
 
 .tst.isolate.noReportMessage:{[code;detail]
     hint: .tst.isolate.fatalHint detail;
-    prefix: $[count hint;
+    prefix: $[hint~"couldn't connect to license daemon";
+        "q child could not start because its licence allocation was unavailable; provision one q runtime/licence per concurrent worker or reduce -isolateWorkers";
+        count hint;
         "child terminated before producing results; output identifies a q runtime/startup failure (",
             hint,")";
         "process exited (code ",string[code],
@@ -346,7 +348,7 @@
 / Child argv derives from normalized CLI values plus effective parent settings.
 / Parent reporter/lifecycle/isolation options are deliberately absent.
 .tst.isolate.childArgv:{[file; wd]
-    argv: (.tst.isolate.qExe; .resq.HOME, "/resq.q"; "test"; file);
+    argv: (.tst.isolate.qExe; .resq.HOME, "/resq.q"; "-q"; "test"; file);
     argv: .tst.isolate.appendValue[argv; "-only";
         .tst.isolate.serializeValues @[get; `.tst.app.runSpecs; ()]];
     argv: .tst.isolate.appendValue[argv; "-exclude";
@@ -536,9 +538,12 @@
     detail: .tst.isolate.tail[wd; 20];
     if[0 = count raw;
         msg: .tst.isolate.noReportMessage[code;detail];
-        .tst.isolate.print progress, "DIED (exit ", string[code], ", no results)";
+        licenseFailure:.tst.isolate.fatalHint[detail]~"couldn't connect to license daemon";
+        suite:$[licenseFailure;`ISOLATED_Q_STARTUP_ERROR;`ISOLATED_FILE_DIED];
+        .tst.isolate.print progress,
+            $[licenseFailure;"Q STARTUP ERROR";"DIED (exit ", string[code], ", no results)"];
         :.tst.isolate.attachCaptured[wd;
-            enlist .tst.isolate.errorRow[`ISOLATED_FILE_DIED; file; msg]]];
+            enlist .tst.isolate.errorRow[suite; file; msg]]];
 
     msg: decoded`error, " (exit ", string[code], ")",
          $[count detail; "\n", detail; ""];
@@ -615,7 +620,7 @@
 .tst.isolate.executedCount:{[]
     if[0 = count .resq.state.results; :0];
     status: .tst.normalizeResultStatus each .resq.state.results`status;
-    synthetic:`STRICT_MODE_FAILURE`FILE_LOAD_ERROR`ISOLATED_FILE_TIMEOUT`ISOLATED_FILE_DIED`ISOLATED_REPORT_ERROR`ISOLATED_PROCESS_EXIT`ISOLATED_SETUP_ERROR`ISOLATED_HELPER_ERROR`ISOLATED_CLEANUP_ERROR`ISOLATION_UNAVAILABLE;
+    synthetic:`STRICT_MODE_FAILURE`FILE_LOAD_ERROR`ISOLATED_FILE_TIMEOUT`ISOLATED_FILE_DIED`ISOLATED_Q_STARTUP_ERROR`ISOLATED_REPORT_ERROR`ISOLATED_PROCESS_EXIT`ISOLATED_SETUP_ERROR`ISOLATED_HELPER_ERROR`ISOLATED_CLEANUP_ERROR`ISOLATION_UNAVAILABLE;
     executed: status in `pass`fail`error;
     generated: (.resq.state.results`suite) in synthetic;
     sum executed where not generated

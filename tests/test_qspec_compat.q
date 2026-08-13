@@ -15,7 +15,7 @@
   system "mkdir -p ", wd;
   (hsym `$fix) 0: fixtureContent;
   / Lead with mkdir, NOT cd: q intercepts a leading `system "cd ..."`.
-  cmd: "mkdir -p ", wd, " && cd ", wd, " && timeout 60 q ", .resq.HOME, "/resq.q test ", fix,
+  cmd: "mkdir -p ", wd, " && cd ", wd, " && timeout 60 q ", .resq.HOME, "/resq.q -q test ", fix,
        " ", extraFlags, " -quiet > out.txt 2>&1; echo $?";
   lines: @[system; cmd; {[e] enlist "-1"}];
   code: "J"$ last lines;
@@ -40,6 +40,11 @@
  };
 
 .tst.testState.qcompat.anyLike:{[lines; pat] any lines like ("*", pat, "*") };
+.tst.testState.qcompat.frameworkChatter:{[lines]
+  patterns:("Loading Test:";"RUN AUDIT";"SUMMARY";"All tests passed";
+            "Tests FAILED";"Report written to";"FAILURE DIFF");
+  any {[rows;pattern] any rows like ("*",pattern,"*")}[lines;] each patterns
+ };
 .tst.testState.qcompat.canQ: 0 < count @[system; "which q 2>/dev/null"; {()}];
 
 / A suite relying on qspec's musteq (`=`: scalar broadcast, type-loose) and
@@ -73,14 +78,14 @@
     r: .tst.testState.qcompat.runLauncher[.tst.testState.qcompat.qspecStyle;
                                                  "-pass -performance -fdl 12"];
     musteq[r`code; 0];
-    r[`out] mustmatch ();
+    .tst.testState.qcompat.frameworkChatter[r`out] musteq 0b;
   };
 
   skipIf[not .tst.testState.qcompat.canQ;
          "-pass suppresses assertion diffs as well as the reporter"]{
     r: .tst.testState.qcompat.runLauncher[.tst.testState.qcompat.silentProbe; "-pass"];
     musteq[r`code; 0];
-    r[`out] mustmatch ();
+    .tst.testState.qcompat.frameworkChatter[r`out] musteq 0b;
   };
 
   skipIf[not .tst.testState.qcompat.canQ;

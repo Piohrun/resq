@@ -259,7 +259,12 @@ printUsage:{[]
         "  -strict               Fail on no tests, all-skipped, or a test with no assertion";
         "  -isolate              Run each test FILE in its own q process (survives";
         "                        exit/hang/wsfull); -isolateTimeout N caps each file (s)";
-        "  -isolateWorkers N     Run N isolated files at once (default 1)";
+        "                        Fault containment only: not a security sandbox";
+        "  -isolateWorkers N     Run N isolated files at once (default 1); every";
+        "                        worker consumes one q runtime/licence allocation";
+        "  -maxTestTime N        Flag a returned test over N ms; cannot preempt hangs";
+        "  -pass                 Suppress resQ framework/report chatter and artifacts;";
+        "                        application, test, and q runtime output may remain";
         "  -quiet                Suppress per-file and passing-suite output";
         "  -only PAT / -exclude PAT     Filter suites by title glob";
         "  -tag T / -exclude-tag T      Filter suites by #tag";
@@ -284,6 +289,7 @@ printUsage:{[]
         "  -scaffold                    discover: also write missingTests/ stubs";
         "";
         "COVERAGE";
+        "  Coverage cannot run with -isolate; use separate correctness/coverage lanes";
         "  -cov-statements       Measure per-STATEMENT coverage. Without it coverage";
         "                        is function-level only and reports no line data";
         "  -cov-branches         Measure if/while/$ conditional edges";

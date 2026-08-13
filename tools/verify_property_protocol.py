@@ -32,7 +32,7 @@ def verify(q_executable: str) -> None:
         ]
         completed = subprocess.run(
             command, cwd=ROOT, env=environment, text=True,
-            capture_output=True, check=False, timeout=120,
+            stdin=subprocess.DEVNULL, capture_output=True, check=False, timeout=120,
         )
         if completed.returncode != 1:
             raise RuntimeError(

@@ -74,7 +74,7 @@
     if[noTimeoutPath; envPrefix: "PATH='/nonexistent' ", envPrefix];
     cmd: "mkdir -p ", qWd, " && cd ", qWd,
          " && ", envPrefix, outerTimeout, " -k 5 45 ", qExe, " ", qHome,
-         " test ", args, " -isolate < /dev/null > ", qOut, " 2>&1; echo $?";
+         " -q test ", args, " -isolate < /dev/null > ", qOut, " 2>&1; echo $?";
     / A license-daemon-backed q installation can reject a burst of nested
     / process starts even though the same command succeeds one second later.
     / Retry ONLY that explicit startup diagnostic; all framework/test failures
@@ -98,6 +98,11 @@
 
 .tst.isotest.run:{[args] .tst.isotest.runEnv[args; 0b]};
 .tst.isotest.anyLike:{[lines; pat] any lines like ("*", pat, "*")};
+.tst.isotest.frameworkChatter:{[lines]
+    patterns:("Loading Test:";"RUN AUDIT";"SUMMARY";"All tests passed";
+              "Tests FAILED";"Report written to";"FAILURE DIFF");
+    any {[rows;pattern] any rows like ("*",pattern,"*")}[lines;] each patterns
+ };
 .tst.isotest.fileExists:{[path] .utl.pathExists path};
 .tst.isotest.childAlive:{[pidText]
     if[0 = count pidText; :0b];
@@ -131,6 +136,8 @@
 
   should["serialize config-derived filters and compatibility flags"]{
     argv: .tst.isolate.childArgv["test_a.q"; "/tmp/isolate"];
+    must[(argv 1) like "*/resq.q"; "the child script must be q's first positional argument"];
+    musteq[argv 2;"-q"];
     (argv 1 + argv ? "-only") musteq "configured*,other*";
     (argv 1 + argv ? "-exclude") musteq "excluded*";
     (argv 1 + argv ? "-tag") musteq "fast,#fast";
@@ -198,8 +205,10 @@
   should["names a license-daemon startup rejection explicitly"]{
     msg: .tst.isolate.noReportMessage[1;
         "'2026.08.03T10:17:33 couldn't connect to license daemon -- exiting"];
-    must[0 < count ss[msg;"q runtime/startup failure"];
-         "runtime startup failures must not be presented as user exit calls"];
+    must[0 < count ss[msg;"licence allocation was unavailable"];
+         "runtime startup failures must name the exhausted allocation"];
+    must[0 < count ss[msg;"reduce -isolateWorkers"];
+         "the diagnostic must identify the operator-controlled remedy"];
     must[0 < count ss[msg;"couldn't connect to license daemon"];
          "the actionable license diagnostic must survive"];
   };
@@ -211,6 +220,16 @@
         "process exited without producing results"];
     .tst.isolate.retryableStartupFailure[licenseRow] musteq 1b;
     .tst.isolate.retryableStartupFailure[ordinaryRow] musteq 0b;
+  };
+
+  should["classifies license startup separately from a malformed child report"]{
+    wd:.tst.isotest.workDir[];
+    .tst.isotest.writeFixture[wd;"out.txt";
+        enlist "couldn't connect to license daemon -- exiting"];
+    rows:.tst.isolate.interpretFile[wd;"test_a.q";30;1;1;1];
+    musteq[first {first x`suite} each rows;`ISOLATED_Q_STARTUP_ERROR];
+    must[0 < count ss[first {first x`message} each rows;"reduce -isolateWorkers"];
+         "classified startup failures must retain the capacity remedy"];
   };
  };
 
@@ -527,7 +546,7 @@
     f: .tst.isotest.writeFixture[wd; "test_pass.q"; .tst.isotest.fxPass2];
     r: .tst.isotest.run[.utl.shellQuote[f], " -pass"];
     musteq[r`code; 0];
-    r[`out] mustmatch ();
+    .tst.isotest.frameworkChatter[r`out] musteq 0b;
   };
  };
 

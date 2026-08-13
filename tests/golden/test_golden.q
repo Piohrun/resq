@@ -59,7 +59,7 @@
 .tst.golden.run:{[args]
     wd: .tst.golden.workDir[];
     cmd: "mkdir -p ", wd, " && cd ", wd,
-         " && ", .tst.golden.timeoutPrefix, "q ", .resq.HOME, "/resq.q test ", args,
+         " && ", .tst.golden.timeoutPrefix, "q ", .resq.HOME, "/resq.q -q test ", args,
          " > run_out.txt 2>&1; echo $?";
     lines: @[system; cmd; {[e] enlist "-1"}];
     code: "J"$ last lines;
@@ -73,7 +73,7 @@
 .tst.golden.runCover:{[testF]
     wd: .tst.golden.workDir[];
     cmd: "mkdir -p ", wd, " && cd ", wd,
-         " && ", .tst.golden.timeoutPrefix, "q ", .resq.HOME, "/resq.q cover ", testF, " -quiet",
+         " && ", .tst.golden.timeoutPrefix, "q ", .resq.HOME, "/resq.q -q cover ", testF, " -quiet",
          " > run_out.txt 2>&1; echo $?";
     lines: @[system; cmd; {[e] enlist "-1"}];
     code: "J"$ last lines;
@@ -88,6 +88,11 @@
 
 / "some line contains substring" idiom.
 .tst.golden.anyLike:{[lines; pat] any lines like ("*", pat, "*") };
+.tst.golden.frameworkChatter:{[lines]
+    patterns:("Loading Test:";"RUN AUDIT";"SUMMARY";"All tests passed";
+              "Tests FAILED";"Report written to";"FAILURE DIFF");
+    any {[rows;pattern] any rows like ("*",pattern,"*")}[lines;] each patterns
+ };
 
 / Probe q availability ONCE before the desc blocks; skipIf each scenario.
 .tst.golden.canQ: 0 < count @[system; "which q 2>/dev/null"; {()}];
@@ -192,12 +197,14 @@
          "the diff body must appear exactly once, in the streamed banner"];
   };
 
-  / -pass is qspec's silence contract: run, keep the exit status, print nothing.
-  / It must stay silent even with a file reporter selected.
-  skipIf[not .tst.golden.canQ; "-pass stays silent alongside a file reporter"]{
+  / -pass suppresses resQ-owned chatter/artifacts while preserving the status.
+  / Runtime and application output remain outside that contract.
+  skipIf[not .tst.golden.canQ; "-pass suppresses framework chatter and file reporters"]{
     r: .tst.golden.run .tst.golden.fixtures, "f_fail.q -pass -junit";
     musteq[r`code; 1];
-    musteq[0; count r[`out] where 0 < count each r`out];
+    .tst.golden.frameworkChatter[r`out] musteq 0b;
+    must[not .utl.pathExists r[`dir],"/test-results.junit.xml";
+         "-pass must suppress the selected file reporter"];
   };
 
   / f_error: exit 1, 1 error, signalled message surfaces.

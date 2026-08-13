@@ -56,7 +56,7 @@ def run(
     ]
     completed = subprocess.run(
         command, cwd=ROOT, env=env, text=True, capture_output=True,
-        check=False, timeout=90,
+        stdin=subprocess.DEVNULL, check=False, timeout=90,
     )
     if completed.returncode != expected:
         raise AssertionError(
@@ -82,7 +82,10 @@ def invoke_pruner(manifest: Path, trash: Path, write: bool = False) -> subproces
     command = [str(PRUNER), str(manifest), "--trash-root", str(trash)]
     if write:
         command.append("--write")
-    return subprocess.run(command, text=True, capture_output=True, check=False, timeout=30)
+    return subprocess.run(
+        command, text=True, stdin=subprocess.DEVNULL,
+        capture_output=True, check=False, timeout=30,
+    )
 
 
 def main() -> int:

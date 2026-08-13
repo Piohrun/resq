@@ -136,7 +136,7 @@ if[.resq.mode ~ `test;
     / test loading so no report/coverage artifact can be created.
     if[(1b ~ @[get; `.tst.app.isolate; 0b]) and
        (1b ~ @[get; `.tst.app.runCoverage; 0b]);
-        -2 "CLI ERROR: process isolation cannot be combined with coverage";
+        -2 "CLI ERROR: process isolation cannot be combined with coverage; use paired isolated-correctness and non-isolated-coverage lanes";
         exit .resq.EXIT.FAIL];
     if[(1b ~ @[get; `.tst.app.isolate; 0b]) and
        (1b ~ @[get; `.tst.app.describeOnly; 0b]);

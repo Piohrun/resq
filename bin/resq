@@ -63,7 +63,10 @@ trap cleanup_guard EXIT
 
 export RESQ_RUN_GUARD_DIR="$guard_dir"
 export RESQ_ISOLATE_ROOT="$isolate_root"
-"$q_bin" "$RESQ_HOME/resq.q" "${args[@]}" -e 1
+# q treats a leading flag as an option/value pair, so flag-only runtime options
+# belong after the script path. Quiet startup keeps the banner out of the
+# framework-output contract; runtime and application diagnostics may remain.
+"$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1
 q_status=$?
 
 if [ "$q_status" -eq 0 ] && [ -f "$guard_dir/armed" ] &&

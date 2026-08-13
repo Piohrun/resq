@@ -27,14 +27,18 @@ framework loading/audit and passing-suite presentation while keeping failures
 and the summary; it cannot suppress output written directly by test code or
 benchmark helpers.
 
-To silence results entirely, use the qspec-compatible `-pass`, which suppresses
-every reporter -- console and file alike -- while preserving the exit status.
+To suppress resQ-owned result/report chatter entirely, use the qspec-compatible
+`-pass`. It disables console and file reporters plus loading/audit chatter while
+preserving the exit status. It does not intercept application/test writes or q
+runtime diagnostics. The supported launcher requests quiet q startup, but
+runtime/startup failures may still write their own diagnostics.
 
 When no reporter flag is present, `resq.json` key `fmt` selects one default
 format (`text`, `junit`, `xunit`, or `json`; legacy `console`/`xml` normalize to
 `text`/`junit`). Explicit reporter flags take precedence. The qspec-compatible
-`-pass` option suppresses every result reporter and loading/audit chatter while
-preserving the process exit status.
+`-pass` option suppresses every resQ result reporter and loading/audit chatter
+while preserving the process exit status; application/test/runtime output is
+outside that contract.
 
 ## Artifact names
 

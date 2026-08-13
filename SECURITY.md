@@ -25,7 +25,8 @@ disable unsafe behavior; the exception process is defined in
 resQ executes test and loaded application q as the invoking user. `-isolate`
 contains crashes, exits, hangs, and mutable q state between files; it is not a
 security sandbox. Children inherit filesystem/network access, environment, and
-credentials. Never run untrusted pull-request code on a privileged self-hosted
+credentials. Every concurrent worker also consumes a q runtime/licence
+allocation. Never run untrusted pull-request code on a privileged self-hosted
 licensed runner.
 
 Additional boundaries:

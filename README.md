@@ -345,6 +345,11 @@ one bad file corrupt the whole run: a test that calls `exit` (caught as
 preemption), and a process-fatal error (`wsfull`/`stack`). Exit-code semantics
 match the normal path (load errors → 4, any failure → 1, no files → 3).
 
+The timeout applies to the whole file; later tests in a timed-out file do not
+run. `-maxTestTime` only marks a test after it returns and cannot preempt a hang.
+Run coverage separately without `-isolate`, then reconcile it with the isolated
+correctness lane.
+
 Isolation is a resilience boundary, not a security sandbox. Child processes
 inherit the invoking user's filesystem, environment, network, and credentials;
 only run trusted test code. Each concurrent child also consumes memory and a q

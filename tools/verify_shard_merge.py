@@ -41,7 +41,7 @@ def run(
     environment["QBIN"] = q_executable
     completed = subprocess.run(
         command, cwd=ROOT, env=environment, text=True, capture_output=True,
-        check=False, timeout=120,
+        stdin=subprocess.DEVNULL, check=False, timeout=120,
     )
     if completed.returncode not in expected_codes:
         raise RuntimeError(
@@ -65,7 +65,7 @@ def run_coverage(q_executable: str, output: Path, flags: list[str]) -> tuple[dic
     environment["QBIN"] = q_executable
     completed = subprocess.run(
         command, cwd=ROOT, env=environment, text=True, capture_output=True,
-        check=False, timeout=120,
+        stdin=subprocess.DEVNULL, check=False, timeout=120,
     )
     if completed.returncode != 0:
         raise RuntimeError(
@@ -94,7 +94,7 @@ def run_strict_plugin_shard(
     )
     completed = subprocess.run(
         command, cwd=ROOT, env=environment, text=True, capture_output=True,
-        check=False, timeout=120,
+        stdin=subprocess.DEVNULL, check=False, timeout=120,
     )
     if completed.returncode != 1:
         raise RuntimeError(

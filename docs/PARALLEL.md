@@ -36,6 +36,12 @@ processes, each holding its own workspace and consuming a q runtime/licence
 allocation. A group is reported after all of its children finish, so one slow
 file can delay display of earlier completed files in that group.
 
+`-isolateTimeout N` caps each whole file, not each test; timing out abandons any
+later tests in that file. `-maxTestTime N` is an observational post-return test
+budget and cannot stop a hang. Coverage instrumentation does not compose with
+child isolation, so production uses paired isolated-correctness and
+non-isolated-coverage lanes.
+
 `tests/test_isolate.q` pins the equivalence — a parallel run must reach the same
 per-test verdicts, in the same order, as the sequential run over the same files.
 

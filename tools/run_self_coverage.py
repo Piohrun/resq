@@ -71,7 +71,10 @@ def main() -> int:
         RESQ_SELF_COVERAGE_LIBRARY=str(library.resolve()),
         RESQ_SELF_COVERAGE_OUTPUT=str(output),
     )
-    completed = subprocess.run([str(ROOT / "bin" / "resq"), *resq_args], cwd=ROOT, env=environment)
+    completed = subprocess.run(
+        [str(ROOT / "bin" / "resq"), *resq_args], cwd=ROOT, env=environment,
+        stdin=subprocess.DEVNULL,
+    )
     artifact = output / "self-coverage.json"
     if not artifact.is_file():
         print("self-coverage provider did not produce self-coverage.json", file=sys.stderr)

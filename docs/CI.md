@@ -83,6 +83,12 @@ wall-clock (see [PARALLEL.md](PARALLEL.md)). Use CI matrix jobs with
 machine. The default is one worker; increase it only after accounting for
 memory and q licence capacity.
 
+`-isolateTimeout` is a wall-clock cap for each file, so one timeout can abandon
+the remaining tests in that file. `-maxTestTime` is only checked after a test
+returns and therefore cannot preempt a hang. Use the isolated correctness lane
+for preemption and pair it with the non-isolated coverage lane below; reconcile
+their stable inventories and verdicts rather than treating either as a substitute.
+
 Coverage must run as a separate, non-isolated command because instrumentation
 and subprocess isolation cannot be combined truthfully:
 

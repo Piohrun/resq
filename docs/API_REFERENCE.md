@@ -1848,7 +1848,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-xunit` | Output xUnit v2 XML (single format: `test-results.xml`; multi-format: `test-results.xunit.xml`) |
 | `-json` | Output JSON report to `outDir/test-results.json` |
 | `-perf` | Include performance tests |
-| `-pass` | qspec compatibility: run and preserve exit status, but suppress all result reporters and loading/audit chatter |
+| `-pass` | qspec compatibility: run and preserve exit status, but suppress resQ result reporters/artifacts and loading/audit chatter. Application/test writes and q runtime diagnostics are not intercepted |
 | `-cov` / `-coverage` | Enable coverage |
 | `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
@@ -1904,9 +1904,9 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-exclude-tag TAG` | Exclude suites tagged with TAG |
 | `-maxTestTime N` | Mark a returned test as over-budget after N milliseconds (post-execution; does not interrupt hangs) |
 | `-fuzzLimit N` | Limit fuzz failure reporting |
-| `-isolate` | Run each test FILE in its own `q` subprocess; the parent aggregates results, reporters, and exit codes (a test calling `exit`, an infinite loop, or a fatal error becomes a per-file failure instead of killing the whole run) |
+| `-isolate` | Run each test FILE in its own `q` subprocess; the parent aggregates results, reporters, and exit codes (a test calling `exit`, an infinite loop, or a fatal error becomes a per-file failure instead of killing the whole run). This is fault containment, not a security sandbox |
 | `-isolateTimeout N` | Per-FILE wall-clock cap in seconds under `-isolate` (default 300; needs the `timeout` binary to preempt a hang) |
-| `-isolateWorkers N` | Run N isolated files concurrently (default 1, i.e. sequential). Verdicts, ordering and exit codes are identical to a sequential run; only wall-clock changes |
+| `-isolateWorkers N` | Run N isolated files concurrently (default 1, i.e. sequential). Verdicts, ordering and exit codes are identical to a sequential run; only wall-clock changes. Each worker consumes a q runtime/licence allocation |
 | `-outDir DIR` | Output directory for reports and coverage files |
 | `-noquit` | Suppress exit call (process stays running; useful interactively) |
 | `-exit` | Force exit-on-completion (overrides `"exit": false` in `resq.json`) |

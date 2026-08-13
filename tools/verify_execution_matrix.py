@@ -57,7 +57,7 @@ def run_mode(
     environment["QBIN"] = q_executable
     completed = subprocess.run(
         command, cwd=cwd, env=environment, text=True, capture_output=True,
-        check=False, timeout=120,
+        stdin=subprocess.DEVNULL, check=False, timeout=120,
     )
     if completed.returncode != 0:
         raise RuntimeError(

@@ -55,7 +55,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 1 | Regression corpus and deterministic benchmark harness | complete |
 | 2 | Loader semantic correctness, diagnostics, and scaling | complete |
 | 3 | Strict report validator and immutable canonical run snapshot | complete |
-| 4 | Deterministic CLI/pass/isolation contract | pending |
+| 4 | Deterministic CLI/pass/isolation contract | complete |
 | 5 | Real lifecycle time, event v2, and duration semantics | pending |
 | 6 | Report profiles, payload cleanup, and scale budgets | pending |
 | 7 | Safe labels, VCS/CI context, and ingestion contract | pending |
@@ -145,6 +145,13 @@ Define `-pass` as suppression of resQ-generated result/report chatter, not arbit
 Surface at the CLI boundary that isolation timeout is per file, `maxTestTime` cannot preempt a hang, coverage and isolation use separate lanes, each worker consumes a q runtime/licence allocation, and isolation is not a sandbox. Classify recognizable child licence/startup failure separately from malformed child reports.
 
 **Validation:** TTY and non-TTY gate verdicts/exit codes match; `-pass` satisfies the documented framework-output contract; CLI help, CI, parallelism, production, and security docs agree.
+
+Completed 2026-08-14: the pseudo-TTY/redirected-stdin probe proved identical
+passing and failing exit codes, preserved application output, suppressed resQ
+framework markers and artifacts under `-pass`, and verified quiet q startup.
+The normal/isolated/concurrent/randomized execution matrix, hostile-environment
+gate, 22 Python contract tests, and the full strict self-suite all passed; the
+full report validated at 702 tests (701 pass, 1 skip) and 2,192 assertions.
 
 ## Step 5 — Record truthful lifecycle time and explicit duration semantics
 

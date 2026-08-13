@@ -49,6 +49,7 @@ def run(
         command,
         cwd=ROOT,
         env=environment,
+        stdin=subprocess.DEVNULL,
         text=True,
         capture_output=True,
         check=False,
@@ -126,10 +127,16 @@ def main() -> int:
             "--owner", "quality-team", "--reason", "intermittent external dependency",
             "--issue", "Q-123", "--expires", "2099-12-31",
         ]
-        preview = subprocess.run(update_base, text=True, capture_output=True, check=False, timeout=20)
+        preview = subprocess.run(
+            update_base, text=True, stdin=subprocess.DEVNULL,
+            capture_output=True, check=False, timeout=20,
+        )
         if preview.returncode != 0 or manifest_path.exists() or "DRY RUN" not in preview.stderr:
             raise AssertionError("manifest updater must be read-only unless --write is explicit")
-        written = subprocess.run([*update_base, "--write"], text=True, capture_output=True, check=False, timeout=20)
+        written = subprocess.run(
+            [*update_base, "--write"], text=True, stdin=subprocess.DEVNULL,
+            capture_output=True, check=False, timeout=20,
+        )
         if written.returncode != 0 or not manifest_path.exists():
             raise AssertionError(f"explicit manifest update failed: {written.stderr}")
 

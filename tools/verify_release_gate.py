@@ -58,7 +58,7 @@ class Audit:
         environment["QBIN"] = self.q_executable
         completed = subprocess.run(
             command, cwd=cwd, env=environment, text=True,
-            capture_output=True, check=False, timeout=timeout,
+            stdin=subprocess.DEVNULL, capture_output=True, check=False, timeout=timeout,
         )
         elapsed = time.monotonic() - started
         self.steps.append({"name": name, "durationSeconds": round(elapsed, 6)})
@@ -227,6 +227,10 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         audit.run(
             "Python contract tests",
             [sys.executable, "-m", "unittest", "discover", "-s", "tools/tests", "-v"],
+        )
+        audit.run(
+            "CLI terminal contract",
+            [str(ROOT / "tools/verify_cli_terminal.py"), "--q", q_executable],
         )
 
         normal_dir = output / "normal"
