@@ -96,7 +96,10 @@ def event_signature(document: dict[str, Any]) -> list[tuple[Any, ...]]:
 
 
 def manifest_test_ids(document: dict[str, Any]) -> set[str]:
-    return {entry["testId"] for entry in document["manifest"]["tests"]}
+    return {
+        entry["executionId"] for entry in document["manifest"]["tests"]
+        if entry["selected"]
+    }
 
 
 def verify(q_executable: str, allow_unsupported: bool) -> None:

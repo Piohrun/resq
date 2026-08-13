@@ -22,7 +22,7 @@
     "run": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "startedAt", "finishedAt", "durationSeconds", "hostname", "cwd", "qVersion", "qRelease", "os", "resqVersion", "vcs", "ci", "config"],
+      "required": ["id", "startedAt", "finishedAt", "durationSeconds", "hostname", "cwd", "qVersion", "qRelease", "os", "resqVersion", "vcs", "ci", "config", "ordering", "selection", "shard"],
       "properties": {
         "id": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"},
         "startedAt": {"type": "string", "format": "date-time"},
@@ -72,14 +72,18 @@
         "shard": {
           "type": "object",
           "additionalProperties": true,
-          "required": ["index", "count", "algorithm", "allFileCount", "selectedFileCount", "selectedFiles"],
+          "required": ["index", "count", "unit", "algorithm", "allFileCount", "selectedFileCount", "allUnitCount", "selectedUnitCount", "selectedFiles", "selectedExecutionIds"],
           "properties": {
-            "index": {"type": "integer", "minimum": 0},
+            "index": {"type": "integer", "minimum": -1},
             "count": {"type": "integer", "minimum": 1},
-            "algorithm": {"const": "sorted-index-mod-v1"},
+            "unit": {"enum": ["file", "test", "case"]},
+            "algorithm": {"enum": ["sorted-index-mod-v1", "stable-id-weighted-hash-v1"]},
             "allFileCount": {"type": "integer", "minimum": 0},
             "selectedFileCount": {"type": "integer", "minimum": 0},
-            "selectedFiles": {"type": "array", "items": {"type": "string"}}
+            "allUnitCount": {"type": "integer", "minimum": 0},
+            "selectedUnitCount": {"type": "integer", "minimum": 0},
+            "selectedFiles": {"type": "array", "items": {"type": "string"}},
+            "selectedExecutionIds": {"type": "array", "items": {"type": "string", "pattern": "^(?:test|case)_[0-9a-f]{32}$"}}
           }
         }
       }
@@ -103,7 +107,7 @@
     "test": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["suite", "description", "status", "message", "time", "durationSeconds", "failures", "assertsRun", "file", "line", "namespace", "tags", "output", "testId", "caseId", "kind", "attempts", "retried", "flaky", "attemptHistory", "parameterCases", "property", "diagnostics", "snapshots", "benchmark"],
+      "required": ["suite", "description", "status", "message", "time", "durationSeconds", "failures", "assertsRun", "file", "line", "namespace", "tags", "output", "testId", "caseId", "kind", "parameters", "attempts", "retried", "flaky", "attemptHistory", "parameterCases", "property", "diagnostics", "snapshots", "benchmark"],
       "properties": {
         "suite": {"type": "string"},
         "description": {"type": "string"},
@@ -120,7 +124,8 @@
         "output": {"type": "string"},
         "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
         "caseId": {"type": "string"},
-        "kind": {"enum": ["test", "fuzz", "perf", "load", "cleanup", "framework", "plugin"]},
+        "kind": {"enum": ["test", "case", "fuzz", "perf", "load", "cleanup", "framework", "plugin"]},
+        "parameters": {"type": "object"},
         "attempts": {"type": "integer", "minimum": 1},
         "retried": {"type": "boolean"},
         "flaky": {"type": "boolean"},
@@ -191,11 +196,11 @@
       "type": "object",
       "required": ["schemaVersion", "kind", "digest", "digestAlgorithm", "identityAlgorithm", "frameworkVersion", "revision", "shard", "files", "tests"],
       "properties": {
-        "schemaVersion": {"const": 1},
+        "schemaVersion": {"const": 2},
         "kind": {"const": "resq-execution-manifest"},
         "digest": {"type": "string", "pattern": "^manifest_[0-9a-f]{32}$"},
-        "digestAlgorithm": {"const": "md5-source-inventory-v1"},
-        "identityAlgorithm": {"const": "resq-test-id-v1"},
+        "digestAlgorithm": {"const": "md5-source-topology-v2"},
+        "identityAlgorithm": {"const": "resq-test-case-id-v2"},
         "frameworkVersion": {"type": "string"},
         "revision": {"type": "object"},
         "shard": {"type": "object"},
@@ -208,7 +213,7 @@
               "fileId": {"type": "string", "pattern": "^file_[0-9a-f]{32}$"},
               "path": {"type": "string", "minLength": 1},
               "sourceDigest": {"type": "string", "pattern": "^(?:[0-9a-f]{32})?$"},
-              "assignedShard": {"type": "integer", "minimum": 0},
+              "assignedShard": {"type": "integer", "minimum": -1},
               "selected": {"type": "boolean"},
               "shardable": {"type": "boolean"}
             },
@@ -219,9 +224,11 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["testId", "suiteId", "fileId", "file", "suite", "description", "line", "kind", "tags", "shardKey"],
+            "required": ["executionId", "testId", "caseId", "suiteId", "fileId", "file", "suite", "description", "line", "kind", "parameters", "tags", "shardKey", "assignedShard", "selected", "shardable"],
             "properties": {
+              "executionId": {"type": "string", "pattern": "^(?:test|case)_[0-9a-f]{32}$"},
               "testId": {"type": "string", "pattern": "^test_[0-9a-f]{32}$"},
+              "caseId": {"type": "string"},
               "suiteId": {"type": "string", "pattern": "^suite_[0-9a-f]{32}$"},
               "fileId": {"type": "string", "pattern": "^file_[0-9a-f]{32}$"},
               "file": {"type": "string"},
@@ -229,8 +236,12 @@
               "description": {"type": "string"},
               "line": {"type": ["integer", "null"]},
               "kind": {"type": "string"},
+              "parameters": {"type": "object"},
               "tags": {"type": "array", "items": {"type": "string"}},
-              "shardKey": {"type": "string"}
+              "shardKey": {"type": "string"},
+              "assignedShard": {"type": "integer", "minimum": 0},
+              "selected": {"type": "boolean"},
+              "shardable": {"type": "boolean"}
             },
             "additionalProperties": true
           }

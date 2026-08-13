@@ -31,6 +31,13 @@ isolated execution, worker counts, ordering seeds, shards, and line-number-only
 edits. A parameter case keeps its ID when its parent identity, zero-based case
 position, and parameter value/representation remain unchanged.
 
+`shouldEach` declarative rows are first-class executions: each row is registered
+during discovery, emitted as a top-level result carrying both `testId` and
+`caseId`, and can therefore be assigned by `-shard-unit case` without running
+the body during discovery. Existing `.tst.parametrize` and `.tst.forall` calls
+create cases only while their enclosing test body runs; they remain nested in
+`parameterCases[]` and shard atomically with that parent test.
+
 ## What intentionally changes identity
 
 - moving/renaming the test file relative to the invocation repository root;
@@ -46,5 +53,5 @@ or historical dashboards. Parameter cases likewise require deterministic order.
 
 `run.id` identifies one invocation and must never be used for test history.
 Generated sandbox `namespace` is suppressed from machine dimensions. For
-dashboards use `testId`, or `(testId, caseId)` for a parameter case, and retain
-the display fields only as labels.
+dashboards use `caseId` as the execution key when non-empty and `testId`
+otherwise. Retain the display fields only as labels.

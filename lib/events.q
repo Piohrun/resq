@@ -3,7 +3,7 @@
 / merged canonical model, so isolation/concurrency cannot reorder semantics.
 
 .tst.EVENT_SCHEMA_VERSION:1j;
-.tst.MANIFEST_SCHEMA_VERSION:1j;
+.tst.MANIFEST_SCHEMA_VERSION:2j;
 
 / Persistent registries: watch/repeated runs keep registrations, while each run
 / gets a fresh event projection. Registering the same name replaces it, making
@@ -69,8 +69,63 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
     "suite_",.tst.stableHash[.tst.toString[file],"\n",.tst.toString suite]
  };
 
-.tst.executionManifest:{[runModel]
+.tst.manifestInventoryFromResults:{[runModel]
     rows:.tst.resultRows runModel;
+    {[row]
+        executionId:$[count .tst.toString row`caseId;row`caseId;row`testId];
+        `executionId`testId`caseId`file`suite`description`line`kind`parameters`tags`testShardKey`caseShardKey`shardable!(
+            executionId;.tst.toString row`testId;.tst.toString row`caseId;
+            .tst.toString row`file;.tst.toString row`suite;
+            .tst.toString row`description;"j"$row`line;row`kind;
+            $[`parameters in key row;row`parameters;()!()];(),row`tags;
+            .tst.toString row`testId;executionId;0b)
+    } each rows
+ };
+
+.tst.manifestTestEntry:{[allPaths;selectedPaths;unit;shardIndex;shardCount;row]
+    path:.tst.toString row`file;
+    suite:.tst.toString row`suite;
+    testId:.tst.toString row`testId;
+    caseId:.tst.toString row`caseId;
+    executionId:.tst.toString row`executionId;
+    shardable:$[`shardable in key row;1b~row`shardable;1b];
+    shardKey:$[unit~`file;.tst.manifestFileId path;
+        unit~`test;testId;executionId];
+    assigned:$[not shardable;0j;unit~`file;
+        "j"$(allPaths?path) mod shardCount;
+        .tst.shardBucket[shardKey;shardCount]];
+    `executionId`testId`caseId`suiteId`fileId`file`suite`description`line`kind`parameters`tags`shardKey`assignedShard`selected`shardable!(
+        executionId;testId;caseId;.tst.manifestSuiteId[path;suite];
+        .tst.manifestFileId path;path;suite;.tst.toString row`description;
+        "j"$row`line;.tst.toString row`kind;
+        $[`parameters in key row;row`parameters;()!()];
+        string each (),$[`tags in key row;row`tags;()];
+        shardKey;assigned;$[shardable;assigned=shardIndex;1b];shardable)
+ };
+
+.tst.manifestInventoryIds:{[rows]
+    if[0=count rows;:()];
+    $[98h=type rows;
+        .tst.toString each rows`executionId;
+        .tst.toString each {x`executionId} each rows]
+ };
+
+.tst.manifestRowsMissing:{[rows;knownIds]
+    if[0=count rows;:rows];
+    mask:not .tst.manifestInventoryIds[rows] in knownIds;
+    rows where mask
+ };
+
+.tst.manifestEntriesFor:{[allPaths;selectedPaths;unit;shardIndex;shardCount;rows]
+    if[0=count rows;:()];
+    $[98h=type rows;
+        {[allPaths;selectedPaths;unit;shardIndex;shardCount;table;i]
+            .tst.manifestTestEntry[allPaths;selectedPaths;unit;shardIndex;shardCount;table i]
+          }[allPaths;selectedPaths;unit;shardIndex;shardCount;rows;] each til count rows;
+        .tst.manifestTestEntry[allPaths;selectedPaths;unit;shardIndex;shardCount;] each rows]
+ };
+
+.tst.executionManifest:{[runModel]
     allFiles:(),@[get;`.tst.app.allDiscoveredFiles;{()}];
     selected:(),@[get;`.tst.app.discoveredFiles;{()}];
     if[0=count allFiles;allFiles:selected];
@@ -82,35 +137,37 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
     allPaths:allPaths fileOrder;
     selectedPaths:.tst.repoRelativePath each selected;
     shardCount:"j"$@[get;`.tst.app.shardCount;1j];
-    fileEntries:{[selectedPaths;shardCount;index;file;path]
+    shardIndex:"j"$@[get;`.tst.app.shardIndex;0j];
+    unit:@[get;`.tst.app.shardUnit;`file];
+    fileEntries:{[selectedPaths;unit;shardCount;index;file;path]
         `fileId`path`sourceDigest`assignedShard`selected`shardable!(
             .tst.manifestFileId path;path;.tst.fileContentDigest file;
-            "j"$index mod shardCount;path in selectedPaths;1b)
-      }[selectedPaths;shardCount]'[til count allFiles;allFiles;allPaths];
-    testEntries:{[row]
-        path:.tst.toString row`file;
-        suite:.tst.toString row`suite;
-        `testId`suiteId`fileId`file`suite`description`line`kind`tags`shardKey!(
-            .tst.toString row`testId;
-            .tst.manifestSuiteId[path;suite];
-            .tst.manifestFileId path;
-            path;suite;.tst.toString row`description;"j"$row`line;
-            .tst.toString row`kind;string each (),row`tags;
-            .tst.manifestFileId path)
-      } each rows;
+            $[unit~`file;"j"$index mod shardCount;-1j];
+            any path~/:selectedPaths;1b)
+      }[selectedPaths;unit;shardCount]'[til count allFiles;allFiles;allPaths];
+    inventory:@[get;`.tst.app.executionInventory;{()}];
+    inventoryRows:.tst.eventRows inventory;
+    resultInventory:.tst.eventRows .tst.manifestInventoryFromResults runModel;
+    existingIds:.tst.manifestInventoryIds inventoryRows;
+    extraRows:.tst.manifestRowsMissing[resultInventory;existingIds];
+    testEntries:.tst.manifestEntriesFor[
+        allPaths;selectedPaths;unit;shardIndex;shardCount;inventoryRows];
+    testEntries,:.tst.manifestEntriesFor[
+        allPaths;selectedPaths;unit;shardIndex;shardCount;extraRows];
     fileRows:.tst.eventRows fileEntries;
     sourceBasis:{[entry]
         (.tst.toString entry`path),"\t",(.tst.toString entry`sourceDigest),
             "\t",string[entry`assignedShard]
       } each fileRows;
     digest:"manifest_",.tst.stableHash "\n" sv ((
-        "resq-execution-manifest-v1";
+        "resq-execution-manifest-v2";
+        "unit=",string[unit],";count=",string shardCount;
         .tst.toString @[get;`.resq.VERSION;{"unknown"}]),sourceBasis);
     run:$[`run in key runModel;runModel`run;()!()];
     revision:$[(99h=type run) and `vcs in key run;run`vcs;()!()];
     `schemaVersion`kind`digest`digestAlgorithm`identityAlgorithm`frameworkVersion`revision`shard`files`tests!(
         .tst.MANIFEST_SCHEMA_VERSION;"resq-execution-manifest";digest;
-        "md5-source-inventory-v1";"resq-test-id-v1";
+        "md5-source-topology-v2";"resq-test-case-id-v2";
         .tst.toString @[get;`.resq.VERSION;{"unknown"}];revision;
         $[(99h=type run) and `shard in key run;run`shard;()!()];
         fileEntries;testEntries)
@@ -198,10 +255,13 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
             while[ti<count suiteRows;
                 row:suiteRows ti;
                 testId:.tst.toString row`testId;
-                identity:`file`suite`description`line`kind`tags!(
+                caseId:.tst.toString row`caseId;
+                executionId:$[count caseId;caseId;testId];
+                identity:`file`suite`description`line`kind`tags`testId`caseId`parameters!(
                     filePath;suiteName;.tst.toString row`description;"j"$row`line;
-                    .tst.toString row`kind;string each (),row`tags);
-                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.started";runId;testId;suiteId;started;identity];
+                    .tst.toString row`kind;string each (),row`tags;testId;caseId;
+                    $[`parameters in key row;row`parameters;()!()]);
+                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.started";runId;executionId;suiteId;started;identity];
                 sequence+:1;
                 attempts:.tst.caseRows row`attemptHistory;
                 if[0=count attempts;
@@ -212,11 +272,11 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                 while[ai<count attempts;
                     attempt:attempts ai;
                     attemptNo:"j"$$[`attempt in key attempt;attempt`attempt;ai+1];
-                    attemptId:testId,"/attempt/",string attemptNo;
-                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"attempt.started";runId;attemptId;testId;started;
+                    attemptId:executionId,"/attempt/",string attemptNo;
+                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"attempt.started";runId;attemptId;executionId;started;
                         enlist[`attempt]!enlist attemptNo];
                     sequence+:1;
-                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"attempt.finished";runId;attemptId;testId;finished;attempt];
+                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"attempt.finished";runId;attemptId;executionId;finished;attempt];
                     sequence+:1;
                     ai+:1];
                 cases:.tst.caseRows row`parameterCases;
@@ -243,7 +303,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                     events,:.tst.oneEventTable .tst.eventRecord[sequence;"diagnostic.recorded";runId;diagId;testId;finished;diagnostic];
                     sequence+:1;
                     di+:1];
-                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.finished";runId;testId;suiteId;finished;
+                events,:.tst.oneEventTable .tst.eventRecord[sequence;"test.finished";runId;executionId;suiteId;finished;
                     `status`duration`durationSeconds`assertsRun`attempts`retried`flaky`caseId!(
                         .tst.toString row`status;string row`time;
                         .tst.output.jsonDurationSeconds row`time;
@@ -278,7 +338,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
     base:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output`kind!(
         `PLUGIN_FAILURE;`$(.tst.toString kind),":",.tst.toString name;`error;
         message;0Nn;enlist message;0i;"";0Ni;"";`symbol$();"";`plugin);
-    .tst.oneResultTable base
+    .tst.oneResultTable .tst.completeResultRow base
  };
 
 .tst.invokePluginProtected:{[callback;args]

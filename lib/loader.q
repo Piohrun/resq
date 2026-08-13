@@ -70,7 +70,7 @@
 / to give CI reporters the declaration line. Strings/comments and ordinary q
 / expressions are untouched.
 .tst.annotateExpectationLineWith:{[lineNo;line;shadowed]
-    verbs: ("should";"it";"holds";"perf";"skip";"pending";"skipIf";"retry";"testOnly");
+    verbs: ("should";"it";"shouldEach";"holds";"perf";"skip";"pending";"skipIf";"retry";"testOnly");
     txt: (),line;
     out: "";
     inString: 0b;
@@ -925,9 +925,15 @@
     if[1>shardCount;'"shardCount must be > 0"];
     if[(0>shardIndex) or shardIndex>=shardCount;
         '"shardIndex must be >= 0 and less than shardCount"];
-    selected:ordered where shardIndex=(til count ordered) mod shardCount;
+    unit:@[get;`.tst.app.shardUnit;`file];
+    selected:$[unit~`file;
+        ordered where shardIndex=(til count ordered) mod shardCount;
+        ordered];
     .tst.app.shardAllFileCount:"j"$count ordered;
     .tst.app.shardSelectedFileCount:"j"$count selected;
+    if[unit~`file;
+        .tst.app.shardAllUnitCount:"j"$count ordered;
+        .tst.app.shardSelectedUnitCount:"j"$count selected];
     .tst.app.emptyShard:(0<count ordered) and 0=count selected;
     .tst.orderItems[selected;"files"]
  };

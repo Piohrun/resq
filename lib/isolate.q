@@ -21,6 +21,7 @@
 .tst.isolate.chmodExe: .tst.isolate.commandPath "chmod";
 .tst.isolate.rmExe: .tst.isolate.commandPath "rm";
 .tst.isolate.shExe: .tst.isolate.commandPath "sh";
+.tst.isolate.childInventory:();
 
 / All isolation diagnostics pass through one gate so qspec's -pass contract is
 / silent while the parent still returns the aggregated process status.
@@ -133,7 +134,7 @@
 / retry, parameter/property case, diagnostic, snapshot, or benchmark back to
 / the pre-v2 row shape while merging processes.
 .tst.isolate.telemetryFromJson:{[t;base]
-    fields:`testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+    fields:`testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
     out:.tst.completeResultRow base;
     present:fields inter key t;
     if[count present;out[present]:t present];
@@ -370,10 +371,15 @@
     argv:.tst.isolate.appendFlag[argv;"-last-failed";@[get;`.tst.app.lastFailed;0b]];
     argv:.tst.isolate.appendFlag[argv;"-failed-first";@[get;`.tst.app.failedFirst;0b]];
     argv:.tst.isolate.appendValue[argv;"-state-file";.tst.rerunStatePath[]];
-    / The parent already owns file selection. A child receives exactly one file
-    / and must not re-apply a shard configured in the shared resq.json.
-    argv:.tst.isolate.appendValue[argv;"-shard-index";0];
-    argv:.tst.isolate.appendValue[argv;"-shard-count";1];
+    / File sharding is complete in the parent. Test/case sharding uses stable-ID
+    / hashing, so every per-file child can apply the same global topology
+    / independently and obtain exactly the parent's selected subset.
+    unit:@[get;`.tst.app.shardUnit;`file];
+    childIndex:$[unit~`file;0;@[get;`.tst.app.shardIndex;0j]];
+    childCount:$[unit~`file;1;@[get;`.tst.app.shardCount;1j]];
+    argv:.tst.isolate.appendValue[argv;"-shard-index";childIndex];
+    argv:.tst.isolate.appendValue[argv;"-shard-count";childCount];
+    argv:.tst.isolate.appendValue[argv;"-shard-unit";string unit];
     / Marks where the child's own report starts so readCaptured can forward the
     / test output without the child's duplicate summary and scratch-path
     / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.
@@ -454,6 +460,10 @@
     decoded: .tst.isolate.decodeReport raw;
     valid: decoded`valid;
     report: decoded`report;
+    if[valid and `manifest in key report;
+        childManifest:report`manifest;
+        if[(99h=type childManifest) and `tests in key childManifest;
+            .tst.isolate.childInventory,:.tst.eventRows childManifest`tests]];
     tests: $[valid; report`tests; ()];
     rows: $[valid; .tst.isolate.rowsFromJson tests; ()];
     rowStatus: $[count rows;
@@ -681,6 +691,7 @@
     .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
     .tst.beginRunMetadata[];
     .tst.loadRerunState[];
+    .tst.isolate.childInventory:();
 
     files: .tst.selectTestFiles .tst.findTests paths;
     n: count files;
@@ -717,7 +728,47 @@
         }[timeoutSecs; n]'[fileGroups; kGroups];
     ];
 
+    / Child manifests describe the full post-filter inventory of their file,
+    / including tests a fail-fast child never reached. Normalize those durable
+    / entries back to the parent inventory shape so its final manifest can
+    / assign the global file/test/case topology consistently.
+    childRows:.tst.eventRows .tst.isolate.childInventory;
+    if[count childRows;
+        .tst.app.executionInventory:{[row]
+            `executionId`testId`caseId`file`suite`description`line`kind`parameters`tags`testShardKey`caseShardKey`shardable!(
+                .tst.toString row`executionId;.tst.toString row`testId;
+                .tst.toString row`caseId;.tst.toString row`file;
+                .tst.toString row`suite;.tst.toString row`description;
+                "j"$row`line;`$.tst.toString row`kind;
+                $[`parameters in key row;row`parameters;()!()];
+                `$string each (),$[`tags in key row;row`tags;()];
+                .tst.toString row`testId;
+                .tst.toString row`executionId;
+                $[`shardable in key row;1b~row`shardable;1b])
+        } each childRows];
+    unit:@[get;`.tst.app.shardUnit;`file];
+    invRows:.tst.eventRows @[get;`.tst.app.executionInventory;{()}];
+    unitKeys:$[unit~`file;
+        .tst.repoRelativePath each @[get;`.tst.app.allDiscoveredFiles;{()}];
+        unit~`test;
+          distinct .tst.toString each {x`testShardKey} each invRows;
+          distinct .tst.toString each {x`caseShardKey} each invRows];
+    selectedUnitKeys:$[unit~`file;
+        .tst.repoRelativePath each files;
+        unitKeys where @[get;`.tst.app.shardIndex;0j]=
+            .tst.shardBucket[;@[get;`.tst.app.shardCount;1j]] each unitKeys];
+    .tst.app.shardAllUnitCount:"j"$count unitKeys;
+    .tst.app.shardSelectedUnitCount:"j"$count selectedUnitKeys;
+    selectedInv:$[unit~`file;invRows;
+        invRows where @[get;`.tst.app.shardIndex;0j]=
+          .tst.shardBucket[;@[get;`.tst.app.shardCount;1j]] each
+            {[u;x]$[u~`test;x`testShardKey;x`caseShardKey]}[unit;] each invRows];
+    .tst.app.selectedExecutionIds:distinct .tst.toString each
+        {x`executionId} each selectedInv;
+
     .tst.isolate.dropChildStrict[];
+    if[not `file~@[get;`.tst.app.shardUnit;`file];
+        .tst.app.emptyShard:(0<count files) and 0=count .resq.state.results];
     .tst.app.expectationsRan: .tst.isolate.executedCount[];
     .tst.isolate.addGlobalStrict[];
 

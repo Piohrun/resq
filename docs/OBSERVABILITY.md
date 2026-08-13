@@ -15,12 +15,15 @@ The same report embeds a versioned execution `manifest` and canonical ordered
   the private PRNG algorithm. It never depends on or advances q's global seed.
 - `run.selection` records all/last-failed/failed-first mode, history health,
   prior failure count, cache path, and the number of tests selected.
-- `run.shard` records the zero-based index/count, deterministic assignment
-  algorithm, global/selected file counts, and repo-relative selected files.
+- `run.shard` records the zero-based index/count, `file`/`test`/`case` unit,
+  deterministic assignment algorithm, global/selected unit counts,
+  repo-relative files, and exact selected execution IDs. Strictly merged runs
+  use index `-1`, record all child run IDs, and preserve the topology.
 - `tests[].testId` is the stable test identity. It hashes repository-relative
   file, suite, and description and therefore survives a different checkout root.
-- `parameterCases[].caseId` identifies a parameter case. Use `(testId, caseId)`
-  when charting a matrix case.
+- A top-level `tests[].caseId` identifies a declarative `shouldEach` execution;
+  its `parameters` object is directly dashboard-ready. Runtime-created
+  `parameterCases[].caseId` remains nested under its atomic parent test.
 - `suite` and `description` are labels, not database keys. `namespace` is empty
   for generated sandboxes so path-derived runtime noise cannot fragment trends.
 

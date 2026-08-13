@@ -121,8 +121,8 @@
     };
 
     should["filter perf expectations unless performance mode is enabled"]{
-        expecs: enlist .tst.internals.testObj;
-        expecs,: enlist .tst.internals.perfObj;
+        expecs: enlist .tst.internals.testObj,(enlist `desc)!enlist "ordinary";
+        expecs,: enlist .tst.internals.perfObj,(enlist `desc)!enlist "benchmark";
         spec: `title`tags`expectations!(`mixed; (); expecs);
 
         .tst.app.allSpecs: enlist spec;

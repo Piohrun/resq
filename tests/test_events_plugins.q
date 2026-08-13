@@ -50,10 +50,13 @@
     sequences musteq 1j+til count sequences;
     must[all {1f=x`schemaVersion} each doc`events;
          "every event must declare schema version 1"];
-    doc[`manifest;`schemaVersion] musteq 1f;
+    doc[`manifest;`schemaVersion] musteq 2f;
     doc[`manifest;`kind] musteq "resq-execution-manifest";
     doc[`manifest;`digest] mustlike "manifest_*";
     count[doc[`manifest;`files]] musteq 1;
+    count[doc[`manifest;`tests]] musteq 1;
+    first[doc[`manifest;`tests]][`executionId]
+        musteq first[doc[`manifest;`tests]][`testId];
     result[`plugin;`types] musteq types;
     result[`plugin;`summary;`passCount] musteq 1f;
     result[`plugin;`manifestDigest] musteq doc[`manifest;`digest];

@@ -281,7 +281,8 @@ detailed model.
 ### Per-test and per-attempt attribution (opt-in)
 
 `-cov-contexts` records the function, statement, and branch hits produced while
-each test attempt is active and groups retries under the stable `testId`.
+each test attempt is active and groups retries under the stable execution ID:
+`caseId` for a declarative row, otherwise `testId`.
 `-cov-attempt-contexts` implies it and instead records one stable context per
 attempt. LCOV and every aggregate counter/gate are unchanged: aggregate probes
 are updated first and context accounting is a separate trapped data plane.
@@ -306,9 +307,11 @@ silent. Configuration keys are `covContexts`, `covAttemptContexts`,
 `.tst.mergeCoverageContexts` merges coverage JSON `contextMeasurement`
 documents by stable context and metric identity. It validates detail modes and
 metadata, sums duplicate hits, applies the lowest declared bounds after stable
-sorting, and is commutative. This is the deterministic primitive used by
-worker/shard artifact merging. Coverage itself remains a separate non-isolated
-command because in-process instrumentation cannot observe isolated children.
+sorting, and is commutative. `bin/resq-merge` applies the same identity contract
+while summing aggregate function/statement/branch records from a complete shard
+topology and writes merged `coverage.json` plus LCOV. Coverage itself remains a
+separate non-isolated command because in-process instrumentation cannot observe
+isolated children.
 
 ### Generating HTML locally
 

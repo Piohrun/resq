@@ -23,7 +23,7 @@ jobs:
 
       - name: Shell syntax
         shell: bash
-        run: bash -n bin/resq bin/qspec
+        run: bash -n bin/resq bin/qspec bin/resq-merge
 
       - name: Documentation, schema, XML, and package contracts
         run: tools/verify_static.py
@@ -61,6 +61,10 @@ jobs:
       - name: Supported execution matrix
         shell: bash
         run: tools/verify_execution_matrix.py --q q
+
+      - name: Distributed shard merge matrix
+        shell: bash
+        run: tools/verify_shard_merge.py --q q
 
       - name: Hostile environment and interruption audit
         shell: bash

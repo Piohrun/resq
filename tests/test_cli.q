@@ -134,14 +134,17 @@
             "Options -last-failed and -failed-first cannot be used together*"] musteq 1b;
     };
 
-    should["validate zero-based native file shards"]{
-        parsed:.tst.parseCLI ("test";"--shard-index";"2";"--shard-count";"5";"suite.q");
+    should["validate zero-based native file/test/case shards"]{
+        parsed:.tst.parseCLI ("test";"--shard-index";"2";"--shard-count";"5";"--shard-unit";"case";"suite.q");
         parsed[`ok] musteq 1b;
         parsed[`options;`shardIndex] musteq 2j;
         parsed[`options;`shardCount] musteq 5j;
+        parsed[`options;`shardUnit] musteq "case";
         .tst.cliParseFails[("test";"-shard-count";"0");"Value must be > 0 for *"] musteq 1b;
         .tst.cliParseFails[("test";"-shard-index";"3";"-shard-count";"3");
             "shard-index must be less than shard-count*"] musteq 1b;
+        .tst.cliParseFails[("test";"-shard-unit";"process");
+            "shard-unit must be one of: file, test, case*"] musteq 1b;
     };
 
     should["parse trusted plugin files and strict callback policy"]{

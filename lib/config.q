@@ -4,7 +4,7 @@
 / Loads settings from resq.json at project root
 
 / Default configuration
-defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j)
+defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file)
 
 .tst.readConfigLines:{[handle] read0 handle};
 
@@ -81,6 +81,7 @@ loadConfig:{[path]
     ];
     if[10h = type merged`shardIndex;merged[`shardIndex]:"J"$merged`shardIndex];
     if[10h = type merged`shardCount;merged[`shardCount]:"J"$merged`shardCount];
+    if[10h=type merged`shardUnit;merged[`shardUnit]:`$lower merged`shardUnit];
     coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax;
     {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
     if[`testFilePatterns in key merged;
@@ -387,6 +388,9 @@ invalidConfigKeys:{[cfg]
   if[`stateFile in key cfg;
     if[(not (type cfg`stateFile) in 10 -10h) or 0=count .tst.toString cfg`stateFile;
       invalid,:`stateFile]];
+  if[`shardUnit in key cfg;
+    if[(not -11h=type cfg`shardUnit) or not (cfg`shardUnit) in `file`test`case;
+      invalid,:`shardUnit]];
   if[(1b~$[`lastFailed in key cfg;cfg`lastFailed;0b]) and
      1b~$[`failedFirst in key cfg;cfg`failedFirst;0b];
       invalid,:`lastFailed`failedFirst];
@@ -464,6 +468,7 @@ applyConfig:{[cfg]
     if[ok`stateFile; .tst.app.stateFile: .tst.toString cfg`stateFile];
     if[ok`shardIndex; .tst.app.shardIndex:"j"$cfg`shardIndex];
     if[ok`shardCount; .tst.app.shardCount:"j"$cfg`shardCount];
+    if[ok`shardUnit;.tst.app.shardUnit:cfg`shardUnit];
 
     if[ok`fuzzLimit; .tst.output.fuzzLimit: cfg`fuzzLimit];
     if[ok`maxTestTime; .tst.app.maxTestTime: cfg`maxTestTime];

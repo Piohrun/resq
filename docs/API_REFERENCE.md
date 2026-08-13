@@ -1142,6 +1142,40 @@ Run teardown for all session-scoped fixtures.
 
 ## 5. Parametrized Testing
 
+### shouldEach
+
+```q
+shouldEach[description; cases]{[caseColumns...; fixtures...] testBody }
+```
+
+Declare a table of independently discoverable parameter cases. The table is
+evaluated while the suite is loaded, but `testBody` is not. Each row becomes a
+top-level execution with the same parent `testId`, a stable row-specific
+`caseId`, and an object-valued `parameters` field in JSON.
+
+```q
+.tst.registerFixture[`taxRate; 0.2];
+
+.tst.desc["invoice totals"]{
+    shouldEach["calculates each band";
+        ([] net:100 250f; expected:120 300f)]{
+        [net;expected;taxRate]
+        (net * 1 + taxRate) musteq expected;
+    };
+};
+```
+
+Table columns bind the leading body parameters in column order. Any remaining
+parameters are resolved as registered fixtures and are installed/torn down for
+each row. A non-table or empty value, or a body whose leading parameters do not
+match the columns, is rejected during discovery. Use `shouldEach` when cases
+must be visible to `-desc`, machine reports, or `-shard-unit case` before test
+execution begins.
+
+The existing runtime helpers below remain compatible and atomic: their cases
+are created only after the enclosing test body starts, so they cannot be split
+across shards and remain nested under `parameterCases[]`.
+
 ### forall
 
 ```q
@@ -1743,7 +1777,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
 | `-cov-branches` | Measure true/false edges for eligible `if`, `while`, and lazy `$` conditions (opt-in rewrite) |
-| `-cov-contexts` | Attribute function/statement/branch hits to stable test IDs without changing aggregates or gates |
+| `-cov-contexts` | Attribute function/statement/branch hits to stable test/declarative-case execution IDs without changing aggregates or gates |
 | `-cov-attempt-contexts` | As above, but create a stable context for every retry attempt; implies `-cov-contexts` |
 | `-cov-context-max N` | Maximum real test/attempt contexts retained (default 10,000); excess contexts fold into `overflow` |
 | `-cov-context-entry-max N` | Maximum unique context/metric pairs retained (default 250,000); truncation is disclosed |
@@ -1758,15 +1792,16 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `--source PATHS` / `--coverage-source PATHS` | Comma-separated source files/directories forming the coverage inventory; unloaded functions are counted at zero |
 | `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
 | `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
-| `-ff` / `--fail-fast` | Print HALTING FAILURE on first failure; hard-stops with `-exit` |
+| `-ff` / `--fail-fast` | Stop scheduling remaining expectations after the first failure while still running mandatory cleanup; `-exit` additionally terminates the process at completion |
 | `-fh` / `--fail-hard` | Halt remaining expectations and suites on first failure; mandatory cleanup still runs |
 | `-random-order` / `--randomOrder` | Deterministically permute files, suites, and expectations with resQ's private PRNG |
 | `-seed N` | Non-negative replay seed for `-random-order` (default `0`); recorded in report metadata |
 | `-last-failed` / `-lf` | Run only tests whose stable IDs failed or errored in the previous run; missing/empty history safely falls back to the full selection |
 | `-failed-first` | Run previous failures first, then the rest, preserving the current deterministic order within each cohort |
 | `-state-file PATH` | Override the versioned rerun cache path (default `.resq/last-run.json`) |
-| `-shard-index I` | Select zero-based native file shard `I` |
-| `-shard-count N` | Partition canonical test files across `N > 0` shards (default `1`) |
+| `-shard-index I` | Select zero-based native shard `I` |
+| `-shard-count N` | Partition the selected shard unit across `N > 0` shards (default `1`) |
+| `-shard-unit U` | Select `file` (default), `test`, or declarative `case` assignment |
 | `-plugin FILES` | Load comma-separated trusted q plugin files before discovery; files register public observers/reporters under `.resq` |
 | `-strict-plugins` | Turn a trapped plugin callback error into a canonical error row and failing exit status (default: warning only) |
 | `-desc` / `--describe` | List suites and tests without running; exits 0 (or 4 on load error) |
@@ -1801,7 +1836,7 @@ owns its bounded combined child stdout/stderr in `output`; JUnit publishes the
 same value as `<system-out>` and xUnit v2 as `<output>`. A reporter error fails
 the run after every selected reporter has been attempted.
 
-JSON additionally embeds execution-manifest schema v1 and lifecycle-event
+JSON additionally embeds execution-manifest schema v2 and lifecycle-event
 schema v1. Trusted plugins can consume the same canonical stream through
 `.resq.registerObserver` and `.resq.registerReporter`; callback return values
 are ignored and direct verdict-state mutations are restored. See
@@ -1822,11 +1857,16 @@ typed rerun diagnostic. The default `.resq/` cache directory should remain
 uncommitted. Multi-shard runs suffix this cache per shard to avoid concurrent
 writers.
 
-Sharding sorts canonical file paths, assigns file position `mod shardCount`,
-and only then applies optional seeded ordering. Shards therefore never overlap,
-their union is the unsharded file set, and normal/isolated runs select the same
-files. A valid empty shard exits successfully even under `-strict`; a globally
-empty discovery still returns the ordinary no-tests exit code.
+File sharding sorts canonical paths, assigns file position `mod shardCount`,
+and only then applies optional seeded ordering. `test` and `case` sharding use a
+stable-ID weighted hash: test units keep all declarative rows under their parent,
+while case units distribute those rows independently. Ordinary tests and
+runtime `.tst.parametrize`/`.tst.forall` calls remain atomic. Shards never
+overlap, their complete union equals the unsharded execution inventory, and
+normal/isolated runs select the same entities. A valid empty shard exits
+successfully even under `-strict`; a globally empty discovery still returns the
+ordinary no-tests exit code. Merge complete JSON shard sets with
+`bin/resq-merge ... --out-dir DIR`; it rejects incomplete or inconsistent sets.
 
 Coverage runs additionally write `coverage.lcov`, `coverage.json`,
 `coverage.html`, and `coverage_state.txt`. All four are projections of one
@@ -1834,7 +1874,7 @@ canonical coverage model. `coverage.json` schema v2 contains aggregate measureme
 instrumentation totals plus per-file, per-function, measured-line, stable
 statement-site, anonymous-lambda owner, branch-site, and edge records; see
 [Runtime code coverage](COVERAGE.md). With `-cov-contexts`, its
-`contextMeasurement` adds stable test/attempt attribution, reserved
+`contextMeasurement` adds stable test/case/attempt attribution, reserved
 `unattributed`/`overflow` buckets, explicit bounds/truncation, and metrics that
 can be deterministically merged by `.tst.mergeCoverageContexts`.
 
@@ -1905,6 +1945,7 @@ Create `resq.json` in project root:
     "stateFile": ".resq/last-run.json",
     "shardIndex": 0,
     "shardCount": 1,
+    "shardUnit": "file",
     "strictPlugins": false,
     "pluginFiles": [],
     "pollutionGuard": true,
@@ -1951,8 +1992,9 @@ Create `resq.json` in project root:
 | `lastFailed` | `false` | Select only failures from the previous stable-ID state |
 | `failedFirst` | `false` | Prioritize failures from the previous stable-ID state |
 | `stateFile` | `.resq/last-run.json` | Versioned, atomically replaced local rerun cache |
-| `shardIndex` | `0` | Zero-based native file shard index |
-| `shardCount` | `1` | Number of deterministic file shards |
+| `shardIndex` | `0` | Zero-based native shard index |
+| `shardCount` | `1` | Number of deterministic shards |
+| `shardUnit` | `"file"` | Assignment unit: `file`, `test`, or declarative `case` |
 | `strictPlugins` | `false` | Fail the run when a registered plugin callback throws |
 | `pluginFiles` | empty | Trusted q plugin file path or list of paths, loaded before discovery |
 | `pollutionGuard` | `true` | Detect and restore application-namespace changes per suite |

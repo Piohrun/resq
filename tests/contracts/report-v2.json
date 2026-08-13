@@ -28,10 +28,14 @@
     "shard": {
       "index": 0,
       "count": 1,
+      "unit": "file",
       "algorithm": "sorted-index-mod-v1",
       "allFileCount": 1,
       "selectedFileCount": 1,
-      "selectedFiles": ["tests/test_contract.q"]
+      "allUnitCount": 1,
+      "selectedUnitCount": 1,
+      "selectedFiles": ["tests/test_contract.q"],
+      "selectedExecutionIds": ["test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
     }
   },
   "summary": {
@@ -63,6 +67,7 @@
       "testId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "caseId": "",
       "kind": "test",
+      "parameters": {},
       "attempts": 1,
       "retried": false,
       "flaky": false,
@@ -88,11 +93,11 @@
   "coverage": {},
   "diagnostics": [],
   "manifest": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "kind": "resq-execution-manifest",
     "digest": "manifest_cccccccccccccccccccccccccccccccc",
-    "digestAlgorithm": "md5-source-inventory-v1",
-    "identityAlgorithm": "resq-test-id-v1",
+    "digestAlgorithm": "md5-source-topology-v2",
+    "identityAlgorithm": "resq-test-case-id-v2",
     "frameworkVersion": "1.0.0",
     "revision": {"sha": "deadbeef", "branch": "main", "dirty": false},
     "shard": {"index": 0, "count": 1},
@@ -108,7 +113,9 @@
     ],
     "tests": [
       {
+        "executionId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "testId": "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "caseId": "",
         "suiteId": "suite_ffffffffffffffffffffffffffffffff",
         "fileId": "file_dddddddddddddddddddddddddddddddd",
         "file": "tests/test_contract.q",
@@ -116,8 +123,12 @@
         "description": "passes",
         "line": 10,
         "kind": "test",
+        "parameters": {},
         "tags": ["contract"],
-        "shardKey": "file_dddddddddddddddddddddddddddddddd"
+        "shardKey": "file_dddddddddddddddddddddddddddddddd",
+        "assignedShard": 0,
+        "selected": true,
+        "shardable": true
       }
     ]
   },

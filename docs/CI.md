@@ -78,8 +78,8 @@ process-fatal error becomes a per-file error while the remaining files still
 run. The `resq` launcher also supervises whole-run completion, so an unexpected
 `exit 0` cannot turn a non-isolated CI command green. Add `-isolateWorkers N`
 to run N files at once; verdicts, ordering and exit codes are unchanged, only
-wall-clock (see [PARALLEL.md](PARALLEL.md)). Use
-CI matrix jobs with `-shard-index I -shard-count N` to shard beyond one
+wall-clock (see [PARALLEL.md](PARALLEL.md)). Use CI matrix jobs with
+`-shard-unit file|test|case -shard-index I -shard-count N` to shard beyond one
 machine. The default is one worker; increase it only after accounting for
 memory and q licence capacity.
 
@@ -115,9 +115,9 @@ detail is worth the extra cardinality, and set explicit
 `-cov-context-max`/`-cov-context-entry-max` values for CI. The context summary
 marks overflow or dropped pairs as `truncated`; reject that state when complete
 attribution is required. LCOV and aggregate gates remain identical with the
-feature on or off. Coverage still runs separately from `-isolate`; shard
-collectors merge `coverage.json.contextMeasurement` by stable identity rather
-than relying on arrival order.
+feature on or off. Coverage still runs separately from `-isolate`;
+`bin/resq-merge` merges both aggregate records and
+`coverage.json.contextMeasurement` by stable identity rather than arrival order.
 
 ## Reporter artifacts
 
@@ -185,19 +185,37 @@ memory footprint and KX licence capacity of those concurrent runtimes; start at
 
 ## Parallel jobs
 
-For a large project, use the native zero-based file shard in each matrix job:
+For a large project, use a native zero-based shard in each matrix job. `file`
+is the backward-compatible default; `test` balances ordinary/declarative parent
+tests, and `case` can distribute individual `shouldEach` rows:
 
 ```bash
 resq test tests/ -strict -isolate \
+  -shard-unit case \
   -shard-index "$MATRIX_INDEX" -shard-count "$MATRIX_COUNT" \
   -junit -json -outDir "artifacts/tests-$MATRIX_INDEX"
 ```
 
-Assignment uses canonical sorted paths before optional seeded ordering. Shards
-are disjoint and their union is the unsharded file set; an intentionally empty
-shard succeeds even under `-strict`. Each shard gets a separate rerun-state
-suffix, preventing concurrent cache writers. Give every shard a distinct
-artifact directory/name. A shard can also use `-isolateWorkers N`. CI systems
-can merge the resulting JUnit documents; resQ does not share mutable q state
-between shards. See
+File assignment uses canonical sorted paths; test/case assignment uses stable
+execution identities. Assignment always precedes optional seeded ordering.
+Shards are disjoint and their union is the unsharded execution inventory; an
+intentionally empty shard succeeds even under `-strict`. Each shard gets a
+separate rerun-state suffix, preventing concurrent cache writers. Give every
+shard a distinct artifact directory/name. A shard can also use
+`-isolateWorkers N`; resQ does not share mutable q state between shards.
+
+After downloading every matrix artifact, create the authoritative combined
+artifact with the strict merger:
+
+```bash
+bin/resq-merge artifacts/tests-*/test-results.json --out-dir artifacts/merged
+```
+
+The merger requires the exact index set `0..count-1`, identical revision,
+manifest digest, q/framework version, source inventory and effective execution
+configuration. It validates assigned/selected IDs, rejects duplicate or missing
+results (including fail-fast/aborted shards), and merges diagnostics, snapshots,
+benchmarks, aggregate coverage and coverage contexts. Exit 2 means the shard set
+is invalid/incomplete, exit 1 means a valid merged verdict failed, and exit 0 is
+green. See
 [Parallel test execution](PARALLEL.md) for the trade-offs.

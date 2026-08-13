@@ -205,11 +205,27 @@
     "case_", .tst.stableHash[testId, "\n", string[index], "\n", .Q.s1 parameters]
  };
 
+.tst.expectationTestId:{[spec;expec]
+    file:$[`tstPath in key spec;.utl.pathToString spec`tstPath;""];
+    suite:$[`title in key spec;spec`title;""];
+    description:$[`parentDesc in key expec;
+        $[count .tst.toString expec`parentDesc;expec`parentDesc;expec`desc];
+        expec`desc];
+    .tst.stableTestId[file;suite;description]
+ };
+
+.tst.expectationCaseId:{[spec;expec]
+    if[not `case~$[`type in key expec;expec`type;`test];:""];
+    .tst.stableCaseId[.tst.expectationTestId[spec;expec];
+        "j"$expec`caseIndex;expec`parameters]
+ };
+
 / Convert the expectation-only execution state into durable telemetry fields.
 / This is deliberately a helper rather than more locals in expecRan: q limits a
 / function to 24 locals, and the callback already performs result accounting.
 .tst.expectationTelemetry:{[s;e;fileText]
-    testId: .tst.stableTestId[fileText;s`title;e`desc];
+    testId:.tst.expectationTestId[s;e];
+    caseId:.tst.expectationCaseId[s;e];
     attempts: "i"$$[`attempts in key e; e`attempts; 1];
     history: $[`attemptHistory in key e; e`attemptHistory; ()];
     cases: $[`parameterCases in key e; e`parameterCases; ()];
@@ -246,8 +262,9 @@
             `maxTimeMs`maxSpaceBytes!(
                 $[`maxTime in key perfOpts;"f"$perfOpts`maxTime;0nf];
                 $[`maxSpace in key perfOpts;"f"$perfOpts`maxSpace;0nf]))];
-    `testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark!(
-        testId;"";$[`type in key e;e`type;`test];attempts;
+    `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark!(
+        testId;caseId;$[`type in key e;e`type;`test];
+        $[`case~$[`type in key e;e`type;`test];e`parameters;()!()];attempts;
         $[`retried in key e;1b~e`retried;attempts>1];
         $[`flaky in key e;1b~e`flaky;(attempts>1) and `pass~.tst.normalizeResultStatus e`result];
         history;cases;prop;.tst.expectationDiagnostics e;snaps;bench)
@@ -255,9 +272,9 @@
 
 .tst.completeResultRow:{[row]
     fields:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
-        `testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+        `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
     defaults:fields!(`;`;`pass;"";0Nn;();0i;"";0Ni;"";`symbol$();"";
-        "";"";`test;1i;0b;0b;();();()!();();();()!());
+        "";"";`test;()!();1i;0b;0b;();();()!();();();()!());
     if[99h=type row;defaults[key row]:value row];
     if[0=count defaults`testId;
         defaults[`testId]:.tst.stableTestId[defaults`file;defaults`suite;defaults`description]];
@@ -289,7 +306,7 @@
 
 .tst.emptyResultTable:{[]
     columns:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output,
-        `testId`caseId`kind`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
+        `testId`caseId`kind`parameters`attempts`retried`flaky`attemptHistory`parameterCases`property`diagnostics`snapshots`benchmark;
     flip columns!(
         ();
         ();
@@ -306,6 +323,7 @@
         ();
         ();
         `symbol$();
+        ();
         `int$();
         `boolean$();
         `boolean$();
@@ -349,7 +367,7 @@
         `coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage,
         `runPerformance`maxTestTime`isolate`isolateWorkers`isolateTimeout,
         `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
-        `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount,
+        `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`shardUnit,
         `tagFilter`excludeTagFilter`coverageSources`strictPlugins`pluginFiles;
     names,:`coverageBranches`coverageBranchMin`coverageBranchCompletenessMin;
     appKeys:key `.tst.app;
@@ -381,13 +399,18 @@
 .tst.shardMetadata:{[]
     allFiles:@[get;`.tst.app.allDiscoveredFiles;{()}];
     selected:@[get;`.tst.app.discoveredFiles;{()}];
-    `index`count`algorithm`allFileCount`selectedFileCount`selectedFiles!(
+    unit:@[get;`.tst.app.shardUnit;`file];
+    `index`count`unit`algorithm`allFileCount`selectedFileCount`allUnitCount`selectedUnitCount`selectedFiles`selectedExecutionIds!(
         "j"$@[get;`.tst.app.shardIndex;0j];
         "j"$@[get;`.tst.app.shardCount;1j];
-        "sorted-index-mod-v1";
+        string unit;
+        $[unit~`file;"sorted-index-mod-v1";"stable-id-weighted-hash-v1"];
         "j"$count allFiles;
         "j"$count selected;
-        .tst.repoRelativePath each selected)
+        "j"$@[get;`.tst.app.shardAllUnitCount;0j];
+        "j"$@[get;`.tst.app.shardSelectedUnitCount;0j];
+        .tst.repoRelativePath each selected;
+        .tst.toString each @[get;`.tst.app.selectedExecutionIds;{()}])
  };
 
 .tst.beginRunMetadata:{[]
@@ -470,6 +493,15 @@
 / the model and therefore cannot silently select a different set of tests.
 .tst.canonicalRunModel:{[results]
     rawRows:.tst.resultRows results;
+    identityRows:$[98h=type rawRows;
+        {[table;i]table i}[rawRows] each til count rawRows;
+        rawRows];
+    resultExecutionIds:distinct {
+        caseId:.tst.toString x`caseId;
+        $[count caseId;caseId;.tst.toString x`testId]
+      } each identityRows;
+    .tst.app.selectedExecutionIds:distinct
+        (.tst.toString each @[get;`.tst.app.selectedExecutionIds;{()}]),resultExecutionIds;
     stats:.tst.resultSummary rawRows;
     rows:rawRows;
     summaryKeys:`suiteCount`testCount`assertionCount`passCount`failCount`errorCount,

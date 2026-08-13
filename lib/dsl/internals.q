@@ -49,6 +49,7 @@ if[not `pluginFiles in key `.tst.app; .tst.app.pluginFiles:()];
 if[not `stateFile in key `.tst.app; .tst.app.stateFile: ".resq/last-run.json"];
 if[not `shardIndex in key `.tst.app; .tst.app.shardIndex: 0j];
 if[not `shardCount in key `.tst.app; .tst.app.shardCount: 1j];
+if[not `shardUnit in key `.tst.app; .tst.app.shardUnit: `file];
 if[not `emptyShard in key `.tst.app; .tst.app.emptyShard: 0b];
 if[not `allSpecs in key `.tst.app; .tst.app.allSpecs: ()];
 if[not `passed in key `.tst.app; .tst.app.passed: 1b];
@@ -213,11 +214,12 @@ internals[`specObj]:`result`title`failHard!(`didNotRun;"";0b)
 / (runs/vars/maxFailRate) live in the base too; holds[] overrides them directly.
 / NOTE: before/after are deliberately NOT in the base - fillExpecBA attaches them
 / uniformly and its `not `before in key ex` guard must still fire.
-internals[`defaultExpecObj]:`result`errorText`desc`code`tags`namespace`line`skipReason`retries`only`props`runs`vars`maxFailRate!(
-    `didNotRun;();"";{};`symbol$();`.;0Ni;"";0;0b;()!();100;`int;0f)
+internals[`defaultExpecObj]:`result`errorText`desc`code`tags`namespace`line`skipReason`retries`only`props`runs`vars`maxFailRate`parentDesc`caseIndex`parameters`caseNames`caseArgs!(
+    `didNotRun;();"";{};`symbol$();`.;0Ni;"";0;0b;()!();100;`int;0f;"";0Nj;()!();`symbol$();())
 internals[`testObj]: internals[`defaultExpecObj], ((),`type)!(),`test
 internals[`fuzzObj]: internals[`defaultExpecObj], ((),`type)!(),`fuzz
 internals[`perfObj]: internals[`defaultExpecObj], ((),`type)!(),`perf
+internals[`caseObj]: internals[`defaultExpecObj], ((),`type)!(),`case
 
 / Callbacks - must exist before any test loading
 if[not `callbacks in key `.tst; .tst.callbacks.descLoaded: {[specObj]}; .tst.callbacks.expecRan: {[spec;expec]}];

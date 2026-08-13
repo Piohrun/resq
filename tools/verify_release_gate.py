@@ -220,6 +220,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             raise RuntimeError("full isolated verdicts differ from normal verdicts")
 
         audit.run("supported execution matrix", [str(ROOT / "tools/verify_execution_matrix.py"), "--q", q_executable])
+        audit.run("distributed shard merge matrix", [str(ROOT / "tools/verify_shard_merge.py"), "--q", q_executable])
         audit.run("hostile environment audit", [str(ROOT / "tools/verify_hostile_env.py"), "--q", q_executable])
         audit.run("external adoption pilots", [str(ROOT / "tools/verify_external_pilots.py"), "--q", q_executable])
 

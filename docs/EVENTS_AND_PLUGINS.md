@@ -3,7 +3,7 @@
 Every JSON schema-v2 report produced by resQ includes two additive, independently
 versioned contracts:
 
-- `manifest` is execution-manifest schema v1;
+- `manifest` is execution-manifest schema v2;
 - `events[]` is an ordered lifecycle stream whose records use event schema v1.
 
 The report remains the durable artifact. In-process callbacks are for trusted,
@@ -31,9 +31,10 @@ Attempt and case pairs are `attempt.started`/`attempt.finished` and
 `case.started`/`case.finished`. Diagnostics use `diagnostic.recorded`. Files are
 ordered by the execution manifest; suites and tests retain canonical result
 order. Event projection happens from the final merged model in the aggregate
-parent, so normal, repeated, isolated, concurrent-isolated, and file-sharded
-runs do not expose child completion races. Shards contain only their selected
-entities; the union is the unsharded entity set.
+parent, so normal, repeated, isolated, concurrent-isolated, and all shard units
+do not expose child completion races. Shards contain only their selected result
+entities; the manifest retains the topology needed to prove that their union is
+the unsharded entity set.
 
 The checked-in validator enforces contiguous sequence numbers, run identity,
 manifest linkage, ISO timestamps, and equality between `run.finished.payload`
@@ -47,22 +48,48 @@ Event schema changes follow the public versioning policy. Additive payload
 members do not change schema v1; a required-field removal, field-type change,
 or semantic reinterpretation requires a new event schema version.
 
-## Execution manifest v1
+## Execution manifest v2
 
 `manifest.files[]` records a stable `fileId`, repository-relative path,
 line-normalized source digest, deterministic assigned shard, whether the file
-was selected in this shard, and whether it is shardable. `manifest.tests[]`
-records stable test/suite/file identities and display/source metadata for the
-tests represented by this artifact. The manifest also carries VCS provenance,
-framework version, shard metadata, and the public test-identity algorithm.
+was selected in this shard, and whether it is shardable. `manifest.tests[]` is
+the execution inventory: each entry has an `executionId`, parent `testId`,
+optional declarative `caseId` and parameters, stable suite/file identities,
+display/source metadata, deterministic `assignedShard`, and selection state.
+For test/case sharding the complete inventory appears in every member; file
+shards retain the complete source inventory and their selected test inventory.
+The manifest also carries VCS provenance, framework version, shard metadata,
+and the public test/case identity algorithm.
 
 `manifest.digest` is deterministic across repeated runs, isolation worker
 counts, every member of one shard topology, and relocated checkouts with
-identical repository-relative source. It changes when the shard topology
-changes because it covers the sorted complete source-file inventory, source
-digests, assigned shards, manifest format, and framework version. The MD5-based digest
+identical repository-relative source. It changes when the shard topology or
+case-declaring source changes because it covers the sorted complete source-file
+inventory, source digests, assignments, manifest format, and framework version.
+The strict merger separately validates the execution-inventory union. The MD5-based digest
 is a reproducible merge/identity key, not a cryptographic attestation; validate
 the separately recorded VCS revision when provenance is security-sensitive.
+
+`run.shard.unit` is `file`, `test`, or `case`. `test` keeps all declarative
+cases under their parent test; `case` assigns each declarative row separately.
+Ordinary tests and runtime-created `parametrize`/`forall` cases remain atomic.
+`selectedExecutionIds` states the exact result set a complete shard must emit.
+
+Merge a complete topology with the fail-closed companion tool:
+
+```bash
+bin/resq-merge artifacts/*/test-results.json --out-dir artifacts/merged
+```
+
+It validates manifest schema/digest, VCS revision, q/framework/configuration,
+all shard indices, source digests, assignments, duplicate/missing result IDs,
+snapshot and benchmark ownership, then merges result rows, diagnostics,
+coverage, and bounded coverage contexts. A missing/aborted/fail-fast shard is
+rejected with exit 2 rather than represented as a complete run. Exit 1 means a
+valid merged run has a failing test or coverage verdict; exit 0 is green.
+Framework results created after discovery (for example a strict plugin error)
+are marked non-shardable. Every shard remains independently truthful, while the
+merger coalesces identical run-level rows once and rejects inconsistent copies.
 
 ## Trusted in-process plugins
 

@@ -33,5 +33,15 @@ single invocation.
 tools/verify_execution_matrix.py --q q
 ```
 
+`tools/verify_shard_merge.py` is the deeper distributed gate. It proves
+file/test/case result and assertion parity, declarative fixture cases, retry
+telemetry, empty shards, isolation, exact aggregate/context coverage merging,
+and fail-closed rejection of incomplete, duplicate, mixed-revision/digest,
+snapshot-conflict, and benchmark-conflict artifacts:
+
+```bash
+tools/verify_shard_merge.py --q q
+```
+
 Passing `--allow-unsupported` is useful for qualification experiments; it does
 not change the support table or make that runtime release-gated.

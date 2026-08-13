@@ -32,6 +32,7 @@ def test_row(name: str, status: str, suffix: str) -> dict:
         "testId": f"test_{suffix * 32}",
         "caseId": "",
         "kind": "test",
+        "parameters": {},
         "attempts": 1,
         "retried": False,
         "flaky": False,
@@ -71,9 +72,11 @@ def report() -> dict:
                 "applied": False, "selectedTestCount": 2,
             },
             "shard": {
-                "index": 0, "count": 1, "algorithm": "sorted-index-mod-v1",
+                "index": 0, "count": 1, "unit": "file", "algorithm": "sorted-index-mod-v1",
                 "allFileCount": 1, "selectedFileCount": 1,
+                "allUnitCount": 1, "selectedUnitCount": 1,
                 "selectedFiles": ["tests/test_adapter.q"],
+                "selectedExecutionIds": [row["testId"] for row in rows],
             },
         },
         "summary": {
@@ -103,13 +106,13 @@ class AdapterTests(unittest.TestCase):
 
         bad_manifest = deepcopy(contract)
         bad_manifest["manifest"]["tests"][0]["testId"] = f"test_{'9' * 32}"
-        with self.assertRaisesRegex(ValueError, "differs from report tests"):
+        with self.assertRaisesRegex(ValueError, "executionId"):
             validate(bad_manifest)
 
     def test_validator_rejects_duplicate_stable_ids(self) -> None:
         duplicate = report()
         duplicate["tests"][1]["testId"] = duplicate["tests"][0]["testId"]
-        with self.assertRaisesRegex(ValueError, "duplicate testId"):
+        with self.assertRaisesRegex(ValueError, "duplicate execution identity"):
             validate(duplicate)
 
     def test_validator_rejects_inconsistent_retry_and_property_telemetry(self) -> None:
@@ -148,7 +151,9 @@ class AdapterTests(unittest.TestCase):
             root = Path(directory)
             source = root / "report.json"
             output = root / "allure-results"
-            source.write_text(json.dumps(report()), encoding="utf-8")
+            document = report()
+            document["tests"][0]["parameters"] = {"region": "eu", "size": 3}
+            source.write_text(json.dumps(document), encoding="utf-8")
             completed = subprocess.run(
                 [sys.executable, str(ROOT / "tools/resq_to_allure.py"), str(source), str(output)],
                 check=False, capture_output=True, text=True,
@@ -162,6 +167,9 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(f"test_{'c' * 32}", failed["historyId"])
             self.assertEqual("boom", failed["statusDetails"]["message"])
             self.assertIn({"name": "tag", "value": "unit"}, failed["labels"])
+            passed = next(item for item in results if item["name"] == "passes")
+            self.assertIn({"name": "region", "value": "eu"}, passed["parameters"])
+            self.assertIn({"name": "size", "value": "3"}, passed["parameters"])
             self.assertTrue((output / "executor.json").is_file())
             self.assertTrue((output / "environment.properties").is_file())
 

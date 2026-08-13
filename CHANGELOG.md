@@ -6,6 +6,17 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Native sharding now supports backward-compatible `file`, stable parent
+  `test`, and declarative `case` units. The new `shouldEach` DSL registers table
+  rows without executing their bodies, emits first-class case identities and
+  parameters, binds remaining body arguments as fixtures, and preserves the
+  atomic behavior of runtime `.tst.parametrize`/`.tst.forall`.
+- The fail-closed `bin/resq-merge` companion validates the complete shard
+  topology, revision, manifest/source digests, effective configuration,
+  assignments, duplicate/missing results, and snapshot/benchmark ownership.
+  It produces one schema-v2 run with canonical lifecycle events and merges
+  diagnostics, aggregate function/statement/branch coverage, bounded coverage
+  contexts, and LCOV by stable identity.
 - Statement and conditional-edge instrumentation now descends into eligible
   anonymous lambdas. Stable statement, branch, edge, and lambda identities keep
   the enclosing named function as owner, flow through detailed JSON/HTML/state,
@@ -37,6 +48,8 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- `-fail-fast` now stops remaining expectations even without `-exit`; the
+  unconditional cleanup tail still restores application state before return.
 - Property tests now sum assertions executed by every generated case instead
   of reporting only the largest per-case count. Shrink probes remain diagnostic
   work and do not inflate test or run assertion totals.

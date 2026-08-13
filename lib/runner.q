@@ -447,7 +447,7 @@
         .tst.toString specTitle;
     exList:.tst.orderItems[exList;orderStream];
 
-    res: {[s; ex] if[.tst.halt; :()]; .tst.runExpec[s; ex]}[spec] each exList;
+    res: {[s; ex] if[.tst.halt; :(::)]; .tst.runExpec[s; ex]}[spec] each exList;
     / Remove skipped expectations (halt)
     res: res where not (::)~/: res;
 
@@ -567,7 +567,10 @@
             -1 "Suite: ", .tst.toString s[`title];
             -1 "Desc:  ", .tst.toString e[`desc];
             -1 "Error: ", .tst.toString messageText;
-            if[1b ~ .tst.app.failHard; .tst.halt: 1b];
+            / Both modes stop scheduling further expectations. failHard retains
+            / its stronger staging/exit behavior elsewhere; failFast is the
+            / graceful variant and must still halt when -exit is absent.
+            .tst.halt:1b;
             if[(1b ~ @[get; `.tst.app.exitImmediately; 0b]) and not 1b ~ .tst.app.failHard; .tst.die 1];
         ];
     };
@@ -607,6 +610,10 @@
     .tst.app.emptyShard: 0b;
     .tst.app.shardAllFileCount: 0j;
     .tst.app.shardSelectedFileCount: 0j;
+    .tst.app.shardAllUnitCount:0j;
+    .tst.app.shardSelectedUnitCount:0j;
+    .tst.app.executionInventory:();
+    .tst.app.selectedExecutionIds:();
     .tst.app.rerunMode: `all;
     .tst.app.rerunApplied: 0b;
     .tst.app.priorFailedCount: 0j;
@@ -651,6 +658,95 @@
         .tst.orderItems[allSpecs where allPaths~\:p;"specs/",p]
     }[specs;paths;] each groupPaths;
     raze groups
+ };
+
+/ Turn the post-filter discovery model into stable, body-free identities. A
+/ declarative case has a unique execution ID while retaining its parent test ID;
+/ dynamic parametrize/forall expectations remain one atomic test identity.
+.tst.executionInventoryEntry:{[spec;expec]
+    file:.tst.repoRelativePath $[`tstPath in key spec;spec`tstPath;""];
+    suite:.tst.toString $[`title in key spec;spec`title;""];
+    testId:.tst.expectationTestId[spec;expec];
+    caseId:.tst.expectationCaseId[spec;expec];
+    executionId:$[count caseId;caseId;testId];
+    specTags:$[`tags in key spec;(),spec`tags;()];
+    expecTags:$[`tags in key expec;(),expec`tags;()];
+    `executionId`testId`caseId`file`suite`description`line`kind`parameters`tags`testShardKey`caseShardKey`shardable!(
+        executionId;testId;caseId;file;suite;.tst.toString expec`desc;
+        "j"$$[`line in key expec;expec`line;0Nj];
+        $[`type in key expec;expec`type;`test];
+        $[`case~$[`type in key expec;expec`type;`test];expec`parameters;()!()];
+        distinct specTags,expecTags;
+        testId;executionId;1b)
+ };
+
+.tst.executionInventoryForSpecs:{[specs]
+    groups:{[s]
+        expecs:.tst.rerunExpectations s;
+        $[count expecs;.tst.executionInventoryEntry[s;] each expecs;()]
+    } each specs;
+    raze {.tst.eventRows x} each groups
+ };
+
+/ Stable-ID hashing makes test/case assignment independent of which files a
+/ process loaded. That property is what lets per-file isolation compose with a
+/ global test/case shard without shipping executable q objects between parents
+/ and children.
+.tst.shardBucket:{[identity;shardCount]
+    if[shardCount<=1;:0j];
+    chars:"j"$"c"$.tst.toString identity;
+    "j"$(sum chars*1+til count chars) mod shardCount
+ };
+
+.tst.shardExpectationSelected:{[unit;index;shardCount;spec;expec]
+    if[unit~`file;:1b];
+    shardKey:$[unit~`test;
+        .tst.expectationTestId[spec;expec];
+        [cid:.tst.expectationCaseId[spec;expec];
+         $[count cid;cid;.tst.expectationTestId[spec;expec]]]];
+    index=.tst.shardBucket[shardKey;shardCount]
+ };
+
+.tst.shardOneSpec:{[unit;index;shardCount;spec]
+    expecs:.tst.rerunExpectations spec;
+    if[0=count expecs;:spec];
+    mask:.tst.shardExpectationSelected[unit;index;shardCount;spec;] each expecs;
+    spec[`expectations]:expecs where mask;
+    spec
+ };
+
+.tst.applyExecutionSharding:{[specs]
+    unit:@[get;`.tst.app.shardUnit;`file];
+    index:"j"$@[get;`.tst.app.shardIndex;0j];
+    shardCount:"j"$@[get;`.tst.app.shardCount;1j];
+    inventory:.tst.executionInventoryForSpecs specs;
+    inventoryRows:.tst.eventRows inventory;
+    executionIds:.tst.toString each {x`executionId} each inventoryRows;
+    if[count[executionIds]<>count distinct executionIds;
+        unique:distinct executionIds;
+        dup:first unique where 1<{[ids;id]sum ids~\:id}[executionIds;] each unique;
+        '"Duplicate executable test/case identity: ",dup,
+          ". Suite descriptions and declarative case positions must be unique within a file."];
+    .tst.app.executionInventory:inventory;
+    shardKeys:$[unit~`test;
+        distinct .tst.toString each {x`testShardKey} each inventoryRows;
+        unit~`case;
+          distinct .tst.toString each {x`caseShardKey} each inventoryRows;
+        .tst.repoRelativePath each @[get;`.tst.app.allDiscoveredFiles;{()}]];
+    selectedKeys:$[unit~`file;
+        .tst.repoRelativePath each @[get;`.tst.app.discoveredFiles;{()}];
+        shardKeys where index=.tst.shardBucket[;shardCount] each shardKeys];
+    .tst.app.shardAllUnitCount:"j"$count shardKeys;
+    .tst.app.shardSelectedUnitCount:"j"$count selectedKeys;
+    if[not unit~`file;
+        specs:.tst.shardOneSpec[unit;index;shardCount;] each specs;
+        specs:specs where 0<count each .tst.rerunExpectations each specs];
+    selectedInventory:.tst.executionInventoryForSpecs specs;
+    .tst.app.selectedExecutionIds:.tst.toString each
+        {x`executionId} each .tst.eventRows selectedInventory;
+    .tst.app.emptyShard:(0<count shardKeys) and 0=count selectedKeys;
+    .tst.app.selectedTestCount:"j"$count selectedInventory;
+    specs
  };
 
 .tst.runAllPhase.filterSpecs:{[]
@@ -698,7 +794,8 @@
     specsList:$[98h=type .tst.app.allSpecs;
         {[tbl;idx]tbl idx}[.tst.app.allSpecs] each til count .tst.app.allSpecs;
         .tst.app.allSpecs];
-    .tst.app.allSpecs:.tst.applyRerunSelection specsList;
+    specsList:.tst.applyRerunSelection specsList;
+    .tst.app.allSpecs:.tst.applyExecutionSharding specsList;
  };
 
 / Iterate the filtered spec list, running each via .tst.runSpec inside a

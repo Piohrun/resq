@@ -90,6 +90,37 @@ should:{[des;code]
   .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`line!(desStr;code;tags;.tst.currentNs;.tst.currentSourceLine))
  }
 
+/ Register a table of cases without executing the test body. Every row becomes
+/ an independently identifiable expectation, which lets discovery, sharding,
+/ and reporters see the complete case inventory before execution. Case columns
+/ must be the leading lambda parameters; any remaining parameters are fixtures.
+shouldEach:{[des;data;code]
+  if[not 98h=type data;
+    '"shouldEach expects a table of declarative parameter rows"];
+  if[0=count data;
+    '"shouldEach expects at least one declarative parameter row"];
+  if[not type[code] within 100 104h;
+    '"shouldEach expects a q function as its test body"];
+  names:`symbol$cols data;
+  args:`symbol$(),(value code) 1;
+  args:args where not (null args) or args~\:(::);
+  if[(count args)<count names;
+    '"shouldEach body has fewer parameters than the case table"];
+  if[not names~count[names]#args;
+    '"shouldEach table columns must match the body's leading parameter names"];
+  desStr:.tst.toString des;
+  tags:`$ {x where x like "#*"} " " vs desStr;
+  {[desStr;tags;names;code;i;params]
+    d:.tst.internals.caseObj,
+      `desc`parentDesc`code`tags`namespace`line`caseIndex`parameters`caseNames`caseArgs!(
+        desStr," [case ",string[i+1],"]";
+        desStr;code;tags;.tst.currentNs;.tst.currentSourceLine;
+        "j"$i;params;names;value params);
+    .tst.expecList,:enlist d
+  }[desStr;tags;names;code]'[til count data;{[table;i]table i}[data] each til count data];
+  ::
+ }
+
 holds:{[des;props;code]
   desStr: .tst.toString des;
   d: .tst.internals.fuzzObj, (`desc`code`namespace`line!(desStr;code;.tst.currentNs;.tst.currentSourceLine));
@@ -177,9 +208,10 @@ testOnly:{[des;code]
 .tst.dslDeclarationNextId: 0j;
 .tst.dslDeclarationAuditActive: 0b;
 .tst.dslArityUsage:
-  `should`it`holds`perf`skip`pending`skipIf`retry`testOnly!
+  `should`it`shouldEach`holds`perf`skip`pending`skipIf`retry`testOnly!
   ("should[description]{code}";
    "it[description]{code}";
+   "shouldEach[description;table]{code}";
    "holds[description;properties]{code}";
    "perf[description;properties]{code}";
    "skip[reason]{code}";
@@ -228,6 +260,7 @@ testOnly:{[des;code]
 
 shouldAt:{[lineNo;des;code] .tst.callExpectationAt[lineNo;.tst.should;(des;code)]}
 itAt:{[lineNo;des;code] .tst.callExpectationAt[lineNo;.tst.should;(des;code)]}
+shouldEachAt:{[lineNo;des;data;code] .tst.callExpectationAt[lineNo;.tst.shouldEach;(des;data;code)]}
 holdsAt:{[lineNo;des;props;code] .tst.callExpectationAt[lineNo;.tst.holds;(des;props;code)]}
 perfAt:{[lineNo;des;props;code] .tst.callExpectationAt[lineNo;.tst.perf;(des;props;code)]}
 skipAt:{[lineNo;reason;code] .tst.callExpectationAt[lineNo;.tst.skip;(reason;code)]}
@@ -246,6 +279,10 @@ shouldEntry:{[lineNo]
 itEntry:{[lineNo]
   id: .tst.beginDslDeclaration[lineNo;`it];
   {[id;lineNo;des;code] .tst.finishDslDeclaration id; .tst.itAt[lineNo;des;code]}[id;lineNo;;]
+ };
+shouldEachEntry:{[lineNo]
+  id:.tst.beginDslDeclaration[lineNo;`shouldEach];
+  {[id;lineNo;des;data;code] .tst.finishDslDeclaration id; .tst.shouldEachAt[lineNo;des;data;code]}[id;lineNo;;;]
  };
 holdsEntry:{[lineNo]
   id: .tst.beginDslDeclaration[lineNo;`holds];
@@ -371,17 +408,18 @@ uiCode:(before;after;should;it;holds;perf;alt;desc;skip;pending;skipIf)
 \d .
 / Expose DSL in root for direct/root-context compatibility. init.q also captures
 / the same values under stable .tst.dsl bindings; reserved .q is untouched.
-describe: .tst.desc; should: .tst.should; it: .tst.should;
+describe: .tst.desc; should: .tst.should; it: .tst.should; shouldEach:.tst.shouldEach;
 before: .tst.before; after: .tst.after;
 beforeAll: .tst.beforeAll; afterAll: .tst.afterAll;
 holds: .tst.holds; perf: .tst.perf; alt: .tst.alt;
 skip: .tst.skip; pending: .tst.pending; skipIf: .tst.skipIf;
 retry: .tst.retry; testOnly: .tst.testOnly;
 
-.tst.uiExports: `describe`should`it`before`after`beforeAll`afterAll`holds`perf`alt`skip`pending`skipIf`retry`testOnly!(
+.tst.uiExports: `describe`should`it`shouldEach`before`after`beforeAll`afterAll`holds`perf`alt`skip`pending`skipIf`retry`testOnly!(
     .tst.desc;
     .tst.should;
     .tst.should;
+    .tst.shouldEach;
     .tst.before;
     .tst.after;
     .tst.beforeAll;

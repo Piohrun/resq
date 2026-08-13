@@ -28,6 +28,7 @@
     if[not `testId in key out;out[`testId]:""];
     if[not `caseId in key out;out[`caseId]:""];
     if[not `kind in key out;out[`kind]:`test];
+    if[not `parameters in key out;out[`parameters]:()!()];
     if[not `attempts in key out;out[`attempts]:1i];
     if[not `retried in key out;out[`retried]:0b];
     if[not `flaky in key out;out[`flaky]:0b];

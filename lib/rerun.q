@@ -73,10 +73,7 @@
  };
 
 .tst.rerunTestId:{[spec;expec]
-    file:$[`tstPath in key spec;.utl.pathToString spec`tstPath;""];
-    suite:$[`title in key spec;spec`title;""];
-    description:$[`desc in key expec;expec`desc;""];
-    .tst.stableTestId[file;suite;description]
+    .tst.expectationTestId[spec;expec]
  };
 
 .tst.rerunFailedMask:{[spec;expecs;failedIds]

@@ -28,6 +28,7 @@
   cfg[`stateFile] musteq ".resq/last-run.json";
   cfg[`shardIndex] musteq 0j;
   cfg[`shardCount] musteq 1j;
+  cfg[`shardUnit] musteq `file;
   cfg[`strictPlugins] musteq 0b;
   cfg[`pluginFiles] mustmatch ();
   };
@@ -74,12 +75,18 @@
   emptyPath musteq enlist `stateFile;
   };
  should["validate native shard bounds"]{
-  warnings:.tst.validateConfig `shardIndex`shardCount!(1j;3j);
+  warnings:.tst.validateConfig `shardIndex`shardCount`shardUnit!(1j;3j;`case);
   warnings mustmatch ();
   badCount:.tst.invalidConfigKeys (enlist `shardCount)!enlist 0;
   badCount musteq enlist `shardCount;
   badIndex:.tst.invalidConfigKeys `shardIndex`shardCount!(3;3);
   `shardIndex`shardCount mustin badIndex;
+  .tst.invalidConfigKeys[(enlist `shardUnit)!enlist `process]
+      musteq enlist `shardUnit;
+  previousUnit:.tst.app.shardUnit;
+  .tst.applyConfig (enlist `shardUnit)!enlist `test;
+  .tst.app.shardUnit musteq `test;
+  .tst.app.shardUnit:previousUnit;
   };
  should["validate and apply trusted plugin settings"]{
   cfg:`strictPlugins`pluginFiles!(1b;("plugins/a.q";"plugins/b.q"));

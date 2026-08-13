@@ -46,6 +46,7 @@ def validate_test(row: Any, index: int) -> None:
             "suite", "description", "status", "message", "time",
             "durationSeconds", "failures", "assertsRun", "file", "line",
             "namespace", "tags", "output", "testId", "caseId", "kind",
+            "parameters",
             "attempts", "retried", "flaky", "attemptHistory",
             "parameterCases", "property", "diagnostics", "snapshots",
             "benchmark",
@@ -56,6 +57,14 @@ def validate_test(row: Any, index: int) -> None:
         raise ValueError(f"{where}.status: unknown value {row['status']!r}")
     if not isinstance(row["testId"], str) or not HEX_ID.fullmatch(row["testId"]):
         raise ValueError(f"{where}.testId: invalid stable identity")
+    if not isinstance(row["caseId"], str) or (
+        row["caseId"] and not HEX_ID.fullmatch(row["caseId"])
+    ):
+        raise ValueError(f"{where}.caseId: invalid stable identity")
+    if row["kind"] == "case" and not row["caseId"]:
+        raise ValueError(f"{where}: declarative case requires caseId")
+    if not isinstance(row["parameters"], dict):
+        raise ValueError(f"{where}.parameters: expected object")
     if not isinstance(row["attempts"], int) or row["attempts"] < 1:
         raise ValueError(f"{where}.attempts: expected positive integer")
     if not isinstance(row["retried"], bool) or not isinstance(row["flaky"], bool):
@@ -115,13 +124,13 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
         },
         "manifest",
     )
-    if manifest["schemaVersion"] != 1 or manifest["kind"] != "resq-execution-manifest":
-        raise ValueError("manifest: expected resQ execution manifest v1")
+    if manifest["schemaVersion"] != 2 or manifest["kind"] != "resq-execution-manifest":
+        raise ValueError("manifest: expected resQ execution manifest v2")
     if not isinstance(manifest["digest"], str) or not MANIFEST_ID.fullmatch(manifest["digest"]):
         raise ValueError("manifest.digest: invalid")
-    if manifest["digestAlgorithm"] != "md5-source-inventory-v1":
+    if manifest["digestAlgorithm"] != "md5-source-topology-v2":
         raise ValueError("manifest.digestAlgorithm: unsupported")
-    if manifest["identityAlgorithm"] != "resq-test-id-v1":
+    if manifest["identityAlgorithm"] != "resq-test-case-id-v2":
         raise ValueError("manifest.identityAlgorithm: unsupported")
     if manifest["frameworkVersion"] != document["frameworkVersion"]:
         raise ValueError("manifest.frameworkVersion does not match report")
@@ -147,7 +156,11 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
             entry["sourceDigest"] and not re.fullmatch(r"[0-9a-f]{32}", entry["sourceDigest"])
         ):
             raise ValueError(f"{where}.sourceDigest: invalid")
-        if not isinstance(entry["assignedShard"], int) or not 0 <= entry["assignedShard"] < shard_count:
+        unit = document["run"].get("shard", {}).get("unit", "file")
+        if not isinstance(entry["assignedShard"], int):
+            raise ValueError(f"{where}.assignedShard: outside shard range")
+        valid_assignment = entry["assignedShard"] == -1 if unit != "file" else 0 <= entry["assignedShard"] < shard_count
+        if not valid_assignment:
             raise ValueError(f"{where}.assignedShard: outside shard range")
         if not isinstance(entry["selected"], bool) or not isinstance(entry["shardable"], bool):
             raise ValueError(f"{where}: selection flags must be boolean")
@@ -157,7 +170,7 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
         raise ValueError("manifest.files: duplicate identity or path")
     if file_paths != sorted(file_paths):
         raise ValueError("manifest.files: paths must be deterministically sorted")
-    test_ids: list[str] = []
+    execution_ids: list[str] = []
     known_files = set(file_ids)
     for index, entry in enumerate(manifest["tests"]):
         where = f"manifest.tests[{index}]"
@@ -165,7 +178,7 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
             raise ValueError(f"{where}: expected object")
         require(
             entry,
-            {"testId", "suiteId", "fileId", "file", "suite", "description", "line", "kind", "tags", "shardKey"},
+            {"executionId", "testId", "caseId", "suiteId", "fileId", "file", "suite", "description", "line", "kind", "parameters", "tags", "shardKey", "assignedShard", "selected", "shardable"},
             where,
         )
         if not isinstance(entry["testId"], str) or not HEX_ID.fullmatch(entry["testId"]):
@@ -174,12 +187,55 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
             raise ValueError(f"{where}.suiteId: invalid")
         if entry["fileId"] not in known_files and entry["file"]:
             raise ValueError(f"{where}.fileId: not present in file inventory")
-        test_ids.append(entry["testId"])
-    if len(test_ids) != len(set(test_ids)):
-        raise ValueError("manifest.tests: duplicate testId")
-    report_test_ids = [row["testId"] for row in document["tests"]]
-    if test_ids != report_test_ids:
-        raise ValueError("manifest.tests: order/identity differs from report tests")
+        execution_id = entry["caseId"] or entry["testId"]
+        if entry["executionId"] != execution_id or not HEX_ID.fullmatch(execution_id):
+            raise ValueError(f"{where}.executionId: invalid or inconsistent")
+        if not isinstance(entry["assignedShard"], int) or not 0 <= entry["assignedShard"] < shard_count:
+            raise ValueError(f"{where}.assignedShard: outside shard range")
+        if not isinstance(entry["selected"], bool) or not isinstance(entry["shardable"], bool):
+            raise ValueError(f"{where}: selection flags must be boolean")
+        run_shard_index = document["run"].get("shard", {}).get("index", 0)
+        if run_shard_index >= 0 and entry["shardable"] and (
+            entry["selected"] != (entry["assignedShard"] == run_shard_index)
+        ):
+            raise ValueError(f"{where}.selected: disagrees with shard assignment")
+        if run_shard_index >= 0 and not entry["shardable"] and not entry["selected"]:
+            raise ValueError(f"{where}.selected: run-level execution must be selected")
+        execution_ids.append(execution_id)
+    if len(execution_ids) != len(set(execution_ids)):
+        raise ValueError("manifest.tests: duplicate executionId")
+    report_execution_ids = [row["caseId"] or row["testId"] for row in document["tests"]]
+    if not set(report_execution_ids).issubset(set(execution_ids)):
+        raise ValueError("manifest.tests: report contains identity outside inventory")
+    shard = document["run"].get("shard")
+    if not isinstance(shard, dict):
+        raise ValueError("run.shard: expected object")
+    require(
+        shard,
+        {
+            "index", "count", "unit", "algorithm", "allFileCount",
+            "selectedFileCount", "allUnitCount", "selectedUnitCount",
+            "selectedFiles", "selectedExecutionIds",
+        },
+        "run.shard",
+    )
+    if not isinstance(shard["count"], int) or shard["count"] < 1:
+        raise ValueError("run.shard.count: expected positive integer")
+    if shard["unit"] not in {"file", "test", "case"}:
+        raise ValueError("run.shard.unit: unsupported")
+    if shard["index"] == -1:
+        if shard.get("merged") is not True or shard.get("indices") != list(range(shard["count"])):
+            raise ValueError("run.shard: aggregate index requires a complete merged topology")
+    elif not isinstance(shard["index"], int) or not 0 <= shard["index"] < shard["count"]:
+        raise ValueError("run.shard.index: outside shard range")
+    selected_ids = shard["selectedExecutionIds"]
+    if not isinstance(selected_ids, list) or len(selected_ids) != len(set(selected_ids)):
+        raise ValueError("run.shard.selectedExecutionIds: expected unique array")
+    expected_selected = {
+        entry["executionId"] for entry in manifest["tests"] if entry["selected"]
+    }
+    if set(selected_ids) != expected_selected:
+        raise ValueError("run.shard.selectedExecutionIds: disagrees with manifest selection")
 
 
 def validate_events(events: Any, document: dict[str, Any]) -> None:
@@ -228,7 +284,15 @@ def validate(document: Any) -> None:
     if document["schemaVersion"] != 2 or document["framework"] != "resQ":
         raise ValueError("report: expected resQ schemaVersion 2")
     run = document["run"]
-    require(run, {"id", "startedAt", "finishedAt", "durationSeconds", "hostname", "cwd", "qVersion", "qRelease", "os", "resqVersion", "vcs", "ci", "config"}, "run")
+    require(
+        run,
+        {
+            "id", "startedAt", "finishedAt", "durationSeconds", "hostname", "cwd",
+            "qVersion", "qRelease", "os", "resqVersion", "vcs", "ci", "config",
+            "ordering", "selection", "shard",
+        },
+        "run",
+    )
     if not HEX_ID.fullmatch(run["id"]):
         raise ValueError("run.id: invalid")
     iso8601(run["startedAt"], "run.startedAt")
@@ -241,14 +305,14 @@ def validate(document: Any) -> None:
         raise ValueError("summary.testCount does not match tests length")
     if summary["testCount"] != sum(summary[k] for k in ("passCount", "failCount", "errorCount", "skipCount")):
         raise ValueError("summary status counts do not add up")
-    test_ids: list[str] = []
+    execution_ids: list[str] = []
     case_ids: list[str] = []
     for index, row in enumerate(document["tests"]):
         validate_test(row, index)
-        test_ids.append(row["testId"])
+        execution_ids.append(row["caseId"] or row["testId"])
         case_ids.extend(case["caseId"] for case in row["parameterCases"])
-    if len(test_ids) != len(set(test_ids)):
-        raise ValueError("tests: duplicate testId")
+    if len(execution_ids) != len(set(execution_ids)):
+        raise ValueError("tests: duplicate execution identity")
     if len(case_ids) != len(set(case_ids)):
         raise ValueError("tests: duplicate parameter caseId")
     if "manifest" in document or "events" in document:

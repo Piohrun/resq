@@ -82,8 +82,9 @@
  should["restage an expectation if the test run is to immediately halt"]{
   `beforeCounter mock 0;;
   `restoreCounter mock 0;
-  `.tst.restore mock {restoreCounter+:1};
-  `.tst.halt mock 1b;
+ `.tst.restore mock {restoreCounter+:1};
+ `.tst.halt mock 1b;
+  `.tst.app.failHard mock 1b;
   before{beforeCounter+:1};
   should["restage"]{'"foo"};
   e:getExpec[];

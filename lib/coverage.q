@@ -113,10 +113,12 @@
     if[not 1b~@[get;`.tst.coverageContexts;0b];
         .tst.coverageActiveContext:()!();:()];
     testId:.tst.rerunTestId[spec;expec];
+    caseId:.tst.expectationCaseId[spec;expec];
+    executionId:$[count caseId;caseId;testId];
     detail:1b~@[get;`.tst.coverageAttemptContexts;0b];
     contextId:$[detail;
-        "attempt_",.tst.stableHash[testId,"\n",string["j"$attempt]];
-        testId];
+        "attempt_",.tst.stableHash[executionId,"\n",string["j"$attempt]];
+        executionId];
     file:$[`tstPath in key spec;.utl.pathToString spec`tstPath;""];
     metadata:.tst.coverageContextMeta[
         contextId;$[detail;"attempt";"test"];testId;

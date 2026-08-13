@@ -63,6 +63,11 @@ def labels(document: dict[str, Any], row: dict[str, Any]) -> list[dict[str, str]
 
 def parameters(row: dict[str, Any]) -> list[dict[str, str]]:
     values = [{"name": "attempts", "value": str(row.get("attempts", 1))}]
+    for name, value in sorted((row.get("parameters") or {}).items()):
+        rendered = json.dumps(value, ensure_ascii=False, sort_keys=True) if isinstance(
+            value, (dict, list, bool, int, float, type(None))
+        ) else str(value)
+        values.append({"name": str(name), "value": rendered})
     property_data = row.get("property") or {}
     if "seed" in property_data:
         values.append({"name": "propertySeed", "value": str(property_data["seed"])})

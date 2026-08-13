@@ -46,27 +46,40 @@ trusted tests and size the count to the runner's memory and licence capacity.
 ## Distributing further: CI-level sharding
 
 For scale beyond one machine — or to parallelize *across* the slowest file —
-shard at the CI level as well.
-
-Split test directories across CI jobs. Each job runs `resq test` against its
-slice of the tree and emits a JUnit XML file for the CI system to merge.
+use resQ's native execution manifest and CI-level shards. File sharding is the
+default. `-shard-unit test` assigns whole tests, while `case` independently
+assigns declarative `shouldEach` rows; dynamic `.tst.parametrize`/`.tst.forall`
+cases remain atomic with their parent.
 
 **Example (GitHub Actions matrix):**
 
 ```yaml
 strategy:
   matrix:
-    suite: [tests/unit, tests/integration, tests/golden]
+    shard: [0, 1, 2]
 steps:
-  - run: resq test ${{ matrix.suite }} -strict -isolate -junit -outDir reports/
+  - run: >-
+      resq test tests -strict -isolate -json -junit
+      -shard-unit test -shard-index ${{ matrix.shard }} -shard-count 3
+      -outDir reports/${{ matrix.shard }}
   - uses: actions/upload-artifact@v4
     with:
-      name: test-results-${{ matrix.suite }}
-      path: reports/test-results.xml
+      name: test-results-${{ matrix.shard }}
+      path: reports/${{ matrix.shard }}/
 ```
 
-This provides cross-machine parallelism with no shared q state and lets the CI
-platform aggregate the JUnit reports.
+Once all artifacts are downloaded, merge the JSON contracts before publishing
+the combined verdict:
+
+```bash
+bin/resq-merge reports/*/test-results.json --out-dir reports/merged
+```
+
+This provides cross-machine parallelism with no shared q state. The merger
+fails closed for a missing index, provenance/configuration mismatch, duplicate
+or missing execution, snapshot/benchmark ownership conflict, or partial
+coverage artifact set. Valid aggregate and per-context coverage hits are summed
+by stable identity. Empty shards are valid; fail-fast-incomplete shards are not.
 
 See [CI.md](CI.md) for q runner licensing/prerequisites and the repository's
 checked-in workflow.

@@ -268,6 +268,20 @@ finishFixtureTest:{[state]
  (`ok;expec)
  }
 
+/ Declarative cases bind their table row first and inject only the body's
+/ remaining parameters as fixtures. The body is still protected as one region
+/ and every installed fixture is torn down by the caller on success or error.
+finishFixtureCase:{[state]
+ args:(state`caseArgs),{x`value} each state`installed;
+ func:state`func;
+ $[count args;func . args;func[]];
+ expec:state`expec;
+ expec[`failures]:.tst.assertState.failures;
+ expec[`assertsRun]:.tst.assertState.assertsRun;
+ expec[`result]:$[count expec`failures;`testFail;`pass];
+ (`ok;expec)
+ };
+
 runners[`test]:{[expec]
  .tst.pendingBacktrace: "";
  .tst.currentParameterCases:();
@@ -293,6 +307,35 @@ runners[`test]:{[expec]
  completed[`snapshots]:.tst.currentSnapshots;
  completed
  }
+
+runners[`case]:{[expec]
+ .tst.pendingBacktrace:"";
+ .tst.currentParameterCases:();
+ .tst.currentSnapshots:();
+ func:expec`code;
+ allParams:.tst.testFixtureParams func;
+ caseNames:`symbol$(),expec`caseNames;
+ if[(count allParams)<count caseNames;
+   '"Declarative case body has fewer parameters than its recorded case columns"];
+ if[not caseNames~count[caseNames]#allParams;
+   '"Declarative case columns no longer match the body's leading parameters"];
+ fixtureParams:(count caseNames)_allParams;
+ .tst.validateTestFixtures[fixtureParams;expec`desc];
+ installed:.tst.installTestFixtures[fixtureParams;expec`desc];
+ state:`func`expec`installed`caseArgs!(func;expec;installed;(),expec`caseArgs);
+ outcome:.Q.trp[.tst.finishFixtureCase;state;{[err;bt](`error;err;bt)}];
+ .tst.teardownInstalledFixtures installed;
+ expec[`parameterCases]:.tst.currentParameterCases;
+ expec[`snapshots]:.tst.currentSnapshots;
+ if[`error~first outcome;
+   .tst.pendingBacktrace:(outcome 1),.tst.stackTraceFor outcome 2;
+   'outcome 1];
+ .tst.pendingBacktrace:"";
+ completed:last outcome;
+ completed[`parameterCases]:.tst.currentParameterCases;
+ completed[`snapshots]:.tst.currentSnapshots;
+ completed
+ };
 
 expecError:{[expec;errorType;errorText];
  expec[`result]: `$errorType,"Error";
@@ -394,7 +437,8 @@ runExpec:{[spec;expec];
 
  expec[`time]:.z.p - time;
  expec:.tst.teardownExpec[spec;expec];
- if[.tst.halt; .tst.stageBadExpec[spec;startExpec;beforeBad]];
+ if[.tst.halt and 1b~@[get;`.tst.app.failHard;0b];
+    .tst.stageBadExpec[spec;startExpec;beforeBad]];
  expec
  }
 

@@ -35,7 +35,8 @@ assistance.
 - **Advanced Utilities**:
   - **Fixtures**: Binary, text, and directory-based data injection.
   - **Mocking/Spies**: Clean function and variable mocking with auto-restoration.
-  - **Parametrized Tests**: Run tests against a table of scenarios with `.tst.forall`.
+  - **Parametrized Tests**: Run dynamic tables with `.tst.forall`, or declare
+    first-class `shouldEach` rows for stable case IDs and distributed execution.
   - **Async Testing**: Robust wait-for-condition and sleep utilities.
   - **Snapshot Testing**: Binary and text snapshots for complex data structures; text snapshots produce readable `git diff` output.
 - **Coverage** (`resq cover`): `--source src/` inventories loaded and entirely unloaded modules, then `\l`/`system "l "` instrumentation records hits. One canonical model produces LCOV, detailed `coverage.json`, annotated HTML, and complete state output. Coverage is function-level by default; `-cov-statements` adds measured statements and `-cov-branches` adds true/false edges for `if`, `while`, and lazy `$` conditions, including eligible anonymous lambdas under stable enclosing-function identities. Opt-in `-cov-contexts`/`-cov-attempt-contexts` add bounded stable attribution without changing aggregate gates. Function, line, branch, and instrumentation-completeness gates are independent and fail closed on incomplete denominators. Compiled operators and derived functions are skipped.
@@ -226,8 +227,15 @@ q resq.q test tests/ -random-order -seed 4242
 q resq.q test tests/ -last-failed        # alias: -lf
 q resq.q test tests/ -failed-first
 
-# Split files across three CI jobs (zero-based)
+# Split files across three CI jobs (zero-based, backward-compatible default)
 q resq.q test tests/ -shard-index 0 -shard-count 3
+
+# Split discoverable tests or declarative cases more evenly
+q resq.q test tests/ -shard-unit test -shard-index 0 -shard-count 3 -json -outDir reports/0
+q resq.q test tests/ -shard-unit case -shard-index 1 -shard-count 3 -json -outDir reports/1
+
+# Fail-closed merge: validates topology/provenance and merges reports + coverage
+bin/resq-merge reports/*/test-results.json --out-dir reports/merged
 ```
 
 Tags are `#word` tokens embedded in the suite title string:

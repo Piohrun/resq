@@ -86,14 +86,14 @@ appear complete.
 
 ## 1.4.0 — Case-level distributed execution
 
-- [ ] Add `file`, `test`, and `case` shard units while retaining file sharding
+- [x] Add `file`, `test`, and `case` shard units while retaining file sharding
   as the default.
-- [ ] Add declarative parameter cases discoverable without executing test
+- [x] Add declarative parameter cases discoverable without executing test
   bodies; keep existing dynamic `parametrize`/`forall` atomic and compatible.
-- [ ] Add a strict artifact merger that validates revision, manifest digest,
+- [x] Add a strict artifact merger that validates revision, manifest digest,
   shard union, duplicates, missing IDs, results, coverage, contexts,
   diagnostics, snapshots, and benchmarks.
-- [ ] Prove the merged shard result is equivalent to the unsharded manifest and
+- [x] Prove the merged shard result is equivalent to the unsharded manifest and
   verdict, including empty shards, retries, fixtures, isolation, and fail-fast.
 
 ## 1.5.0 — Property generator and shrink protocol

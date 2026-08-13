@@ -114,9 +114,10 @@ Its stable top-level fields are:
 | `diagnostics` | Typed run-level diagnostics |
 
 Each `tests` row retains those diagnostic fields and additionally contains a
-portable `file`, stable `testId`, `kind`, retry flags and `attemptHistory`,
-independently identified `parameterCases`, structured `property`, `snapshots`,
-`benchmark`, and typed `diagnostics`. The public statuses are `pass`, `fail`,
+portable `file`, stable `testId`, optional top-level declarative `caseId` and
+`parameters`, `kind`, retry flags and `attemptHistory`, independently identified
+runtime `parameterCases`, structured `property`, `snapshots`, `benchmark`, and
+typed `diagnostics`. The public statuses are `pass`, `fail`,
 `error`, `skip`, and `pending`. `message` and `output` are always strings and
 `failures` is always a list of strings, including on passing rows. Missing
 source lines serialize as JSON null. Paths beneath the invocation directory are
@@ -140,8 +141,11 @@ while continuing to enforce every required v2 field/type/invariant; see the
 [versioning policy](VERSIONING.md).
 
 Schema v2 intentionally breaks the flat schema-v1 aggregate layout. Consumers
-must read counts from `summary`, metadata from `run`, and treat `(testId,
-caseId)` as identity. Suite/description remain presentation fields. See
+must read counts from `summary`, metadata from `run`, and use non-empty `caseId`
+as a declarative execution identity (otherwise `testId`). Suite/description
+remain presentation fields. A complete set of file/test/case shard reports can
+be validated and combined with `bin/resq-merge`; its output is another valid
+schema-v2 artifact with `run.shard.index=-1` and merge provenance. See
 [`OBSERVABILITY.md`](OBSERVABILITY.md) for ingestion guidance.
 
 ## JUnit XML

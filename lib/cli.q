@@ -11,9 +11,9 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins"));
-.tst.cli.specKinds:(31 # `flag), 25 # `value;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles`shardUnit;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins");("shard-unit";"shardUnit"));
+.tst.cli.specKinds:(31 # `flag), 26 # `value;
 .tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount;
 .tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin;
 
@@ -182,6 +182,9 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     shardCount:$[10h=type options`shardCount;1j;"j"$options`shardCount];
     if[shardIndex>=shardCount;
         :.tst.cli.error "shard-index must be less than shard-count"];
+    shardUnit:$[0=count options`shardUnit;"file";lower options`shardUnit];
+    if[not shardUnit in ("file";"test";"case");
+        :.tst.cli.error "shard-unit must be one of: file, test, case"];
 
     positionalPositions: allPositions where
         (not isOption) and
@@ -253,7 +256,8 @@ printUsage:{[]
         "  -ff / -fh             Fail fast / fail hard";
         "  -random-order -seed N Replayable private-PRNG file/suite/test order";
         "  -last-failed | -failed-first  Select/prioritize tests from stable-ID history";
-        "  -shard-index I -shard-count N  Run zero-based deterministic file shard I/N";
+        "  -shard-index I -shard-count N  Run zero-based deterministic shard I/N";
+        "  -shard-unit file|test|case      Select the shard boundary (default file)";
         "  -plugin FILES         Load trusted comma-separated plugin files";
         "  -strict-plugins       Turn observer/reporter failures into run errors";
         "";
@@ -351,6 +355,7 @@ initCLI:{[parsed]
     if[0<count options`stateFile; .tst.app.stateFile: options`stateFile];
     if[not 10h=type options`shardIndex; .tst.app.shardIndex:"j"$options`shardIndex];
     if[not 10h=type options`shardCount; .tst.app.shardCount:"j"$options`shardCount];
+    if[0<count options`shardUnit;.tst.app.shardUnit:`$lower options`shardUnit];
 
     / Process-isolation mode: each discovered test FILE runs in its own q
     / subprocess (see lib/isolate.q). -isolateTimeout sets the per-FILE wall
