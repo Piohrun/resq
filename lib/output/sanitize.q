@@ -739,7 +739,8 @@
     coverage:$[1b~@[get;`.tst.app.runCoverage;0b];
         @[get;`.tst.lastCoverageSummary;{()!()}];()!()];
     if[(99h=type coverage) and count coverage;
-        coverage:coverage,`basis`minimum`passed!(
+        coverage:(`schemaVersion`enabled`detailArtifact!(2j;1b;"coverage.json")),
+            coverage,`basis`minimum`passed!(
             @[get;`.tst.app.coverageBasis;"functions"];
             @[get;`.tst.app.coverageEffectiveMinimum;0];
             @[get;`.tst.app.coveragePassed;0b])];

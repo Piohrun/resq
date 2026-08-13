@@ -20,6 +20,8 @@ from xml.etree import ElementTree
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
+from coverage_contract import validate_coverage_artifact  # noqa: E402
+from reconcile_coverage import reconcile_reports  # noqa: E402
 
 
 MIN_SELF_TESTS = 690
@@ -155,6 +157,7 @@ def verify_coverage(output: Path, stdout: str) -> dict[str, Any]:
     report = load_report(output)
     require_green(report, "quickstart coverage")
     detail = json.loads((output / "coverage.json").read_text(encoding="utf-8"))
+    validate_coverage_artifact(detail, report)
     summary = detail["summary"]
     coverage = report["coverage"]
     lcov = lcov_totals(output / "coverage.lcov")
@@ -277,12 +280,28 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         audit.run("normalized ingestion contract", [str(ROOT / "tools/verify_ingestion_contract.py")])
         audit.run("external adoption pilots", [str(ROOT / "tools/verify_external_pilots.py"), "--q", q_executable])
 
+        coverage_correctness_dir = output / "coverage-correctness"
+        audit.run(
+            "isolated quickstart correctness",
+            [
+                str(ROOT / "bin/resq"), "test", "examples/quickstart/test",
+                "-strict", "-isolate", "-isolateTimeout", "90", "-isolateWorkers", "2",
+                "-json", "-junit", "-quiet", "-report-profile", "full",
+                "-outDir", str(coverage_correctness_dir),
+                "-state-file", str(output / "coverage-correctness-state.json"),
+            ],
+            timeout=300,
+        )
+        coverage_correctness = load_report(coverage_correctness_dir)
+        require_version(coverage_correctness, expected_version, "quickstart correctness")
+
         coverage_dir = output / "coverage"
         coverage_run = audit.run(
             "canonical quickstart coverage",
             [
                 str(ROOT / "bin/resq"), "cover", "examples/quickstart/test",
                 "--source", "examples/quickstart/src", "-strict", "-cov-statements", "-cov-branches",
+                "-cov-contexts",
                 "-cov-min", "70", "-cov-lines-min", "80", "-cov-completeness-min", "100",
                 "-cov-branches-min", "50", "-cov-branch-completeness-min", "100",
                 "-json", "-junit", "-quiet",
@@ -291,7 +310,12 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             timeout=300,
         )
         coverage_summary = verify_coverage(coverage_dir, coverage_run.stdout + coverage_run.stderr)
-        require_version(load_report(coverage_dir), expected_version, "quickstart coverage")
+        coverage_report = load_report(coverage_dir)
+        require_version(coverage_report, expected_version, "quickstart coverage")
+        coverage_reconciliation = reconcile_reports(coverage_correctness, coverage_report)
+        (output / "coverage-reconciliation.json").write_text(
+            json.dumps(coverage_reconciliation, indent=2) + "\n", encoding="utf-8"
+        )
 
         finished_at = datetime.now(timezone.utc)
         commit = subprocess.run(
@@ -311,6 +335,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             "selfSuite": normal_report["summary"],
             "isolatedSuite": isolated_report["summary"],
             "coverage": coverage_summary,
+            "coverageReconciliation": coverage_reconciliation,
             "steps": audit.steps,
         }
         result_path = output / "release-audit.json"

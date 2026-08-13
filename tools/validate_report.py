@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from coverage_contract import validate_report_coverage
+
 
 HEX_ID = re.compile(r"^(?:run|test|case)_[0-9a-f]{32}$")
 MANIFEST_ID = re.compile(r"^manifest_[0-9a-f]{32}$")
@@ -790,6 +792,8 @@ def validate(document: Any) -> None:
         raise ValueError("summary.suiteCount disagrees with test rows")
     if summary["assertionCount"] != sum(row.get("assertsRun", 0) for row in document["tests"]):
         raise ValueError("summary.assertionCount disagrees with test rows")
+    if "coverage" in document:
+        validate_report_coverage(document["coverage"])
     if "flake" in document:
         flake = document["flake"]
         require(

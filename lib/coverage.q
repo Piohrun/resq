@@ -648,7 +648,7 @@
 / uses q's own conditional semantics. Invalid conditions are trapped only for
 / accounting, then reach the original control form and raise their original
 / error; neither edge is credited for a condition that cannot select one.
-.tst.covC:{[siteId;condition]
+.tst.covC:{[siteId;file;functionName;condition]
     siteKey:`$.tst.toString siteId;
     outcome:@[{[x](1b;$[x;1b;0b])};condition;{[e](0b;0b)}];
     if[first outcome;
@@ -658,7 +658,7 @@
         hits[edge]+:1;
         .tst.branchCoverageData[siteKey]:hits;
         .[.tst.recordCoverageContextMetric;
-            (`branch;`;`;siteId;"j"$edge);{[e] ::}]];
+            (`branch;file;functionName;siteId;"j"$edge);{[e] ::}]];
     condition
  };
 
@@ -1024,6 +1024,8 @@
     / backtick literal would not parse. Escape so any path survives embedding.
     pathTxt: string fileSym;
     pathTxt: ssr[ssr[pathTxt; "\\"; "\\\\"]; "\""; "\\\""];
+    functionTxt:.tst.toString functionName;
+    functionTxt:ssr[ssr[functionTxt;"\\";"\\\\"];"\"";"\\\""];
     probeFor:{[p;site]
         ".tst.covS[\"",(.tst.toString site`siteId),"\";`$\"",p,
         "\";",string[site`line],"];"
@@ -1038,8 +1040,9 @@
             probeFor;eligibleStatements;] each til count eligibleStatements];
     if[count eligibleSites;
         insertAt,:"j"${x`rewriteStart} each eligibleSites;
-        insertText,:{[site] ".tst.covC[\"",(.tst.toString site`siteId),"\";"}
-            each eligibleSites;
+        insertText,:{[p;fn;site]
+            ".tst.covC[\"",(.tst.toString site`siteId),"\";`$\"",p,
+                "\";`$\"",fn,"\";"}[pathTxt;functionTxt;] each eligibleSites;
         insertAt,:"j"${x`rewriteEnd} each eligibleSites;
         / A one-character q literal is a char atom. Double-enlist it so each
         / site contributes one independent one-character STRING; otherwise
@@ -1594,7 +1597,9 @@
 
 .tst.coveragePublicFile:{[fileRow]
     publicKeys:(key fileRow) except `sourceLines;
-    publicKeys!fileRow publicKeys
+    public:publicKeys!fileRow publicKeys;
+    public[`path]:.tst.repoRelativePath public`path;
+    public
  };
 
 .tst.coveragePublicModel:{[model]
@@ -1758,8 +1763,8 @@
     model:$[(99h=type .tst.lastCoverageModel) and `files in key .tst.lastCoverageModel;
         .tst.lastCoverageModel;.tst.coverageModel[]];
     public:.tst.coveragePublicModel model;
-    payload:`schemaVersion`framework`frameworkVersion`summary`files`contextMeasurement!(
-        2;"resQ";.tst.toString @[get;`.resq.VERSION;{"unknown"}];
+    payload:`schemaVersion`kind`framework`frameworkVersion`summary`files`contextMeasurement!(
+        2;"resq-coverage";"resQ";.tst.toString @[get;`.resq.VERSION;{"unknown"}];
         public`summary;public`files;public`contextMeasurement);
     (hsym (`$":" , outPath)) 0:enlist .j.j payload;
     -1 "Coverage JSON written to: ",outPath;

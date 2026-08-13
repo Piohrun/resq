@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://resq.dev/schema/resq-coverage-v2.schema.json",
+  "title": "resQ detailed coverage v2",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "kind", "framework", "frameworkVersion", "summary", "files", "contextMeasurement"],
+  "properties": {
+    "schemaVersion": {"const": 2},
+    "kind": {"const": "resq-coverage"},
+    "framework": {"const": "resQ"},
+    "frameworkVersion": {"type": "string", "minLength": 1},
+    "summary": {"$ref": "#/$defs/summary"},
+    "files": {"type": "array", "items": {"$ref": "#/$defs/file"}},
+    "contextMeasurement": {"$ref": "#/$defs/contextMeasurement"}
+  },
+  "$defs": {
+    "counts": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "linesFound": {"type": "integer", "minimum": 0},
+        "linesHit": {"type": "integer", "minimum": 0},
+        "functionsFound": {"type": "integer", "minimum": 0},
+        "functionsHit": {"type": "integer", "minimum": 0},
+        "statementSitesFound": {"type": "integer", "minimum": 0},
+        "statementSitesHit": {"type": "integer", "minimum": 0},
+        "statementSitesInstrumented": {"type": "integer", "minimum": 0},
+        "branchesFound": {"type": "integer", "minimum": 0},
+        "branchesHit": {"type": "integer", "minimum": 0},
+        "branchSitesEligible": {"type": "integer", "minimum": 0},
+        "branchSitesInstrumented": {"type": "integer", "minimum": 0}
+      }
+    },
+    "summary": {
+      "allOf": [{"$ref": "#/$defs/counts"}],
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "linesFound", "linesHit", "linePercent", "functionsFound", "functionsHit",
+        "functionPercent", "statementSitesFound", "statementSitesHit",
+        "statementSitePercent", "statementSitesInstrumented",
+        "statementSiteInstrumentationPercent", "statementSiteInstrumentationComplete",
+        "branchesFound", "branchesHit", "branchPercent", "branchMode",
+        "branchSitesEligible", "branchSitesInstrumented", "branchInstrumentationPercent",
+        "branchInstrumentationComplete", "filesFound", "filesLoaded", "filesWithStatements",
+        "functionsEligible", "functionsInstrumented", "functionInstrumentationPercent",
+        "statementMode", "statementFunctionsEligible", "statementFunctionsInstrumented",
+        "statementInstrumentationPercent", "statementInstrumentationComplete", "fallbackCounts"
+      ],
+      "properties": {
+        "linePercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "functionPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementSitePercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementSiteInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementSiteInstrumentationComplete": {"type": "boolean"},
+        "branchPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "branchMode": {"type": "boolean"},
+        "branchInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "branchInstrumentationComplete": {"type": "boolean"},
+        "filesFound": {"type": "integer", "minimum": 0},
+        "filesLoaded": {"type": "integer", "minimum": 0},
+        "filesWithStatements": {"type": "integer", "minimum": 0},
+        "functionsEligible": {"type": "integer", "minimum": 0},
+        "functionsInstrumented": {"type": "integer", "minimum": 0},
+        "functionInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementMode": {"type": "boolean"},
+        "statementFunctionsEligible": {"type": "integer", "minimum": 0},
+        "statementFunctionsInstrumented": {"type": "integer", "minimum": 0},
+        "statementInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementInstrumentationComplete": {"type": "boolean"},
+        "fallbackCounts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+      }
+    },
+    "hitRecord": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["hits", "covered"],
+      "properties": {
+        "hits": {"type": "integer", "minimum": 0},
+        "covered": {"type": "boolean"}
+      }
+    },
+    "statement": {
+      "allOf": [{"$ref": "#/$defs/hitRecord"}],
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["line", "hits", "covered"],
+      "properties": {"line": {"type": "integer", "minimum": 0}}
+    },
+    "siteCommon": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["siteId", "function", "line", "column", "lambdaId", "lambdaDepth", "anonymous", "eligible", "instrumented", "fallbackReason"],
+      "properties": {
+        "siteId": {"type": "string", "pattern": "^(?:statement|branch)_[0-9a-f]{32}$"},
+        "function": {"type": "string"},
+        "line": {"type": "integer", "minimum": 0},
+        "column": {"type": "integer", "minimum": 0},
+        "lambdaId": {"type": "string"},
+        "lambdaDepth": {"type": "integer", "minimum": 0},
+        "anonymous": {"type": "boolean"},
+        "eligible": {"type": "boolean"},
+        "instrumented": {"type": "boolean"},
+        "fallbackReason": {"enum": ["none", "statement_mode_disabled", "source_not_loaded", "function_wrapper_unavailable", "rewrite_rejected"]}
+      }
+    },
+    "statementSite": {
+      "allOf": [{"$ref": "#/$defs/siteCommon"}, {"$ref": "#/$defs/hitRecord"}],
+      "type": "object",
+      "additionalProperties": true
+    },
+    "edge": {
+      "allOf": [{"$ref": "#/$defs/hitRecord"}],
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["edgeId", "index", "label", "hits", "covered"],
+      "properties": {
+        "edgeId": {"type": "string", "pattern": "^edge_[0-9a-f]{32}$"},
+        "index": {"type": "integer", "minimum": 0, "maximum": 1},
+        "label": {"enum": ["true", "false"]}
+      }
+    },
+    "branchSite": {
+      "allOf": [{"$ref": "#/$defs/siteCommon"}],
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind", "conditionIndex", "block", "edgesFound", "edgesHit", "edges"],
+      "properties": {
+        "kind": {"enum": ["if", "while", "$", "conditional"]},
+        "conditionIndex": {"type": "integer", "minimum": 0},
+        "block": {"type": "integer", "minimum": 0},
+        "edgesFound": {"type": "integer", "minimum": 0, "maximum": 2},
+        "edgesHit": {"type": "integer", "minimum": 0, "maximum": 2},
+        "edges": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/edge"}}
+      }
+    },
+    "function": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "name", "line", "hits", "covered", "functionEligible", "functionInstrumented",
+        "statementEligible", "statementInstrumented", "fallbackReason", "statementFound",
+        "statementHit", "statements", "statementSitesFound", "statementSitesHit",
+        "statementSitesInstrumented", "statementSites", "branchSitesEligible",
+        "branchSitesInstrumented", "branchFound", "branchHit", "branches"
+      ],
+      "properties": {
+        "name": {"type": "string"},
+        "line": {"type": "integer", "minimum": 0},
+        "hits": {"type": "integer", "minimum": 0},
+        "covered": {"type": "boolean"},
+        "functionEligible": {"type": "boolean"},
+        "functionInstrumented": {"type": "boolean"},
+        "statementEligible": {"type": "boolean"},
+        "statementInstrumented": {"type": "boolean"},
+        "fallbackReason": {"type": "string"},
+        "statementFound": {"type": "integer", "minimum": 0},
+        "statementHit": {"type": "integer", "minimum": 0},
+        "statements": {"type": "array", "items": {"$ref": "#/$defs/statement"}},
+        "statementSitesFound": {"type": "integer", "minimum": 0},
+        "statementSitesHit": {"type": "integer", "minimum": 0},
+        "statementSitesInstrumented": {"type": "integer", "minimum": 0},
+        "statementSites": {"type": "array", "items": {"$ref": "#/$defs/statementSite"}},
+        "branchSitesEligible": {"type": "integer", "minimum": 0},
+        "branchSitesInstrumented": {"type": "integer", "minimum": 0},
+        "branchFound": {"type": "integer", "minimum": 0},
+        "branchHit": {"type": "integer", "minimum": 0},
+        "branches": {"type": "array", "items": {"$ref": "#/$defs/branchSite"}}
+      }
+    },
+    "file": {
+      "allOf": [{"$ref": "#/$defs/counts"}],
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "loaded", "functionFound", "functionHit", "statementFunctionsInstrumented", "lineFound", "lineHit", "statementSitesEligible", "statementSitesInstrumented", "statementSitesHit", "branchSitesEligible", "branchSitesInstrumented", "branchFound", "branchHit", "functions", "lines", "statementSites", "branches"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "loaded": {"type": "boolean"},
+        "statementFunctionsInstrumented": {"type": "integer", "minimum": 0},
+        "functions": {"type": "array", "items": {"$ref": "#/$defs/function"}},
+        "lines": {"type": "array", "items": {"$ref": "#/$defs/statement"}},
+        "statementSites": {"type": "array", "items": {"$ref": "#/$defs/statementSite"}},
+        "branches": {"type": "array", "items": {"$ref": "#/$defs/branchSite"}}
+      }
+    },
+    "contextMetric": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["contextId", "metricId", "kind", "file", "function", "siteId", "edgeIndex", "edgeLabel", "hits"],
+      "properties": {
+        "contextId": {"type": "string"},
+        "metricId": {"type": "string"},
+        "kind": {"enum": ["function", "statement", "branch"]},
+        "file": {"type": "string"},
+        "function": {"type": "string"},
+        "siteId": {"type": "string"},
+        "edgeIndex": {"type": "integer"},
+        "edgeLabel": {"type": "string"},
+        "hits": {"type": "integer", "minimum": 1}
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["contextId", "kind", "testId", "attempt", "suite", "description", "file", "metrics"],
+      "properties": {
+        "contextId": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["test", "attempt", "unattributed", "overflow"]},
+        "testId": {"type": "string"},
+        "attempt": {"type": "integer", "minimum": 0},
+        "suite": {"type": "string"},
+        "description": {"type": "string"},
+        "file": {"type": "string"},
+        "metrics": {"type": "array", "items": {"$ref": "#/$defs/contextMetric"}}
+      }
+    },
+    "contextMeasurement": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "enabled", "detail", "contextLimit", "entryLimit", "summary", "contexts"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "enabled": {"type": "boolean"},
+        "detail": {"enum": ["test", "attempt"]},
+        "contextLimit": {"type": "integer", "minimum": 0},
+        "entryLimit": {"type": "integer", "minimum": 0},
+        "summary": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["contextsStored", "metricEntriesStored", "functionHits", "statementHits", "branchHits", "unattributedHits", "overflowActivations", "droppedMetricHits", "truncated"],
+          "properties": {
+            "contextsStored": {"type": "integer", "minimum": 0},
+            "metricEntriesStored": {"type": "integer", "minimum": 0},
+            "functionHits": {"type": "integer", "minimum": 0},
+            "statementHits": {"type": "integer", "minimum": 0},
+            "branchHits": {"type": "integer", "minimum": 0},
+            "unattributedHits": {"type": "integer", "minimum": 0},
+            "overflowActivations": {"type": "integer", "minimum": 0},
+            "droppedMetricHits": {"type": "integer", "minimum": 0},
+            "truncated": {"type": "boolean"}
+          }
+        },
+        "contexts": {"type": "array", "items": {"$ref": "#/$defs/context"}}
+      }
+    }
+  }
+}

@@ -68,7 +68,12 @@
         {"$ref": "#/$defs/legacyBenchmarkMeasurement"}
       ]
     },
-    "coverage": {"type": "object"},
+    "coverage": {
+      "oneOf": [
+        {"type": "object", "maxProperties": 0},
+        {"$ref": "#/$defs/coverageSummary"}
+      ]
+    },
     "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
     "flake": {"$ref": "#/$defs/flake"},
     "snapshotInventory": {"$ref": "#/$defs/snapshotInventory"},
@@ -77,6 +82,96 @@
     "events": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/event"}}
   },
   "$defs": {
+    "coverageGate": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["measurable", "basis", "percent", "hit", "found", "minimum", "passed"],
+      "properties": {
+        "measurable": {"type": "boolean"},
+        "basis": {"type": "string"},
+        "percent": {"type": "number", "minimum": 0, "maximum": 100},
+        "hit": {"type": "integer", "minimum": 0},
+        "found": {"type": "integer", "minimum": 0},
+        "minimum": {"type": "number", "minimum": 0, "maximum": 100},
+        "passed": {"type": "boolean"}
+      }
+    },
+    "coverageSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schemaVersion", "enabled", "detailArtifact",
+        "linesFound", "linesHit", "linePercent",
+        "functionsFound", "functionsHit", "functionPercent",
+        "statementSitesFound", "statementSitesHit", "statementSitePercent",
+        "statementSitesInstrumented", "statementSiteInstrumentationPercent",
+        "statementSiteInstrumentationComplete", "branchesFound", "branchesHit",
+        "branchPercent", "branchMode", "branchSitesEligible",
+        "branchSitesInstrumented", "branchInstrumentationPercent",
+        "branchInstrumentationComplete", "filesFound", "filesLoaded",
+        "filesWithStatements", "functionsEligible", "functionsInstrumented",
+        "functionInstrumentationPercent", "statementMode",
+        "statementFunctionsEligible", "statementFunctionsInstrumented",
+        "statementInstrumentationPercent", "statementInstrumentationComplete",
+        "fallbackCounts", "gates", "allowPartialLines", "partialLines",
+        "partialBranches", "basis", "minimum", "passed"
+      ],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "enabled": {"const": true},
+        "detailArtifact": {"const": "coverage.json"},
+        "linesFound": {"type": "integer", "minimum": 0},
+        "linesHit": {"type": "integer", "minimum": 0},
+        "linePercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "functionsFound": {"type": "integer", "minimum": 0},
+        "functionsHit": {"type": "integer", "minimum": 0},
+        "functionPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementSitesFound": {"type": "integer", "minimum": 0},
+        "statementSitesHit": {"type": "integer", "minimum": 0},
+        "statementSitePercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementSitesInstrumented": {"type": "integer", "minimum": 0},
+        "statementSiteInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementSiteInstrumentationComplete": {"type": "boolean"},
+        "branchesFound": {"type": "integer", "minimum": 0},
+        "branchesHit": {"type": "integer", "minimum": 0},
+        "branchPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "branchMode": {"type": "boolean"},
+        "branchSitesEligible": {"type": "integer", "minimum": 0},
+        "branchSitesInstrumented": {"type": "integer", "minimum": 0},
+        "branchInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "branchInstrumentationComplete": {"type": "boolean"},
+        "filesFound": {"type": "integer", "minimum": 0},
+        "filesLoaded": {"type": "integer", "minimum": 0},
+        "filesWithStatements": {"type": "integer", "minimum": 0},
+        "functionsEligible": {"type": "integer", "minimum": 0},
+        "functionsInstrumented": {"type": "integer", "minimum": 0},
+        "functionInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementMode": {"type": "boolean"},
+        "statementFunctionsEligible": {"type": "integer", "minimum": 0},
+        "statementFunctionsInstrumented": {"type": "integer", "minimum": 0},
+        "statementInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
+        "statementInstrumentationComplete": {"type": "boolean"},
+        "fallbackCounts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "gates": {
+          "type": "object",
+          "required": ["functions", "lines", "completeness", "branches", "branchCompleteness"],
+          "properties": {
+            "functions": {"$ref": "#/$defs/coverageGate"},
+            "lines": {"$ref": "#/$defs/coverageGate"},
+            "completeness": {"$ref": "#/$defs/coverageGate"},
+            "branches": {"$ref": "#/$defs/coverageGate"},
+            "branchCompleteness": {"$ref": "#/$defs/coverageGate"}
+          },
+          "additionalProperties": true
+        },
+        "allowPartialLines": {"type": "boolean"},
+        "partialLines": {"type": "boolean"},
+        "partialBranches": {"type": "boolean"},
+        "basis": {"type": "string"},
+        "minimum": {"type": "number", "minimum": 0, "maximum": 100},
+        "passed": {"type": "boolean"}
+      }
+    },
     "completeness": {
       "type": "object",
       "additionalProperties": false,

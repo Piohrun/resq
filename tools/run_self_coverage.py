@@ -12,6 +12,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+from self_coverage_trend import update_file  # noqa: E402
 
 
 def default_library() -> str:
@@ -43,6 +45,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--library", default=default_library(), help="path to AxLibraries ws/coverage.q_")
     parser.add_argument("--output", default="artifacts/self-coverage", help="artifact directory")
+    parser.add_argument(
+        "--trend-limit", type=int, default=100,
+        help="maximum experimental trend points retained (default: 100)",
+    )
     parser.add_argument("--q", default=os.environ.get("QBIN", "q"), help="q executable")
     parser.add_argument("resq_args", nargs=argparse.REMAINDER, help="arguments after -- (default: test tests -strict -quiet)")
     args = parser.parse_args()
@@ -85,11 +91,20 @@ def main() -> int:
         print(f"invalid self-coverage artifact: {exc}", file=sys.stderr)
         return completed.returncode or 1
     summary = document["summary"]
+    try:
+        trend = update_file(output / "self-coverage-trend.json", document, args.trend_limit)
+    except (OSError, json.JSONDecodeError, RuntimeError) as exc:
+        print(f"invalid self-coverage trend: {exc}", file=sys.stderr)
+        return completed.returncode or 1
     print(
         "self-coverage evidence: "
         f"{summary['functionsHit']}/{summary['functionsMeasured']} loaded functions, "
         f"{summary['logicalLinesHit']}/{summary['logicalLinesMeasured']} logical lines, "
         f"{summary['blocksHit']}/{summary['blocksMeasured']} blocks (partial; non-gating)"
+    )
+    print(
+        f"self-coverage trend: {len(trend['points'])} bounded point(s) "
+        "(experimental; non-gating)"
     )
     return completed.returncode
 

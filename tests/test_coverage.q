@@ -177,8 +177,8 @@
         .tst.recordExecution[file;`.context.f];
         .tst.recordExecution[file;`.context.f];
         .tst.covS["statement_alpha";file;7];
-        .tst.covC["branch_alpha";1b];
-        .tst.covC["branch_alpha";0b];
+        .tst.covC["branch_alpha";file;`.context.f;1b];
+        .tst.covC["branch_alpha";file;`.context.f;0b];
         .tst.coverageEndAttempt[];
         / afterAll/timer-style late work is also outside the boundary.
         .tst.recordExecution[file;`.context.f];
@@ -958,12 +958,12 @@
     should["use q truthiness for edges and return the exact condition"]{
         oldData:.tst.branchCoverageData;
         .tst.branchCoverageData:(`symbol$())!();
-        (.tst.covC["site_one";1b]) musteq 1b;
-        (.tst.covC["site_one";0b]) musteq 0b;
-        (.tst.covC["site_one";42]) musteq 42;
-        (.tst.covC["site_one";0]) musteq 0;
+        (.tst.covC["site_one";`$"src/branch.q";`.branch.f;1b]) musteq 1b;
+        (.tst.covC["site_one";`$"src/branch.q";`.branch.f;0b]) musteq 0b;
+        (.tst.covC["site_one";`$"src/branch.q";`.branch.f;42]) musteq 42;
+        (.tst.covC["site_one";`$"src/branch.q";`.branch.f;0]) musteq 0;
         .tst.branchCoverageData[`site_one] musteq 2 2j;
-        (.tst.covC["site_one";`invalid]) musteq `invalid;
+        (.tst.covC["site_one";`$"src/branch.q";`.branch.f;`invalid]) musteq `invalid;
         .tst.branchCoverageData[`site_one] musteq 2 2j;
         .tst.branchCoverageData:oldData;
     };

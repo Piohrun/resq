@@ -59,7 +59,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 5 | Real lifecycle time, event v2, and duration semantics | complete |
 | 6 | Report profiles, payload cleanup, and scale budgets | complete |
 | 7 | Safe labels, VCS/CI context, and ingestion contract | complete |
-| 8 | Coverage schema and adversarial coverage validation | pending |
+| 8 | Coverage schema and adversarial coverage validation | complete |
 | 9 | Licence-free validator, merger, and adapter hardening | pending |
 | 10 | qspec migration, documentation, diagnostics, and hygiene | pending |
 | 11 | CI lanes, benchmark/soak evidence, and support runbooks | pending |
@@ -244,6 +244,19 @@ Add native-versus-instrumented oracle fixtures for `if`, `while`, lazy `$`, anon
 Add an experimental self-coverage trend lane, explicitly non-gating until stable evidence supports promotion. Reconcile isolated correctness and non-isolated coverage lanes by stable inventory, verdict, and assertion count, allowing only documented differences.
 
 **Validation:** malformed coverage objects and aggregate contradictions fail; every supported rewrite construct passes its oracle; basis/completeness gates distinguish partial instrumentation; lane reconciliation passes.
+
+Completed 2026-08-14: report coverage now has a versioned summary/gate schema,
+and detailed `coverage.json` has a published schema plus dependency-free
+semantic validation of aggregate, child, site/edge, fallback, and bounded
+context joins. Mutation tests reject forged percentages, impossible hits,
+broken identities, gate verdict drift, and correctness/coverage inventory
+drift. Existing native-versus-instrumented oracles passed 53 tests and 214
+assertions across conditionals, loops, lazy branches, anonymous/nested code,
+signals, comments/strings, side effects, exact edges, stable relocated site IDs,
+and rollback rejection. A real isolated/non-isolated quickstart pair reconciled
+30 tests exactly, shard coverage merged and revalidated, and experimental
+self-coverage trends remain explicitly partial, bounded, and non-gating. The
+full strict suite passed 712 tests (711 pass, 1 skip) and 2,251 assertions.
 
 ## Step 9 — Harden the licence-free trust boundary
 

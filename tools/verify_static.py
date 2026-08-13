@@ -25,6 +25,7 @@ REQUIRED = {
     "LICENSE", "README.md", "CHANGELOG.md", "SECURITY.md", "resq.q", "bin/resq",
     "bin/qspec", "lib/init.q", "docs/README.md", "docs/API_REFERENCE.md",
     "docs/schema/resq-report-v2.schema.json", "docs/SUPPORT.md",
+    "docs/schema/resq-coverage-v2.schema.json",
     "docs/VERSIONING.md", "docs/IDENTITY.md", "tools/validate_report.py",
     "docs/EVENTS_AND_PLUGINS.md",
     "tools/verify_hostile_env.py", "tools/verify_external_pilots.py",
@@ -37,6 +38,9 @@ REQUIRED = {
     "docs/examples/resq_ingestion.sql", "docs/examples/grafana-resq-overview.json",
     "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
     "tools/verify_labels_context.py",
+    "tools/coverage_contract.py", "tools/validate_coverage.py",
+    "tools/reconcile_coverage.py", "tools/verify_coverage_contract.py",
+    "tools/self_coverage_trend.py",
     "docs/RELEASE_CHECKLIST.md",
     "docs/PRODUCTION_AUDIT_1_8.md",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
@@ -81,6 +85,8 @@ def check_package(expected_tag: str = "") -> None:
         "tools/verify_report_scale.py",
         "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
         "tools/verify_labels_context.py",
+        "tools/validate_coverage.py", "tools/reconcile_coverage.py",
+        "tools/verify_coverage_contract.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
@@ -150,6 +156,15 @@ def check_contracts() -> None:
         raise ValueError("report schema must declare JSON Schema draft 2020-12")
     if schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
         raise ValueError("report schema does not describe schemaVersion 2")
+    coverage_schema = json.loads(
+        (ROOT / "docs/schema/resq-coverage-v2.schema.json").read_text(encoding="utf-8")
+    )
+    if coverage_schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
+        raise ValueError("coverage schema must declare JSON Schema draft 2020-12")
+    if coverage_schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
+        raise ValueError("coverage schema does not describe schemaVersion 2")
+    if coverage_schema.get("properties", {}).get("kind", {}).get("const") != "resq-coverage":
+        raise ValueError("coverage schema has the wrong document kind")
     profile_core = {
         "schemaVersion", "framework", "frameworkVersion", "run", "summary",
         "tests", "diagnostics",

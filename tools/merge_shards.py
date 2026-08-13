@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from coverage_contract import validate_coverage_artifact
 from validate_report import validate
 
 
@@ -451,7 +452,9 @@ def recompute_coverage(files: list[dict[str, Any]], template: dict[str, Any]) ->
     reasons = sorted(set(summary.get("fallbackCounts", {})) | {str(function.get("fallbackReason", "none")) for function in functions if function.get("fallbackReason") != "none"})
     summary["fallbackCounts"] = {reason: sum(function.get("fallbackReason") == reason for function in functions) for reason in reasons}
     return {
-        "schemaVersion": template["schemaVersion"], "framework": template["framework"],
+        "schemaVersion": template["schemaVersion"],
+        "kind": template.get("kind", "resq-coverage"),
+        "framework": template["framework"],
         "frameworkVersion": template["frameworkVersion"], "summary": summary,
         "files": files,
     }
@@ -502,7 +505,9 @@ def merge_coverage(report_paths: list[Path], destination: Path) -> dict[str, Any
     if not any(present):
         return None
     documents = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
-    same(documents, lambda d: (d.get("schemaVersion"), d.get("framework"), d.get("frameworkVersion")), "coverage schema/framework")
+    for document in documents:
+        validate_coverage_artifact(document)
+    same(documents, lambda d: (d.get("schemaVersion"), d.get("kind"), d.get("framework"), d.get("frameworkVersion")), "coverage schema/framework")
     files = merge_records(
         (file for document in documents for file in document.get("files", [])),
         ("path",), FILE_SPEC,
@@ -511,6 +516,7 @@ def merge_coverage(report_paths: list[Path], destination: Path) -> dict[str, Any
     measurements = [document.get("contextMeasurement", {}) for document in documents]
     if any(measurements):
         merged["contextMeasurement"] = merge_contexts(measurements)
+    validate_coverage_artifact(merged)
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "coverage.json").write_text(json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     write_lcov(merged, destination / "coverage.lcov")
@@ -766,13 +772,53 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
     manifest.update(revision=revision, shard=merged_shard, files=files, tests=inventory)
     stats = summary(rows)
     report_coverage: dict[str, Any] = {}
-    coverage_passed = all(
-        bool(document.get("coverage", {}).get("passed", True)) for document in documents
-    )
+    coverage_passed = True
     if coverage is not None:
-        report_coverage = copy.deepcopy(coverage["summary"])
+        template = copy.deepcopy(documents[0].get("coverage", {}))
+        report_coverage = {
+            key: value for key, value in template.items()
+            if key not in coverage["summary"]
+        }
+        report_coverage.update(copy.deepcopy(coverage["summary"]))
         bases = {str(document.get("coverage", {}).get("basis", "functions")) for document in documents}
         minimum = max(int(document.get("coverage", {}).get("minimum", 0)) for document in documents)
+        gate_counts = {
+            "functions": ("functionsHit", "functionsFound"),
+            "lines": ("linesHit", "linesFound"),
+            "completeness": ("statementFunctionsInstrumented", "statementFunctionsEligible"),
+            "branches": ("branchesHit", "branchesFound"),
+            "branchCompleteness": ("branchSitesInstrumented", "branchSitesEligible"),
+        }
+        gates = copy.deepcopy(template.get("gates", {}))
+        for name, (hit_key, found_key) in gate_counts.items():
+            gate = gates[name]
+            hit = int(report_coverage[hit_key])
+            found = int(report_coverage[found_key])
+            measured = found > 0
+            percentage = pct(hit, found)
+            gate.update(
+                measurable=measured,
+                percent=percentage,
+                hit=hit,
+                found=found,
+                passed=measured and percentage >= float(gate["minimum"]),
+            )
+        report_coverage["gates"] = gates
+        report_coverage["partialLines"] = bool(
+            report_coverage["statementMode"]
+            and report_coverage["statementFunctionsInstrumented"]
+            < report_coverage["statementFunctionsEligible"]
+        )
+        report_coverage["partialBranches"] = bool(
+            report_coverage["branchMode"]
+            and report_coverage["branchSitesInstrumented"]
+            < report_coverage["branchSitesEligible"]
+        )
+        required_gates = [gates["functions"]] + [
+            gate for name, gate in gates.items()
+            if name != "functions" and float(gate["minimum"]) > 0
+        ]
+        coverage_passed = all(gate["passed"] for gate in required_gates)
         report_coverage.update(
             basis=next(iter(bases)) if len(bases) == 1 else "mixed",
             minimum=minimum, passed=coverage_passed,

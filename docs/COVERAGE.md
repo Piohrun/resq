@@ -268,7 +268,7 @@ Reports are written to `outDir` (default: `.`):
 | File | Contents |
 |------|----------|
 | `coverage.lcov` | Standard LCOV function records, `DA`/`LF`/`LH` under statement mode, and `BRDA`/`BRF`/`BRH` under branch mode. |
-| `coverage.json` | Schema v2 detailed canonical model: totals, eligibility/completeness, fallbacks, files, functions, line roll-ups, stable statement sites, anonymous owners, branch sites, edges, hits, and optional bounded contexts. |
+| `coverage.json` | [Schema v2](schema/resq-coverage-v2.schema.json) detailed canonical model: totals, eligibility/completeness, fallbacks, files, functions, line roll-ups, stable statement sites, anonymous owners, branch sites, edges, hits, and optional bounded contexts. |
 | `coverage.html` | Annotated source/function tables plus branch-site locations, edge hits, completeness, fallbacks, and optional context detail. |
 | `coverage_state.txt` | Grep-friendly v5 `F` function, `S` statement-site, `B` branch-site, `E` edge, `C` context, and `M` attributed-metric records, including zero-hit and anonymous-owner state. |
 
@@ -277,6 +277,16 @@ coverage snapshot. The self-suite parses their outputs and requires function,
 statement, and branch totals to agree. `test-results.json` embeds the same
 aggregate summary and independent gate decisions; `coverage.json` carries the
 detailed model.
+
+`tools/validate_coverage.py coverage.json --report test-results.json` performs
+dependency-free semantic validation beyond the structural schema: every
+percentage is recomputed, aggregate rows are reconciled with their children,
+covered flags must agree with hits, and context metrics must join to known
+functions, sites, and edges. CI additionally runs an isolated correctness lane
+and uses `tools/reconcile_coverage.py` to require the same manifest, execution
+inventory, verdicts, and assertion counts from the non-isolated coverage lane.
+Only run identity/timing, isolation metadata, coverage configuration, and
+coverage artifacts are permitted to differ.
 
 ### Per-test and per-attempt attribution (opt-in)
 

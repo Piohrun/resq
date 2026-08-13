@@ -80,6 +80,46 @@ def _property_evidence() -> dict[str, Any]:
     }
 
 
+def _coverage_evidence() -> dict[str, Any]:
+    summary = {
+        "linesFound": 1, "linesHit": 1, "linePercent": 100.0,
+        "functionsFound": 1, "functionsHit": 1, "functionPercent": 100.0,
+        "statementSitesFound": 1, "statementSitesHit": 1,
+        "statementSitePercent": 100.0, "statementSitesInstrumented": 1,
+        "statementSiteInstrumentationPercent": 100.0,
+        "statementSiteInstrumentationComplete": True,
+        "branchesFound": 2, "branchesHit": 1, "branchPercent": 50.0,
+        "branchSitesEligible": 1, "branchSitesInstrumented": 1,
+        "branchInstrumentationPercent": 100.0,
+        "branchMode": True, "branchInstrumentationComplete": True,
+        "filesFound": 1, "filesLoaded": 1, "filesWithStatements": 1,
+        "functionsEligible": 1, "functionsInstrumented": 1,
+        "functionInstrumentationPercent": 100.0,
+        "statementFunctionsEligible": 1, "statementFunctionsInstrumented": 1,
+        "statementInstrumentationPercent": 100.0,
+        "statementMode": True, "statementInstrumentationComplete": True,
+        "fallbackCounts": {},
+    }
+    gates = {}
+    for name, basis, hit, found in (
+        ("functions", "functions", 1, 1),
+        ("lines", "measured_lines", 1, 1),
+        ("completeness", "statement_instrumentation", 1, 1),
+        ("branches", "branches", 1, 2),
+        ("branchCompleteness", "branch_instrumentation", 1, 1),
+    ):
+        gates[name] = {
+            "measurable": True, "basis": basis, "percent": 100.0 * hit / found,
+            "hit": hit, "found": found, "minimum": 0, "passed": True,
+        }
+    return {
+        "schemaVersion": 2, "enabled": True, "detailArtifact": "coverage.json",
+        **summary, "gates": gates, "allowPartialLines": False,
+        "partialLines": False, "partialBranches": False,
+        "basis": "functions", "minimum": 0, "passed": True,
+    }
+
+
 def scale_report(
     test_count: int,
     *,
@@ -183,20 +223,7 @@ def scale_report(
         if include_benchmark
         else []
     )
-    document["coverage"] = (
-        {
-            "enabled": True,
-            "summary": {
-                "functionsFound": 1,
-                "functionsHit": 1,
-                "statementSitesFound": 1,
-                "statementSitesHit": 1,
-            },
-            "contexts": [],
-        }
-        if include_coverage
-        else {}
-    )
+    document["coverage"] = _coverage_evidence() if include_coverage else {}
 
     digest = stable_id("manifest", "|".join(selected_ids))
     document["manifest"].update(digest=digest, tests=manifest_rows)

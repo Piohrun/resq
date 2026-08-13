@@ -11,9 +11,17 @@ tools/run_self_coverage.py \
   -- test tests -strict -quiet
 ```
 
-The command writes `self-coverage.json` (versioned raw rows and summary) and
-`self-coverage.txt` (the provider's formatted view). It preserves the test
-run's exit status and fails if the provider or artifact contract is invalid.
+The command writes `self-coverage.json` (versioned raw rows and summary),
+`self-coverage.txt` (the provider's formatted view), and
+`self-coverage-trend.json` (up to 100 timestamped summary points). It preserves
+the test run's exit status and fails if the provider or artifact contract is
+invalid.
+
+The trend is experimental and explicitly records `gatingSupported:false`.
+It is useful for observing direction over repeated licensed runs, but neither a
+single point nor a percentage increase qualifies a release. Retain the artifact
+between runs to accumulate history, or publish its points to the telemetry
+backend. `--trend-limit` changes the bounded retention window (1–1000).
 
 This evidence is deliberately **partial and non-gating**. `.cov` measures
 loaded lambdas and projections selected from `.tst`, `.resq`, and `.utl`; it
