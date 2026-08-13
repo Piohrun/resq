@@ -46,5 +46,6 @@ After the automated gate is green:
    legitimately executes it).
 5. Tag only the exact audited commit and retain the uploaded audit artifact.
 
-Post-1.0 work listed in [the roadmap](ROADMAP_1_0.md#post-10) is explicitly not
-part of this gate and must not be described as current branch coverage.
+Post-1.0 work has its own [delivery ledger](ROADMAP_POST_1_0.md). Unchecked
+items there are explicitly not part of the 1.0.0 gate and must not be described
+as current branch coverage or automation.
