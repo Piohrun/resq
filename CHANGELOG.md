@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - Property tests now sum assertions executed by every generated case instead
   of reporting only the largest per-case count. Shrink probes remain diagnostic
   work and do not inflate test or run assertion totals.
+- DSL-name shadowing now follows lexical lambda scopes instead of suppressing
+  an alias across the whole file. An inner local such as `should` or `it` no
+  longer breaks an enclosing constructor, same-line declarations are handled,
+  and irreducibly ambiguous lookup errors include an explicit `.tst` hint.
 
 ## [1.0.0] - 2026-08-12 - Production Trust, Coverage & Observability
 

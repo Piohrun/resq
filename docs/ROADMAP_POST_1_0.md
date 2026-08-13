@@ -30,7 +30,7 @@ appear complete.
 
 - [x] Sum property-test assertions across generated cases and expose the true
   executed assertion count in console and machine reports.
-- [ ] Make DSL shadowing scope-aware so a local named `should` does not hide an
+- [x] Make DSL shadowing scope-aware so a local named `should` does not hide an
   enclosing constructor; retain an actionable diagnostic for ambiguous source.
 - [ ] Correct qspec migration and reporter-behaviour documentation drift.
 - [ ] Keep the oversized-lambda diagnostic covered without spending roughly a
@@ -42,7 +42,7 @@ appear complete.
 ### 1.0.1 gate
 
 - [x] Property assertion totals equal the sum of executed generated cases.
-- [ ] Every documented DSL-shaped local, including `should`, has a regression.
+- [x] Every documented DSL-shaped local, including `should`, has a regression.
 - [ ] The default self-suite no longer pays the oversized-lambda subprocess
   cost, while nightly CI still proves the real q diagnostic.
 - [ ] Documentation and executable reporter behaviour agree.

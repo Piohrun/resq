@@ -105,7 +105,9 @@
                 prefix: verb,"[";
                 prefix ~ (count prefix) # at _ source
               }[txt;i;] each verbs;
-            candidates: candidates where not (`$verbs candidates) in shadowed;
+            candidates: candidates where {[ctx;at;name]
+                not .tst.dslNameShadowed[ctx;name;at]
+              }[shadowed;i;] each `$verbs candidates;
             if[boundary and count candidates;
                 verb: verbs first candidates;
                 / Enter through a unary guard before consuming the constructor
@@ -178,12 +180,11 @@
  };
 
 / A DSL-shaped identifier declared as a bare assignment or explicit lambda
-/ parameter is user code, not framework syntax. Treat that spelling as shadowed
-/ for the whole test file; callers can still use its fully-qualified .tst form.
-.tst.dslLineDeclares:{[masked;name]
+/ parameter is user code, not framework syntax.
+.tst.dslDeclarationPositions:{[masked;name]
     positions: masked ss name;
-    if[0 = count positions; :0b];
-    any {[txt;token;p]
+    if[0 = count positions; :`long$()];
+    "j"$positions where {[txt;token;p]
         if[not .tst.bareTokenAt[txt;p;token]; :0b];
         after: p + count token;
         while[(after < count txt) and txt[after] in " \t"; after+: 1];
@@ -202,12 +203,150 @@
     }[masked;name;] each positions
  };
 
-.tst.dslShadowedNames:{[lines]
-    names: string key .tst.dslExports;
-    maskedLines: .tst.maskQLine each lines;
+.tst.dslLineDeclares:{[masked;name]
+    0 < count .tst.dslDeclarationPositions[masked;name]
+ };
+
+/ Cheap compatibility scan used to keep the common loader path fast. Only files
+/ that actually declare a DSL-shaped name pay for nested lexical scope ranges.
+.tst.dslPotentialShadowedNames:{[lines]
+    names:string key .tst.dslExports;
+    maskedLines:.tst.maskQLine each lines;
     `$names where {[masked;name]
         any .tst.dslLineDeclares[;name] each masked
-    }[maskedLines;] each names
+      }[maskedLines;] each names
+ };
+
+/ Mask strings, comments, block comments and text after a script terminator,
+/ preserving every remaining character offset for lexical scope analysis.
+.tst.dslMaskedSource:{[lines]
+    source:.utl.pathToString each lines;
+    out:enlist ();
+    state:0b;
+    stopped:0b;
+    i:0;
+    while[i<count source;
+        ln:source i;
+        trimmed:.tst.rstrip ln;
+        blank:count[ln]#" ";
+        $[stopped;
+            out,:enlist blank;
+          state;
+            [out,:enlist blank;
+             if[trimmed~enlist "\\";state:0b]];
+          trimmed~enlist "/";
+            [out,:enlist blank;state:1b];
+          (0<count ln) and ("\\"=first ln) and trimmed~enlist "\\";
+            [out,:enlist blank;stopped:1b];
+          out,:enlist ln];
+        i+:1];
+    .tst.maskQLine "\n" sv 1 _ out
+ };
+
+/ Return nested lambda ranges. Root scope 0 covers the complete statement/file;
+/ every `{...}` owns a child range. Strings/comments were masked beforehand.
+.tst.dslScopes:{[masked]
+    starts:enlist 0j;
+    ends:enlist "j"$count masked;
+    parents:enlist -1j;
+    stack:enlist 0j;
+    i:0;
+    while[i<count masked;
+        c:masked i;
+        if[c="{";
+            scopeId:"j"$count starts;
+            starts,:i;
+            ends,:"j"$count masked;
+            parents,:last stack;
+            stack,:scopeId];
+        if[(c="}") and 1<count stack;
+            closeId:last stack;
+            ends[closeId]:i+1;
+            stack:-1 _ stack];
+        i+:1];
+    flip `scope`start`end`parent!("j"$til count starts;starts;ends;parents)
+ };
+
+.tst.dslScopeAt:{[scopes;position]
+    active:where (scopes[`start]<=position) and position<scopes`end;
+    $[count active;"j"$last scopes[`scope] active;0j]
+ };
+
+/ Map each fixed DSL identifier declaration to the innermost lambda that owns
+/ it. q determines locals for the whole lambda, so the complete range is marked
+/ even when the assignment appears after an earlier use in that same lambda.
+.tst.dslScopeRanges:{[masked;scopes]
+    names:string key .tst.dslExports;
+    rows:();
+    i:0;
+    while[i<count names;
+        positions:.tst.dslDeclarationPositions[masked;names i];
+        j:0;
+        while[j<count positions;
+            scopeId:.tst.dslScopeAt[scopes;positions j];
+            rows,:enlist `name`scope`start`end!(
+                `$names i;scopeId;scopes[scopeId;`start];scopes[scopeId;`end]);
+            j+:1];
+        i+:1];
+    $[count rows;flip flip rows;
+      ([] name:`symbol$();scope:`long$();start:`long$();end:`long$())]
+ };
+
+.tst.dslScopeArgument:{[lines]
+    masked:.tst.dslMaskedSource lines;
+    scopes:.tst.dslScopes masked;
+    ranges:.tst.dslScopeRanges[masked;scopes];
+    globals:distinct ranges[`name] where ranges[`scope]=0j;
+    `ranges`base`globals!(ranges;0j;globals)
+ };
+
+.tst.dslNameShadowed:{[shadowed;name;at]
+    nm:$[10h=type name;`$name;name];
+    if[11h=type shadowed;:nm in shadowed];
+    if[-11h=type shadowed;:nm~shadowed];
+    if[not 99h=type shadowed;:0b];
+    globals:$[`globals in key shadowed;(`symbol$()),shadowed`globals;`symbol$()];
+    if[nm in globals;:1b];
+    ranges:$[`ranges in key shadowed;shadowed`ranges;
+        ([] name:`symbol$();scope:`long$();start:`long$();end:`long$())];
+    if[not 98h=type ranges;:0b];
+    position:"j"$at+$[`base in key shadowed;"j"$shadowed`base;0j];
+    any 0b,(ranges[`name]=nm) and (ranges[`start]<=position) and position<ranges`end
+ };
+
+.tst.dslLineOffsets:{[lines]
+    if[0=count lines;:`long$()];
+    widths:1j+"j"$count each lines;
+    0j,-1 _ sums widths
+ };
+
+.tst.dslShadowedNames:{[lines]
+    ranges:.tst.dslScopeArgument[lines]`ranges;
+    distinct ranges`name
+ };
+
+.tst.dslRootShadowedNames:{[lines]
+    ranges:.tst.dslScopeArgument[lines]`ranges;
+    distinct ranges[`name] where ranges[`scope]=0j
+ };
+
+.tst.dslScopeWithGlobals:{[text;globals]
+    ctx:.tst.dslScopeArgument "\n" vs text;
+    ctx[`globals]:distinct (`symbol$()),ctx`globals,(`symbol$()),globals;
+    ctx
+ };
+
+/ Enrich the otherwise bare q lookup error produced by source whose binding is
+/ too dynamic for the lexical pass. Unrelated load failures retain their text.
+.tst.dslLoadErrorHint:{[err;lines]
+    message:.tst.toString err;
+    bare:$[(count message) and first[message]="'";1 _ message;message];
+    names:string key .tst.dslExports;
+    matched:where bare~/:names;
+    if[0=count matched;:message];
+    name:`$names first matched;
+    if[not name in .tst.dslShadowedNames lines;:message];
+    message," -- local '",string[name],"' shadows a resQ DSL name; qualify the framework call as .tst.",string[name],"[...]"
  };
 
 / Return the source bounds of the expression containing `at`. Semicolons and
@@ -307,7 +446,10 @@
                 not source[rightAt] in .Q.a,.Q.A,.Q.n,"_";
             leftOk and rightOk and token ~ (count token) # at _ source
         }[masked;i;] each names;
-        candidates: where qualified or (bare and not (`$names) in shadowed);
+        unshadowed:{[ctx;at;name]
+            not .tst.dslNameShadowed[ctx;name;at]
+          }[shadowed;i;] each `$names;
+        candidates: where qualified or (bare and unshadowed);
         if[count candidates;
             name: names first candidates;
             width: count name;
@@ -336,7 +478,14 @@
 .tst.rewriteInfixAssertions:{[shadowed;line]
     txt: (),line;
     limit: count txt;
-    pair: .tst.rightmostInfixAssertion[.tst.maskQLine txt;shadowed;limit];
+    noScopedNames:shadowed~`resqNoDslShadows;
+    globals:$[noScopedNames;`symbol$();99h=type shadowed;
+        $[`globals in key shadowed;shadowed`globals;`symbol$()];
+        (`symbol$()),shadowed];
+    scopeArg:$[noScopedNames;`symbol$();.tst.dslScopeWithGlobals[txt;globals]];
+    hasScopedShadows:$[noScopedNames;0b;
+        (0<count globals) or 0<count scopeArg`ranges];
+    pair: .tst.rightmostInfixAssertion[.tst.maskQLine txt;scopeArg;limit];
     while[0 <= first pair;
         at: first pair;
         name: pair 1;
@@ -358,7 +507,8 @@
         / generated prefix call is skipped by rightmostInfixAssertion, so this
         / still terminates without maintaining fragile shifted offsets.
         limit: count txt;
-        pair: .tst.rightmostInfixAssertion[.tst.maskQLine txt;shadowed;limit];
+        if[hasScopedShadows;scopeArg:.tst.dslScopeWithGlobals[txt;globals]];
+        pair: .tst.rightmostInfixAssertion[.tst.maskQLine txt;scopeArg;limit];
     ];
     txt
  };
@@ -376,7 +526,9 @@
         candidates: where {[source;at;name]
             .tst.bareTokenAt[source;at;name]
         }[masked;i;] each names;
-        candidates: candidates where not (`$names candidates) in shadowed;
+        candidates: candidates where {[ctx;at;name]
+            not .tst.dslNameShadowed[ctx;name;at]
+          }[shadowed;i;] each `$names candidates;
         if[count candidates;
             name: names first candidates;
             out,: ".tst.dsl.", name;
@@ -391,10 +543,10 @@
  };
 
 .tst.preprocessOrdinaryLine:{[lineNo;shadowed;line]
-    rewrittenLine: .tst.rewriteSystemLoad line;
     if[not 1b ~ @[get; `.tst.app.expectationLineAnnotations; 1b];
-        :rewrittenLine];
-    .tst.annotateExpectationLineWith[lineNo;rewrittenLine;shadowed]
+        :.tst.rewriteSystemLoad line];
+    annotated:.tst.annotateExpectationLineWith[lineNo;line;shadowed];
+    .tst.rewriteSystemLoad annotated
  };
 
 / Bind DSL across complete q statements so an operator-leading continuation
@@ -408,8 +560,10 @@
     while[i < count statements;
         joined: "\n" sv statements[i;1];
         rewritten: .tst.rewriteInfixAssertions[shadowed;joined];
-        parts: "\n" vs rewritten;
-        out,: .tst.qualifyDslLine[shadowed;] each parts;
+        scopeArg:$[shadowed~`resqNoDslShadows;`symbol$();
+            .tst.dslScopeWithGlobals[rewritten;shadowed]];
+        qualified:.tst.qualifyDslLine[scopeArg;rewritten];
+        out,: "\n" vs qualified;
         i+: 1;
     ];
     1 _ out
@@ -417,7 +571,14 @@
 
 .tst.preprocessScript:{[lines]
     lines: .utl.pathToString each lines;
-    shadowed: .tst.dslShadowedNames lines;
+    potential:.tst.dslPotentialShadowedNames lines;
+    hasScopedNames:0<count potential;
+    sourceScope:$[hasScopedNames;.tst.dslScopeArgument lines;`symbol$()];
+    lineOffsets:$[hasScopedNames;.tst.dslLineOffsets lines;`long$()];
+    rootShadowed:$[hasScopedNames;
+        [rootRanges:sourceScope`ranges;
+         distinct rootRanges[`name] where rootRanges[`scope]=0j];
+        `resqNoDslShadows];
     state: 0b;                 / 1b while inside a block comment
     out: enlist ();            / sentinel keeps the accumulator heterogeneous
     i: 0;
@@ -457,10 +618,12 @@
                         out,: enlist ".tst.sysl \"", pEsc, "\";" ];
                       out,: enlist "system \"", esc, "\";" ] ] ];
             / Ordinary line (includes "/ text" line comments).
-            out,: enlist .tst.preprocessOrdinaryLine[i + 1;shadowed;ln] ];
+            [lineScope:sourceScope;
+             if[hasScopedNames;lineScope[`base]:lineOffsets i];
+             out,: enlist .tst.preprocessOrdinaryLine[i + 1;lineScope;ln]] ];
         i +: 1;
     ];
-    .tst.bindDslLines[shadowed;1 _ out]
+    .tst.bindDslLines[rootShadowed;1 _ out]
  };
 
 / Rewrite a runtime `system "l ", <expr>` load (the form real suites use to load
@@ -701,7 +864,7 @@
                .tst.preprocessScript content;
                {[err] (1b; err)}];
         if[1b ~ first res;
-            e: last res;
+            e: .tst.dslLoadErrorHint[last res;content];
             lineNo: @[.tst.localizeSyntaxError; content; {0N}];
             if[not null lineNo;
                 stmtsForMsg: @[.tst.groupStatements; content; {()}];

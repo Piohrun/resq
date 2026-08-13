@@ -111,6 +111,24 @@
         it[1] musteq 2;
     };
 
+    it["keep an alias constructor outside a nested local of the same name"]{
+        1 musteq 1;
+    };
+
+    should["let a test local use the constructor name should"]{
+        should: 10 20 30;
+        should[1] musteq 20;
+    };
+
+    should["scope a same-line should local to its test"]{should:10 20;should[1] musteq 20;};
+
+    should["explain unresolved ambiguous DSL shadows"]{
+        source:enlist ".tst.desc[\"x\"]{should:42;should[\"y\"]{1 musteq 1};};";
+        hint:.tst.dslLoadErrorHint["should";source];
+        hint mustlike "*local 'should' shadows a resQ DSL name*";
+        hint mustlike "*.tst.should*";
+    };
+
     should["preserve q right-to-left binding while rewriting infix assertions"]{
         x: 41;
         / q binds musteq to the immediate left noun, so this asserts 1~1 and

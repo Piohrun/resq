@@ -832,10 +832,17 @@ should["indexes a local named it"]{
 };
 ```
 
-The shadow is conservative and file-wide. If the same file also needs the DSL
-helper with that spelling, call it explicitly (for example `.tst.should[...]`
-or `.tst.musteq[...]`). The deprecated `qNamespaceExports` setting does not
-change this behavior and never authorizes writes to `.q`.
+Shadowing follows q's lexical lambda scopes. A declaration hides the matching
+DSL alias only in its owning lambda and lambdas nested beneath it; constructors
+in a parent or sibling scope remain available. This means an enclosing
+`should[...]` can safely contain a test body with a local named `should`, even
+when both appear on the same source line.
+
+For deliberately ambiguous or dynamically constructed source, call the helper
+explicitly (for example `.tst.should[...]` or `.tst.musteq[...]`). If q still
+reports a bare DSL-name lookup, the loader adds a hint naming the colliding
+local and the explicit `.tst` spelling. The deprecated `qNamespaceExports`
+setting does not change this behavior and never authorizes writes to `.q`.
 
 If valid test source still triggers an expectation-annotation rewrite error,
 use `-no-line-annotations` (or `"expectationLineAnnotations": false`) as a
