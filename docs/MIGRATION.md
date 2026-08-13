@@ -273,9 +273,10 @@ automatic after each `should` block, including when the test throws or fails).
 
 ## Things resQ Does Not Support from qspec
 
-These are qspec's **internal** APIs — the ones for building tools on top of
-qspec, not for writing tests. Every test-writing construct is supported; a
-suite of test files does not touch these.
+Most entries below are qspec's **internal** APIs for building tools on top of
+qspec rather than ordinary test syntax. Nested `desc` is the one public
+test-writing construct resQ intentionally does not support; use `alt{}` for
+sub-grouping instead.
 
 - Nested `desc` blocks (use `alt{}` for sub-grouping within a suite).
 - qspec's reporter hooks (resQ has its own text/JUnit/xUnit/JSON reporters).

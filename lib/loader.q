@@ -349,6 +349,18 @@
     message," -- local '",string[name],"' shadows a resQ DSL name; qualify the framework call as .tst.",string[name],"[...]"
  };
 
+/ q reports only 'limit when a single lambda exceeds its internal expression
+/ capacity. A desc body is one lambda, so make the otherwise opaque compiler
+/ boundary actionable. Kept as a pure helper so the message contract is cheap
+/ to verify on every run; nightly CI separately exercises the real q boundary.
+.tst.limitLoadErrorHint:{[err]
+    message:.tst.toString err;
+    if[not message like "limit*";:message];
+    message," -- a desc block is a single q lambda and this one exceeds q's",
+        " per-lambda capacity (roughly 110-120 should blocks).",
+        " Split it into several desc blocks, or group with alt{}."
+ };
+
 / Return the source bounds of the expression containing `at`. Semicolons and
 / the nearest unmatched opener/closer delimit q expressions; strings/comments
 / are already blanked in `masked`. The end is exclusive.
@@ -875,15 +887,7 @@
                     ""];
                 e: e, " (near line ", string[lineNo], $[count excerpt; ": ", excerpt; ""], ")";
             ];
-            / q signals 'limit when a single lambda exceeds its internal
-            / constant/expression capacity. A desc block IS one lambda, so a
-            / large suite file hits this at roughly 110-120 should blocks --
-            / reported against line 1 (where the desc opens), which tells the
-            / reader nothing. Name the real cause and the fix.
-            if[e like "limit*";
-                e: e, " -- a desc block is a single q lambda and this one exceeds q's",
-                      " per-lambda capacity (roughly 110-120 should blocks).",
-                      " Split it into several desc blocks, or group with alt{}."];
+            e:.tst.limitLoadErrorHint e;
             -1 "CRITICAL LOAD ERROR in ", p, $[not null lineNo; " near line ", string[lineNo]; ""], ": ", e;
             `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
             if[(count .tst.app.allSpecs) > preCount;

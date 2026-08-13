@@ -6,38 +6,12 @@
     };
 };
 
-/ ---------------------------------------------------------------------------
-/ A desc block is a single q lambda, so a large suite file eventually exceeds
-/ q's per-lambda capacity and signals 'limit -- reported against line 1, where
-/ the desc opens, which tells the reader nothing about the real cause. The
-/ loader appends the explanation and the fix. (q's limit, not resQ's: it cannot
-/ be raised, only explained.)
-/ ---------------------------------------------------------------------------
-.tst.testState.limitchk.canQ: 0 < count @[system; "which q 2>/dev/null"; {()}];
-
-.tst.desc["oversized desc block reports a usable error #slow"]{
-  skipIf[not .tst.testState.limitchk.canQ;
-         "a desc block past q's lambda capacity explains itself"]{
-    wd: .utl.tempRoot[], "/resq_limit_", string[.z.i], "_", string `long$.z.p;
-    fix: wd, "/test_big.q";
-    system "mkdir -p ", wd;
-    body: enlist ".tst.desc[\"too big\"]{";
-    body,: {[i] "  should[\"t", string[i], "\"]{ 1 musteq 1 };"} each til 150;
-    body,: enlist " };";
-    (hsym `$fix) 0: body;
-
-    cmd: "true && timeout 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
-         " test ", (.utl.shellQuote fix), " -quiet > ",
-         (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
-    code: "J"$ last @[system; cmd; {[e] enlist "-1"}];
-    out: @[read0; hsym `$wd, "/out.txt"; {()}];
-    system "rm -rf -- ", .utl.shellQuote wd;
-
-    must[0 <> code; "an unloadable file must fail the run"];
-    must[any out like "*desc block is a single q lambda*";
-         "the error must name the real cause"];
-    must[any out like "*Split it into several desc blocks*";
-         "the error must state the fix"];
+.tst.desc["oversized desc block diagnostics"]{
+  should["explain a per-lambda limit without a subprocess"]{
+    hint:.tst.limitLoadErrorHint "limit (near line 1)";
+    hint mustlike "*desc block is a single q lambda*";
+    hint mustlike "*Split it into several desc blocks*";
+    .tst.limitLoadErrorHint["type"] musteq "type";
   };
  };
 

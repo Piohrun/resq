@@ -32,8 +32,8 @@ appear complete.
   executed assertion count in console and machine reports.
 - [x] Make DSL shadowing scope-aware so a local named `should` does not hide an
   enclosing constructor; retain an actionable diagnostic for ambiguous source.
-- [ ] Correct qspec migration and reporter-behaviour documentation drift.
-- [ ] Keep the oversized-lambda diagnostic covered without spending roughly a
+- [x] Correct qspec migration and reporter-behaviour documentation drift.
+- [x] Keep the oversized-lambda diagnostic covered without spending roughly a
   minute in the default suite; retain the real compiler boundary in nightly
   hardening.
 - [ ] Add optional self-coverage evidence for resQ without pretending its own
@@ -43,9 +43,9 @@ appear complete.
 
 - [x] Property assertion totals equal the sum of executed generated cases.
 - [x] Every documented DSL-shaped local, including `should`, has a regression.
-- [ ] The default self-suite no longer pays the oversized-lambda subprocess
+- [x] The default self-suite no longer pays the oversized-lambda subprocess
   cost, while nightly CI still proves the real q diagnostic.
-- [ ] Documentation and executable reporter behaviour agree.
+- [x] Documentation and executable reporter behaviour agree.
 
 ## 1.1.0 — Public events and execution manifests
 

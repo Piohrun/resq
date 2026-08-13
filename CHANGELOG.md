@@ -13,6 +13,12 @@ All notable changes to the **resQ** project will be documented in this file.
   an alias across the whole file. An inner local such as `should` or `it` no
   longer breaks an enclosing constructor, same-line declarations are handled,
   and irreducibly ambiguous lookup errors include an explicit `.tst` hint.
+- qspec migration docs now identify nested `desc` as an intentional public DSL
+  difference, and getting-started docs correctly state that machine reporters
+  add artifacts without replacing the human CI summary.
+- The oversized-`desc` message contract is now a fast default-suite unit test;
+  the real, roughly minute-long q compiler-boundary subprocess remains covered
+  by nightly hardening instead of slowing every local and release-gate run.
 
 ## [1.0.0] - 2026-08-12 - Production Trust, Coverage & Observability
 

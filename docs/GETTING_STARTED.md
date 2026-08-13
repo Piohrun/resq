@@ -136,8 +136,9 @@ resq test tests/ -strict -isolate -isolateWorkers 4 \
   -isolateTimeout 120 -junit -outDir artifacts/tests
 ```
 
-Reporter flags select machine reporters instead of the final text summary. Add
-`-quiet` to suppress loading/audit chatter, and read
+Reporter flags add machine-readable artifacts while retaining the final text
+summary for CI logs. Add `-quiet` to suppress passing-suite and diagnostic
+chatter while retaining failures, counts, and the verdict, and read
 [Test reporting](REPORTING.md) before wiring a parser to the artifacts.
 
 ## 6. Add coverage separately

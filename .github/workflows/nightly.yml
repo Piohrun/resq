@@ -40,7 +40,7 @@ jobs:
           command -v python3
           q -q -e 1 </dev/null
 
-      - name: Extended loader and coverage differentials
+      - name: Extended differentials and compiler-boundary hardening
         shell: bash
         run: |
           set -euo pipefail
@@ -49,7 +49,8 @@ jobs:
             "$RESQ_LOADER_DIFF_SEEDS" "$RESQ_COVERAGE_DIFF_SEEDS" \
             > artifacts/differential/corpus.txt
           ./bin/resq test tests/test_loader_differential.q \
-            tests/test_coverage_differential.q -strict -json \
+            tests/test_coverage_differential.q \
+            nightly/test_oversized_desc.q -strict -json \
             -outDir artifacts/differential
           tools/validate_report.py artifacts/differential/test-results.json
 
