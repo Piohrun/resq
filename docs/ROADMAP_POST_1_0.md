@@ -62,15 +62,15 @@ appear complete.
 
 ## 1.2.0 — Conditional and LCOV branch coverage
 
-- [ ] Add a canonical branch-site inventory with stable site identity, source
+- [x] Add a canonical branch-site inventory with stable site identity, source
   location, edge identity, eligibility, completeness, fallback, and hits.
-- [ ] Instrument `$[...]`, `if[...]`, and `while[...]` without changing lazy
+- [x] Instrument `$[...]`, `if[...]`, and `while[...]` without changing lazy
   evaluation, return values, errors, bindings, side effects, or random state.
-- [ ] Seed unloaded manifest branch sites at zero and fail closed on an empty or
+- [x] Seed unloaded manifest branch sites at zero and fail closed on an empty or
   partial branch denominator.
-- [ ] Emit `BRDA`/`BRF`/`BRH` plus matching detailed JSON, HTML, console, state,
+- [x] Emit `BRDA`/`BRF`/`BRH` plus matching detailed JSON, HTML, console, state,
   and independent branch/completeness gates.
-- [ ] Extend fixed, generated, and nightly differential corpora across the
+- [x] Extend fixed, generated, and nightly differential corpora across the
   supported q matrix.
 
 ## 1.3.0 — Nested lambdas and coverage contexts

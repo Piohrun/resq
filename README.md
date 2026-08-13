@@ -38,7 +38,7 @@ assistance.
   - **Parametrized Tests**: Run tests against a table of scenarios with `.tst.forall`.
   - **Async Testing**: Robust wait-for-condition and sleep utilities.
   - **Snapshot Testing**: Binary and text snapshots for complex data structures; text snapshots produce readable `git diff` output.
-- **Coverage** (`resq cover`): `--source src/` inventories loaded and entirely unloaded modules, then `\l`/`system "l "` instrumentation records hits. One canonical model produces LCOV, detailed `coverage.json`, annotated HTML, and complete state output. Coverage is function-level by default; `-cov-statements` adds measured statement/line diagnostics. Independent function, line, and instrumentation-completeness gates are available, and line gates refuse partial denominators unless explicitly allowed. Compiled operators and derived functions are skipped.
+- **Coverage** (`resq cover`): `--source src/` inventories loaded and entirely unloaded modules, then `\l`/`system "l "` instrumentation records hits. One canonical model produces LCOV, detailed `coverage.json`, annotated HTML, and complete state output. Coverage is function-level by default; `-cov-statements` adds measured statements and `-cov-branches` adds true/false edges for `if`, `while`, and lazy `$` conditions. Function, line, branch, and instrumentation-completeness gates are independent and fail closed on incomplete denominators. Compiled operators and derived functions are skipped.
 - **Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change.
 
 ---
@@ -91,8 +91,9 @@ qspec tests/
 # Run the bundled example
 resq test examples/quickstart/test
 
-# Run with HTML coverage
-resq cover examples/quickstart/test
+# Run with complete source inventory, statements, and conditional edges
+resq cover examples/quickstart/test --source examples/quickstart/src \
+  -cov-statements -cov-branches
 
 # Report source functions that are not referenced by tests
 resq discover examples/quickstart/src examples/quickstart/test \
@@ -265,7 +266,10 @@ Run coverage separately because coverage instrumentation and process isolation
 cannot be combined:
 
 ```bash
-resq cover tests/ --source src/ -strict -cov-min 80 -json -outDir artifacts/coverage
+resq cover tests/ --source src/ -strict \
+  -cov-functions-min 80 -cov-branches-min 70 \
+  -cov-branch-completeness-min 100 \
+  -json -outDir artifacts/coverage
 ```
 
 See [Continuous Integration](docs/CI.md) for reporter filenames, q runner

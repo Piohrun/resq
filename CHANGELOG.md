@@ -6,6 +6,14 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Opt-in conditional-edge coverage instruments eligible `if`, `while`, and
+  lazy `$` conditions without evaluating value branches. Stable branch-site and
+  edge identities, hits, fallbacks, and completeness now flow through the
+  canonical model, LCOV `BRDA`/`BRF`/`BRH`, detailed JSON, annotated HTML,
+  complete state output, console diagnostics, and independent fail-closed
+  branch/completeness gates. The production differential corpus verifies
+  returns, errors, side effects, and random state before and after the combined
+  statement/branch rewrite.
 - Versioned execution-manifest and ordered lifecycle-event contracts now ship
   in every canonical JSON report. Stable source/test identities, source
   provenance, shard assignment, and a deterministic manifest digest are

@@ -351,6 +351,7 @@
         `qspecCompat`annotationEnabled`reportFormats`runSpecs`excludeSpecs,
         `randomOrder`executionSeed`lastFailed`failedFirst`stateFile`shardIndex`shardCount,
         `tagFilter`excludeTagFilter`coverageSources`strictPlugins`pluginFiles;
+    names,:`coverageBranches`coverageBranchMin`coverageBranchCompletenessMin;
     appKeys:key `.tst.app;
     present:names where names in appKeys;
     cfg:present!(get each {` sv (`.tst.app;x)} each present);

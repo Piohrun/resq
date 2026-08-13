@@ -1742,11 +1742,14 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
+| `-cov-branches` | Measure true/false edges for eligible `if`, `while`, and lazy `$` conditions (opt-in rewrite) |
 | `-no-line-annotations` | Disable expectation source-line rewriting if a suite hits an unsupported lexical edge case; file/line fields become unavailable and incomplete-constructor auditing is disabled |
 | `-cov-min N` / `-coverage-min N` | Enable coverage and fail below integer percentage N (0..100); uses the complete function inventory (`-cov-statements` line data remains diagnostic) |
 | `-cov-functions-min N` | Gate complete static function reachability at N% |
 | `-cov-lines-min N` | Enable statement measurement and gate measured statements at N%; partial instrumentation fails closed |
 | `-cov-completeness-min N` | Enable statement measurement and require N% of eligible functions to be instrumented |
+| `-cov-branches-min N` | Enable branch measurement and gate conditional-edge coverage at N%; partial site instrumentation fails closed |
+| `-cov-branch-completeness-min N` | Enable branch measurement and require N% of eligible branch sites to be instrumented |
 | `-cov-allow-partial` | Explicitly allow `-cov-lines-min` to use an incomplete statement denominator |
 | `--source PATHS` / `--coverage-source PATHS` | Comma-separated source files/directories forming the coverage inventory; unloaded functions are counted at zero |
 | `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
@@ -1824,8 +1827,8 @@ empty discovery still returns the ordinary no-tests exit code.
 Coverage runs additionally write `coverage.lcov`, `coverage.json`,
 `coverage.html`, and `coverage_state.txt`. All four are projections of one
 canonical coverage model. `coverage.json` contains aggregate measurement and
-instrumentation totals plus per-file, per-function, and measured-statement
-records; see [Runtime code coverage](COVERAGE.md).
+instrumentation totals plus per-file, per-function, measured-statement,
+branch-site, and edge records; see [Runtime code coverage](COVERAGE.md).
 
 **Filtering examples:**
 ```bash
@@ -1864,7 +1867,7 @@ q resq.q test tests/ -junit -outDir reports/
 q resq.q test tests/ -only "*integration*"
 
 # Run with coverage over a complete source inventory
-q resq.q cover tests/ --source src/
+q resq.q cover tests/ --source src/ -cov-statements -cov-branches
 
 # Watch mode
 q resq.q watch src/ tests/
@@ -1903,6 +1906,9 @@ Create `resq.json` in project root:
     "coverageFunctionMin": 0,
     "coverageLineMin": 0,
     "coverageCompletenessMin": 0,
+    "covBranches": false,
+    "coverageBranchMin": 0,
+    "coverageBranchCompletenessMin": 0,
     "allowPartialLineCoverage": false,
     "coverageSources": ["src"],
     "covStatements": false,
@@ -1956,6 +1962,9 @@ Create `resq.json` in project root:
 | `coverageFunctionMin` | `0` | Independent complete-function threshold |
 | `coverageLineMin` | `0` | Independent measured-statement threshold |
 | `coverageCompletenessMin` | `0` | Statement-instrumentation completeness threshold |
+| `covBranches` | `false` | Enable conditional-edge instrumentation for `if`, `while`, and `$` |
+| `coverageBranchMin` | `0` | Independent conditional-edge threshold; partial instrumentation fails closed |
+| `coverageBranchCompletenessMin` | `0` | Eligible branch-site instrumentation threshold |
 | `allowPartialLineCoverage` | `false` | Allow a line gate to use a partial denominator |
 | `coverageSources` | empty | Source files/directories forming the complete coverage inventory |
 
@@ -1971,10 +1980,13 @@ coverage and applies the same function-based, fail-closed threshold as
 their line result is diagnostic because unsafe rewrites can be excluded from
 its denominator.
 
-The three independent thresholds are integers from 0 through 100. A positive
+The independent thresholds are integers from 0 through 100. A positive
 line or completeness threshold enables statement instrumentation. Line gates
 fail when instrumentation completeness is below 100%, regardless of the
 measured line percentage, unless `allowPartialLineCoverage` is explicitly true.
+Positive branch or branch-completeness thresholds enable branch
+instrumentation. A branch percentage gate refuses empty or partial eligible-site
+measurement; no opt-out weakens that denominator.
 
 `coverageSources` accepts a path string or list of path strings/symbols. It is
 the configuration equivalent of `--source`: directories are scanned

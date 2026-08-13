@@ -10,7 +10,9 @@
 .tst.coverageEnabled: 0b;
 .tst.trackedFiles: ();
 .tst.origFuncs: ()!();           / name -> original function
-.tst.lastCoverageSummary: `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(0j;0j;0f;0j;0j;0f);
+.tst.lastCoverageSummary:
+    `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent`branchesFound`branchesHit`branchPercent!(
+        0j;0j;0f;0j;0j;0f;0j;0j;0f);
 .tst.lastCoverageModel: ()!();
 .tst.covWrappers: ()!();         / name -> installed wrapper (live identity)
 .tst.coverageLoadedFiles: `symbol$(); / files observed by the runtime loader
@@ -278,7 +280,8 @@
     / cannot be rewritten safely simply keeps derived line records.
     starts: "j"$ $[`line in cols fns; fns`line; `long$()];
     starts: starts where not null starts;
-    if[1b ~ @[get; `.tst.coverageStatements; 0b];
+    if[(1b~@[get;`.tst.coverageStatements;0b]) or
+       1b~@[get;`.tst.coverageBranches;0b];
         {[fs; nsAt; srcLines; starts; row]
             nm: .tst.coverageQualifyName[nsAt; row`line; row`name];
             span: .tst.covFunctionSpan[srcLines; row`line; starts];
@@ -287,7 +290,7 @@
                 / function its statement data, never abort instrumentation of the
                 / rest of the file (or, via the caller, of every later file).
                 okStmt: @[.tst.covInstrumentStatements[nm; fs; srcLines; span 0;]; span 1; {[e] 0b}];
-                if[1b ~ okStmt;
+                if[(1b~okStmt) and 1b~@[get;`.tst.coverageStatements;0b];
                     d: $[fs in key .tst.stmtInstrumented; .tst.stmtInstrumented fs; `symbol$()];
                     .tst.stmtInstrumented[fs]: distinct d, nm];
             ];
@@ -352,7 +355,7 @@
 .tst.loadSource:{[file]
     pathStr: .tst.resolvePath file;
 
-    if[pathStr in .tst.loadingStack; :()];
+    if[any pathStr~/:.tst.loadingStack; :()];
     .tst.loadingStack,: enlist pathStr;
 
     @[.tst.coverageLoadFile; pathStr; {[e]
@@ -402,6 +405,8 @@
     .tst.lineCoverageData:: ()!();
     .tst.stmtInstrumented:: ()!();
     .tst.stmtProbeLines:: ()!();
+    .tst.branchCoverageData:: (`symbol$())!();
+    .tst.branchInstrumented:: ()!();
     .tst.coverageEnabled:: 1b;
 
     .tst.seedCoverageFile each fs;
@@ -496,11 +501,148 @@
 .tst.stmtInstrumented: ()!();
 / Lines carrying a probe, per file -- the denominator for measured coverage.
 .tst.stmtProbeLines: ()!();
+/ Stable branch-site id -> two edge counters (`true` then `false`).
+.tst.branchCoverageData: (`symbol$())!();
+/ Files -> stable branch-site ids whose enclosing function rewrite survived.
+.tst.branchInstrumented: ()!();
 
 .tst.covL:{[f;n]
     d: $[f in key .tst.lineCoverageData; .tst.lineCoverageData f; (`long$())!`long$()];
     d[n]: 1 + $[n in key d; d n; 0];
     .tst.lineCoverageData[f]: d;
+ };
+
+/ Record one condition evaluation and return the value byte-for-byte. q control
+/ forms accept numeric truthy/falsy atoms as well as booleans, so classification
+/ uses q's own conditional semantics. Invalid conditions are trapped only for
+/ accounting, then reach the original control form and raise their original
+/ error; neither edge is credited for a condition that cannot select one.
+.tst.covC:{[siteId;condition]
+    siteKey:`$.tst.toString siteId;
+    outcome:@[{[x](1b;$[x;1b;0b])};condition;{[e](0b;0b)}];
+    if[first outcome;
+        hits:$[siteKey in key .tst.branchCoverageData;
+            .tst.branchCoverageData siteKey;0 0j];
+        edge:$[last outcome;0;1];
+        hits[edge]+:1;
+        .tst.branchCoverageData[siteKey]:hits];
+    condition
+ };
+
+.tst.covOffsetLocation:{[flat;startLine;offset]
+    prefix:offset#flat;
+    breaks:where prefix="\n";
+    line:"j"$startLine+count breaks;
+    column:"j"$$[count breaks;offset-(1+last breaks);offset];
+    (line;column)
+ };
+
+.tst.covTrimRange:{[flat;range]
+    firstAt:"j"$range 0;
+    afterAt:"j"$range 1;
+    whitespace:" \t\r\n";
+    while[(firstAt<afterAt) and flat[firstAt] in whitespace;firstAt+:1];
+    while[(afterAt>firstAt) and flat[afterAt-1] in whitespace;afterAt-:1];
+    (firstAt;afterAt)
+ };
+
+/ Return half-open argument ranges for a bracket call. Strings/comments have
+/ already been space-masked, so delimiters inside them cannot participate.
+.tst.covCallArgumentRanges:{[masked;openAt]
+    if[(openAt<0) or openAt>=count masked;:()];
+    if[not "["=masked openAt;:()];
+    square:1;round:0;curly:0;
+    starts:enlist 1+openAt;
+    ends:`long$();
+    i:1+openAt;
+    while[i<count masked;
+        c:masked i;
+        if[(c=";") and square=1 and round=0 and curly=0;
+            ends,:i;starts,:i+1];
+        $[c="[";square+:1;
+          c="]";[square-:1;if[square=0;ends,:i;:flip (starts;ends)]];
+          c="(";round+:1;
+          c=")";round-:1;
+          c="{";curly+:1;
+          c="}";curly-:1;
+          ::];
+        i+:1];
+    ()
+ };
+
+.tst.covKeywordBoundary:{[masked;at;length]
+    ident:.Q.a,.Q.A,"0123456789_.";
+    beforeOk:(at=0) or not masked[at-1] in ident;
+    afterAt:at+length;
+    afterOk:(afterAt>=count masked) or not masked[afterAt] in ident;
+    beforeOk and afterOk
+ };
+
+.tst.covNextCodeAt:{[masked;at]
+    i:at;
+    while[(i<count masked) and masked[i] in " \t\r\n";i+:1];
+    i
+ };
+
+/ Canonical branch inventory for one named outer lambda. Nested lambda sites
+/ are retained as ineligible evidence for 1.2 and promoted by the 1.3 rewrite.
+/ Private rewriteStart/rewriteEnd fields are removed by the public model.
+.tst.covBranchSitesInFunction:{[fileSym;functionName;srcLines;startLine;endLine]
+    if[(startLine<1) or (endLine>count srcLines) or endLine<startLine;:()];
+    seg:srcLines[(startLine-1)+til 1+endLine-startLine];
+    raw:"\n" sv {(),x} each seg;
+    maskedLines:@[.tst.static.maskLines;seg;{seg}];
+    if[not (count maskedLines)=count seg;maskedLines:seg];
+    masked:"\n" sv {(),x} each maskedLines;
+    if[not (count masked)=count raw;:()];
+    relativePath:.tst.repoRelativePath string fileSym;
+    functionText:.tst._covNameStr functionName;
+    sites:();
+    curlyDepth:0;
+    i:0;
+    while[i<count masked;
+        c:masked i;
+        token:"";tokenLength:0;openAt:-1;
+        if[(2<=(count masked)-i) and "if"~2#i _ masked;
+            if[.tst.covKeywordBoundary[masked;i;2];
+                candidate:.tst.covNextCodeAt[masked;i+2];
+                if[(candidate<count masked) and "["=masked candidate;
+                    token:"if";tokenLength:2;openAt:candidate]]];
+        if[(0=count token) and (5<=(count masked)-i) and "while"~5#i _ masked;
+            if[.tst.covKeywordBoundary[masked;i;5];
+                candidate:.tst.covNextCodeAt[masked;i+5];
+                if[(candidate<count masked) and "["=masked candidate;
+                    token:"while";tokenLength:5;openAt:candidate]]];
+        if[(0=count token) and c="$";
+            candidate:.tst.covNextCodeAt[masked;i+1];
+            if[(candidate<count masked) and "["=masked candidate;
+                token:enlist "$";tokenLength:1;openAt:candidate]];
+        if[count token;
+            args:.tst.covCallArgumentRanges[masked;openAt];
+            argCount:count args;
+            conditionIndexes:$[token~enlist "$";
+                $[(argCount>=3) and 1=argCount mod 2;
+                    2*til ((argCount-1) div 2);`long$()];
+                $[argCount>=2;enlist 0j;`long$()]];
+            ci:0;
+            while[ci<count conditionIndexes;
+                conditionIndex:conditionIndexes ci;
+                range:.tst.covTrimRange[raw;args conditionIndex];
+                location:.tst.covOffsetLocation[raw;startLine;range 0];
+                nested:curlyDepth<>1;
+                nonempty:range[1]>range 0;
+                eligible:(not nested) and nonempty;
+                fallback:$[nested;`nested_lambda;not nonempty;`empty_condition;`none];
+                siteId:"branch_",.tst.stableHash[
+                    relativePath,"\n",functionText,"\n",token,"\n",
+                    string[location 0],":",string[location 1],"\n",string ci];
+                sites,:enlist `siteId`function`kind`conditionIndex`line`column`eligible`fallbackReason`rewriteStart`rewriteEnd!(
+                    siteId;functionText;token;"j"$ci;location 0;location 1;
+                    eligible;string fallback;range 0;range 1);
+                ci+:1]];
+        $[c="{";curlyDepth+:1;c="}";curlyDepth-:1;::];
+        i+:1];
+    sites
  };
 
 / Split a function body into top-level statements, returning the source line
@@ -579,7 +721,7 @@
 / when the shape is not one we will touch. The probed lines are returned rather
 / than recomputed later: the report must count exactly the lines that carry a
 / probe, and recomputing invites the two views drifting apart.
-.tst.covRewriteFunction:{[srcLines; startLine; endLine; fileSym]
+.tst.covRewriteFunctionForName:{[srcLines; startLine; endLine; fileSym;functionName]
     if[(startLine < 1) or endLine > count srcLines; :(::)];
     idx: (startLine - 1) + til 1 + endLine - startLine;
     seg: srcLines idx;
@@ -598,34 +740,73 @@
     / it in whatever encloses the line -- for `$[c; if[a;b:1]; ...]` that means
     / landing in the conditional expression's branch list and shifting every
     / branch, which silently changes what the expression returns.
-    positions: .tst.covStatementPositions bodyLines;
-    if[0 = count positions; :(::)];
+    positions:$[1b~@[get;`.tst.coverageStatements;0b];
+        .tst.covStatementPositions bodyLines;()];
     / Columns on the definition's first line are body-relative; shift them back.
-    positions: {[b; st; p] $[p[0] = st; (p 0; b + p 1); p]}[bodyAt; startLine;] each positions;
-    stmtLines: distinct positions[;0];
+    if[count positions;
+        positions:{[b;st;p]$[p[0]=st;(p 0;b+p 1);p]}[
+            bodyAt;startLine;] each positions];
+    stmtLines:$[count positions;distinct positions[;0];`long$()];
+    branchSites:$[1b~@[get;`.tst.coverageBranches;0b];
+        .tst.covBranchSitesInFunction[
+            fileSym;functionName;srcLines;startLine;endLine];()];
+    eligibleSites:branchSites where {1b~x`eligible} each branchSites;
+    branchIds:{x`siteId} each eligibleSites;
+    if[(0=count positions) and 0=count eligibleSites;:(::)];
 
     / The file symbol is written as `$"..." -- a path contains slashes and a bare
     / backtick literal would not parse. Escape so any path survives embedding.
     pathTxt: string fileSym;
     pathTxt: ssr[ssr[pathTxt; "\\"; "\\\\"]; "\""; "\\\""];
-    probeFor: {[p;n] ".tst.covL[`$\"", p, "\";", string[n], "];"}[pathTxt;];
-    out: ();
-    i: 0;
-    while[i < count seg;
-        lineNo: startLine + i;
-        txt: (), seg i;
-        / Insert from the rightmost column so earlier offsets stay valid.
-        / NB: not `cols` -- that is a q keyword and assigning it signals 'assign.
-        insCols: desc positions[;1] where positions[;0] = lineNo;
-        newTxt: txt;
-        j: 0;
-        while[j < count insCols;
-            c: insCols j;
-            newTxt: (c # newTxt), probeFor[lineNo], c _ newTxt;
-            j+: 1];
-        out,: enlist newTxt;
-        i+: 1];
-    ("\n" sv out; stmtLines)
+    probeFor:{[p;n] ".tst.covL[`$\"",p,"\";",string[n],"];"}[
+        pathTxt;];
+    flat:"\n" sv {(),x} each seg;
+    lineOffsets:0,1+where flat="\n";
+    insertAt:`long$();
+    insertText:();
+    if[count positions;
+        statementOffsets:{[offsets;firstLine;p]
+            offsets["j"$p[0]-firstLine]+p 1
+        }[lineOffsets;startLine;] each positions;
+        insertAt,:"j"$statementOffsets;
+        insertText,:probeFor each positions[;0]];
+    if[count eligibleSites;
+        insertAt,:"j"${x`rewriteStart} each eligibleSites;
+        insertText,:{[site] ".tst.covC[\"",(.tst.toString site`siteId),"\";"}
+            each eligibleSites;
+        insertAt,:"j"${x`rewriteEnd} each eligibleSites;
+        / A one-character q literal is a char atom. Double-enlist it so each
+        / site contributes one independent one-character STRING; otherwise
+        / `n#enlist "]"` becomes the single string "]]..." and all closers
+        / land at one offset.
+        insertText,:count[eligibleSites]#enlist enlist "]"];
+    order:idesc insertAt;
+    newFlat:flat;
+    i:0;
+    while[i<count order;
+        at:insertAt order i;
+        insertion:insertText order i;
+        newFlat:(at#newFlat),insertion,at _ newFlat;
+        i+:1];
+    (newFlat;stmtLines;branchIds)
+ };
+
+/ Backward-compatible low-level statement-rewriter view used by existing
+/ extension tests. Production instrumentation supplies the actual function
+/ identity through covRewriteFunctionForName.
+.tst.covRewriteFunction:{[srcLines;startLine;endLine;fileSym]
+    statementMode:1b~@[get;`.tst.coverageStatements;0b];
+    branchMode:1b~@[get;`.tst.coverageBranches;0b];
+    / This exported low-level helper predates the runtime feature flags and its
+    / contract is specifically "show the statement rewrite". Keep it pure and
+    / deterministic even when a surrounding run enabled branch coverage.
+    .tst.coverageStatements:1b;
+    .tst.coverageBranches:0b;
+    rw:@[{[a].tst.covRewriteFunctionForName[a 0;a 1;a 2;a 3;`anonymous]};
+        (srcLines;startLine;endLine;fileSym);{[e](::)}];
+    .tst.coverageStatements:statementMode;
+    .tst.coverageBranches:branchMode;
+    $[(::)~rw;(::);(rw 0;rw 1)]
  };
 
 / Apply the rewrite to one function and prove it survived, or put the original
@@ -639,12 +820,19 @@
     / than "it still parses" -- a probe inserted somewhere that changes how a
     / name binds shows up as a different local or global set.
     origShape: 1 3 sublist value orig;   / (params; locals; globals)
+    / `value lambda` prefixes the globals vector with a compiler namespace
+    / marker. A definition loaded under `system "d .ns"` carries ``, while the
+    / same source evaluated inside .ns carries `ns`; both bind the explicit
+    / globals that follow identically. Compare bindings, not that loader marker.
+    if[count origShape 2;origShape[2]:1 _ origShape 2];
 
-    rw: @[.tst.covRewriteFunction[srcLines; startLine; endLine;]; fileSym; {[e] (::)}];
+    rw: @[.tst.covRewriteFunctionForName[
+        srcLines;startLine;endLine;fileSym;];name;{[e](::)}];
     if[(::) ~ rw; :0b];
-    if[not 2 = count rw; :0b];
+    if[not 3 = count rw; :0b];
     newSrc: rw 0;
     probedLines: rw 1;
+    branchIds:rw 2;
     if[not 10h = type newSrc; :0b];
 
     / The rewritten text already carries the definition verbatim, including the
@@ -674,12 +862,19 @@
     if[not (type now) within 100 104h; .tst.safeSet[name; orig]; :0b];
     newShape: 1 3 sublist value now;
     / The probe itself is the one global legitimately added.
-    newShape[2]: newShape[2] except `.tst.covL;
+    newShape[2]: newShape[2] except `.tst.covL`.tst.covC;
+    if[count newShape 2;newShape[2]:1 _ newShape 2];
     if[not origShape ~ newShape; .tst.safeSet[name; orig]; :0b];
 
     / Remember which lines carry a probe, so the report counts exactly those.
-    pl: $[fileSym in key .tst.stmtProbeLines; .tst.stmtProbeLines fileSym; `long$()];
-    .tst.stmtProbeLines[fileSym]: asc distinct pl, "j"$ probedLines;
+    if[1b~@[get;`.tst.coverageStatements;0b];
+        pl:$[fileSym in key .tst.stmtProbeLines;
+            .tst.stmtProbeLines fileSym;`long$()];
+        .tst.stmtProbeLines[fileSym]:asc distinct pl,"j"$probedLines];
+    if[1b~@[get;`.tst.coverageBranches;0b];
+        bi:$[fileSym in key .tst.branchInstrumented;
+            .tst.branchInstrumented fileSym;()];
+        .tst.branchInstrumented[fileSym]:distinct bi,branchIds];
     1b
  };
 
@@ -697,10 +892,14 @@
     linesHit: .tst.lcovTotal[lines;"LH:"];
     functionsFound: .tst.lcovTotal[lines;"FNF:"];
     functionsHit: .tst.lcovTotal[lines;"FNH:"];
+    branchesFound: .tst.lcovTotal[lines;"BRF:"];
+    branchesHit: .tst.lcovTotal[lines;"BRH:"];
     linePercent: $[0 = linesFound; 0f; 100f * linesHit % linesFound];
     functionPercent: $[0 = functionsFound; 0f; 100f * functionsHit % functionsFound];
-    `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(
-        linesFound;linesHit;linePercent;functionsFound;functionsHit;functionPercent)
+    branchPercent: $[0 = branchesFound; 0f; 100f * branchesHit % branchesFound];
+    `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent`branchesFound`branchesHit`branchPercent!(
+        linesFound;linesHit;linePercent;functionsFound;functionsHit;functionPercent;
+        branchesFound;branchesHit;branchPercent)
  };
 
 / ---------------------------------------------------------------------------
@@ -715,7 +914,40 @@
     `line`hits`covered!("j"$lineNo;hits;hits>0)
  };
 
-.tst.coverageFunctionModel:{[fileSym;fData;srcLines;nsAt;starts;row]
+.tst.coverageBranchSiteModel:{[fileSym;block;site]
+    siteId:site`siteId;
+    siteKey:`$.tst.toString siteId;
+    eligible:1b~site`eligible;
+    instrumentedIds:$[fileSym in key .tst.branchInstrumented;
+        .tst.branchInstrumented fileSym;()];
+    / Site ids are char vectors. Plain `in` would test every character and
+    / return a boolean vector; compare each complete id for one scalar verdict.
+    instrumented:eligible and any siteId~/:instrumentedIds;
+    hits:$[siteKey in key .tst.branchCoverageData;
+        "j"$.tst.branchCoverageData siteKey;0 0j];
+    if[2>count hits;hits:2#hits,0 0j];
+    hits:2#hits;
+    labels:("true";"false");
+    edges:{[id;allLabels;allHits;index]
+        label:allLabels index;
+        hit:allHits index;
+        `edgeId`index`label`hits`covered!(
+            "edge_",.tst.stableHash[id,"\n",label];"j"$index;label;
+            "j"$hit;hit>0)
+      }[siteId;labels;hits;] each 0 1j;
+    mode:1b~@[get;`.tst.coverageBranches;0b];
+    fallback:$[not mode;"branch_mode_disabled";
+        not eligible;site`fallbackReason;
+        not (fileSym in .tst.coverageLoadedFiles);"source_not_loaded";
+        instrumented;"none";
+        "rewrite_rejected"];
+    `siteId`function`kind`conditionIndex`line`column`block`eligible`instrumented`fallbackReason`edgesFound`edgesHit`edges!(
+        siteId;site`function;site`kind;"j"$site`conditionIndex;
+        "j"$site`line;"j"$site`column;"j"$block;eligible;instrumented;
+        fallback;2j;"j"$sum {x`covered} each edges;edges)
+ };
+
+.tst.coverageFunctionModel:{[fileSym;fData;srcLines;nsAt;starts;branchRows;row]
     nm:.tst.coverageQualifyName[nsAt;row`line;row`name];
     hits:$[nm in key fData;"j"$fData nm;0j];
     measuredNames:$[fileSym in key .tst.stmtInstrumented;
@@ -731,10 +963,16 @@
     statements:.tst.coverageStatementModel[hitMap;] each inSpan;
     statementHits:sum 0,{x`covered} each statements;
     reason:.tst.coverageFallbackReason[fileSym;nm];
-    `name`line`hits`covered`functionEligible`functionInstrumented`statementEligible`statementInstrumented`fallbackReason`statementFound`statementHit`statements!(
-        .tst._covNameStr[nm];"j"$row`line;hits;hits>0;1b;
+    fnName:.tst._covNameStr nm;
+    fnBranches:branchRows where {[name;site]name~site`function}[fnName;] each branchRows;
+    eligibleBranches:fnBranches where {1b~x`eligible} each fnBranches;
+    `name`line`hits`covered`functionEligible`functionInstrumented`statementEligible`statementInstrumented`fallbackReason`statementFound`statementHit`statements`branchSitesEligible`branchSitesInstrumented`branchFound`branchHit`branches!(
+        fnName;"j"$row`line;hits;hits>0;1b;
         nm in key .tst.covWrappers;1b;measured;string reason;
-        count statements;statementHits;statements)
+        count statements;statementHits;statements;
+        count eligibleBranches;sum 0,{x`instrumented} each eligibleBranches;
+        sum 0,{x`edgesFound} each eligibleBranches;
+        sum 0,{x`edgesHit} each eligibleBranches;fnBranches)
  };
 
 .tst.coverageFileModel:{[fileSym]
@@ -748,14 +986,35 @@
     starts:"j"$$[`line in cols staticFns;staticFns`line;`long$()];
     starts:starts where not null starts;
     fData:.tst.coverageData fileSym;
-    fnRows:.tst.coverageFunctionModel[fileSym;fData;srcLines;nsAt;starts;] each staticFns;
+    rawBranches:();
+    i:0;
+    while[i<count staticFns;
+        row:staticFns i;
+        nm:.tst.coverageQualifyName[nsAt;row`line;row`name];
+        span:.tst.covFunctionSpan[srcLines;row`line;starts];
+        if[span[1]>=span 0;
+            rawBranches,:.tst.covBranchSitesInFunction[
+                fileSym;nm;srcLines;span 0;span 1]];
+        i+:1];
+    branchRows:();
+    i:0;
+    while[i<count rawBranches;
+        branchRows,:enlist .tst.coverageBranchSiteModel[fileSym;i;rawBranches i];
+        i+:1];
+    fnRows:.tst.coverageFunctionModel[
+        fileSym;fData;srcLines;nsAt;starts;branchRows;] each staticFns;
     lineRows:raze {x`statements} each fnRows;
     functionHit:sum 0,{x`covered} each fnRows;
     lineHit:sum 0,{x`covered} each lineRows;
     measuredFns:sum 0,{x`statementInstrumented} each fnRows;
-    `path`loaded`functionFound`functionHit`statementFunctionsInstrumented`lineFound`lineHit`functions`lines`sourceLines!(
+    eligibleBranches:branchRows where {1b~x`eligible} each branchRows;
+    `path`loaded`functionFound`functionHit`statementFunctionsInstrumented`lineFound`lineHit`branchSitesEligible`branchSitesInstrumented`branchFound`branchHit`functions`lines`branches`sourceLines!(
         path;fileSym in .tst.coverageLoadedFiles;count fnRows;functionHit;
-        measuredFns;count lineRows;lineHit;fnRows;lineRows;srcLines)
+        measuredFns;count lineRows;lineHit;count eligibleBranches;
+        sum 0,{x`instrumented} each eligibleBranches;
+        sum 0,{x`edgesFound} each eligibleBranches;
+        sum 0,{x`edgesHit} each eligibleBranches;
+        fnRows;lineRows;branchRows;srcLines)
  };
 
 .tst.coverageModel:{[]
@@ -764,9 +1023,18 @@
     fnHit:sum 0,{x`functionHit} each fileRows;
     lineFound:sum 0,{x`lineFound} each fileRows;
     lineHit:sum 0,{x`lineHit} each fileRows;
-    base:`linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent!(
+    branchSitesEligible:sum 0,{x`branchSitesEligible} each fileRows;
+    branchSitesInstrumented:sum 0,{x`branchSitesInstrumented} each fileRows;
+    branchFound:sum 0,{x`branchFound} each fileRows;
+    branchHit:sum 0,{x`branchHit} each fileRows;
+    branchMode:1b~@[get;`.tst.coverageBranches;0b];
+    base:`linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent`branchesFound`branchesHit`branchPercent`branchMode`branchSitesEligible`branchSitesInstrumented`branchInstrumentationPercent`branchInstrumentationComplete!(
         lineFound;lineHit;$[0=lineFound;0f;100f*lineHit%lineFound];
-        fnFound;fnHit;$[0=fnFound;0f;100f*fnHit%fnFound]);
+        fnFound;fnHit;$[0=fnFound;0f;100f*fnHit%fnFound];
+        branchFound;branchHit;$[0=branchFound;0f;100f*branchHit%branchFound];
+        branchMode;branchSitesEligible;branchSitesInstrumented;
+        $[0=branchSitesEligible;0f;100f*branchSitesInstrumented%branchSitesEligible];
+        branchMode and 0<branchSitesEligible and branchSitesEligible=branchSitesInstrumented);
     instrumentation:.tst.coverageInstrumentationSummary[];
     `summary`files!(base,instrumentation;fileRows)
  };
@@ -781,8 +1049,10 @@
  };
 
 .tst.coverageStateLines:{[model]
-    lines:("# resQ coverage state v2";
-        "# path function hits functionInstrumented statementInstrumented fallback");
+    lines:("# resQ coverage state v3";
+        "# F path function hits functionInstrumented statementInstrumented fallback";
+        "# B path siteId function kind conditionIndex line column eligible instrumented fallback";
+        "# E siteId edgeId index label hits covered");
     fileRows:model`files;
     i:0;
     do[count fileRows;
@@ -792,9 +1062,26 @@
         j:0;
         do[count funcs;
             fn:funcs j;
-            lines,:enlist filePath," ",(fn`name)," ",string[fn`hits]," ",
-                string[fn`functionInstrumented]," ",
-                string[fn`statementInstrumented]," ",fn`fallbackReason;
+            lines,:enlist " " sv (enlist "F";filePath;fn`name;string[fn`hits];
+                string[fn`functionInstrumented];
+                string[fn`statementInstrumented];fn`fallbackReason);
+            j+:1];
+        branches:fileRow`branches;
+        j:0;
+        do[count branches;
+            site:branches j;
+            lines,:enlist " " sv (enlist "B";filePath;site`siteId;site`function;
+                site`kind;string[site`conditionIndex];string[site`line];
+                string[site`column];string[site`eligible];
+                string[site`instrumented];site`fallbackReason);
+            edges:site`edges;
+            k:0;
+            do[count edges;
+                edge:edges k;
+                lines,:enlist " " sv (enlist "E";site`siteId;edge`edgeId;
+                    string[edge`index];edge`label;string[edge`hits];
+                    string[edge`covered]);
+                k+:1];
             j+:1];
         i+:1];
     lines
@@ -836,6 +1123,22 @@
         if[count lineRows;
             txt,:"LF:",string[fileRow`lineFound],"\n";
             txt,:"LH:",string[fileRow`lineHit],"\n"];
+        if[1b~model[`summary;`branchMode];
+            branches:fileRow`branches;
+            branches:branches where {1b~x`eligible} each branches;
+            j:0;
+            do[count branches;
+                site:branches j;
+                edges:site`edges;
+                k:0;
+                do[count edges;
+                    edge:edges k;
+                    txt,:"BRDA:",string[site`line],",",string[site`block],",",
+                        string[edge`index],",",string[edge`hits],"\n";
+                    k+:1];
+                j+:1];
+            txt,:"BRF:",string[fileRow`branchFound],"\n";
+            txt,:"BRH:",string[fileRow`branchHit],"\n"];
         txt,:"FNF:",string[fileRow`functionFound],"\n";
         txt,:"FNH:",string[fileRow`functionHit],"\nend_of_record\n";
         i+:1];
@@ -880,7 +1183,25 @@
     "</td><td>",string[fn`functionInstrumented],"</td><td>",
     string[fn`statementHit]," / ",string[fn`statementFound],
     "</td><td>",string[fn`statementInstrumented],"</td><td>",
+    string[fn`branchHit]," / ",string[fn`branchFound],"</td><td>",
+    string[fn`branchSitesInstrumented]," / ",
+    string[fn`branchSitesEligible],"</td><td>",
     .tst.coverageHtmlEscape[fn`fallbackReason],"</td></tr>"
+ };
+
+.tst.coverageBranchHtml:{[site]
+    eligible:1b~site`eligible;
+    fullyCovered:(site`edgesHit)=site`edgesFound;
+    cls:$[not eligible;"unmeasured";fullyCovered;"covered";"uncovered"];
+    edgeText:", " sv {[edge]
+        (edge`label),"=",string[edge`hits]
+    } each site`edges;
+    "<tr class=\"",cls,"\"><td>",.tst.coverageHtmlEscape[site`siteId],
+    "</td><td>",.tst.coverageHtmlEscape[site`function],"</td><td>",
+    .tst.coverageHtmlEscape[site`kind],"</td><td>",string[site`conditionIndex],
+    "</td><td>",string[site`line],":",string[site`column],"</td><td>",
+    edgeText,"</td><td>",string[site`instrumented],"</td><td>",
+    .tst.coverageHtmlEscape[site`fallbackReason],"</td></tr>"
  };
 
 .tst.coverageSourceHtml:{[fileRow]
@@ -916,7 +1237,12 @@
         "%)</p><p><strong>Statement instrumentation completeness:</strong> ",
         string[s`statementFunctionsInstrumented]," / ",
         string[s`statementFunctionsEligible]," (",
-        string[s`statementInstrumentationPercent],"%)</p>";
+        string[s`statementInstrumentationPercent],"%)</p><p><strong>Branches:</strong> ",
+        string[s`branchesHit]," / ",string[s`branchesFound]," (",
+        string[s`branchPercent],"%)</p><p><strong>Branch instrumentation completeness:</strong> ",
+        string[s`branchSitesInstrumented]," / ",
+        string[s`branchSitesEligible]," (",
+        string[s`branchInstrumentationPercent],"%)</p>";
     fileRows:model`files;
     i:0;
     do[count fileRows;
@@ -925,10 +1251,17 @@
         html,:"<p>",string[fileRow`functionHit]," / ",
             string[fileRow`functionFound]," functions covered; ",
             string[fileRow`lineHit]," / ",string[fileRow`lineFound],
-            " measured statements covered; loaded=",string[fileRow`loaded],"</p>";
-        html,:"<table><thead><tr><th>Function</th><th>Line</th><th>Hits</th><th>Function instrumented</th><th>Statements</th><th>Statement instrumented</th><th>Fallback</th></tr></thead><tbody>";
+            " measured statements covered; ",string[fileRow`branchHit]," / ",
+            string[fileRow`branchFound]," branch edges covered; loaded=",
+            string[fileRow`loaded],"</p>";
+        html,:"<table><thead><tr><th>Function</th><th>Line</th><th>Hits</th><th>Function instrumented</th><th>Statements</th><th>Statement instrumented</th><th>Branches</th><th>Branch sites instrumented</th><th>Fallback</th></tr></thead><tbody>";
         html,:raze .tst.coverageFunctionHtml each fileRow`functions;
-        html,:"</tbody></table>",.tst.coverageSourceHtml[fileRow],"</section>";
+        html,:"</tbody></table>";
+        if[count fileRow`branches;
+            html,:"<details open><summary>Branch sites</summary><table><thead><tr><th>Site ID</th><th>Function</th><th>Kind</th><th>Condition</th><th>Location</th><th>Edge hits</th><th>Instrumented</th><th>Fallback</th></tr></thead><tbody>";
+            html,:raze .tst.coverageBranchHtml each fileRow`branches;
+            html,:"</tbody></table></details>"];
+        html,:.tst.coverageSourceHtml[fileRow],"</section>";
         i+:1];
     html,:"<p>Machine-readable detail: coverage.json. Raw state: coverage_state.txt.</p></body></html>";
     (hsym (`$":" , outPath)) 0:enlist html;

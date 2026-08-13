@@ -82,6 +82,66 @@
 .tst.testState.covgate.runManifest:{[]
     .tst.testState.covgate.runManifestWith "-cov-min 26 -cov-statements"};
 
+/ Known-truth branch fixture. Six condition sites yield twelve boolean edges:
+/ two ifs, three lazy $ conditions, and one while. The selected calls hit five
+/ edges exactly (false,false; true; true,false).
+.tst.testState.covgate.runBranchesWith:{[extra;inventory]
+    wd:.utl.tempRoot[],"/resq_covbranches_",string[.z.i],"_",string `long$.z.p;
+    sourceDir:wd,"/src";
+    sourcePath:sourceDir,"/branches.q";
+    missedPath:sourceDir,"/never_loaded.q";
+    fixturePath:wd,"/test_branches.q";
+    .utl.ensureDir sourceDir;
+    (hsym `$sourcePath) 0:(
+        ".branch.classify:{[x]";
+        "  if[x<0; :`negative];";
+        "  if[x=0; :`zero];";
+        "  `positive";
+        " };";
+        ".branch.grade:{[s]";
+        "  $[s>90; `A;";
+        "    s>80; `B;";
+        "    s>70; `C;";
+        "    `F]";
+        " };";
+        ".branch.loop:{[n]";
+        "  i:0;";
+        "  while[i<n; i+:1];";
+        "  i";
+        " };");
+    (hsym `$missedPath) 0:enlist
+        ".branch.never:{[x] if[x; :1]; 0};";
+    (hsym `$fixturePath) 0:(
+        "system \"l \", ",.Q.s1[sourcePath],";";
+        ".tst.desc[\"known branch truth\"]{";
+        "  should[\"takes selected edges\"]{";
+        "    .branch.classify[5] musteq `positive;";
+        "    .branch.grade[95] musteq `A;";
+        "    .branch.loop[2] musteq 2;";
+        "  };";
+        "};");
+    scope:$[inventory;" --source ",.utl.shellQuote[sourceDir];
+        " -cov-include ",.utl.shellQuote[sourcePath]];
+    cmd:"true && timeout -k 2 60 q ",(.utl.shellQuote .resq.HOME,"/resq.q"),
+        " cover ",(.utl.shellQuote fixturePath),scope,
+        " -cov-branches ",extra," -json -outDir ",(.utl.shellQuote wd),
+        " -quiet > ",(.utl.shellQuote wd,"/out.txt")," 2>&1; echo $?";
+    exitLines:@[system;cmd;{[err]enlist "-1"}];
+    exitCode:"J"$last exitLines;
+    output:@[read0;hsym `$wd,"/out.txt";{()}];
+    rawReport:@[read0;hsym `$wd,"/test-results.json";{()}];
+    report:$[count rawReport;.j.k raze rawReport;()!()];
+    rawCoverage:@[read0;hsym `$wd,"/coverage.json";{()}];
+    coverage:$[count rawCoverage;.j.k raze rawCoverage;()!()];
+    lcov:@[read0;hsym `$wd,"/coverage.lcov";{()}];
+    state:@[read0;hsym `$wd,"/coverage_state.txt";{()}];
+    html:"\n" sv @[read0;hsym `$wd,"/coverage.html";{()}];
+    if[wd like "*/resq_covbranches_*";
+        system "rm -rf -- ",.utl.shellQuote wd];
+    `code`output`report`coverage`lcov`state`html!(
+        exitCode;output;report;coverage;lcov;state;html)
+ };
+
 .tst.desc["Coverage gate decision"]{
     should["keep the legacy threshold function-based when partial lines look greener"]{
         / Mirrors the quickstart failure mode: statement data covers only part of
@@ -98,6 +158,86 @@
         decision[`passed] musteq 0b;
     };
 };
+
+.tst.desc["Branch coverage truth and gates #slow"]{
+    skipIf[not .tst.testState.covgate.canRun;
+           "measure if, while, and lazy conditional edges exactly"]{
+        r:.tst.testState.covgate.runBranchesWith["";0b];
+        r[`code] musteq 0;
+        s:r[`coverage;`summary];
+        s[`branchSitesEligible] musteq 6f;
+        s[`branchSitesInstrumented] musteq 6f;
+        s[`branchInstrumentationComplete] musteq 1b;
+        s[`branchesFound] musteq 12f;
+        s[`branchesHit] musteq 5f;
+        s[`branchPercent] musteq 41.66667f;
+        lcovSummary:.tst.coverageSummaryFromLines r`lcov;
+        lcovSummary[`branchesFound] musteq 12;
+        lcovSummary[`branchesHit] musteq 5;
+        ("j"$sum r[`lcov] like "BRDA:*") musteq 12;
+        ("j"$sum r[`lcov] like "BRF:12") musteq 1;
+        ("j"$sum r[`lcov] like "BRH:5") musteq 1;
+        branchRows:raze {x`branches} each r[`coverage;`files];
+        kinds:branchRows`kind;
+        must[(any "if"~/:kinds) and (any "while"~/:kinds) and
+             any (enlist "$")~/:kinds;
+             "JSON must expose each supported branch kind"];
+        must[0<count ss[r`html;"Branch sites"];
+             "HTML must render branch-site detail"];
+        must[6=sum r[`state] like "B *";
+             "state output must include every eligible branch site"];
+        reportCoverage:r[`report;`coverage];
+        reportCoverage[`branchesFound] musteq 12f;
+        reportCoverage[`branchesHit] musteq 5f;
+    };
+
+    skipIf[not .tst.testState.covgate.canRun;
+           "gate branch percentage at the exact measured boundary"]{
+        pass:.tst.testState.covgate.runBranchesWith[
+            "-cov-branches-min 41";0b];
+        fail:.tst.testState.covgate.runBranchesWith[
+            "-cov-branches-min 42";0b];
+        pass[`code] musteq 0;
+        pass[`report;`coverage;`gates;`branches;`passed] musteq 1b;
+        fail[`code] musteq 1;
+        fail[`report;`coverage;`gates;`branches;`passed] musteq 0b;
+        failText:"\n" sv fail`output;
+        must[0<count ss[failText;"below required minimum 42%"];
+             "the failing gate must name the measured edge ratio"];
+    };
+
+    skipIf[not .tst.testState.covgate.canRun;
+           "fail a branch gate closed when a manifest site is uninstrumented"]{
+        r:.tst.testState.covgate.runBranchesWith[
+            "-cov-branches-min 1";1b];
+        r[`code] musteq 1;
+        s:r[`coverage;`summary];
+        s[`branchSitesEligible] musteq 7f;
+        s[`branchSitesInstrumented] musteq 6f;
+        s[`branchInstrumentationComplete] musteq 0b;
+        s[`branchesFound] musteq 14f;
+        r[`report;`coverage;`partialBranches] musteq 1b;
+        outputText:"\n" sv r`output;
+        must[0<count ss[outputText;
+             "Branch coverage gate refused partial branch instrumentation"];
+             "a partial branch denominator must never pass silently"];
+        branchRows:raze {x`branches} each r[`coverage;`files];
+        fallbacks:branchRows`fallbackReason;
+        must[any "source_not_loaded"~/:fallbacks;
+             "the unloaded branch site must explain its fallback"];
+    };
+
+    skipIf[not .tst.testState.covgate.canRun;
+           "gate branch instrumentation completeness independently"]{
+        r:.tst.testState.covgate.runBranchesWith[
+            "-cov-branch-completeness-min 100";1b];
+        r[`code] musteq 1;
+        r[`report;`coverage;`gates;`branchCompleteness;`passed] musteq 0b;
+        outputText:"\n" sv r`output;
+        must[0<count ss[outputText;"below required minimum 100%"];
+             "the completeness failure must name instrumented and eligible sites"];
+    };
+ };
 
 .tst.desc["Coverage minimum gate #slow"]{
     skipIf[not .tst.testState.covgate.canRun;

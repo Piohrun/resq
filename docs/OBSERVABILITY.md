@@ -36,15 +36,18 @@ the public [stable identity contract](IDENTITY.md).
 | Parameter hot spots | `parameterCases[]` |
 | Property reproducibility | `property.seed`, failing/shrunk inputs |
 | Benchmark drift | `performance[]`, `tests[].benchmark` |
-| Coverage and gate health | `coverage.json` summary/files/fallbacks/gates |
+| Function/statement/branch coverage and gate health | `coverage.json` summary/files/functions/branchSites/fallbacks/gates |
 | Framework hygiene | run/test `diagnostics[]` |
 | Reproducible execution inventory | `manifest` and its deterministic digest |
 | Ordered lifecycle ingestion | `events[]` and one-based `sequence` |
 
 Coverage dashboards must label the basis. Function coverage has a complete
 manifest denominator; measured-line coverage is statement instrumentation and
-must be accompanied by its instrumentation-completeness percentage. It is not
-branch coverage.
+must be accompanied by its instrumentation-completeness percentage. Conditional-
+edge coverage has stable branch-site and edge identities plus a separate site-
+instrumentation completeness percentage. It measures true/false outcomes for
+eligible `if`, `while`, and `$` conditions; it is not path coverage or MC/DC.
+Never merge those three percentages into a single unlabeled "coverage" trend.
 
 ## Ingestion
 

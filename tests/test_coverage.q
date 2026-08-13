@@ -51,16 +51,19 @@
         must[not ":" in resolved; "':' prefix should be stripped"];
     };
 
-    should["derive aggregate line and function percentages from LCOV records"]{
+    should["derive aggregate line, function, and branch percentages from LCOV records"]{
         summary: .tst.coverageSummaryFromLines (
-            "TN:resq"; "LF:3"; "LH:2"; "FNF:2"; "FNH:1";
-            "LF:1"; "LH:1"; "FNF:2"; "FNH:2");
+            "TN:resq"; "LF:3"; "LH:2"; "FNF:2"; "FNH:1"; "BRF:6"; "BRH:2";
+            "LF:1"; "LH:1"; "FNF:2"; "FNH:2"; "BRF:2"; "BRH:1");
         summary[`linesFound] musteq 4;
         summary[`linesHit] musteq 3;
         summary[`linePercent] musteq 75f;
         summary[`functionsFound] musteq 4;
         summary[`functionsHit] musteq 3;
         summary[`functionPercent] musteq 75f;
+        summary[`branchesFound] musteq 8;
+        summary[`branchesHit] musteq 3;
+        summary[`branchPercent] musteq 37.5f;
     };
 };
 
@@ -654,6 +657,71 @@
              "no probe may precede the opening brace"];
         must[any (("\n" vs txt) 1) like "*covL*";
              "the first body statement must carry a probe"];
+    };
+ };
+
+.tst.desc["Coverage: canonical branch sites"]{
+    should["inventory if, while, and every lazy conditional condition"]{
+        src:(".branch.mixed:{[x]";
+             "  if[x<0; :`negative];";
+             "  while[x>10; x-:1];";
+             "  $[x=0; `zero;";
+             "    x=1; `one;";
+             "    `many];";
+             "  {if[x;1;0]}[x]";
+             " };");
+        fs:`$"/tmp/branch_sites.q";
+        sites:.tst.covBranchSitesInFunction[
+            fs;`.branch.mixed;src;1;count src];
+        eligible:sites where sites`eligible;
+        ineligible:sites where not sites`eligible;
+        (count sites) musteq 5;
+        (eligible`kind) mustmatch ("if";"while";enlist "$";enlist "$");
+        (eligible`conditionIndex) musteq 0 0 0 1j;
+        (eligible`line) musteq 2 3 4 5j;
+        (eligible`column) musteq 5 8 4 4j;
+        (count distinct eligible`siteId) musteq 4;
+        (count ineligible) musteq 1;
+        (first ineligible`fallbackReason) musteq "nested_lambda";
+        again:.tst.covBranchSitesInFunction[
+            fs;`.branch.mixed;src;1;count src];
+        (sites`siteId) mustmatch again`siteId;
+    };
+
+    should["wrap conditions only and keep lazy branch values untouched"]{
+        src:(".branch.grade:{[s]";
+             "  if[s<0; :`invalid];";
+             "  $[s>90; `A;";
+             "    s>80; `B;";
+             "    `C]";
+             " };");
+        oldStatementMode:@[get;`.tst.coverageStatements;0b];
+        oldBranchMode:@[get;`.tst.coverageBranches;0b];
+        .tst.coverageStatements:0b;
+        .tst.coverageBranches:1b;
+        rw:.tst.covRewriteFunctionForName[
+            src;1;count src;`$"/tmp/branch_grade.q";`.branch.grade];
+        .tst.coverageStatements:oldStatementMode;
+        .tst.coverageBranches:oldBranchMode;
+        must[3=count ss[rw 0;".tst.covC"];
+             "one probe must wrap each condition: ",rw 0];
+        must[0<count ss[rw 0;"; `A;"];
+             "a selected value must not be replaced by a probe"];
+        must[0<count ss[rw 0;"; `B;"];
+             "a later selected value must remain lazy"];
+    };
+
+    should["use q truthiness for edges and return the exact condition"]{
+        oldData:.tst.branchCoverageData;
+        .tst.branchCoverageData:(`symbol$())!();
+        (.tst.covC["site_one";1b]) musteq 1b;
+        (.tst.covC["site_one";0b]) musteq 0b;
+        (.tst.covC["site_one";42]) musteq 42;
+        (.tst.covC["site_one";0]) musteq 0;
+        .tst.branchCoverageData[`site_one] musteq 2 2j;
+        (.tst.covC["site_one";`invalid]) musteq `invalid;
+        .tst.branchCoverageData[`site_one] musteq 2 2j;
+        .tst.branchCoverageData:oldData;
     };
  };
 

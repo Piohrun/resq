@@ -13,6 +13,9 @@
   cfg[`qNamespaceExports] musteq 0b;
   cfg[`expectationLineAnnotations] musteq 1b;
   cfg[`coverageMin] musteq 0;
+  cfg[`covBranches] musteq 0b;
+  cfg[`coverageBranchMin] musteq 0;
+  cfg[`coverageBranchCompletenessMin] musteq 0;
   cfg[`coverageSources] mustmatch ();
   cfg[`randomOrder] musteq 0b;
   cfg[`seed] musteq 0j;
@@ -88,6 +91,29 @@
   appliedFiles musteq ("plugins/a.q";"plugins/b.q");
   .tst.invalidConfigKeys[(enlist `strictPlugins)!enlist "yes"] musteq enlist `strictPlugins;
   .tst.invalidConfigKeys[(enlist `pluginFiles)!enlist 42] musteq enlist `pluginFiles;
+  };
+ should["validate and apply branch coverage settings without enabling zero defaults"]{
+  previousMode:@[get;`.tst.coverageBranches;0b];
+  previousMin:@[get;`.tst.app.coverageBranchMin;0];
+  previousCompleteness:@[get;`.tst.app.coverageBranchCompletenessMin;0];
+  .tst.coverageBranches:0b;
+  .tst.applyConfig `covBranches`coverageBranchMin`coverageBranchCompletenessMin!(
+      0b;0;0);
+  .tst.coverageBranches musteq 0b;
+  cfg:`covBranches`coverageBranchMin`coverageBranchCompletenessMin!(1b;75;90);
+  .tst.validateConfig[cfg] mustmatch ();
+  .tst.applyConfig cfg;
+  .tst.coverageBranches musteq 1b;
+  .tst.app.coverageBranchMin musteq 75;
+  .tst.app.coverageBranchCompletenessMin musteq 90;
+  .tst.coverageBranches:previousMode;
+  .tst.app.coverageBranchMin:previousMin;
+  .tst.app.coverageBranchCompletenessMin:previousCompleteness;
+  .tst.invalidConfigKeys[(enlist `covBranches)!enlist "yes"]
+      musteq enlist `covBranches;
+  must[all `coverageBranchMin`coverageBranchCompletenessMin in
+      .tst.invalidConfigKeys `coverageBranchMin`coverageBranchCompletenessMin!(101;-1);
+      "branch coverage percentages must stay in 0..100"];
   };
  should["load and parse JSON config file"]{
   / Create test config file

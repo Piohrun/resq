@@ -1,18 +1,18 @@
 / ============================================================================
-/ Generative differential testing for STATEMENT INSTRUMENTATION.
+/ Generative differential testing for STATEMENT AND BRANCH INSTRUMENTATION.
 / .
-/ `-cov-statements` rewrites the user's function bodies at load time to insert
+/ `-cov-statements` and `-cov-branches` rewrite user function bodies to insert
 / probes. That is the riskiest thing resQ does to code it does not own, and
 / reasoning about it by hand has already been wrong once: probes were inserted
 / at the start of the LINE holding a statement, which for a statement nested in
-/ `$[c; if[a;b:1]; ...]` landed the probe in the conditional expression's branch
-/ list, shifted every branch, and silently changed what the expression returned.
+/ `$[c; if[a;b:1]; ...]` landed a statement probe in the conditional
+/ expression's branch list, shifted every branch, and changed its result.
 / It surfaced as a bare 'type deep inside resQ's own loader.
 / .
 / So the property is checked by execution rather than argument:
 / .
 /     for a generated function f and generated input x,
-/     f[x] and (side effects of f[x]) must be IDENTICAL
+/     f[x], its errors, side effects, and RNG state must be IDENTICAL
 /     before and after instrumentation.
 / .
 / Same shape as tests/test_loader_differential.q: a seeded LCG makes each seed
@@ -49,7 +49,9 @@
   ".tst.coverageData";".tst.coverageEnabled";".tst.trackedFiles";
   ".tst.origFuncs";".tst.covWrappers";".tst.coverageLoadedFiles";
   ".tst.lineCoverageData";".tst.stmtInstrumented";".tst.stmtProbeLines";
-  ".tst.coverageStatements";".tst.lastCoverageModel"));
+  ".tst.coverageStatements";".tst.branchCoverageData";
+  ".tst.branchInstrumented";".tst.coverageBranches";
+  ".tst.lastCoverageModel"));
 
 .tst.testState.cdiff.resetCoverage:{[]
   .tst.coverageData:()!();
@@ -62,6 +64,9 @@
   .tst.stmtInstrumented:()!();
   .tst.stmtProbeLines:()!();
   .tst.coverageStatements:1b;
+  .tst.branchCoverageData:(`symbol$())!();
+  .tst.branchInstrumented:()!();
+  .tst.coverageBranches:1b;
   .tst.lastCoverageModel:()!();
  };
 
@@ -81,7 +86,8 @@
 / a rewrite that changes control flow shows up as either a different result or a
 / different number of side effects. Deliberately covers the constructs that make
 / instrumentation hard: guards with early return, loops, conditional
-/ EXPRESSIONS (which must never be probed), nested lambdas, strings holding
+/ EXPRESSIONS (whose conditions may be probed but values stay lazy), nested
+/ lambdas, strings holding
 / semicolons and braces, trailing comments, and multi-line brackets.
 .tst.testState.cdiff.templates: (
   (enlist "    acc: acc + 1;");
@@ -100,7 +106,8 @@
   ("    acc: acc +"; "        1;");
   (enlist "    acc: acc + 1; acc: acc + 1;");
   ("    $[x > 1;"; "        acc: acc + 3;"; "      x < 0;"; "        acc: acc + 4;"; "        acc: acc + 5];");
-  (enlist "    .tst.testState.cdiff.sideEffects: .tst.testState.cdiff.sideEffects + 1;")
+  (enlist "    .tst.testState.cdiff.sideEffects: .tst.testState.cdiff.sideEffects + 1;");
+  (enlist "    acc: acc + first 1?100;")
  );
 
 / Build one function's source. Always ends with `acc` so it returns a value.
@@ -129,27 +136,45 @@
   ok: @[{[p] system "l ", p; 1b}; path; {[e] 0b}];
   if[not ok; :`loadFail];
   .tst.testState.cdiff.sideEffects: 0;
+  system "S 424242";
   / NB: not `before`/`after` -- those are DSL verbs exported into .q, and q
   / signals 'assign for a local shadowing a .q name.
   baseVals: @[{[n;xs] {[n;v] @[value n; v; {[e] `$"ERR:", e}]}[n;] each xs}[name;]; inputs; {[e] `callFail}];
-  if[baseVals ~ `callFail; :`callFail];
+  if[baseVals ~ `callFail; system "S 1"; :`callFail];
   baseFx: .tst.testState.cdiff.sideEffects;
+  baseRandom:5?1000000;
 
   / Instrument through the production file pipeline. This verifies namespace
   / qualification, statement rewriting, wrapper installation, hit accounting,
   / and the canonical model as one composed behavior.
   fileSym:`$.tst.resolvePath path;
   applied:@[{[p] .tst.instrumentFile p;1b};path;{[e] 0b}];
-  if[not applied; :`notInstrumented];
+  if[not applied; system "S 1"; :`notInstrumented];
   measured:$[fileSym in key .tst.stmtInstrumented;
     .tst.stmtInstrumented fileSym;`symbol$()];
   if[(not name in key .tst.covWrappers) or (not name in measured);
-    :`notInstrumented];
+    system "S 1"; :`notInstrumented];
+  srcLines:read0 hsym `$path;
+  branchSites:.tst.covBranchSitesInFunction[
+    fileSym;name;srcLines;1;count srcLines];
+  eligibleSites:branchSites where {1b~x`eligible} each branchSites;
+  instrumentedSites:$[fileSym in key .tst.branchInstrumented;
+    .tst.branchInstrumented fileSym;()];
+  if[10h=type instrumentedSites;instrumentedSites:enlist instrumentedSites];
+  if[count eligibleSites;
+    eligibleIds:eligibleSites`siteId;
+    if[10h=type eligibleIds;eligibleIds:enlist eligibleIds];
+    if[not all {[ids;siteId]any siteId~/:ids}[
+        instrumentedSites;] each eligibleIds;
+      system "S 1"; :`notInstrumented]];
 
   .tst.testState.cdiff.sideEffects: 0;
+  system "S 424242";
   instVals: @[{[n;xs] {[n;v] @[value n; v; {[e] `$"ERR:", e}]}[n;] each xs}[name;]; inputs; {[e] `callFail}];
-  if[instVals ~ `callFail; :`divergeCall];
+  if[instVals ~ `callFail; system "S 1"; :`divergeCall];
   instFx: .tst.testState.cdiff.sideEffects;
+  instRandom:5?1000000;
+  system "S 1";
 
   if[not baseVals ~ instVals;
       .tst.testState.cdiff.report[label; src; baseVals; instVals; "return values differ"];
@@ -157,6 +182,10 @@
   if[not baseFx ~ instFx;
       .tst.testState.cdiff.report[label; src; baseFx; instFx; "side-effect counts differ"];
       :`divergeEffects];
+  if[not baseRandom~instRandom;
+      .tst.testState.cdiff.report[label;src;baseRandom;instRandom;
+        "random state differs"];
+      :`divergeRandom];
   fileModel:.tst.coverageFileModel fileSym;
   fnModels:fileModel`functions;
   modelOk:1=count fnModels;
@@ -164,6 +193,8 @@
   if[modelOk;modelOk:1b~fnModels[0;`statementInstrumented]];
   if[modelOk;modelOk:"none"~fnModels[0;`fallbackReason]];
   if[modelOk;modelOk:0<fnModels[0;`statementFound]];
+  if[modelOk and count eligibleSites;
+    modelOk:(count eligibleSites)=fnModels[0;`branchSitesInstrumented]];
   if[not modelOk;
       .tst.testState.cdiff.report[label;src;"instrumented function";fnModels;
         "canonical model lost instrumentation state"];
@@ -246,7 +277,7 @@
  };
 
 / ============================================================================
-.tst.desc["statement instrumentation: differential vs uninstrumented (#slow)"]{
+.tst.desc["statement/branch instrumentation: differential vs uninstrumented (#slow)"]{
   beforeAll{
     .tst.testState.cdiff.savedCoverage:
       .tst.testState.cdiff.coverageKeys!

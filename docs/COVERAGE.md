@@ -1,11 +1,14 @@
 # Runtime Code Coverage
 
-resQ provides function coverage and opt-in measured statement/line coverage via
-`resq cover`. It instruments source functions at load time and records which
-functions or injected statement probes execute.
+resQ provides function coverage plus opt-in measured statement/line and
+conditional-edge coverage via `resq cover`. It instruments source functions at
+load time and records function entries, statement probes, and branch outcomes.
 
 **Line coverage requires `-cov-statements`.** Without it resQ reports function
 coverage only and emits no line records at all — see below for why.
+
+**Branch coverage requires `-cov-branches`.** It measures the true/false edges
+of `if[...]`, `while[...]`, and every condition in lazy `$[...]` expressions.
 
 ## Usage
 
@@ -105,9 +108,10 @@ Behaviour preservation is checked by execution, not by argument:
 constructs that make instrumentation hard — guards with early return, loops,
 conditional expressions, nested lambdas, strings holding semicolons, comments,
 multi-line brackets — then calls each one before and after instrumenting it and
-requires identical return values *and* identical side effects. Each generated
-function goes through the full file pipeline: statement rewrite, function
-wrapper, hit accounting, and canonical-model projection must all succeed. It
+runs the same seeded random stream, and requires identical return values,
+errors, side effects, and post-call random state. Each generated function goes
+through the full file pipeline: statement/branch rewrite, function wrapper, hit
+accounting, and canonical-model projection must all succeed. It
 runs a fixed corpus plus 75 seeded random functions on every suite run, and was
 swept clean to seed 400. Reintroducing the line-start insertion defect makes it fail, so it
 demonstrably catches the class of bug it exists for.
@@ -117,6 +121,46 @@ its own `lib/` instrumented the framework stops running tests, because the code
 being rewritten is the code doing the rewriting. Turn statement coverage on
 deliberately, and confirm your suite still passes with it on before trusting the
 numbers.
+
+### Conditional-edge coverage (`-cov-branches`, opt-in)
+
+Branch mode wraps only each condition, then returns the condition value
+unchanged to q's original control form:
+
+```q
+.calc.grade:{[s]
+    if[s<0; :`invalid];
+    $[s>90; `A;
+      s>80; `B;
+      s>70; `C;
+      `F]
+ };
+```
+
+This inventories four sites (one `if`, three `$` conditions) and eight edges.
+Calling `grade 95` hits the false edge of the `if` and the true edge of the
+first `$` condition; later `$` conditions remain unevaluated, proving their
+values stayed lazy. `while` records a true edge for iterations and its final
+false edge on termination. Each site has a stable `branch_<hash>` identity,
+source line/column, condition index, and two stable `edge_<hash>` identities.
+
+The runtime uses q's own conditional truthiness (including numeric atoms) to
+classify an edge, then passes the original value through. A value that q cannot
+use as a control condition credits neither edge and still reaches the original
+control form, which raises its original error. The differential corpus pins
+return/error behavior, namespace bindings, side effects, and RNG state.
+
+Use it independently or with statement coverage:
+
+```bash
+resq cover tests/ --source src/ -cov-statements -cov-branches
+```
+
+LCOV receives standard `BRDA`, `BRF`, and `BRH` records. The metric is
+conditional-edge coverage—not path coverage, MC/DC, or proof that every value
+expression was evaluated. `do[...]` is not a boolean branch and is not counted.
+Nested-lambda sites are inventoried with `fallbackReason:"nested_lambda"` but
+are intentionally ineligible until nested-lambda instrumentation lands.
 
 ### Line records are emitted only where lines were measured
 
@@ -158,6 +202,8 @@ LH:5
 |------|----------|--------------|-----------------|
 | default | function entered at least once | `FN`/`FNDA`/`FNF`/`FNH` | `-cov-min`, `-cov-functions-min` |
 | `-cov-statements` | each safely instrumented statement probe | the above plus `DA`/`LF`/`LH` | the above plus `-cov-lines-min`, `-cov-completeness-min` |
+| `-cov-branches` | true/false edges for eligible `if`, `while`, and `$` conditions | function records plus `BRDA`/`BRF`/`BRH` | function gates plus `-cov-branches-min`, `-cov-branch-completeness-min` |
+| both | statements and conditional edges in one verified rewrite | all records above | all independent gates above |
 
 A function-level 100% means every function was entered, **not** that every branch
 inside them ran. The console says so explicitly when reporting on that basis.
@@ -188,6 +234,14 @@ These counts appear in JSON as `coverage.fallbackCounts`; completeness appears
 as `statementFunctionsInstrumented`, `statementFunctionsEligible`, and
 `statementInstrumentationPercent`.
 
+Branch completeness is site-based. `branchSitesEligible`,
+`branchSitesInstrumented`, `branchInstrumentationPercent`, and
+`branchInstrumentationComplete` reveal the denominator directly. Eligible
+sites in unloaded manifest files remain at zero hits with
+`source_not_loaded`; a loaded function whose whole rewrite is rejected uses
+`rewrite_rejected`. Ineligible nested sites remain visible but do not inflate
+`BRF`. A branch gate refuses an empty or partial eligible-site denominator.
+
 ---
 
 ## Output
@@ -196,16 +250,16 @@ Reports are written to `outDir` (default: `.`):
 
 | File | Contents |
 |------|----------|
-| `coverage.lcov` | Standard LCOV with SF/FN/FNDA/FNF/FNH records, plus DA/LF/LH under `-cov-statements`. Consumable by `genhtml`, Codecov, Coveralls, SonarQube. |
-| `coverage.json` | Detailed canonical model: aggregate totals, eligibility/completeness, fallback counts, files, functions, and measured statement records. |
-| `coverage.html` | Annotated per-file source and function tables, including measured/unmeasured status and fallback reasons. |
-| `coverage_state.txt` | Grep-friendly complete function state (`path function hits instrumentation fallback`). |
+| `coverage.lcov` | Standard LCOV function records, `DA`/`LF`/`LH` under statement mode, and `BRDA`/`BRF`/`BRH` under branch mode. |
+| `coverage.json` | Detailed canonical model: totals, eligibility/completeness, fallbacks, files, functions, statements, branch sites, edges, and hits. |
+| `coverage.html` | Annotated source/function tables plus branch-site locations, edge hits, completeness, and fallbacks. |
+| `coverage_state.txt` | Grep-friendly v3 `F` function, `B` branch-site, and `E` edge records, including zero-hit state. |
 
 LCOV, detailed JSON, HTML, and state are rendered from the same in-memory
-coverage snapshot. The self-suite parses their outputs and requires function
-and measured-line totals to agree. `test-results.json` embeds the same aggregate
-summary and independent gate decisions; `coverage.json` carries the detailed
-file/function/statement model.
+coverage snapshot. The self-suite parses their outputs and requires function,
+statement, and branch totals to agree. `test-results.json` embeds the same
+aggregate summary and independent gate decisions; `coverage.json` carries the
+detailed model.
 
 ### Generating HTML locally
 
@@ -253,15 +307,20 @@ For new CI, prefer the explicit thresholds:
 
 ```bash
 resq cover tests/ --source src/ -cov-statements \
+  -cov-branches \
   -cov-functions-min 80 \
   -cov-lines-min 75 \
-  -cov-completeness-min 95
+  -cov-completeness-min 95 \
+  -cov-branches-min 70 \
+  -cov-branch-completeness-min 100
 ```
 
 - `-cov-functions-min N` gates the complete static function inventory.
 - `-cov-lines-min N` gates only statements carrying real probes.
 - `-cov-completeness-min N` gates the percentage of inventoried functions that
   were safely statement-instrumented.
+- `-cov-branches-min N` gates eligible true/false edges.
+- `-cov-branch-completeness-min N` gates safely instrumented eligible sites.
 
 A line gate fails closed when statement instrumentation is incomplete, even if
 the measured subset exceeds its threshold. This is intentional: the quickstart,
@@ -270,7 +329,10 @@ functions (30%) contribute statement data. To knowingly gate only that measured
 subset, add `-cov-allow-partial` (configuration:
 `"allowPartialLineCoverage": true`). JSON exposes each decision under
 `coverage.gates.functions`, `.lines`, and `.completeness`, plus the overall
-`coverage.passed` verdict.
+`coverage.passed` verdict. Branch decisions are `.branches` and
+`.branchCompleteness`. Branch percentage gates always fail closed on partial
+site instrumentation; there is deliberately no branch equivalent of
+`-cov-allow-partial`.
 
 ---
 
@@ -282,6 +344,9 @@ subset, add `-cov-allow-partial` (configuration:
   for CI and refuses partial instrumentation unless explicitly acknowledged.
 - **`\l` / `system "l "` only** — the loader intercepts these two forms. Custom loaders are not auto-detected unless loader hijacking is explicitly enabled (experimental, see below).
 - **Compiled operators skipped** — `+/`, `each`, `':'`, etc. cannot be wrapped.
+- **Branch coverage is conditional-edge coverage** — no path/MC/DC records,
+  and nested-lambda sites remain explicitly ineligible until the nested-lambda
+  coverage milestone.
 
 ---
 

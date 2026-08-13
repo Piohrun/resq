@@ -22,6 +22,10 @@ if[not `describeOnly in key `.tst.app; .tst.app.describeOnly: 0b];
 if[not `xmlOutput in key `.tst.app; .tst.app.xmlOutput: 0b];
 if[not `runPerformance in key `.tst.app; .tst.app.runPerformance: 0b];
 if[not `runCoverage in key `.tst.app; .tst.app.runCoverage: 0b];
+if[not `coverageBranches in key `.tst;.tst.coverageBranches:0b];
+if[not `coverageBranchMin in key `.tst.app; .tst.app.coverageBranchMin:0];
+if[not `coverageBranchCompletenessMin in key `.tst.app;
+    .tst.app.coverageBranchCompletenessMin:0];
 if[not `exit in key `.tst.app; .tst.app.exit: 0b];
 / Set only by the explicit -exit CLI flag. End-of-run exit policy belongs to
 / resq.q; this flag preserves -ff -exit's immediate hard-stop semantics.

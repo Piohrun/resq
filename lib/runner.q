@@ -911,14 +911,18 @@
         1b;basis;percentValue;hitCount;foundCount;minimum;percentValue>=minimum)
  };
 
-/ Evaluate the three independent coverage dimensions. A line threshold over a
+/ Evaluate the independent coverage dimensions. A line threshold over a
 / partial statement denominator is rejected unless the user explicitly accepts
-/ that weaker contract with -cov-allow-partial.
+/ that weaker contract with -cov-allow-partial. Branch thresholds always fail
+/ closed on a partial site denominator: unlike derived lines, there is no honest
+/ branch percentage when some eligible conditions could not carry probes.
 .tst.coverageGateEvaluation:{[summary]
     legacyMin:@[get;`.tst.app.coverageMin;0];
     functionMin:max legacyMin,@[get;`.tst.app.coverageFunctionMin;0];
     lineMin:@[get;`.tst.app.coverageLineMin;0];
     completeMin:@[get;`.tst.app.coverageCompletenessMin;0];
+    branchMin:@[get;`.tst.app.coverageBranchMin;0];
+    branchCompleteMin:@[get;`.tst.app.coverageBranchCompletenessMin;0];
     allowPartial:1b~@[get;`.tst.app.allowPartialLineCoverage;0b];
     functionGate:.tst.coverageGateDecision[summary;functionMin];
     lineGate:.tst.coverageMetricDecision[
@@ -926,10 +930,22 @@
     completeGate:.tst.coverageMetricDecision[
         summary;"statement_instrumentation";`statementFunctionsEligible;
         `statementFunctionsInstrumented;`statementInstrumentationPercent;completeMin];
+    branchGate:.tst.coverageMetricDecision[
+        summary;"branches";`branchesFound;`branchesHit;`branchPercent;branchMin];
+    branchCompleteGate:.tst.coverageMetricDecision[
+        summary;"branch_instrumentation";`branchSitesEligible;
+        `branchSitesInstrumented;`branchInstrumentationPercent;branchCompleteMin];
     stmtMode:1b~$[`statementMode in key summary;summary`statementMode;0b];
     if[not stmtMode;completeGate[`measurable]:0b;completeGate[`passed]:0b];
     partial:stmtMode and (not 1b~$[`statementInstrumentationComplete in key summary;
         summary`statementInstrumentationComplete;0b]);
+    branchMode:1b~$[`branchMode in key summary;summary`branchMode;0b];
+    if[not branchMode;
+        branchGate[`measurable]:0b;branchGate[`passed]:0b;
+        branchCompleteGate[`measurable]:0b;branchCompleteGate[`passed]:0b];
+    partialBranches:branchMode and
+        (not 1b~$[`branchInstrumentationComplete in key summary;
+            summary`branchInstrumentationComplete;0b]);
     errors:();
     if[not functionGate`measurable;
         errors,:enlist "Coverage measured no executable functions."];
@@ -961,9 +977,33 @@
                 string[completeGate`found]," functions).";
           ::]
     ];
-    gates:`functions`lines`completeness!(functionGate;lineGate;completeGate);
-    `gates`errors`allowPartialLines`partialLines`effectiveFunctionMinimum!(
-        gates;errors;allowPartial;partial;functionMin)
+    if[branchMin>0;
+        $[not branchGate`measurable;
+            errors,:enlist "Branch coverage gate requested but no eligible branch edges were inventoried.";
+          partialBranches;
+            errors,:enlist "Branch coverage gate refused partial branch instrumentation (",
+                string[branchCompleteGate`hit],"/",string[branchCompleteGate`found],
+                " branch sites instrumented). Fix the reported fallbacks before gating.";
+          not branchGate`passed;
+            errors,:enlist "Branch coverage ",string[branchGate`percent],
+                "% is below required minimum ",string[branchMin],"% (",
+                string[branchGate`hit],"/",string[branchGate`found]," edges).";
+          ::]
+    ];
+    if[branchCompleteMin>0;
+        $[not branchCompleteGate`measurable;
+            errors,:enlist "Branch instrumentation completeness gate requested but no eligible branch sites were inventoried.";
+          not branchCompleteGate`passed;
+            errors,:enlist "Branch instrumentation completeness ",
+                string[branchCompleteGate`percent],"% is below required minimum ",
+                string[branchCompleteMin],"% (",string[branchCompleteGate`hit],"/",
+                string[branchCompleteGate`found]," branch sites).";
+          ::]
+    ];
+    gates:`functions`lines`completeness`branches`branchCompleteness!(
+        functionGate;lineGate;completeGate;branchGate;branchCompleteGate);
+    `gates`errors`allowPartialLines`partialLines`partialBranches`effectiveFunctionMinimum!(
+        gates;errors;allowPartial;partial;partialBranches;functionMin)
  };
 
 .tst.runAllPhase.generateCoverage:{[]
@@ -1017,8 +1057,9 @@
     evaluation:.tst.coverageGateEvaluation summary;
     gateDecision:evaluation[`gates;`functions];
     .tst.lastCoverageSummary:summary,
-        `gates`allowPartialLines`partialLines!(evaluation`gates;
-            evaluation`allowPartialLines;evaluation`partialLines);
+        `gates`allowPartialLines`partialLines`partialBranches!(evaluation`gates;
+            evaluation`allowPartialLines;evaluation`partialLines;
+            evaluation`partialBranches);
     errors,:evaluation`errors;
     if[evaluation`partialLines;
         .tst.recordDiagnostic[`coverage;`warning;`coverage;
@@ -1027,6 +1068,12 @@
                 summary`statementFunctionsInstrumented;
                 summary`statementFunctionsEligible;
                 evaluation`allowPartialLines)]];
+    if[evaluation`partialBranches;
+        .tst.recordDiagnostic[`coverage;`warning;`coverage;
+            "Branch instrumentation is partial.";
+            `instrumented`eligible!(
+                summary`branchSitesInstrumented;
+                summary`branchSitesEligible)]];
     if[count errors;
         {[coverageSummary;msg]
             .tst.recordDiagnostic[`coverage;`error;`coverage;msg;coverageSummary]
@@ -1047,9 +1094,18 @@
                 string[summary`statementInstrumentationPercent],"% (",
                 string[summary`statementFunctionsInstrumented],"/",
                 string[summary`statementFunctionsEligible]," functions)."];
-        if[(not `linesFound in key summary) or 0 = summary`linesFound;
+        if[1b~$[`branchMode in key summary;summary`branchMode;0b];
+            -1 "  Branch coverage: ",string[summary`branchPercent],"% (",
+                string[summary`branchesHit],"/",string[summary`branchesFound],
+                " edges); instrumentation completeness ",
+                string[summary`branchInstrumentationPercent],"% (",
+                string[summary`branchSitesInstrumented],"/",
+                string[summary`branchSitesEligible]," sites)."];
+        if[((not `linesFound in key summary) or 0 = summary`linesFound) and
+           not 1b~$[`branchMode in key summary;summary`branchMode;0b];
             -1 "  (function-level: a function counts as covered once entered.",
-               " Statement/branch execution is NOT measured -- add -cov-statements.)"];
+               " Statement/branch execution is NOT measured -- add",
+               " -cov-statements and/or -cov-branches.)"];
         if[(0 < summary`linesFound) and
            (0 < evaluation`effectiveFunctionMinimum);
             -1 "  (-cov-min gates on complete function coverage; measured lines are diagnostic.)"];

@@ -35,9 +35,10 @@ artifacts.
 
 The [nightly workflow](../.github/workflows/nightly.yml) runs the two riskiest
 source transformations against deterministic extended corpora on the licensed
-runner: the resQ test loader is compared with native `\l`, and statement
-instrumentation is compared with uninstrumented execution including side
-effects. Scheduled defaults are 400 loader seeds and 2,000 coverage seeds;
+runner: the resQ test loader is compared with native `\l`, and combined
+statement/branch instrumentation is compared with uninstrumented execution,
+including return values, errors, side effects, and q's post-call random state.
+Scheduled defaults are 400 loader seeds and 2,000 coverage seeds;
 manual dispatch can override either count.
 
 Each failure names its exact seed. Reproduce a nightly run locally with:
@@ -86,21 +87,27 @@ Coverage must run as a separate, non-isolated command because instrumentation
 and subprocess isolation cannot be combined truthfully:
 
 ```bash
-resq cover tests/ -strict -cov-statements -cov-min 80 \
+resq cover tests/ --source src/ -strict -cov-statements -cov-branches \
+  -cov-functions-min 80 -cov-lines-min 75 -cov-completeness-min 100 \
+  -cov-branches-min 70 -cov-branch-completeness-min 100 \
   -junit -json -outDir artifacts/coverage
 ```
 
-**Include `-cov-statements` when line diagnostics are useful.** The run still
-uses the complete function inventory for `-cov-min`: statement instrumentation
-can reject unsafe rewrites, so a line denominator may represent only part of
-the code. Function coverage is a real signal — an uncalled discovered function
-shows as uncovered — but it is weaker than branch coverage, since a branch that
-never ran inside a called function is invisible to it.
+Declare production roots with `--source`; otherwise a module no test loads
+cannot enter any denominator. Include `-cov-statements` for measured statement
+records and `-cov-branches` for true/false conditional edges. Both rewrite modes
+publish instrumentation completeness. Their gates fail closed on partial
+denominators (line coverage has an explicit `-cov-allow-partial` escape hatch;
+branch coverage deliberately does not).
 
 `-cov-min N` accepts an integer from 0 through 100 and exits 1 when function
 coverage is below the threshold. The JSON report's `coverage.basis` field is
 `"functions"`; line counts remain available alongside it when requested. A run
 that cannot measure code or write its coverage reports also fails closed.
+Prefer the independent gates shown above for new pipelines. Branch coverage is
+conditional-edge coverage for eligible `if`, `while`, and `$` conditions, not
+path coverage or MC/DC; detailed site/edge identities and fallback reasons are
+available in `coverage.json`.
 
 ## Reporter artifacts
 

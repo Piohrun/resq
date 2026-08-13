@@ -159,6 +159,8 @@
             "-isolateTimeout"; "5"; "-cov-include"; "lib/*"; "-cov-exclude"; "tests/*";
             "-cov-min"; "85"; "-cov-functions-min"; "80";
             "-cov-lines-min"; "70"; "-cov-completeness-min"; "90";
+            "-cov-branches-min"; "65";
+            "-cov-branch-completeness-min"; "95";
             "-source"; "src,shared";
             "-outDir"; "reports"; "-exclude"; "slow*"; "-only"; "fast*";
             "-tag"; "smoke"; "-exclude-tag"; "flaky"; "suite.q");
@@ -166,6 +168,8 @@
             "--isolateTimeout"; "5"; "--cov-include"; "lib/*"; "--cov-exclude"; "tests/*";
             "--coverage-min"; "85"; "--cov-functions-min"; "80";
             "--cov-lines-min"; "70"; "--cov-completeness-min"; "90";
+            "--cov-branches-min"; "65";
+            "--cov-branch-completeness-min"; "95";
             "--coverage-source"; "src,shared";
             "--outDir"; "reports"; "--exclude"; "slow*"; "--only"; "fast*";
             "--tag"; "smoke"; "--exclude-tag"; "flaky"; "suite.q");
@@ -173,6 +177,17 @@
         longForm[`ok] musteq 1b;
         single[`options] mustmatch longForm`options;
         single[`args] mustmatch longForm`args;
+    };
+
+    should["parse branch measurement and its independent gates"]{
+        parsed:.tst.parseCLI ("cover";"suite.q";"--cov-branches";
+            "--cov-branches-min";"75";
+            "--cov-branch-completeness-min";"100");
+        parsed[`ok] musteq 1b;
+        parsed[`options;`covBranches] musteq 1b;
+        parsed[`options;`coverageBranchMin] musteq 75j;
+        parsed[`options;`coverageBranchCompletenessMin] musteq 100j;
+        parsed[`args] musteq enlist "suite.q";
     };
 
     should["treat --source as a value option rather than a test path"]{
@@ -238,6 +253,8 @@
         .tst.cliParseFails[("test"; "-cov-min"; "-1"); "Value must be between 0 and 100 for -*"] musteq 1b;
         .tst.cliParseFails[("test"; "-cov-lines-min"; "101"); "Value must be between 0 and 100 for -*"] musteq 1b;
         .tst.cliParseFails[("test"; "-cov-completeness-min"; "-1"); "Value must be between 0 and 100 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-cov-branches-min"; "101"); "Value must be between 0 and 100 for -*"] musteq 1b;
+        .tst.cliParseFails[("test"; "-cov-branch-completeness-min"; "-1"); "Value must be between 0 and 100 for -*"] musteq 1b;
     };
 
     should["reject contradictory process-lifecycle flags"]{
