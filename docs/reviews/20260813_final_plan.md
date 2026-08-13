@@ -54,7 +54,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 0 | Merge and publish the final plan | complete |
 | 1 | Regression corpus and deterministic benchmark harness | complete |
 | 2 | Loader semantic correctness, diagnostics, and scaling | complete |
-| 3 | Strict report validator and immutable canonical run snapshot | pending |
+| 3 | Strict report validator and immutable canonical run snapshot | complete |
 | 4 | Deterministic CLI/pass/isolation contract | pending |
 | 5 | Real lifecycle time, event v2, and duration semantics | pending |
 | 6 | Report profiles, payload cleanup, and scale budgets | pending |
@@ -125,6 +125,12 @@ Move full-run/report-mutating self-tests to disposable q subprocesses where prac
 Freeze the core canonical model once per report operation. Attach reporter-specific diagnostics through a small derived overlay so JSON, JUnit, xUnit, and console receive the same inventory without rebuilding manifest/events/coverage per reporter.
 
 **Validation:** every negative contract fixture is rejected; complete, truncated, load-failure, timeout, empty-shard, and merged fixtures pass; fresh normal and isolated self-runs reconcile exactly; adding reporters does not multiply model construction; normal/isolate verdict maps match.
+
+Completed 2026-08-14: the strict 701-test self-run passed (700 pass, 1 skip,
+2,186 assertions), its report validated with 701 selected/result/manifest IDs
+and 77/77 files, the real fail-fast fixture validated as an explicit one-of-two
+truncation, 22 licence-free validator tests passed, and the 50/100/200 loader
+growth ratios remained bounded at 2.056/2.108.
 
 ## Step 4 — Make CLI and process behavior deterministic
 

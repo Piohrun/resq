@@ -101,7 +101,22 @@
             "selectedFiles": {"type": "array", "items": {"type": "string"}},
             "selectedExecutionIds": {"type": "array", "items": {"type": "string", "pattern": "^(?:test|case)_[0-9a-f]{32}$"}}
           }
-        }
+        },
+        "completion": {"$ref": "#/$defs/completion"}
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "complete", "truncated", "reason", "selectedTestCount", "resultCount", "missingExecutionIds"],
+      "properties": {
+        "state": {"enum": ["complete", "incomplete"]},
+        "complete": {"type": "boolean"},
+        "truncated": {"type": "boolean"},
+        "reason": {"enum": ["completed", "describeOnly", "emptyShard", "frameworkError", "loadError", "isolationError", "failFast", "missingResults"]},
+        "selectedTestCount": {"type": "integer", "minimum": 0},
+        "resultCount": {"type": "integer", "minimum": 0},
+        "missingExecutionIds": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^(?:test|case)_[0-9a-f]{32}$"}}
       }
     },
     "summary": {

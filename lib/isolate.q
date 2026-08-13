@@ -714,6 +714,8 @@
     .resq.state.results: .resq.state.emptyResults[];
     .tst.app.baseDir: system "cd";
     .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
+    .tst.app.executionIncompleteReason:"";
+    .tst.app.canonicalRunSnapshot:()!();
     .tst.beginRunMetadata[];
     .tst.loadFlakeState[];
     .tst.loadRerunState[];
@@ -795,6 +797,7 @@
             {[u;x]$[u~`test;x`testShardKey;x`caseShardKey]}[unit;] each invRows];
     .tst.app.selectedExecutionIds:distinct .tst.toString each
         {x`executionId} each selectedInv;
+    .tst.app.selectedTestCount:"j"$count selectedInv;
 
     .tst.isolate.dropChildStrict[];
     if[not `file~@[get;`.tst.app.shardUnit;`file];
@@ -820,6 +823,7 @@
                 .resq.EXIT.PASS];
     .tst.app.passed: exitCode = .resq.EXIT.PASS;
     .tst.finalizeRerunSelectionMetadata count .resq.state.results;
+    .tst.captureCanonicalRunSnapshot[];
     .tst.runAllPhase.runSafely[`plugins;.tst.runRegisteredPlugins];
     resultRows:.tst.resultRows .resq.state.results;
     anyFailure:$[count resultRows;any .tst.rowBlocksRun each resultRows;0b];

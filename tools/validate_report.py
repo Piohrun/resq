@@ -34,10 +34,27 @@ def require(obj: dict[str, Any], keys: set[str], where: str) -> None:
         raise ValueError(f"{where}: missing {', '.join(missing)}")
 
 
-def iso8601(value: Any, where: str) -> None:
+def iso8601(value: Any, where: str) -> datetime:
     if not isinstance(value, str):
         raise ValueError(f"{where}: expected ISO-8601 string")
-    datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def require_non_negative_number(value: Any, where: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise ValueError(f"{where}: expected non-negative number")
+
+
+def validate_diagnostic(diagnostic: Any, where: str) -> None:
+    if not isinstance(diagnostic, dict):
+        raise ValueError(f"{where}: expected object")
+    require(diagnostic, {"type", "severity", "phase", "message", "data"}, where)
+    if diagnostic["severity"] not in {"info", "warning", "error"}:
+        raise ValueError(f"{where}.severity: invalid")
+    if not isinstance(diagnostic["data"], dict):
+        raise ValueError(f"{where}.data: expected object")
+    if "timestamp" in diagnostic:
+        iso8601(diagnostic["timestamp"], f"{where}.timestamp")
 
 
 def rows_for_validation(value: Any) -> list[dict[str, Any]]:
@@ -148,6 +165,9 @@ def validate_test(row: Any, index: int) -> None:
     )
     if row["status"] not in STATUSES:
         raise ValueError(f"{where}.status: unknown value {row['status']!r}")
+    require_non_negative_number(row["durationSeconds"], f"{where}.durationSeconds")
+    if not isinstance(row["assertsRun"], int) or isinstance(row["assertsRun"], bool) or row["assertsRun"] < 0:
+        raise ValueError(f"{where}.assertsRun: expected non-negative integer")
     if not isinstance(row["testId"], str) or not HEX_ID.fullmatch(row["testId"]):
         raise ValueError(f"{where}.testId: invalid stable identity")
     if not isinstance(row["caseId"], str) or (
@@ -245,6 +265,10 @@ def validate_test(row: Any, index: int) -> None:
         validate_benchmark_telemetry(benchmark, f"{where}.benchmark", row["testId"])
         if row["kind"] != "perf":
             raise ValueError(f"{where}: only perf rows may carry benchmark telemetry")
+    if not isinstance(row["diagnostics"], list):
+        raise ValueError(f"{where}.diagnostics: expected array")
+    for diagnostic_index, diagnostic in enumerate(row["diagnostics"]):
+        validate_diagnostic(diagnostic, f"{where}.diagnostics[{diagnostic_index}]")
     quarantine = row.get("quarantine", {})
     if not isinstance(quarantine, dict):
         raise ValueError(f"{where}.quarantine: expected object")
@@ -404,6 +428,79 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
             f"(extra={sorted(set(selected_ids) - expected_selected)}, "
             f"missing={sorted(expected_selected - set(selected_ids))})"
         )
+    selected_files = [entry["path"] for entry in manifest["files"] if entry["selected"]]
+    if shard["allFileCount"] != len(manifest["files"]):
+        raise ValueError("run.shard.allFileCount disagrees with manifest files")
+    if shard["selectedFileCount"] != len(selected_files):
+        raise ValueError("run.shard.selectedFileCount disagrees with manifest selection")
+    if shard["selectedFiles"] != selected_files:
+        raise ValueError("run.shard.selectedFiles disagrees with manifest selection")
+    unit_keys = (
+        file_paths
+        if shard["unit"] == "file"
+        else list(dict.fromkeys(entry["shardKey"] for entry in manifest["tests"] if entry["shardable"]))
+    )
+    selected_unit_keys = (
+        selected_files
+        if shard["unit"] == "file"
+        else list(dict.fromkeys(
+            entry["shardKey"] for entry in manifest["tests"]
+            if entry["shardable"] and entry["selected"]
+        ))
+    )
+    if shard["allUnitCount"] != len(unit_keys):
+        raise ValueError("run.shard.allUnitCount disagrees with manifest topology")
+    if shard["selectedUnitCount"] != len(selected_unit_keys):
+        raise ValueError("run.shard.selectedUnitCount disagrees with manifest topology")
+    selection = document["run"].get("selection", {})
+    if selection.get("selectedTestCount") != len(selected_ids):
+        raise ValueError("run.selection.selectedTestCount disagrees with selected execution IDs")
+
+
+def validate_completion(document: dict[str, Any], execution_ids: list[str]) -> None:
+    completion = document["run"].get("completion")
+    if completion is None:
+        return  # additive v2 extension: historical checked-in reports remain valid
+    if not isinstance(completion, dict):
+        raise ValueError("run.completion: expected object")
+    require(
+        completion,
+        {
+            "state", "complete", "truncated", "reason", "selectedTestCount",
+            "resultCount", "missingExecutionIds",
+        },
+        "run.completion",
+    )
+    if completion["state"] not in {"complete", "incomplete"}:
+        raise ValueError("run.completion.state: invalid")
+    if not isinstance(completion["complete"], bool) or not isinstance(completion["truncated"], bool):
+        raise ValueError("run.completion: complete/truncated must be boolean")
+    if completion["complete"] == completion["truncated"]:
+        raise ValueError("run.completion: complete and truncated must be opposites")
+    if (completion["state"] == "complete") != completion["complete"]:
+        raise ValueError("run.completion.state disagrees with complete")
+    recognized = {
+        "completed", "describeOnly", "emptyShard", "frameworkError", "loadError",
+        "isolationError", "failFast", "missingResults",
+    }
+    if completion["reason"] not in recognized:
+        raise ValueError("run.completion.reason: unsupported")
+    selected = document["run"].get("shard", {}).get("selectedExecutionIds", [])
+    result_set = set(execution_ids)
+    selected_set = set(selected)
+    missing = selected_set - result_set
+    if completion["selectedTestCount"] != len(selected):
+        raise ValueError("run.completion.selectedTestCount disagrees with run selection")
+    if completion["resultCount"] != len(execution_ids):
+        raise ValueError("run.completion.resultCount disagrees with report rows")
+    if set(completion["missingExecutionIds"]) != missing:
+        raise ValueError("run.completion.missingExecutionIds is not the exact selection gap")
+    if not result_set.issubset(selected_set):
+        raise ValueError("run.completion: result identity lies outside selected execution IDs")
+    if completion["complete"] and result_set != selected_set:
+        raise ValueError("run.completion: complete run must exactly cover its selection")
+    if completion["truncated"] and completion["reason"] in {"completed", "describeOnly", "emptyShard"}:
+        raise ValueError("run.completion: truncated run requires an incomplete reason")
 
 
 def validate_events(events: Any, document: dict[str, Any]) -> None:
@@ -462,8 +559,14 @@ def validate(document: Any) -> None:
     )
     if not HEX_ID.fullmatch(run["id"]):
         raise ValueError("run.id: invalid")
-    iso8601(run["startedAt"], "run.startedAt")
-    iso8601(run["finishedAt"], "run.finishedAt")
+    started_at = iso8601(run["startedAt"], "run.startedAt")
+    finished_at = iso8601(run["finishedAt"], "run.finishedAt")
+    require_non_negative_number(run["durationSeconds"], "run.durationSeconds")
+    if finished_at < started_at:
+        raise ValueError("run.finishedAt precedes run.startedAt")
+    elapsed = (finished_at - started_at).total_seconds()
+    if abs(float(run["durationSeconds"]) - elapsed) > 0.001:
+        raise ValueError("run.durationSeconds disagrees with run timestamps")
     summary = document["summary"]
     if run["resqVersion"] != document["frameworkVersion"]:
         raise ValueError("run.resqVersion does not match frameworkVersion")
@@ -472,6 +575,23 @@ def validate(document: Any) -> None:
         raise ValueError("summary.testCount does not match tests length")
     if summary["testCount"] != sum(summary[k] for k in ("passCount", "failCount", "errorCount", "skipCount")):
         raise ValueError("summary status counts do not add up")
+    for key in ("suiteCount", "testCount", "assertionCount", "passCount", "failCount", "errorCount", "skipCount"):
+        if not isinstance(summary[key], int) or isinstance(summary[key], bool) or summary[key] < 0:
+            raise ValueError(f"summary.{key}: expected non-negative integer")
+    require_non_negative_number(summary["durationSeconds"], "summary.durationSeconds")
+    actual_statuses = {
+        "passCount": sum(row.get("status") == "pass" for row in document["tests"]),
+        "failCount": sum(row.get("status") == "fail" for row in document["tests"]),
+        "errorCount": sum(row.get("status") == "error" for row in document["tests"]),
+        "skipCount": sum(row.get("status") in {"skip", "pending"} for row in document["tests"]),
+    }
+    for key, actual in actual_statuses.items():
+        if summary[key] != actual:
+            raise ValueError(f"summary.{key} disagrees with test rows")
+    if summary["suiteCount"] != len({row.get("suite") for row in document["tests"]}):
+        raise ValueError("summary.suiteCount disagrees with test rows")
+    if summary["assertionCount"] != sum(row.get("assertsRun", 0) for row in document["tests"]):
+        raise ValueError("summary.assertionCount disagrees with test rows")
     if "flake" in document:
         flake = document["flake"]
         require(
@@ -583,6 +703,21 @@ def validate(document: Any) -> None:
         raise ValueError("tests: duplicate execution identity")
     if len(case_ids) != len(set(case_ids)):
         raise ValueError("tests: duplicate parameter caseId")
+    validate_completion(document, execution_ids)
+    diagnostics = document["diagnostics"]
+    if not isinstance(diagnostics, list):
+        raise ValueError("diagnostics: expected array")
+    for diagnostic_index, diagnostic in enumerate(diagnostics):
+        validate_diagnostic(diagnostic, f"diagnostics[{diagnostic_index}]")
+    all_green = summary["failCount"] == 0 and summary["errorCount"] == 0
+    unexpected_errors = [
+        diagnostic for diagnostic in diagnostics
+        if diagnostic["severity"] == "error"
+        and not diagnostic["data"].get("expected", False)
+        and not diagnostic["data"].get("nonVerdict", False)
+    ]
+    if all_green and unexpected_errors:
+        raise ValueError("diagnostics: all-green report contains verdict-bearing error diagnostics")
     row_benchmark_ids = [
         row["benchmark"]["benchmarkId"] for row in document["tests"]
         if row["benchmark"] and "benchmarkId" in row["benchmark"]

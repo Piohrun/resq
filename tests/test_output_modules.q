@@ -46,17 +46,37 @@
         0b musteq .tst.loadOutputModule["missing-module"];
     };
 
+    should["builds canonical report topology once for multi-format dispatch"]{
+        .tst.testState.canonicalBuilds:0;
+        .tst.testState.canonicalStub:`diagnostics`manifest!(();()!());
+        `.tst.canonicalRunModel mock {[rows]
+            .tst.testState.canonicalBuilds+:1;
+            .tst.testState.canonicalStub};
+        `.tst.canonicalDiagnosticOverlay mock {[model]model};
+        `.resq.reportText mock {[model]::};
+        `.resq.reportJson mock {[model]::};
+        rows:enlist `suite`description`status`message`time`failures`assertsRun!(
+            "S";"ok";`pass;"";0Nn;();1i);
+        .resq.reportSelected[`text`json;11b;rows];
+        .tst.testState.canonicalBuilds musteq 1;
+    };
+
     should["tries every selected reporter and then fails closed"]{
         .tst.loadOutputModule["json"];
+        diagnosticsBefore:.tst.app.diagnostics;
+        `diagnostics mustin key .tst.captureRunState[];
         .tst.testState.reporterContinuation: 0;
         `.resq.reportJson mock {[rows] '"json exploded"};
         `.resq.reportText mock {[rows] .tst.testState.reporterContinuation+:1; ::};
         rows: enlist `suite`description`status`message`time`failures`assertsRun!(
             "S";"ok";`pass;"";0Nn;();1i);
-        outcome: @[
-            {[payload] .resq.reportSelected[`json`text;11b;payload]; (0b;"")};
-            rows;
-            {[e] (1b;.tst.toString e)}];
+        outcome:.tst.withIsolatedRunState[{[payload]
+            @[
+                {[data] .resq.reportSelected[`json`text;11b;data]; (0b;"")};
+                payload;
+                {[e] (1b;.tst.toString e)}]
+          };enlist rows];
+        .tst.app.diagnostics mustmatch diagnosticsBefore;
         must[first outcome; "a reporter failure must make the reporting phase fail"];
         .tst.testState.reporterContinuation musteq 1;
         must[(0 < count ss[last outcome;"REPORTER_FAILURE"]) and
@@ -65,14 +85,18 @@
     };
 
     should["attempts loaded reporters but fails when a requested module is unavailable"]{
+        diagnosticsBefore:.tst.app.diagnostics;
         .tst.testState.availableReporterRan: 0;
         `.resq.reportText mock {[rows] .tst.testState.availableReporterRan+:1; ::};
         rows: enlist `suite`description`status`message`time`failures`assertsRun!(
             "S";"ok";`pass;"";0Nn;();1i);
-        outcome: @[
-            {[payload] .resq.reportSelected[`junit`text;01b;payload]; (0b;"")};
-            rows;
-            {[e] (1b;.tst.toString e)}];
+        outcome:.tst.withIsolatedRunState[{[payload]
+            @[
+                {[data] .resq.reportSelected[`junit`text;01b;data]; (0b;"")};
+                payload;
+                {[e] (1b;.tst.toString e)}]
+          };enlist rows];
+        .tst.app.diagnostics mustmatch diagnosticsBefore;
         must[first outcome; "an unavailable requested reporter must fail the phase"];
         .tst.testState.availableReporterRan musteq 1;
         must[(0 < count ss[last outcome;"junit"]) and

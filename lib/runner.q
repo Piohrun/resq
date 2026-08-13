@@ -109,13 +109,14 @@
         / selected list now, so counting it would make every -junit run look
         / multi-format and rename test-results.xml to test-results.junit.xml.
         multiple: 1 < count selected except `text;
-        / Rebuild immediately before each reporter. Reporter N may record a
-        / typed failure diagnostic; reporter N+1 (JSON is ordered last by the
-        / CLI) must see it rather than serializing the pre-dispatch snapshot.
+        / Build the expensive canonical topology once. Reporter N may record a
+        / typed failure diagnostic; reporter N+1 receives a lightweight overlay
+        / that updates only diagnostics and their projected lifecycle events.
+        coreModel:.tst.canonicalRunModel results;
         outcomes:();
         i:0;
         while[i<count selected;
-            runModel:.tst.canonicalRunModel results;
+            runModel:.tst.canonicalDiagnosticOverlay coreModel;
             outcomes,:enlist .resq.invokeReporter[
                 runModel;multiple;availability i;selected i];
             i+:1];
@@ -613,6 +614,8 @@
     .tst.app.loadedFiles: ();
     .tst.app.emptyFiles: ();
     .tst.app.executionState: `notStarted;
+    .tst.app.executionIncompleteReason:"";
+    .tst.app.canonicalRunSnapshot:()!();
     .tst.app.snapshotDeclarations:();
     .tst.app.snapshotInventory:.tst.emptySnapshotInventory 0b;
     .tst.app.benchmarkEnvironment:()!();
@@ -950,6 +953,7 @@
     toInsert:.tst.oneResultTable baseRow;
     `.resq.state.results upsert toInsert;
     .tst.app.passed: 0b;
+    .tst.app.executionIncompleteReason:.tst.toString phase;
  };
 
 / Aggregate per-spec results into the global pass/fail bit. Any load error
@@ -1207,7 +1211,8 @@
 / End-of-run cleanup. Every step is trapped so one bad cleanup does not
 / skip the rest. Only namespaces THIS run created are removed.
 .tst.runAllPhase.finalCleanup:{[]
-    .tst.app.executionState: `completed;
+    .tst.app.executionState:$[count .tst.toString
+        @[get;`.tst.app.executionIncompleteReason;""];`incomplete;`completed];
     @[.tst.cleanupAllFixtures; (); {[e] .tst.recordCleanupError[`sessionFixture;e]}];
     @[.tst.restore; (); {[e] .tst.recordCleanupError[`mockRestore;e]}];
 
@@ -1302,6 +1307,7 @@
     continue: .tst.runAllPhase.runSafely[`initRun; .tst.runAllPhase.initRun];
     if[continue; continue: .tst.runAllPhase.runSafely[`loadTests; {.tst.loadTests .tst.app.args}]];
     if[continue; continue: .tst.runAllPhase.runSafely[`filterSpecs; .tst.runAllPhase.filterSpecs]];
+    if[continue; continue: .tst.runAllPhase.runSafely[`snapshotRun; .tst.captureCanonicalRunSnapshot]];
     if[continue; continue: .tst.runAllPhase.runSafely[`runSpecs; .tst.runAllPhase.runDiscoveredSpecs]];
     if[continue; continue: .tst.runAllPhase.runSafely[`loadErrors; .tst.runAllPhase.injectLoadErrors]];
     if[continue; continue: .tst.runAllPhase.runSafely[`strictMode; .tst.runAllPhase.applyStrictMode]];

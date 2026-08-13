@@ -81,10 +81,11 @@
   failing:.tst.runners[`fuzz][failing];
   failing[`assertsRun] musteq 5;
 
-  .tst.beginRunMetadata[];
   row:.tst.oneResultTable `suite`description`status`file`assertsRun!(
    `property;"five executions";`pass;"tests/test_fuzz.q";passing`assertsRun);
-  model:.tst.canonicalRunModel row;
+  model:.tst.withIsolatedRunState[{[payload]
+   .tst.beginRunMetadata[];
+   .tst.canonicalRunModel payload};enlist row];
   model[`summary;`assertionCount] musteq 5;
   };
 

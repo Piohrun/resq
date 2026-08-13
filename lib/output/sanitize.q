@@ -442,6 +442,69 @@
         .tst.toString each @[get;`.tst.app.selectedExecutionIds;{()}])
  };
 
+/ The post-filter inventory is the durable evidence boundary for a run. Tests,
+/ plugins and reporters are all permitted to build nested/synthetic models, so
+/ the final report must not reconstruct discovery and selection from whatever
+/ mutable .tst.app values happen to remain at serialization time.
+.tst.runSnapshot:{[]
+    snapshot:@[get;`.tst.app.canonicalRunSnapshot;{()!()}];
+    $[99h=type snapshot;snapshot;()!()]
+ };
+
+.tst.captureCanonicalRunSnapshot:{[]
+    .tst.app.canonicalRunSnapshot:(
+        `runMetadata`runStartedAt`allDiscoveredFiles`discoveredFiles,
+        `executionInventory`selectedExecutionIds`selection`shard)!(
+            .tst.app.runMetadata;
+            .tst.app.runStartedAt;
+            (),@[get;`.tst.app.allDiscoveredFiles;{()}];
+            (),@[get;`.tst.app.discoveredFiles;{()}];
+            @[get;`.tst.app.executionInventory;{()}];
+            .tst.toString each @[get;`.tst.app.selectedExecutionIds;{()}];
+            .tst.selectionMetadata[];
+            .tst.shardMetadata[]);
+    ::
+ };
+
+/ Synthetic model tests execute inside the live self-test process. Preserve the
+/ outer run's reporting state even if the nested callback signals: q's trap
+/ handler is a function (never an eager side effect), and restoration happens
+/ before a trapped error is re-signalled.
+.tst.runStateKeys:`runStartedAt`runFinishedAt`runMetadata`diagnostics,
+    `canonicalRunSnapshot`selectedExecutionIds`selectedTestCount,
+    `allDiscoveredFiles`discoveredFiles`executionInventory,
+    `shardAllUnitCount`shardSelectedUnitCount`shardAllFileCount,
+    `shardSelectedFileCount`executionState`executionIncompleteReason,
+    `cleanupErrors`sandboxNamespaces;
+
+.tst.captureRunState:{[]
+    present:.tst.runStateKeys inter key `.tst.app;
+    present!(get each {` sv (`.tst.app;x)} each present)
+ };
+
+.tst.restoreRunState:{[state]
+    names:key state;
+    i:0;
+    while[i<count names;
+        set[` sv (`.tst.app;names i);state names i];
+        i+:1];
+    ::
+ };
+
+.tst.withIsolatedRunState:{[fn;args]
+    state:.tst.captureRunState[];
+    .tst.app.canonicalRunSnapshot:()!();
+    outcome:.[
+        {[callable;arguments]
+            result:$[0=count arguments;callable[];callable . arguments];
+            (0b;result)};
+        (fn;args);
+        {[err](1b;err)}];
+    .tst.restoreRunState state;
+    if[first outcome;'last outcome];
+    last outcome
+ };
+
 .tst.beginRunMetadata:{[]
     started:.z.p;
     root:.utl.normalizePath system "cd";
@@ -467,14 +530,19 @@
 
 .tst.finishRunMetadata:{[]
     if[not `runMetadata in key `.tst.app;.tst.beginRunMetadata[]];
+    current:.tst.app.runMetadata;
+    if[count .tst.toString current`finishedAt;:current];
+    snapshot:.tst.runSnapshot[];
+    runMeta:$[`runMetadata in key snapshot;snapshot`runMetadata;current];
+    started:$[`runStartedAt in key snapshot;snapshot`runStartedAt;.tst.app.runStartedAt];
     finished:.z.p;
     .tst.app.runFinishedAt:finished;
-    runMeta:.tst.app.runMetadata;
     runMeta[`finishedAt]:.tst.isoTimestamp finished;
-    runMeta[`durationSeconds]:("f"$finished-.tst.app.runStartedAt)%1000000000;
-    runMeta[`config]:.tst.selectedConfig[];
-    runMeta[`selection]:.tst.selectionMetadata[];
-    runMeta[`shard]:.tst.shardMetadata[];
+    runMeta[`durationSeconds]:0f|("f"$finished-started)%1000000000;
+    runMeta[`selection]:$[`selection in key snapshot;
+        snapshot`selection;.tst.selectionMetadata[]];
+    runMeta[`shard]:$[`shard in key snapshot;
+        snapshot`shard;.tst.shardMetadata[]];
     .tst.app.runMetadata:runMeta;
     runMeta
  };
@@ -517,6 +585,32 @@
     items
  };
 
+.tst.runCompletion:{[rows;resultIds;selectedIds]
+    missing:selectedIds except resultIds;
+    suites:.tst.toString each {x`suite} each rows;
+    kinds:.tst.toString each {x`kind} each rows;
+    incomplete:.tst.toString @[get;`.tst.app.executionIncompleteReason;""];
+    isDescribe:1b~@[get;`.tst.app.describeOnly;0b];
+    isEmpty:1b~@[get;`.tst.app.emptyShard;0b];
+    isLoad:(any kinds~\:"load") or any suites~\:"FILE_LOAD_ERROR";
+    isIsolation:any {x like "ISOLATED_*"} each suites;
+    reason:$[count incomplete;"frameworkError";
+        isLoad;"loadError";
+        isIsolation;"isolationError";
+        isDescribe;"describeOnly";
+        isEmpty;"emptyShard";
+        count missing;$[(1b~@[get;`.tst.app.failFast;0b]) or
+            1b~@[get;`.tst.app.failHard;0b];"failFast";"missingResults"];
+        "completed"];
+    complete:not reason in ("frameworkError";"loadError";"isolationError";
+        "failFast";"missingResults");
+    truncated:reason in ("frameworkError";"loadError";"isolationError";
+        "failFast";"missingResults");
+    `state`complete`truncated`reason`selectedTestCount`resultCount`missingExecutionIds!(
+        $[complete;"complete";"incomplete"];complete;truncated;reason;
+        "j"$count selectedIds;"j"$count resultIds;missing)
+ };
+
 / One in-memory document is the source for JSON, text, JUnit, and xUnit. XML
 / builders still receive it through resultRows/resultTable, which understand
 / the model and therefore cannot silently select a different set of tests.
@@ -529,15 +623,18 @@
         caseId:.tst.toString x`caseId;
         $[count caseId;caseId;.tst.toString x`testId]
       } each identityRows;
-    / Reporter/model construction is allowed repeatedly in one process (and the
-    / self-suite deliberately builds synthetic models). Extend the discovered
-    / selection for synthetic framework/plugin rows while building this model,
-    / then restore it before returning so a projection cannot pollute a later
-    / real report. Keeping the discovered IDs here is essential for fail-fast:
-    / its manifest intentionally records selected tests that were not executed.
-    savedSelectedExecutionIds:@[get;`.tst.app.selectedExecutionIds;{()}];
-    .tst.app.selectedExecutionIds:distinct
-        (.tst.toString each savedSelectedExecutionIds),resultExecutionIds;
+    snapshot:.tst.runSnapshot[];
+    selectedBase:$[`selectedExecutionIds in key snapshot;
+        snapshot`selectedExecutionIds;
+        .tst.toString each @[get;`.tst.app.selectedExecutionIds;{()}]];
+    inventory:$[`executionInventory in key snapshot;
+        snapshot`executionInventory;
+        @[get;`.tst.app.executionInventory;{()}]];
+    inventoryIds:.tst.manifestInventoryIds .tst.eventRows inventory;
+    / Framework/load/plugin rows are synthesized after the selection snapshot.
+    / They are genuine executed evidence, so include only those extra result
+    / identities locally; never mutate the durable inventory or live app state.
+    selectedIds:distinct selectedBase,resultExecutionIds except inventoryIds;
     stats:.tst.resultSummary rawRows;
     rows:rawRows;
     summaryKeys:`suiteCount`testCount`assertionCount`passCount`failCount`errorCount,
@@ -555,20 +652,38 @@
             @[get;`.tst.app.coverageBasis;"functions"];
             @[get;`.tst.app.coverageEffectiveMinimum;0];
             @[get;`.tst.app.coveragePassed;0b])];
+    run:.tst.finishRunMetadata[];
+    runSelection:run`selection;
+    runSelection[`selectedTestCount]:"j"$count selectedIds;
+    run[`selection]:runSelection;
+    runShard:run`shard;
+    runShard[`selectedExecutionIds]:selectedIds;
+    run[`shard]:runShard;
+    run[`completion]:.tst.runCompletion[identityRows;resultExecutionIds;selectedIds];
     modelKeys:`schemaVersion`framework`frameworkVersion`run`summary`tests`performance,
         `coverage`diagnostics`flake`snapshotInventory`benchmarkAnalysis;
     model:modelKeys!(2;"resQ";
         $[`VERSION in key `.resq;.resq.VERSION;"unknown"];
-        .tst.finishRunMetadata[];summary;rows;performance;coverage;
+        run;summary;rows;performance;coverage;
         @[get;`.tst.app.diagnostics;{()}];
         $[`flakeMetadata in key `.tst;.tst.flakeMetadata[];()!()];
         @[get;`.tst.app.snapshotInventory;{.tst.emptySnapshotInventory 0b}];
         @[get;`.tst.app.benchmarkAnalysis;{.tst.emptyBenchmarkAnalysis 0b}]);
     manifest:.tst.executionManifest model;
     events:.tst.lifecycleEvents[model;manifest];
-    complete:model,`manifest`events!(manifest;events);
-    .tst.app.selectedExecutionIds:savedSelectedExecutionIds;
-    complete
+    model,`manifest`events!(manifest;events)
+ };
+
+/ A failed earlier reporter may add a diagnostic before JSON runs. Reproject
+/ just that live evidence and its lifecycle events; the immutable run, manifest,
+/ summary and test rows remain byte-for-byte the same canonical build.
+.tst.canonicalDiagnosticOverlay:{[model]
+    current:@[get;`.tst.app.diagnostics;{()}];
+    if[current~model`diagnostics;:model];
+    out:model;
+    out[`diagnostics]:current;
+    out[`events]:.tst.lifecycleEvents[out;out`manifest];
+    out
  };
 
 / Canonical table form for reporters that need qSQL grouping/filtering.

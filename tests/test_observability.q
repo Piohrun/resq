@@ -11,8 +11,9 @@
   };
 
   should["capture complete run metadata without absolute test identity noise"]{
-    .tst.beginRunMetadata[];
-    runInfo:.tst.finishRunMetadata[];
+    runInfo:.tst.withIsolatedRunState[{[]
+      .tst.beginRunMetadata[];
+      .tst.finishRunMetadata[]};()];
     metadataKeys:`id`startedAt`finishedAt`durationSeconds`hostname`cwd,
       `qVersion`qRelease`os`resqVersion`vcs`ci`config`ordering`selection`shard;
     key[runInfo] mustin metadataKeys;
@@ -89,10 +90,11 @@
   };
 
   should["build one canonical model for every reporter"]{
-    .tst.beginRunMetadata[];
     row:.tst.oneResultTable `suite`description`status`file`assertsRun!(
       `suite;`test;`pass;"tests/test_observability.q";1i);
-    model:.tst.canonicalRunModel row;
+    model:.tst.withIsolatedRunState[{[payload]
+      .tst.beginRunMetadata[];
+      .tst.canonicalRunModel payload};enlist row];
     model[`schemaVersion] musteq 2;
     model[`framework] musteq "resQ";
     model[`summary;`testCount] musteq 1;

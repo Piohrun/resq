@@ -12,6 +12,16 @@
         `.tst.app.expectationsErrored  mock 3;
         `.tst.app.allSpecs             mock enlist `dummy;
         `.tst.app.discoveredFiles      mock .tst.app.discoveredFiles;
+        `.tst.app.allDiscoveredFiles   mock .tst.app.allDiscoveredFiles;
+        `.tst.app.executionInventory   mock .tst.app.executionInventory;
+        `.tst.app.selectedExecutionIds mock .tst.app.selectedExecutionIds;
+        `.tst.app.selectedTestCount    mock .tst.app.selectedTestCount;
+        `.tst.app.canonicalRunSnapshot mock .tst.app.canonicalRunSnapshot;
+        `.tst.app.runStartedAt         mock .tst.app.runStartedAt;
+        `.tst.app.runFinishedAt        mock .tst.app.runFinishedAt;
+        `.tst.app.runMetadata          mock .tst.app.runMetadata;
+        `.tst.app.diagnostics          mock .tst.app.diagnostics;
+        `.tst.app.executionIncompleteReason mock .tst.app.executionIncompleteReason;
         `.tst.app.loadedFiles          mock .tst.app.loadedFiles;
         `.tst.app.emptyFiles           mock .tst.app.emptyFiles;
         `.tst.app.executionState       mock `running;
@@ -144,6 +154,7 @@
     before{
         `.tst.app.loadErrors mock flip `file`error`type!(`symbol$(); (); `symbol$());
         `.tst.app.results    mock ();
+        `.tst.app.diagnostics mock .tst.app.diagnostics;
         `.resq.state.results mock .resq.state.emptyResults[];
     };
 
@@ -241,39 +252,33 @@
 .tst.desc["runAll phase: finalCleanup"]{
 
     should["transition executionState to completed"]{
-        saved: .tst.app.executionState;
         / finalCleanup now really does release the registered sandboxes (it used
         / to be a no-op, because it matched on `key `.` which never lists
         / namespaces). Calling it MID-RUN would therefore empty the sandbox of
         / every test file loaded so far, so blank the registry for this call.
-        savedSandboxes: .tst.app.sandboxNamespaces;
-        .tst.app.sandboxNamespaces: `symbol$();
-        .tst.app.executionState: `running;
-        .tst.runAllPhase.finalCleanup[];
-        .tst.app.sandboxNamespaces: savedSandboxes;
-        .tst.app.executionState musteq `completed;
-        .tst.app.executionState: saved;
+        completed:.tst.withIsolatedRunState[{[]
+            .tst.app.sandboxNamespaces:`symbol$();
+            .tst.app.executionState:`running;
+            .tst.runAllPhase.finalCleanup[];
+            .tst.app.executionState};()];
+        completed musteq `completed;
     };
 
     should["survive when a sub-cleanup raises (each one is trapped)"]{
         / Same reason for manual save/restore: finalCleanup wipes mocks.
-        savedState: .tst.app.executionState;
-        savedErrors: .tst.app.cleanupErrors;
         savedHook:  @[get; `.tst.cleanupAllFixtures; {{}}];
         / Blank the sandbox registry for the same reason as the test above:
         / finalCleanup releases registered sandboxes for real now, and calling it
         / mid-run would empty every already-loaded test file's namespace.
-        savedSandboxes: .tst.app.sandboxNamespaces;
-        .tst.app.sandboxNamespaces: `symbol$();
-        .tst.cleanupAllFixtures: {'cleanupExplosion};
-        .tst.app.executionState: `running;
-        @[.tst.runAllPhase.finalCleanup; (); {[e] -1 "unexpected: ", e}];
-        .tst.app.sandboxNamespaces: savedSandboxes;
-        .tst.app.executionState musteq `completed;
-        count[.tst.app.cleanupErrors] musteq 1;
+        result:.tst.withIsolatedRunState[{[]
+            .tst.app.sandboxNamespaces:`symbol$();
+            .tst.cleanupAllFixtures:{'cleanupExplosion};
+            .tst.app.executionState:`running;
+            @[.tst.runAllPhase.finalCleanup; (); {[e] -1 "unexpected: ", e}];
+            (.tst.app.executionState;count .tst.app.cleanupErrors)};()];
+        first[result] musteq `completed;
+        last[result] musteq 1;
         .tst.cleanupAllFixtures: savedHook;
-        .tst.app.cleanupErrors: savedErrors;
-        .tst.app.executionState: savedState;
     };
 };
 
@@ -284,6 +289,8 @@
         `.tst._runAllStep mock `before;
         `captured mock `;
         `.tst.app.passed mock 1b;
+        `.tst.app.executionIncompleteReason mock .tst.app.executionIncompleteReason;
+        `.tst.app.diagnostics mock .tst.app.diagnostics;
         `.resq.state.results mock .resq.state.emptyResults[];
     };
 

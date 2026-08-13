@@ -126,8 +126,11 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
  };
 
 .tst.executionManifest:{[runModel]
-    allFiles:(),@[get;`.tst.app.allDiscoveredFiles;{()}];
-    selected:(),@[get;`.tst.app.discoveredFiles;{()}];
+    snapshot:.tst.runSnapshot[];
+    allFiles:(),$[`allDiscoveredFiles in key snapshot;
+        snapshot`allDiscoveredFiles;@[get;`.tst.app.allDiscoveredFiles;{()}]];
+    selected:(),$[`discoveredFiles in key snapshot;
+        snapshot`discoveredFiles;@[get;`.tst.app.discoveredFiles;{()}]];
     if[0=count allFiles;allFiles:selected];
     allPaths:.tst.repoRelativePath each allFiles;
     / Discovery is sorted today, but the manifest contract must not depend on a
@@ -136,16 +139,19 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
     allFiles:allFiles fileOrder;
     allPaths:allPaths fileOrder;
     selectedPaths:.tst.repoRelativePath each selected;
-    shardCount:"j"$@[get;`.tst.app.shardCount;1j];
-    shardIndex:"j"$@[get;`.tst.app.shardIndex;0j];
-    unit:@[get;`.tst.app.shardUnit;`file];
+    run:$[`run in key runModel;runModel`run;()!()];
+    runShard:$[(99h=type run) and `shard in key run;run`shard;()!()];
+    shardCount:"j"$$[`count in key runShard;runShard`count;1j];
+    shardIndex:"j"$$[`index in key runShard;runShard`index;0j];
+    unit:`$$[`unit in key runShard;runShard`unit;"file"];
     fileEntries:{[selectedPaths;unit;shardCount;index;file;path]
         `fileId`path`sourceDigest`assignedShard`selected`shardable!(
             .tst.manifestFileId path;path;.tst.fileContentDigest file;
             $[unit~`file;"j"$index mod shardCount;-1j];
             any path~/:selectedPaths;1b)
       }[selectedPaths;unit;shardCount]'[til count allFiles;allFiles;allPaths];
-    inventory:@[get;`.tst.app.executionInventory;{()}];
+    inventory:$[`executionInventory in key snapshot;
+        snapshot`executionInventory;@[get;`.tst.app.executionInventory;{()}]];
     inventoryRows:.tst.eventRows inventory;
     resultInventory:.tst.eventRows .tst.manifestInventoryFromResults runModel;
     existingIds:.tst.manifestInventoryIds inventoryRows;
@@ -154,6 +160,13 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
         allPaths;selectedPaths;unit;shardIndex;shardCount;inventoryRows];
     testEntries,:.tst.manifestEntriesFor[
         allPaths;selectedPaths;unit;shardIndex;shardCount;extraRows];
+    selectedIds:.tst.toString each $[`selectedExecutionIds in key runShard;
+        runShard`selectedExecutionIds;()];
+    testEntries:{[ids;entry]
+        out:entry;
+        out[`selected]:.tst.toString[out`executionId] in ids;
+        out
+      }[selectedIds;] each testEntries;
     fileRows:.tst.eventRows fileEntries;
     sourceBasis:{[entry]
         (.tst.toString entry`path),"\t",(.tst.toString entry`sourceDigest),
@@ -163,7 +176,6 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
         "resq-execution-manifest-v2";
         "unit=",string[unit],";count=",string shardCount;
         .tst.toString @[get;`.resq.VERSION;{"unknown"}]),sourceBasis);
-    run:$[`run in key runModel;runModel`run;()!()];
     revision:$[(99h=type run) and `vcs in key run;run`vcs;()!()];
     `schemaVersion`kind`digest`digestAlgorithm`identityAlgorithm`frameworkVersion`revision`shard`files`tests!(
         .tst.MANIFEST_SCHEMA_VERSION;"resq-execution-manifest";digest;
