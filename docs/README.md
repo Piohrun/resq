@@ -14,13 +14,14 @@
 7. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
 8. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
 9. [Property-based testing](PBT.md) — Generative tests with `holds`
-10. [Coverage](COVERAGE.md) — Instrumenting coverage and reading LCOV output
-11. [Watch mode](WATCH.md) — File-watch mode
-12. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
-13. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
-14. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
-15. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
-16. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
+10. [Coverage](COVERAGE.md) — Instrumenting application coverage and reading LCOV output
+11. [Optional resQ self-coverage](SELF_COVERAGE.md) — Independent, partial framework evidence
+12. [Watch mode](WATCH.md) — File-watch mode
+13. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
+14. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
+15. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
+16. [Parallel execution](PARALLEL.md) — Isolated workers and CI-level sharding
+17. [Performance](PERFORMANCE.md) — Benchmarking assertions and statistics
 
 ### Migration
 - [Async helpers](ASYNC.md) — Deferreds, polling helpers, and callback spies
@@ -52,6 +53,7 @@
 | `ADAPTERS.md` | Platform teams | Stateless NDJSON and Allure 2 adapters |
 | `ARCHITECTURE.md` | Contributors | Namespace layout, exit codes, file tree |
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
+| `SELF_COVERAGE.md` | Maintainers | Optional independent resQ framework coverage evidence |
 | `CI.md` | Users | Production CI, coverage gates, reporter artifacts, runner setup |
 | `COMPATIBILITY_MATRIX.md` | Users / maintainers | Supported q runtime and execution-mode parity gate |
 | `EXTERNAL_PILOTS.md` | Users / maintainers | Pinned third-party adoption evidence and its limits |

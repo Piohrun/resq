@@ -36,7 +36,7 @@ appear complete.
 - [x] Keep the oversized-lambda diagnostic covered without spending roughly a
   minute in the default suite; retain the real compiler boundary in nightly
   hardening.
-- [ ] Add optional self-coverage evidence for resQ without pretending its own
+- [x] Add optional self-coverage evidence for resQ without pretending its own
   load-time rewriter can safely instrument itself or weakening licence-free CI.
 
 ### 1.0.1 gate

@@ -4,6 +4,14 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- An opt-in KX Developer `.cov` adapter can measure loaded resQ framework
+  functions without using resQ's own source rewriter. Its versioned JSON and
+  text artifacts are explicitly partial and non-gating, the adapter is covered
+  by an external-provider contract double, and licensed nightly CI enables it
+  only when AxLibraries is configured.
+
 ### Fixed
 
 - Property tests now sum assertions executed by every generated case instead

@@ -54,11 +54,23 @@ jobs:
             -outDir artifacts/differential
           tools/validate_report.py artifacts/differential/test-results.json
 
+      - name: Optional independent resQ self-coverage
+        if: ${{ vars.AXLIBRARIES_HOME != '' }}
+        env:
+          AXLIBRARIES_HOME: ${{ vars.AXLIBRARIES_HOME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/run_self_coverage.py \
+            --library "$AXLIBRARIES_HOME/ws/coverage.q_" \
+            --output artifacts/self-coverage \
+            --q q -- test tests -strict -quiet
+
       - name: Upload differential report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: resq-nightly-differential-${{ github.run_id }}
-          path: artifacts/differential/
+          path: artifacts/
           if-no-files-found: warn
           retention-days: 30

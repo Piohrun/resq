@@ -80,6 +80,8 @@ system "cd ", .resq.startCwd;
 / Load CLI/Runner
 .utl.require .resq.HOME,"/lib/cli.q"
 .utl.require .resq.HOME,"/lib/runner.q"
+/ The adapter is inert unless its explicit external-provider environment is set.
+.utl.require .resq.HOME,"/lib/self_coverage.q"
 
 / Configuration
 config: .tst.loadConfig[::];
@@ -160,7 +162,7 @@ if[.resq.mode ~ `test;
         if[1b ~ @[get; `.tst.app.describeOnly; 0b];
             .resq.report: .tst.describeReport;
         ];
-        .tst.runAll[];
+        .resq.runAllWithOptionalSelfCoverage[];
         .resq.completeExitGuard[];
         if[1b ~ .tst.app.exit;
             / -desc exits cleanly (0) when files loaded without error; a load error
