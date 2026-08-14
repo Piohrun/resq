@@ -27,6 +27,9 @@
       " -shard-count ",string[shardCount],
       $[isolated;" -isolate";""],$[strict;" -strict";""],
       " -state-file ",.utl.shellQuote[stateFile],
+      " -flake-history ",.utl.shellQuote[.tst.shardtest.base,"/state/flake.json"],
+      " -quarantine-file ",.utl.shellQuote[.tst.shardtest.base,"/state/quarantine.json"],
+      " -flake-proposal-file ",.utl.shellQuote[.tst.shardtest.base,"/state/proposals.json"],
       " -json -quiet -outDir ",.utl.shellQuote[report],
       " < /dev/null > ",.utl.shellQuote[wd,"/out.txt"]," 2>&1; echo $?";
   statusLines:@[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "-1"}];

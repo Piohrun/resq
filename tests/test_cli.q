@@ -493,7 +493,11 @@
 
     skipIf[(not .tst.cliCanQ) or not .tst.cliCanTimeout;
            "the documented relative resq.q entrypoint keeps HOME canonical"]{
-        r: .tst.cliRun["test @FIXTURE@ -quiet"; "cli_relative.q"; 1b];
+        r: .tst.cliRun[
+            "test @FIXTURE@ -quiet -state-file @WD@/state.json ",
+            "-flake-history @WD@/flake.json -quarantine-file @WD@/quarantine.json ",
+            "-flake-proposal-file @WD@/proposals.json";
+            "cli_relative.q"; 1b];
         r[`code] musteq 0;
         r[`loaded] musteq 1b;
     };

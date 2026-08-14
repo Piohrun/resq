@@ -11,6 +11,9 @@
         " --output ",.utl.shellQuote[wd]," --q q -- test ",
         .utl.shellQuote[.resq.HOME,"/tests/fixtures/sharding/shard_a.q"],
         " -strict -quiet -state-file ",.utl.shellQuote[wd,"/state.json"],
+        " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+        " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+        " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"],
         " > ",.utl.shellQuote[wd,".out"]," 2>&1; echo $?";
     code:"J"$last @[system;"sh -c ",.utl.shellQuote cmd;{[e]enlist "-1"}];
     raw:@[read0;hsym `$wd,"/self-coverage.json";{()}];

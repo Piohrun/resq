@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,14 +29,25 @@ from merge_shards import (  # noqa: E402
 from validate_report import validate  # noqa: E402
 
 
+def private_state(output: Path) -> list[str]:
+    state_root = output.parent / "state"
+    state_root.mkdir(parents=True, exist_ok=True)
+    topology = re.sub(r"-\d+$", "", output.name)
+    return [
+        "-state-file", str(output.with_suffix(".state.json")),
+        "-flake-history", str(state_root / f"{topology}-flake.json"),
+        "-quarantine-file", str(state_root / f"{topology}-quarantine.json"),
+        "-flake-proposal-file", str(state_root / f"{topology}-proposals.json"),
+    ]
+
+
 def run(
     q_executable: str, output: Path, flags: list[str], *, fixture: Path = FIXTURE,
     expected_codes: set[int] = {0},
 ) -> dict[str, Any]:
     command = [
         str(ROOT / "bin/resq"), "test", str(fixture), "-strict", "-json", "-quiet",
-        "-outDir", str(output), "-state-file", str(output.with_suffix(".state.json")),
-        *flags,
+        "-outDir", str(output), *private_state(output), *flags,
     ]
     environment = dict(os.environ)
     environment["QBIN"] = q_executable
@@ -58,8 +70,7 @@ def run_coverage(q_executable: str, output: Path, flags: list[str]) -> tuple[dic
         str(ROOT / "bin/resq"), "cover", str(COVERAGE_FIXTURE),
         "--source", str(COVERAGE_SOURCE), "-strict", "-json", "-quiet",
         "-cov-statements", "-cov-branches", "-cov-contexts",
-        "-outDir", str(output), "-state-file", str(output.with_suffix(".state.json")),
-        *flags,
+        "-outDir", str(output), *private_state(output), *flags,
     ]
     environment = dict(os.environ)
     environment["QBIN"] = q_executable
@@ -85,7 +96,7 @@ def run_strict_plugin_shard(
         str(ROOT / "bin/resq"), "test", str(PLUGIN_FIXTURE),
         "-plugin", str(PLUGIN), "-strict-plugins", "-json", "-quiet",
         "-shard-index", str(index), "-shard-count", str(count),
-        "-outDir", str(output), "-state-file", str(output.with_suffix(".state.json")),
+        "-outDir", str(output), *private_state(output),
     ]
     environment = dict(os.environ)
     environment.update(

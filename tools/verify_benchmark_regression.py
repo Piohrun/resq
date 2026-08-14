@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -21,9 +22,15 @@ from validate_report import validate  # noqa: E402
 
 
 def run_q(q_executable: str, fixture: Path, output: Path, extra: list[str], expected: int = 0) -> tuple[dict[str, Any], subprocess.CompletedProcess[str]]:
+    state_root = output.parent / "state"
+    state_root.mkdir(parents=True, exist_ok=True)
+    topology = re.sub(r"-\d+$", "", output.name)
     command = [
         q_executable, str(ROOT / "resq.q"), "-q", "test", str(fixture), "-perf", "-json",
         "-quiet", "-outDir", str(output), "-state-file", str(output / "state.json"),
+        "-flake-history", str(state_root / f"{topology}-flake.json"),
+        "-quarantine-file", str(state_root / f"{topology}-quarantine.json"),
+        "-flake-proposal-file", str(state_root / f"{topology}-proposals.json"),
         *extra, "-exit",
     ]
     completed = subprocess.run(

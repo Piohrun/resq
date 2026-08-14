@@ -51,7 +51,11 @@ def run_mode(
     command = [
         str(ROOT / "bin/resq"), "test", *(str(path) for path in fixtures),
         "-strict", "-json", "-quiet", "-outDir", str(output),
-        "-state-file", str(state), *flags,
+        "-state-file", str(state),
+        "-flake-history", str(root / "state" / f"{name}-flake.json"),
+        "-quarantine-file", str(root / "state" / f"{name}-quarantine.json"),
+        "-flake-proposal-file", str(root / "state" / f"{name}-proposals.json"),
+        *flags,
     ]
     environment = dict(os.environ)
     environment["QBIN"] = q_executable
