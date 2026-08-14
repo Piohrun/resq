@@ -41,8 +41,13 @@ the result. The envelope records codec name/version, q version/release, IPC
 serialization mode, and capability level. A mismatch is an explicit migration
 event; upgrading q must never silently rewrite identity-bearing state.
 
-Diagnostic IDs use the same length-delimited construction with their parent,
-index, and exact public JSON diagnostic bytes. Other textual IDs use an
+Diagnostic IDs (`resq-diagnostic-id-v4`) use the same length-delimited
+construction with their parent, index, and the diagnostic's canonical typed
+value bytes, so they are independent of console geometry and display precision
+exactly like case IDs. The Python shard merger does not recompute these
+hashes: it reuses the q-emitted `diagnostic.recorded` event IDs for
+shard-owned diagnostics and mints IDs only for merged-run entities that have
+no q counterpart. Other textual IDs use an
 explicitly framed UTF-8/text byte entry point. Production identity, equality,
 snapshot, assertion, and XML paths may not use console display formatters; a
 licence-free static gate enforces that boundary.

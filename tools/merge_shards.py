@@ -43,6 +43,13 @@ def stable_hash_text(value: str) -> str:
 
 
 def diagnostic_id(parent_id: str, index: int, diagnostic: dict[str, Any]) -> str:
+    """Mint an ID for a diagnostic that has no q-emitted counterpart.
+
+    q hashes canonical typed value bytes (resq-diagnostic-id-v4), which JSON
+    cannot reproduce; shard-owned diagnostics therefore reuse the q-emitted
+    event IDs (see shard_diagnostic_ids). This construction only names
+    merged-run entities and standalone-lifecycle fallbacks.
+    """
     wire = json.dumps(
         diagnostic, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
     )
@@ -51,7 +58,19 @@ def diagnostic_id(parent_id: str, index: int, diagnostic: dict[str, Any]) -> str
         + frame("diagnosticIndex", str(index))
         + frame("diagnosticJson", wire)
     )
-    return "diagnostic_" + hashlib.md5(frame("resq-diagnostic-id-v3", payload).encode()).hexdigest()
+    return "diagnostic_" + hashlib.md5(frame("resq-merged-diagnostic-id-v1", payload).encode()).hexdigest()
+
+
+def shard_diagnostic_ids(documents: list[dict[str, Any]]) -> dict[tuple[str, str], list[str]]:
+    """Map (parentId, canonical diagnostic) -> q-emitted event IDs, in order."""
+    mapping: dict[tuple[str, str], list[str]] = {}
+    for document in documents:
+        for event in document.get("events", []):
+            if event.get("type") != "diagnostic.recorded":
+                continue
+            key = (str(event.get("parentId", "")), canonical(event.get("payload", {})))
+            mapping.setdefault(key, []).append(str(event.get("entityId", "")))
+    return mapping
 
 
 def execution_id(row: dict[str, Any]) -> str:
@@ -660,8 +679,22 @@ def lifecycle(
     run: dict[str, Any], manifest: dict[str, Any], rows: list[dict[str, Any]],
     stats: dict[str, Any], coverage: dict[str, Any], diagnostics: list[dict[str, Any]],
     snapshot_inventory: dict[str, Any], benchmark_analysis: dict[str, Any],
+    shard_ids: dict[tuple[str, str], list[str]] | None = None,
 ) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
+    remaining_shard_ids = {
+        key: list(values) for key, values in (shard_ids or {}).items()
+    }
+    def owned_diagnostic_id(parent: str, index: int, diagnostic: dict[str, Any]) -> str:
+        pending = remaining_shard_ids.get((parent, canonical(diagnostic)))
+        if pending:
+            return pending.pop(0)
+        if shard_ids is not None:
+            raise MergeError(
+                f"shard evidence carries no diagnostic.recorded event for "
+                f"parent {parent} diagnostic {index}"
+            )
+        return diagnostic_id(parent, index, diagnostic)
     def observed(record: dict[str, Any], field: str, fallback: str) -> str:
         value = record.get(field)
         return value if isinstance(value, str) and value else fallback
@@ -758,7 +791,7 @@ def lifecycle(
                         row["testId"], test_finished, benchmark,
                     )
                 for index, diagnostic in enumerate(row.get("diagnostics", [])):
-                    diag_id = diagnostic_id(row["testId"], index, diagnostic)
+                    diag_id = owned_diagnostic_id(row["testId"], index, diagnostic)
                     emit("diagnostic.recorded", diag_id, row["testId"], test_finished, diagnostic)
                 finished_payload = {
                     "status": row["status"], "duration": row["time"],
@@ -1010,7 +1043,7 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
     }
     report["events"] = lifecycle(
         run, manifest, rows, stats, report_coverage, diagnostics, snapshot_inventory,
-        benchmark_analysis,
+        benchmark_analysis, shard_ids=shard_diagnostic_ids(documents),
     )
     validate(report)
     (destination / "test-results.json").write_text(

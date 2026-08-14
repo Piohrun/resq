@@ -56,6 +56,28 @@ class FableFindingContractTests(unittest.TestCase):
                     for needle in probe.get("absent", []):
                         self.assertNotIn(needle, source)
                 else:
+                    # Closed must mean the fixed state is observable, not merely
+                    # that a regression test exists. The baselineProbe needles
+                    # locate the area and may legitimately survive the fix, so
+                    # the fixed state carries its own closedProbe needles.
+                    closed = finding.get("closedProbe")
+                    if finding.get("severity") == "P0":
+                        self.assertIsNotNone(
+                            closed, f"{finding['id']}: P0 findings require a closedProbe"
+                        )
+                    if closed is not None:
+                        closed_path = ROOT / closed.get("path", probe["path"])
+                        closed_source = closed_path.read_text(encoding="utf-8")
+                        for needle in closed.get("contains", []):
+                            self.assertIn(
+                                needle, closed_source,
+                                f"{finding['id']}: fixed-state pattern missing",
+                            )
+                        for needle in closed.get("absent", []):
+                            self.assertNotIn(
+                                needle, closed_source,
+                                f"{finding['id']}: baseline bug pattern still present",
+                            )
                     regression_source = regression_path.read_text(encoding="utf-8")
                     self.assertIn(regression["selector"], regression_source)
 

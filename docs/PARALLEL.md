@@ -43,6 +43,9 @@ processes, each holding its own workspace and consuming a q runtime/licence
 allocation. A group is reported after all of its children finish, so one slow
 file can delay display of earlier completed files in that group.
 
+Hang termination requires GNU coreutils `timeout` with `--verbose` support on
+`PATH`; on hosts with a non-GNU `timeout` (busybox, BSD userlands) isolation
+runs without a supervisor cap and a hung file must be stopped externally.
 `-isolateTimeout N` caps each whole file, not each test; timing out abandons any
 later tests in that file. `-maxTestTime N` is an observational post-return test
 budget and cannot stop a hang. Coverage instrumentation does not compose with

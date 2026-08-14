@@ -14,7 +14,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from merge_shards import (  # noqa: E402
     MergeError,
+    canonical,
+    diagnostic_id,
     lifecycle,
+    shard_diagnostic_ids,
     load_report,
     load_reports,
     merge,
@@ -437,6 +440,70 @@ class MergerContractTests(unittest.TestCase):
         run_event = next(event for event in diagnostics if event["parentId"] == document["run"]["id"])
         self.assertEqual(row["finishedAt"], test_event["occurredAt"])
         self.assertEqual(document["run"]["finishedAt"], run_event["occurredAt"])
+
+    def test_shard_owned_diagnostic_events_reuse_q_emitted_ids(self) -> None:
+        document = scale_report(1)
+        row = document["tests"][0]
+        diagnostic = {
+            "type": "test-probe", "severity": "info", "phase": "execution",
+            "message": "test diagnostic", "data": {"elapsed": 0.123456789123456},
+        }
+        row["diagnostics"] = [diagnostic]
+        q_emitted = "diagnostic_" + "e" * 32
+        shard_ids = {
+            (row["testId"], canonical(diagnostic)): [q_emitted],
+        }
+        run_diagnostic = {
+            "type": "run-probe", "severity": "info", "phase": "reporting",
+            "message": "run diagnostic", "data": {},
+        }
+        events = lifecycle(
+            document["run"], document["manifest"], [row], summary([row]), {},
+            [run_diagnostic], document["snapshotInventory"],
+            document["benchmarkAnalysis"], shard_ids=shard_ids,
+        )
+        recorded = [e for e in events if e["type"] == "diagnostic.recorded"]
+        test_event = next(e for e in recorded if e["parentId"] == row["testId"])
+        run_event = next(e for e in recorded if e["parentId"] == document["run"]["id"])
+        # Shard-owned diagnostics carry the q-computed identity untouched;
+        # merged-run diagnostics have no q counterpart and are minted locally.
+        self.assertEqual(q_emitted, test_event["entityId"])
+        self.assertEqual(
+            diagnostic_id(document["run"]["id"], 0, run_diagnostic),
+            run_event["entityId"],
+        )
+
+    def test_missing_shard_diagnostic_event_fails_closed(self) -> None:
+        document = scale_report(1)
+        row = document["tests"][0]
+        row["diagnostics"] = [{
+            "type": "test-probe", "severity": "info", "phase": "execution",
+            "message": "unmapped diagnostic", "data": {},
+        }]
+        with self.assertRaises(MergeError):
+            lifecycle(
+                document["run"], document["manifest"], [row], summary([row]), {},
+                [], document["snapshotInventory"], document["benchmarkAnalysis"],
+                shard_ids={},
+            )
+
+    def test_shard_diagnostic_ids_maps_events_by_parent_and_content(self) -> None:
+        diagnostic = {"type": "probe", "message": "twice", "data": {}}
+        documents = [{
+            "events": [
+                {"type": "diagnostic.recorded", "parentId": "test_a",
+                 "entityId": "diagnostic_1", "payload": diagnostic},
+                {"type": "diagnostic.recorded", "parentId": "test_a",
+                 "entityId": "diagnostic_2", "payload": diagnostic},
+                {"type": "test.finished", "parentId": "suite_x",
+                 "entityId": "test_a", "payload": {}},
+            ],
+        }]
+        mapping = shard_diagnostic_ids(documents)
+        self.assertEqual(
+            {("test_a", canonical(diagnostic)): ["diagnostic_1", "diagnostic_2"]},
+            mapping,
+        )
 
     def test_benchmark_uses_its_owning_test_finish_time(self) -> None:
         golden = json.loads(

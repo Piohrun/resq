@@ -51,8 +51,12 @@ def code_lines(source: str) -> list[str]:
                 quoted = not quoted
                 continue
             if char == "/" and not quoted:
-                end = index
-                break
+                # q comments start only at line start or after whitespace; a
+                # "/" glued to code is an iterator (each/, +/, (f/)) and the
+                # rest of the line is still code that must be scanned.
+                if index == 0 or raw[index - 1] in " \t":
+                    end = index
+                    break
         output.append(raw[:end])
     return output
 

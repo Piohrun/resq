@@ -105,7 +105,7 @@ def artifact(test_id: str, run_id: str = "run_" + "a" * 32) -> dict[str, object]
     ]
     return {
         "schemaVersion": 2, "kind": "resq-coverage", "framework": "resQ",
-        "frameworkVersion": "2.0.0", "runId": run_id, "summary": summary(),
+        "frameworkVersion": "2.0.1", "runId": run_id, "summary": summary(),
         "files": [{
             "path": path, "loaded": True, "functionFound": 1, "functionHit": 1,
             "statementFunctionsInstrumented": 1, "lineFound": 1, "lineHit": 1,

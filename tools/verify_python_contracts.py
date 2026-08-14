@@ -25,6 +25,7 @@ SUITES = {
     "ndjson": ["tools.tests.test_adapters.NdjsonAdapterTests"],
     "allure": ["tools.tests.test_adapters.AllureAdapterTests"],
     "supporting": [
+        "tools.tests.test_fable_findings",
         "tools.tests.test_formatter_boundaries",
         "tools.tests.test_ingestion",
         "tools.tests.test_identity_migration",

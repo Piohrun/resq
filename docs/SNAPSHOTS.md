@@ -18,6 +18,11 @@ capability), canonical and rendering digests, and the full rendering. A codec
 or q-build mismatch is an explicit migration event rather than a silent digest
 change.
 
+Because the envelope pins the exact q build, upgrading q (including patch
+releases) invalidates every stored text snapshot at once: plan a one-time
+update-mode run (`.tst.setUpdateSnaps[1b]`) immediately after a q upgrade and
+review that rewrite as its own commit. Binary snapshots are unaffected.
+
 ### Usage
 ```q
 .tst.desc["Order Management System"]{

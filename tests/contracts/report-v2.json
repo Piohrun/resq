@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "framework": "resQ",
-  "frameworkVersion": "2.0.0",
+  "frameworkVersion": "2.0.1",
   "run": {
     "id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "startedAt": "2026-08-12T12:00:00.000000000Z",
@@ -12,7 +12,7 @@
     "qVersion": "4.1",
     "qRelease": "2024.01.01",
     "os": "linux",
-    "resqVersion": "2.0.0",
+    "resqVersion": "2.0.1",
     "vcs": {"sha": "deadbeef", "branch": "main", "dirty": false},
     "ci": {"provider": "contract"},
     "config": {},
@@ -149,7 +149,7 @@
       "ipcSerialization": "q unary -8!/-9!",
       "capabilityLevel": "local unary serialization; no negotiated IPC connection capability"
     },
-    "frameworkVersion": "2.0.0",
+    "frameworkVersion": "2.0.1",
     "revision": {"sha": "deadbeef", "branch": "main", "dirty": false},
     "shard": {
       "index": 0,

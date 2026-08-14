@@ -49,8 +49,23 @@ if[not `coverageContextEntryCache in key `.tst;.tst.coverageContextEntryCache:()
 if[not `coverageParseDiagnostics in key `.tst;.tst.coverageParseDiagnostics:()];
 if[not `coverageParseFailed in key `.tst;.tst.coverageParseFailed:0b];
 
-/ Functions that must never be wrapped (avoid recursion/self-instrumentation)
-.tst.coverageSkipNames: `$(".tst.initCoverage";".tst.stopCoverage";".tst.recordExecution";".tst.resolvePath";".tst.wrapFunc";".tst.instrumentFile";".tst.loadSource";".tst.generateLCOV";".tst.generateHTML");
+/ Functions that must never be wrapped (avoid recursion/self-instrumentation).
+/ Every probe entry point and everything the probes call before the re-entrancy
+/ flag is set must be here: a wrapped probe re-enters recordExecution from
+/ inside itself, and only the flag bounds that recursion.
+.tst.coverageSkipNames: `$(".tst.initCoverage";".tst.stopCoverage";".tst.recordExecution";".tst.resolvePath";".tst.wrapFunc";".tst.instrumentFile";".tst.loadSource";".tst.generateLCOV";".tst.generateHTML";
+    ".tst.covL";".tst.covS";".tst.covC";".tst.ensureCoverageEntry";
+    ".tst.recordCoverageContextMetric";".tst.recordCoverageContextMetricKey";
+    ".tst.coverageMetricKey";".tst.coverageAssign";".tst.safeValue";".tst.safeSet";
+    ".tst.recordCoverageLifecycle";".tst.coverageDropOwnership";
+    ".tst.ensureCoverageContext";".tst.coverageCurrentContext";".tst.coverageContextMeta";
+    ".tst.coverageBeginAttempt";".tst.coverageEndAttempt");
+
+/ Re-entrancy latch. When resQ's own lib is an explicit coverage source, the
+/ bookkeeping helpers above the probes can themselves be wrapped; a hit taken
+/ while another hit is being recorded must record nothing, or the wrapper ->
+/ recordExecution -> wrapped-helper chain recurses to 'stack.
+if[not `coverageRecording in key `.tst;.tst.coverageRecording:0b];
 
 / Helpers
 .tst.resolvePath:{[path]
@@ -175,6 +190,7 @@ if[not `coverageParseFailed in key `.tst;.tst.coverageParseFailed:0b];
 / clear measurement state. Repeated stop calls are safe and retry retained work.
 .tst.stopCoverage:{[]
     .tst.coverageEnabled::0b;
+    .tst.coverageRecording::0b;
     order:reverse .tst.coverageInstallOrder;
     errors:$[count order;.tst.restoreCoverageOne each order;()];
     errors:errors where 0<count each errors;
@@ -487,6 +503,11 @@ if[not `coverageParseFailed in key `.tst;.tst.coverageParseFailed:0b];
 / Record execution (called by wrappers)
 .tst.recordExecution:{[file;funcName]
     if[not .tst.coverageEnabled; :()];
+    / A wrapped bookkeeping helper called from THIS body re-enters here through
+    / its wrapper; absorbing the nested call bounds the recursion at depth one
+    / while the helper's original definition still runs.
+    if[1b~.tst.coverageRecording; :()];
+    .tst.coverageRecording::1b;
 
     fileSym: $[10h = abs type file; `$file; file];
     .tst.ensureCoverageEntry[fileSym];
@@ -498,6 +519,7 @@ if[not `coverageParseFailed in key `.tst;.tst.coverageParseFailed:0b];
     .tst.coverageData[fileSym;funcName]+: 1;
     .[.tst.recordCoverageContextMetric;
         (`function;fileSym;funcName;`; -1j);{[e] ::}];
+    .tst.coverageRecording::0b;
  };
 
 / @param name (symbol) Function name (e.g. `.user.create`)

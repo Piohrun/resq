@@ -6,6 +6,33 @@ All notable changes to the **resQ** project will be documented in this file.
 
 No unreleased changes.
 
+## [2.0.1] - 2026-08-15 - Diagnostic Identity & Gate Hardening
+
+### Fixed
+
+- Diagnostic IDs (`resq-diagnostic-id-v4`) hash canonical typed value bytes
+  instead of `.j.j` output, removing the last display-precision (`\P`)
+  dependency from an identity boundary. The shard merger reuses q-emitted
+  `diagnostic.recorded` event IDs for shard-owned diagnostics and mints local
+  IDs only for merged-run entities.
+- Coverage recording carries a re-entrancy latch and the probe/bookkeeping
+  entry points joined the wrap skip list, so explicitly instrumenting resQ's
+  own coverage runtime no longer recurses to `'stack` on a second
+  `initCoverage` cycle.
+- The formatter-boundary gate no longer treats a q iterator `/` glued to code
+  as a comment, so `.Q.s1`/`-3!` after an adverb on the same line is detected.
+- The Fable findings ledger meta-test runs in the licence-free contracts lane;
+  P0 findings additionally pin their fixed-state source patterns via
+  `closedProbe`, so "closed" asserts the bug pattern is gone rather than only
+  that a regression selector exists.
+
+### Documentation
+
+- Isolation documents its GNU coreutils `timeout --verbose` requirement and
+  the behavior on hosts without it.
+- Text snapshots document that a q upgrade is a bulk migration event requiring
+  one explicit update-mode rewrite; binary snapshots are unaffected.
+
 ## [2.0.0] - 2026-08-14 - Typed Identity & Evidence Integrity
 
 resQ 2.0.0 intentionally changes stable test/case identity from v2's rendered

@@ -36,6 +36,31 @@
     last[narrow] musteq "case_a2782e7e50990daae89c8a7babaa6aad";
   };
 
+  should["derive precision-independent diagnostic identities"]{
+    oldConsole:system "c";
+    oldPrecision:system "P";
+    diagnostic:`type`severity`phase`message`data!(
+      `probe;`info;`execution;"float payload";
+      enlist[`elapsed]!enlist 0.123456789123456);
+    / Differs from `diagnostic` only past 7 significant digits, the default \P.
+    sibling:`type`severity`phase`message`data!(
+      `probe;`info;`execution;"float payload";
+      enlist[`elapsed]!enlist 0.123456789999999);
+    system "c 20 35";
+    system "P 3";
+    narrow:.tst.stableDiagnosticId["test_0123456789abcdef0123456789abcdef";0j;diagnostic];
+    system "c 80 500";
+    system "P 17";
+    wide:.tst.stableDiagnosticId["test_0123456789abcdef0123456789abcdef";0j;diagnostic];
+    system "c ",string[oldConsole 0]," ",string oldConsole 1;
+    system "P ",string oldPrecision;
+    narrow musteq wide;
+    narrow mustne .tst.stableDiagnosticId[
+      "test_0123456789abcdef0123456789abcdef";0j;sibling];
+    narrow mustne .tst.stableDiagnosticId[
+      "test_0123456789abcdef0123456789abcdef";1j;diagnostic];
+  };
+
   should["capture complete run metadata without absolute test identity noise"]{
     runInfo:.tst.withIsolatedRunState[{[]
       .tst.beginRunMetadata[];

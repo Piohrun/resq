@@ -392,11 +392,13 @@
 .tst.stableDiagnosticId:{[parentId;index;diagnostic]
     payload:.tst.valueFrame["parentId";.tst.identityText parentId],
         .tst.valueFrame["diagnosticIndex";string "j"$index],
-        / Diagnostics are public JSON structures. Hash their exact canonical
-        / JSON wire bytes so the Python shard merger can reproduce IDs without
-        / pretending JSON retained private q types.
-        .tst.valueFrame["diagnosticJson";.j.j diagnostic];
-    "diagnostic_",.tst.stableHashBytes .tst.valueFrame["resq-diagnostic-id-v3";payload]
+        / Canonical typed bytes, like case IDs: `.j.j` renders floats at the
+        / process display precision (\P), which made these IDs differ across
+        / precision settings and collide past it. The Python shard merger does
+        / not recompute this hash; it reuses the q-emitted event IDs and only
+        / mints fresh IDs for merged-run entities that have no q counterpart.
+        .tst.valueFrame["diagnosticValue";.tst.canonicalValueBytes diagnostic];
+    "diagnostic_",.tst.stableHashBytes .tst.valueFrame["resq-diagnostic-id-v4";payload]
  };
 
 .tst.expectationTestId:{[spec;expec]

@@ -92,3 +92,49 @@ system "l ",.tst.testState.coverageLifecycle.src;
         .tst.stopCoverage[];
     };
  };
+
+.tst.desc["coverage self-instrumentation child"]{
+    should["survive two context-attributed cycles with framework helpers instrumented"]{
+        / Instrument framework helper files that the recording path itself
+        / calls (toString via context metrics). A hit taken while another hit
+        / is being recorded then re-enters recordExecution through a wrapped
+        / helper, and only the re-entrancy latch prevents 'stack: the skip
+        / list cannot name every helper the recorder will ever call.
+        / Suite 1's temp source is torn down with suite 1, so this suite
+        / creates its own.
+        src:.tst.tempFile ".q";
+        (hsym `$src) 0:("\\d .covself";"a:{[x]x+1};";"\\d .");
+        system "l ",src;
+        priorLoaded:.utl.loaded;
+        priorInclude:@[get;`.tst.app.coverageInclude;{()}];
+        priorContexts:.tst.coverageContexts;
+        helpers:(.resq.HOME,"/lib/dsl/internals.q";
+            .resq.HOME,"/lib/value_codec.q";
+            .resq.HOME,"/lib/output/sanitize.q");
+        / The fixture header rewrote .utl.loaded, so name the helper files
+        / explicitly: instrumentation walks the loaded list, not the include
+        / patterns.
+        .utl.loaded:distinct .utl.loaded,enlist[src],helpers;
+        .tst.app.coverageInclude:enlist[src],helpers;
+        .tst.coverageContexts:1b;
+        observed:`long$();
+        helperWrapped:0b;
+        do[2;
+            .tst.initCoverage enlist src;
+            helperWrapped:helperWrapped or `.tst.toString in key .tst.covWrappers;
+            .covself.a[10] musteq 11;
+            observed,:enlist .tst.coverageData[`$.tst.resolvePath src;`.covself.a];
+            .tst.stopCoverage[];
+        ];
+        .tst.coverageContexts:priorContexts;
+        .tst.app.coverageInclude:priorInclude;
+        .utl.loaded:priorLoaded;
+        must[helperWrapped;
+             "the probe must actually wrap a framework helper the recorder calls"];
+        observed musteq 1 1j;
+        must[(0=count .tst.origFuncs) and 0=count .tst.covWrappers;
+             "self-instrumented stop must empty ownership maps"];
+        must[not 1b~.tst.coverageRecording;
+             "the re-entrancy latch must be clear after stopCoverage"];
+    };
+ };
