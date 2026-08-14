@@ -26,13 +26,25 @@ normal, isolated, and coverage artifacts. It verifies:
   statistics, regression/improvement policy, environment safeguards, strict
   shard recomputation, and adapter telemetry;
 - full-suite normal/concurrent-isolated verdict parity;
+- exact normal/isolated mode-independent summaries and semantic test inventories;
+- the extended 400-seed native-loader and 2,000-seed coverage differentials,
+  the real oversized-constructor boundary, and a checked preprocessing-growth
+  budget;
 - the supported execution/repetition/randomization/sharding matrix;
 - hostile path, permission, artifact, signal, and child-reaping behavior;
 - both pinned external adoption pilots, the pinned qspec compatibility lane,
   repeated-process resource budgets, and 10k report/adapter scale budgets; and
 - agreement among console, result JSON, detailed coverage JSON, LCOV, HTML,
   and state totals for the complete quickstart source manifest, including
-  complete function, statement, and conditional-edge denominators.
+  complete function, statement, and conditional-edge denominators; and
+- an exact-revision install into an empty prefix, including symlinked launchers
+  and the bundled quickstart from an unrelated project directory.
+
+Every command has a retained stdout/stderr log and SHA-256 checksum. The audit
+copies its governing schemas, records the exact commit and supported runtime
+environment, and keeps unqualified platforms/providers explicit. The primary
+artifact conforms to
+[`resq-release-audit-v1.schema.json`](schema/resq-release-audit-v1.schema.json).
 
 The manual/tagged GitHub release workflow runs the same command on the licensed
 self-hosted runner and uploads its evidence.
@@ -53,6 +65,8 @@ After the automated gate is green:
    non-strict text-snapshot sequencing case (or that the supported platform
    legitimately executes it).
 5. Tag only the exact audited commit and retain the uploaded audit artifact.
+6. Clone the pushed tag with the README command, run the installed quickstart,
+   and confirm the remote tag resolves to the audited commit.
 
 For a post-1.0 release, every milestone up to its version in the
 [delivery ledger](ROADMAP_POST_1_0.md) is release scope. No unchecked capability

@@ -6,7 +6,7 @@ All notable changes to the **resQ** project will be documented in this file.
 
 _No changes yet._
 
-## [1.8.0] - 2026-08-13 - Production Automation & Deep Coverage
+## [1.8.0] - 2026-08-14 - Production Automation & Deep Coverage
 
 ### Added
 
@@ -92,6 +92,15 @@ _No changes yet._
   only when AxLibraries is configured.
 
 ### Fixed
+
+- Test-source preprocessing is now lexer-aware and bounded: DSL-shaped text in
+  strings/comments, escaped quotes, same-line constructors, and shadowed names
+  retain native q meaning. Deterministic native-`\l` differentials and a
+  preprocessing-growth budget guard the corrected semantics.
+- Canonical reports are built once and projected to every reporter. Lifecycle
+  event v2 records native observation timestamps while retaining event-v1 read
+  compatibility; wall duration and summed test duration are separate fields,
+  and normal/isolated release evidence reconciles exact semantic inventories.
 
 - Assertion-dense test files now discover infix DSL candidates by native token
   occurrence instead of rescanning every character against every assertion

@@ -19,8 +19,9 @@ lane evidence exists.
 | Soak/scale | `tools/verify_soak.py` and `tools/verify_report_scale.py` nightly | Resource samples and 10k green/failure-heavy measurements, 30 days |
 
 GitHub Actions artifacts are the archived example result for each workflow run.
-The authoritative release artifact is `release-audit.json` together with its
-normal, isolated, coverage, reconciliation, and auxiliary outputs. Console logs
+The authoritative release artifact is schema-v1 `release-audit.json` together
+with its normal, isolated, differential, coverage, reconciliation, install,
+soak/scale, raw-command-log, schema, and SHA-256 checksum outputs. Console logs
 alone are not release evidence.
 
 ## Licensed runner recovery

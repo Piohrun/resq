@@ -4,9 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import platform
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,24 +50,71 @@ REQUIRED_CONTRACT_TESTS = {
 
 
 class Audit:
-    def __init__(self, q_executable: str) -> None:
+    def __init__(self, q_executable: str, output: Path) -> None:
         self.q_executable = q_executable
+        self.output = output
+        self.log_root = output / "logs"
+        self.log_root.mkdir(parents=True, exist_ok=True)
         self.steps: list[dict[str, Any]] = []
+
+    @staticmethod
+    def slug(name: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+    @staticmethod
+    def sha256(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
 
     def run(
         self, name: str, command: list[str], *, cwd: Path = ROOT,
-        timeout: int = 1200,
+        timeout: int = 1200, extra_environment: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         print(f"[release] {name} ...", flush=True)
         started = time.monotonic()
         environment = dict(os.environ)
         environment["QBIN"] = self.q_executable
-        completed = subprocess.run(
-            command, cwd=cwd, env=environment, text=True,
-            stdin=subprocess.DEVNULL, capture_output=True, check=False, timeout=timeout,
-        )
+        environment.update(extra_environment or {})
+        try:
+            completed = subprocess.run(
+                command, cwd=cwd, env=environment, text=True,
+                stdin=subprocess.DEVNULL, capture_output=True, check=False, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            elapsed = time.monotonic() - started
+            index = len(self.steps) + 1
+            log_path = self.log_root / f"{index:02d}-{self.slug(name)}.log"
+            stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+            stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+            log_path.write_text(
+                f"name: {name}\nstatus: timeout\ncwd: {cwd}\n"
+                f"command: {shlex.join(command)}\ntimeoutSeconds: {timeout}\n"
+                f"\n--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}",
+                encoding="utf-8",
+            )
+            self.steps.append({
+                "name": name, "status": "timeout", "command": command,
+                "durationSeconds": round(elapsed, 6),
+                "log": str(log_path.relative_to(self.output)),
+                "logSha256": self.sha256(log_path),
+            })
+            raise
         elapsed = time.monotonic() - started
-        self.steps.append({"name": name, "durationSeconds": round(elapsed, 6)})
+        index = len(self.steps) + 1
+        log_path = self.log_root / f"{index:02d}-{self.slug(name)}.log"
+        status = "pass" if completed.returncode == 0 else "fail"
+        log_path.write_text(
+            f"name: {name}\nstatus: {status}\ncwd: {cwd}\n"
+            f"command: {shlex.join(command)}\nexitCode: {completed.returncode}\n"
+            f"durationSeconds: {elapsed:.6f}\n"
+            f"\n--- stdout ---\n{completed.stdout}\n--- stderr ---\n{completed.stderr}",
+            encoding="utf-8",
+        )
+        self.steps.append({
+            "name": name, "status": status, "command": command,
+            "durationSeconds": round(elapsed, 6),
+            "log": str(log_path.relative_to(self.output)),
+            "logSha256": self.sha256(log_path),
+        })
         if completed.returncode != 0:
             raise RuntimeError(
                 f"{name} exited {completed.returncode}\n"
@@ -107,8 +158,102 @@ def require_green(document: dict[str, Any], label: str) -> None:
         raise RuntimeError(f"{label}: non-green summary {summary!r}")
 
 
+def require_supported_environment(document: dict[str, Any]) -> None:
+    q_version = str(document.get("run", {}).get("qVersion", ""))
+    machine = platform.machine().lower()
+    if not q_version.startswith("4.1"):
+        raise RuntimeError(f"release support baseline requires q 4.1.x, got {q_version!r}")
+    if platform.system() != "Linux" or machine not in {"x86_64", "amd64"}:
+        raise RuntimeError(
+            "release support baseline requires Linux x86-64, got "
+            f"{platform.system()} {platform.machine()}"
+        )
+
+
 def verdict(document: dict[str, Any]) -> dict[str, str]:
     return {row["testId"]: row["status"] for row in document["tests"]}
+
+
+def semantic_test_projection(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project mode-independent test evidence for exact normal/isolate comparison."""
+    keys = (
+        "testId", "caseId", "kind", "suite", "description", "status",
+        "assertsRun", "file", "line", "namespace", "tags", "parameters",
+        "attempts", "retried", "flaky", "quarantine",
+    )
+    return [
+        {key: row.get(key) for key in keys}
+        for row in sorted(document["tests"], key=lambda item: item["testId"])
+    ]
+
+
+def reconcile_suites(
+    normal: dict[str, Any], isolated: dict[str, Any], output: Path,
+) -> dict[str, Any]:
+    summary_keys = (
+        "suiteCount", "testCount", "passCount", "failCount", "errorCount",
+        "skipCount", "assertionCount",
+    )
+    normal_summary = {key: normal["summary"][key] for key in summary_keys}
+    isolated_summary = {key: isolated["summary"][key] for key in summary_keys}
+    normal_projection = semantic_test_projection(normal)
+    isolated_projection = semantic_test_projection(isolated)
+    if normal_summary != isolated_summary:
+        raise RuntimeError(
+            f"full isolated summary differs from normal: "
+            f"{normal_summary!r} != {isolated_summary!r}"
+        )
+    if normal_projection != isolated_projection:
+        raise RuntimeError("full isolated semantic test inventory differs from normal")
+    encoded = json.dumps(normal_projection, sort_keys=True, separators=(",", ":")).encode()
+    receipt = {
+        "schemaVersion": 1,
+        "kind": "resq-suite-reconciliation",
+        "status": "pass",
+        "modeIndependentSummary": normal_summary,
+        "testInventorySha256": hashlib.sha256(encoded).hexdigest(),
+        "stableIdVerdictParity": verdict(normal) == verdict(isolated),
+        "semanticInventoryParity": True,
+    }
+    output.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    return receipt
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def archive_schemas(output: Path) -> list[str]:
+    destination = output / "schemas"
+    destination.mkdir(parents=True, exist_ok=True)
+    sources = [
+        *sorted((ROOT / "docs/schema").glob("*.json")),
+        ROOT / "tests/contracts/ci-lanes.json",
+        ROOT / "tests/contracts/quickstart-coverage.json",
+        ROOT / "tests/contracts/report-scale-budgets.json",
+        ROOT / "tests/contracts/soak-budgets.json",
+    ]
+    archived: list[str] = []
+    for source in sources:
+        target = destination / source.name
+        shutil.copy2(source, target)
+        archived.append(str(target.relative_to(output)))
+    return archived
+
+
+def write_checksums(output: Path) -> Path:
+    checksum_path = output / "checksums.sha256"
+    rows = []
+    for path in sorted(item for item in output.rglob("*") if item.is_file()):
+        if path == checksum_path:
+            continue
+        rows.append(f"{sha256_file(path)}  {path.relative_to(output)}")
+    checksum_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return checksum_path
 
 
 def verify_self_contract(document: dict[str, Any]) -> None:
@@ -236,11 +381,20 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
     ).stdout.strip()
     if status:
         raise RuntimeError("release audit requires a clean worktree")
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+        capture_output=True, check=True,
+    ).stdout.strip()
     output, temporary = prepare_output(requested_output)
-    audit = Audit(q_executable)
+    audit = Audit(q_executable, output)
     expected_version = release_version()
     started_at = datetime.now(timezone.utc)
     try:
+        audit.run(
+            "shell syntax contracts",
+            ["bash", "-n", str(ROOT / "bin/resq"), str(ROOT / "bin/qspec"),
+             str(ROOT / "bin/resq-merge")],
+        )
         audit.run("licence-free contracts", [str(ROOT / "tools/verify_static.py")])
         audit.run(
             "Python contract tests",
@@ -264,6 +418,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         )
         normal_report = load_report(normal_dir)
         require_version(normal_report, expected_version, "normal self suite")
+        require_supported_environment(normal_report)
         verify_self_contract(normal_report)
 
         audit.run(
@@ -279,8 +434,39 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         isolated_report = load_report(isolated_dir)
         require_version(isolated_report, expected_version, "isolated self suite")
         verify_self_contract(isolated_report)
-        if verdict(normal_report) != verdict(isolated_report):
-            raise RuntimeError("full isolated verdicts differ from normal verdicts")
+        suite_reconciliation = reconcile_suites(
+            normal_report, isolated_report, output / "suite-reconciliation.json",
+        )
+
+        differential_dir = output / "differential"
+        audit.run(
+            "extended loader and coverage differentials",
+            [
+                str(ROOT / "bin/resq"), "test", "tests/test_loader_differential.q",
+                "tests/test_coverage_differential.q", "nightly/test_oversized_desc.q",
+                "-strict", "-json", "-junit", "-quiet", "-report-profile", "full",
+                "-outDir", str(differential_dir),
+                "-state-file", str(output / "differential-state.json"),
+            ],
+            timeout=1200,
+            extra_environment={
+                "RESQ_LOADER_DIFF_SEEDS": "400",
+                "RESQ_COVERAGE_DIFF_SEEDS": "2000",
+            },
+        )
+        differential_report = load_report(differential_dir)
+        require_green(differential_report, "extended differential corpus")
+        audit.run(
+            "linear preprocessing budget",
+            [
+                str(ROOT / "tools/benchmark_review_regressions.py"),
+                "--q", q_executable, "--report-tests", "10000",
+                "--loader-counts", "50", "100", "200",
+                "--max-loader-growth-ratio", "3.0",
+                "--output", str(output / "preprocess-budget.json"),
+            ],
+            timeout=600,
+        )
 
         audit.run("supported execution matrix", [str(ROOT / "tools/verify_execution_matrix.py"), "--q", q_executable])
         audit.run("distributed shard merge matrix", [str(ROOT / "tools/verify_shard_merge.py"), "--q", q_executable])
@@ -307,6 +493,13 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             "10k report and adapter scale budgets",
             [str(ROOT / "tools/verify_report_scale.py"), "--q", q_executable,
              "--output", str(output / "report-scale.json")],
+            timeout=900,
+        )
+        audit.run(
+            "empty-prefix installation",
+            [str(ROOT / "tools/verify_installation.py"), "--repository", str(ROOT),
+             "--ref", commit, "--q", q_executable,
+             "--output", str(output / "installation-evidence.json")],
             timeout=900,
         )
 
@@ -348,12 +541,11 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         )
 
         finished_at = datetime.now(timezone.utc)
-        commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
-            capture_output=True, check=True,
-        ).stdout.strip()
+        schema_paths = archive_schemas(output)
+        uname = platform.uname()
         result = {
             "schemaVersion": 1,
+            "kind": "resq-release-audit",
             "framework": "resQ",
             "status": "pass",
             "commit": commit,
@@ -362,15 +554,62 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             "durationSeconds": round((finished_at - started_at).total_seconds(), 6),
             "qVersion": normal_report["run"]["qVersion"],
             "resqVersion": normal_report["frameworkVersion"],
+            "environment": {
+                "platform": platform.platform(),
+                "system": uname.system,
+                "release": uname.release,
+                "machine": uname.machine,
+                "runnerIdentity": uname.node,
+                "pythonVersion": platform.python_version(),
+                "qExecutable": shutil.which(q_executable) or q_executable,
+                "licensedRuntime": {
+                    "available": True,
+                    "credentialMaterialArchived": False,
+                    "note": "The gate records runtime availability, never licence secrets.",
+                },
+            },
+            "qualificationScope": {
+                "qualified": ["kdb+/q 4.1.x 64-bit on Linux x86-64"],
+                "unqualified": [
+                    "other q 4.x releases", "macOS", "Windows",
+                    "optional AxLibraries self-coverage provider",
+                    "unlisted external codebases and CI providers",
+                ],
+            },
             "selfSuite": normal_report["summary"],
             "isolatedSuite": isolated_report["summary"],
+            "suiteReconciliation": suite_reconciliation,
+            "differentialCorpus": {
+                "loaderSeeds": 400,
+                "coverageSeeds": 2000,
+                "summary": differential_report["summary"],
+            },
+            "preprocessingBudget": json.loads(
+                (output / "preprocess-budget.json").read_text(encoding="utf-8")
+            ),
             "coverage": coverage_summary,
             "coverageReconciliation": coverage_reconciliation,
             "soak": json.loads((output / "soak-evidence.json").read_text(encoding="utf-8")),
+            "reportScale": json.loads(
+                (output / "report-scale.json").read_text(encoding="utf-8")
+            ),
+            "installation": json.loads(
+                (output / "installation-evidence.json").read_text(encoding="utf-8")
+            ),
+            "schemas": schema_paths,
+            "archive": {
+                "checksumAlgorithm": "SHA-256",
+                "checksumManifest": "checksums.sha256",
+                "rawCommandLogs": "logs/",
+                "retentionPolicy": "90-day CI artifact plus attached release archive",
+            },
             "steps": audit.steps,
         }
         result_path = output / "release-audit.json"
         result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        checksum_path = write_checksums(output)
+        if not checksum_path.is_file() or not checksum_path.read_text(encoding="utf-8").strip():
+            raise RuntimeError("release evidence checksum manifest is empty")
         print(
             f"resQ release gate passed: {result['selfSuite']['testCount']} tests, "
             f"{result['selfSuite']['assertionCount']} assertions, normal/isolate parity; "

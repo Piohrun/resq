@@ -36,6 +36,7 @@ REQUIRED = {
     "tests/contracts/report-scale-budgets.json",
     "docs/schema/resq-benchmark-baseline-v1.schema.json",
     "docs/schema/resq-ingestion-tables-v1.schema.json", "docs/INGESTION.md",
+    "docs/schema/resq-release-audit-v1.schema.json",
     "docs/examples/resq_ingestion.sql", "docs/examples/grafana-resq-overview.json",
     "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
     "tools/verify_labels_context.py",
@@ -52,6 +53,7 @@ REQUIRED = {
     "tests/contracts/ci-lanes.json", "tests/contracts/soak-budgets.json",
     "tools/render_quickstart_coverage.py",
     "tools/verify_qspec_compatibility.py", "tools/verify_soak.py",
+    "tools/verify_installation.py",
     "docs/OPERATIONS_RUNBOOK.md",
 }
 GENERATED = {
@@ -98,6 +100,7 @@ def check_package(expected_tag: str = "") -> None:
         "tools/verify_python_contracts.py",
         "tools/render_quickstart_coverage.py",
         "tools/verify_qspec_compatibility.py", "tools/verify_soak.py",
+        "tools/verify_installation.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
@@ -201,6 +204,17 @@ def check_contracts() -> None:
     )
     if ingestion_schema.get("properties", {}).get("schemaVersion", {}).get("const") != 1:
         raise ValueError("ingestion schema does not describe schemaVersion 1")
+    release_schema = json.loads(
+        (ROOT / "docs/schema/resq-release-audit-v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    if release_schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
+        raise ValueError("release audit schema must declare JSON Schema draft 2020-12")
+    if release_schema.get("properties", {}).get("schemaVersion", {}).get("const") != 1:
+        raise ValueError("release audit schema does not describe schemaVersion 1")
+    if release_schema.get("properties", {}).get("kind", {}).get("const") != "resq-release-audit":
+        raise ValueError("release audit schema has the wrong document kind")
     lanes = json.loads((ROOT / "tests/contracts/ci-lanes.json").read_text(encoding="utf-8"))
     expected_lanes = {
         "licence-free", "correctness", "coverage", "compatibility",
