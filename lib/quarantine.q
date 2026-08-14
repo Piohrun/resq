@@ -441,7 +441,7 @@
     if[0=count dir;dir:"/"];
     .utl.ensureDir dir;
     tmp:path,".tmp.",string .z.i;
-    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.j.j doc);{[args;err]0b}];
+    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[args;err]0b}];
     if[not written;
         .tst.recordDiagnostic[kind;`warning;`persistence;"Unable to write state";
             enlist[`path]!enlist .tst.repoRelativePath path];

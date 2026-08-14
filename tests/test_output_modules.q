@@ -240,6 +240,55 @@
 / meaningless output and stay green. These build a mixed result set and assert
 / on the generated document directly.
 .tst.desc["Reporter XML structure"]{
+    should["shared output helpers"]{
+        beforeEscape:.tst.output.escapeXml;
+        beforeDecimal:.tst.output.decimalSeconds;
+        .tst.loadOutputModule["junit"];
+        .tst.loadOutputModule["xunit"];
+        .tst.loadOutputModule["json"];
+        must[beforeEscape~.tst.output.escapeXml;
+            "loading reporters must not replace the shared XML escaper"];
+        must[beforeDecimal~.tst.output.decimalSeconds;
+            "loading reporters must not replace the shared duration formatter"];
+        .tst.output.escapeXml["<&"] musteq "&lt;&amp;";
+        .tst.output.decimalSeconds[0D00:00:00.000000001] musteq "0.000000001";
+    };
+
+    should["strict JSON encodes arbitrary non-finite values canonically"]{
+        safe:.tst.output.jsonSafeValue
+            `parameters`durationSeconds!((enlist `limit)!enlist 0w;1f);
+        envelope:safe[`parameters;`limit];
+        (envelope`kind) musteq "resq-canonical-value";
+        (envelope[`codec;`name]) musteq .tst.VALUE_CODEC_NAME;
+        rendered:.tst.output.strictJson safe;
+        must[0=count ss[rendered;":inf"];
+            "strict JSON must not contain a bare infinity token"];
+        parsed:.j.k rendered;
+        (parsed`durationSeconds) musteq 1f;
+    };
+
+    should["XML durations use fixed decimal"]{
+        rows:(
+            `suite`description`status`message`time`failures`assertsRun!("S";"zero";`pass;"";0D00:00:00.000000000;();1i);
+            `suite`description`status`message`time`failures`assertsRun!("S";"tiny";`pass;"";0D00:00:00.000000001;();1i);
+            `suite`description`status`message`time`failures`assertsRun!("S";"large";`pass;"";1000D00:00:00.000000000;();1i));
+        prevTop:@[get;`.tst.output.top;{::}];
+        prevReport:.resq.report;
+        .tst.loadOutputModule["junit"];junitXml:.tst.output.top rows;
+        .tst.loadOutputModule["xunit"];xunitXml:.tst.output.top rows;
+        .tst.output.top:prevTop;.resq.report:prevReport;
+        check:{[xml;label]
+            must[0<count ss[xml;"time=\"0.000000000\""];
+                label,": zero must be a fixed decimal"];
+            must[0<count ss[xml;"time=\"0.000000001\""];
+                label,": one nanosecond must not use exponent notation"];
+            must[0<count ss[xml;"time=\"86400000.000000000\""];
+                label,": large durations must remain fixed decimal"];
+        };
+        check[junitXml;"junit"];
+        check[xunitXml;"xunit"];
+    };
+
     should["omit empty and non-material quarantine property boilerplate"]{
         row:.tst.completeResultRow `suite`description`status`assertsRun!(
             `S;"plain";`pass;1i);

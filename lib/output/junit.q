@@ -1,16 +1,3 @@
-.tst.output.escapeXml:{[val]
-    s: .tst.toString val;
-    if[0=count s; :""];
-    s: ssr[s;"&";"&amp;"];
-    s: ssr[s;"<";"&lt;"];
-    s: ssr[s;">";"&gt;"];
-    s: ssr[s;"\"";"&quot;"];
-    s: ssr[s;"'";"&apos;"];
-    / Strip control chars (0x00-0x1F) illegal in XML 1.0, keeping tab/LF/CR.
-    s: s where (s in "\t\n\r") or not s within ("\000";"\037");
-    s
- };
-
 / First line of a message, for use in an XML ATTRIBUTE. Attribute-value
 / normalization collapses newlines to spaces, so a multi-line message becomes an
 / unreadable run-on there; the element body keeps the full text. A trailing " ..."
@@ -25,13 +12,6 @@
     rest: 1 _ lines;
     hasMore: any 0 < count each rest;
     $[hasMore; head, " ..."; head]
- };
-
-.tst.output.toSeconds:{[v]
-    raw: $[0h = type v; 0N; 98h = type v; first v; v];
-    / Null guard FIRST: a null timespan/float (e.g. 0Nn from a synthetic row)
-    / would otherwise become 0Nf -> string "" -> time="" (invalid xsd:decimal).
-    $[null raw; 0f; -16h = type raw; raw % 1e9; 0f]
  };
 
 .tst.output.normalizeRows:{[rows]
@@ -98,8 +78,8 @@
     systemOut: $[count rawOutput;
         "<system-out>",.tst.output.escapeXml[rawOutput],"</system-out>";
         ""];
-    t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
-    attrs: " classname=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", string[t], "\"";
+    t: .tst.output.decimalSeconds $[`time in key rec; rec`time; 0Nn];
+    attrs: " classname=\"", suite, "\" name=\"", .tst.output.escapeXml[statusDesc], "\" time=\"", t, "\"";
     if[`testId in key rec;
         stableId:.tst.toString rec`testId;
         if[count stableId;attrs,:" resq-test-id=\"",.tst.output.escapeXml[stableId],"\""]];
@@ -168,8 +148,8 @@
         errCount: sum errMask;
         skipCount: sum skipMask;
         suiteTime: sum suiteRows`time;
-        suiteTimeSec: .tst.output.toSeconds suiteTime;
-        header: "<testsuite name=\"",suiteName,"\" tests=\"",string[testCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",string[suiteTimeSec],"\"";
+        suiteTimeSec: .tst.output.decimalSeconds suiteTime;
+        header: "<testsuite name=\"",suiteName,"\" tests=\"",string[testCount],"\" failures=\"",string[failCount],"\" errors=\"",string[errCount],"\" skipped=\"",string[skipCount],"\" time=\"",suiteTimeSec,"\"";
         if[count stamp;header,:" timestamp=\"",.tst.output.escapeXml[stamp],"\""];
         if[count host;header,:" hostname=\"",.tst.output.escapeXml[host],"\""];
         header,:">";
@@ -184,7 +164,7 @@
         string[count t], "\" failures=\"", string[sum statusNorm = `fail],
         "\" errors=\"", string[sum statusNorm = `error], "\" skipped=\"",
         string[sum statusNorm in `skip`pending], "\" time=\"",
-        string[.tst.output.toSeconds sum t`time], "\">";
+        .tst.output.decimalSeconds[sum t`time], "\">";
     rootOpen,"\n",runProps,$[count runProps;"\n";""],suiteBlocks,"\n</testsuites>"
  };
 

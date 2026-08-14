@@ -64,6 +64,10 @@ def shard_documents(count: int = 2, test_count: int = 4, unit: str = "test") -> 
             index=shard_index,
             count=count,
             unit=unit,
+            algorithm=(
+                "sorted-index-mod-v1" if unit == "file"
+                else "stable-id-weighted-hash-v1"
+            ),
             allFileCount=1,
             selectedFileCount=0 if unit == "file" and not rows else 1,
             allUnitCount=1 if unit == "file" else test_count,
@@ -304,7 +308,7 @@ class MergerContractTests(unittest.TestCase):
             for path, document in zip(paths, documents):
                 test_id = document["tests"][0]["testId"]
                 (path.parent / "coverage.json").write_text(
-                    json.dumps(artifact(test_id)), encoding="utf-8"
+                    json.dumps(artifact(test_id, document["run"]["id"])), encoding="utf-8"
                 )
             report, passed = merge(paths, root / "covered")
             self.assertTrue(passed)
@@ -350,13 +354,14 @@ class MergerContractTests(unittest.TestCase):
     def test_coverage_presence_and_malformed_detail_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            paths = write_documents(root, shard_documents())
+            documents = shard_documents()
+            paths = write_documents(root, documents)
             (paths[0].parent / "coverage.json").write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(MergeError, "only part"):
-                merge_coverage(paths, root / "partial")
+                merge_coverage(paths, documents, root / "partial", "run_" + "a" * 32)
             (paths[1].parent / "coverage.json").write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "coverage artifact"):
-                merge_coverage(paths, root / "malformed")
+                merge_coverage(paths, documents, root / "malformed", "run_" + "a" * 32)
 
     def test_lcov_distinguishes_zero_edge_from_unexecuted_block(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

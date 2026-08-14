@@ -4,15 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
 from validate_report import validate
+from coverage_contract import validate_coverage_artifact
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def execution_id(row: dict[str, Any]) -> str:
@@ -20,9 +22,14 @@ def execution_id(row: dict[str, Any]) -> str:
 
 
 def table_contract(
-    report: dict[str, Any], coverage: dict[str, Any] | None = None
+    report: dict[str, Any], coverage: dict[str, Any] | None = None,
+    *, contract_version: int = SCHEMA_VERSION,
 ) -> dict[str, Any]:
+    if contract_version not in {1, SCHEMA_VERSION}:
+        raise ValueError(f"unsupported table contract version: {contract_version}")
     validate(report)
+    if coverage is not None:
+        validate_coverage_artifact(coverage, report)
     run = report["run"]
     run_id = str(run["id"])
     summary = report["summary"]
@@ -35,6 +42,9 @@ def table_contract(
             "finishedAt": run["finishedAt"],
             "durationSeconds": run["durationSeconds"],
             "frameworkVersion": report["frameworkVersion"],
+            "hostname": run["hostname"],
+            "qVersion": run["qVersion"],
+            "os": run["os"],
             "testCount": summary["testCount"],
             "passCount": summary["passCount"],
             "failCount": summary["failCount"],
@@ -141,7 +151,7 @@ def table_contract(
     coverage_contexts: list[dict[str, Any]] = []
     coverage_context_metrics: list[dict[str, Any]] = []
     if detail:
-        coverage_runs.append({"runId": run_id, **detail.get("summary", {})})
+        coverage_runs.append({**detail.get("summary", {}), "runId": run_id})
     for file_row in detail.get("files", []):
         path = str(file_row["path"])
         file_key = f"{run_id}/{path}"
@@ -183,8 +193,7 @@ def table_contract(
                 site_id = str(site["siteId"])
                 site_key = f"{file_key}/{site_id}"
                 function_name = str(site.get("function", ""))
-                coverage_sites.append(
-                    {
+                site_row = {
                         "runId": run_id,
                         "coverageFileKey": file_key,
                         "coverageFunctionKey": functions_by_name.get(function_name, ""),
@@ -197,9 +206,12 @@ def table_contract(
                         "column": site.get("column"),
                         "eligible": site.get("eligible", False),
                         "instrumented": site.get("instrumented", False),
-                        "hits": site.get("hits", site.get("edgesHit", 0)),
                     }
-                )
+                if kind == "statement":
+                    site_row["hits"] = site.get("hits", 0)
+                else:
+                    site_row["edgesHit"] = site.get("edgesHit", 0)
+                coverage_sites.append(site_row)
                 for edge in site.get("edges", []):
                     edge_id = str(edge.get("edgeId", edge.get("index", "")))
                     coverage_edges.append(
@@ -249,14 +261,14 @@ def table_contract(
                 }
             )
 
-    return {
+    payload = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "resq-ingestion-tables",
         "source": {
             "reportSchemaVersion": report["schemaVersion"],
             "frameworkVersion": report["frameworkVersion"],
             "runId": run_id,
-            "coverageIncluded": bool(coverage),
+            "coverageIncluded": coverage is not None,
         },
         "tables": {
             "runs": runs,
@@ -273,6 +285,17 @@ def table_contract(
             "coverageContextMetrics": coverage_context_metrics,
         },
     }
+    return table_contract_v1(payload) if contract_version == 1 else payload
+
+
+def table_contract_v1(payload: dict[str, Any]) -> dict[str, Any]:
+    """Named compatibility projection for the legacy branch-site `hits` field."""
+    legacy = copy.deepcopy(payload)
+    legacy["schemaVersion"] = 1
+    for site in legacy["tables"]["coverageSites"]:
+        if site.get("kind") == "branch":
+            site["hits"] = site.pop("edgesHit")
+    return legacy
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -287,15 +310,19 @@ def main() -> int:
     parser.add_argument("report", type=Path, help="resQ report-v2 JSON")
     parser.add_argument("--coverage", type=Path, help="optional detailed coverage.json")
     parser.add_argument("--out", type=Path, help="destination (stdout when omitted)")
+    parser.add_argument(
+        "--contract-version", type=int, choices=(1, 2), default=SCHEMA_VERSION,
+        help="normalized table schema (default: 2; 1 is the named legacy projection)",
+    )
     args = parser.parse_args()
     try:
         report = read_json(args.report)
         coverage = read_json(args.coverage) if args.coverage else None
-        payload = table_contract(report, coverage)
+        payload = table_contract(report, coverage, contract_version=args.contract_version)
     except (OSError, json.JSONDecodeError, ValueError, KeyError) as error:
         print(f"ingestion conversion failed: {error}", file=sys.stderr)
         return 1
-    rendered = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    rendered = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     if args.out:
         args.out.write_text(rendered, encoding="utf-8")
     else:

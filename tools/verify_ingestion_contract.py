@@ -8,82 +8,10 @@ import tempfile
 from pathlib import Path
 
 from resq_to_tables import table_contract
-from review_corpus import scale_report
+from review_corpus import coverage_artifact, scale_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def sample_coverage(test_id: str) -> dict[str, object]:
-    return {
-        "schemaVersion": 2,
-        "framework": "resQ",
-        "frameworkVersion": "1.8.0",
-        "summary": {"functionsFound": 1, "functionsHit": 1},
-        "files": [
-            {
-                "path": "src/orders.q",
-                "loaded": True,
-                "functionFound": 1,
-                "functionHit": 1,
-                "lineFound": 1,
-                "lineHit": 1,
-                "functions": [
-                    {"name": ".orders.create", "line": 10, "hits": 1, "covered": True}
-                ],
-                "statementSites": [
-                    {
-                        "siteId": "site_statement_1",
-                        "function": ".orders.create",
-                        "line": 11,
-                        "column": 4,
-                        "eligible": True,
-                        "instrumented": True,
-                        "hits": 1,
-                    }
-                ],
-                "branches": [
-                    {
-                        "siteId": "site_branch_1",
-                        "function": ".orders.create",
-                        "line": 12,
-                        "column": 4,
-                        "eligible": True,
-                        "instrumented": True,
-                        "edges": [
-                            {"edgeId": "edge_true", "label": "true", "hits": 1, "covered": True},
-                            {"edgeId": "edge_false", "label": "false", "hits": 0, "covered": False},
-                        ],
-                    }
-                ],
-            }
-        ],
-        "contextMeasurement": {
-            "contexts": [
-                {
-                    "contextId": test_id,
-                    "kind": "test",
-                    "testId": test_id,
-                    "attempt": 0,
-                    "suite": "review scale corpus",
-                    "description": "generated case 00000",
-                    "file": "tests/generated/review_scale.q",
-                    "metrics": [
-                        {
-                            "metricId": "metric_statement_1",
-                            "kind": "statement",
-                            "file": "src/orders.q",
-                            "function": ".orders.create",
-                            "siteId": "site_statement_1",
-                            "edgeIndex": 0,
-                            "edgeLabel": "",
-                            "hits": 1,
-                        }
-                    ],
-                }
-            ]
-        },
-    }
 
 
 def verify() -> None:
@@ -94,7 +22,7 @@ def verify() -> None:
         "service": "orders",
     }
     test_id = report["tests"][0]["testId"]
-    payload = table_contract(report, sample_coverage(test_id))
+    payload = table_contract(report, coverage_artifact(report))
     tables = payload["tables"]
     run_ids = {row["runId"] for row in tables["runs"]}
     tests = {(row["runId"], row["executionId"]): row for row in tables["tests"]}
@@ -124,7 +52,7 @@ def verify() -> None:
         raise AssertionError("coverage metric has an orphan site")
 
     schema = json.loads(
-        (ROOT / "docs/schema/resq-ingestion-tables-v1.schema.json").read_text(encoding="utf-8")
+        (ROOT / "docs/schema/resq-ingestion-tables-v2.schema.json").read_text(encoding="utf-8")
     )
     expected_tables = set(schema["properties"]["tables"]["required"])
     if set(tables) != expected_tables:

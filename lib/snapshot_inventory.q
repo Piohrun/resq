@@ -231,7 +231,7 @@ if[not `snapshot in key `.resq;.resq.snapshot.init_:1b];
     outDir:.utl.normalizePath outDir;
     .utl.ensureDir outDir;
     path:outDir,"/snapshot-manifest.json";
-    hsym[`$path] 0:enlist .j.j inventory;
+    hsym[`$path] 0:enlist .tst.output.strictJson inventory;
     -1 "Snapshot manifest written to ",path;
     1b
  };

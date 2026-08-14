@@ -517,9 +517,10 @@
 
   / beforeAll-throwing fixture with -junit: the runner synthesizes a single
   / error row whose time is a NULL timespan (0Nn). toSeconds must coerce that to
-  / 0f so the XML carries time="0" (valid xsd:decimal), never time="" (invalid).
+  / 0f so the XML carries the fixed xsd:decimal spelling time="0.000000000",
+  / never time="" (invalid).
   / Generated at runtime per this file's existing fixture-generation pattern.
-  skipIf[not .tst.golden.canQ; "beforeAll-failure -junit: time=\"0\" not time=\"\""]{
+  skipIf[not .tst.golden.canQ; "beforeAll-failure -junit: fixed zero time"]{
     wd: .tst.golden.workDir[];
     system "mkdir -p ", wd;
     testF: wd, "/test_beforeall_fail_gen.q";
@@ -531,8 +532,8 @@
     r: .tst.golden.run testF, " -junit -quiet";
     lines: .tst.golden.readFile[r`dir; "test-results.xml"];
     must[0 < count lines; "test-results.xml should be written"];
-    must[.tst.golden.anyLike[lines; "time=\"0\""];
-         "synthetic beforeAll-failure row should carry time=\"0\""];
+    must[.tst.golden.anyLike[lines; "time=\"0.000000000\""];
+         "synthetic beforeAll-failure row should carry fixed decimal zero"];
     must[not .tst.golden.anyLike[lines; "time=\"\""];
          "no empty time=\"\" attribute (invalid xsd:decimal)"];
   };

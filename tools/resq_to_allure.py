@@ -7,7 +7,7 @@ import argparse
 import json
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +25,10 @@ STATUS = {
 
 def epoch_millis(timestamp: str) -> int:
     parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    # Historical reports predate the validator's offset requirement. Preserve
+    # their intended UTC clock rather than letting datetime use host-local time.
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
     return int(parsed.timestamp() * 1000)
 
 
@@ -145,7 +149,10 @@ def convert(source: Path, destination: Path) -> int:
     for row in document["tests"]:
         result = allure_result(document, row)
         path = destination / f"{result['uuid']}-result.json"
-        path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
     run = document["run"]
     executor = {
         "name": "resQ",
@@ -154,7 +161,8 @@ def convert(source: Path, destination: Path) -> int:
         "reportName": f"resQ {document['frameworkVersion']}",
     }
     (destination / "executor.json").write_text(
-        json.dumps(executor, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(executor, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+        encoding="utf-8",
     )
     environment = {
         "resQ": document["frameworkVersion"],

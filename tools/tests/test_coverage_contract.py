@@ -65,7 +65,7 @@ def report_coverage() -> dict[str, object]:
     return value
 
 
-def artifact(test_id: str) -> dict[str, object]:
+def artifact(test_id: str, run_id: str = "run_" + "a" * 32) -> dict[str, object]:
     statement_site = {
         "siteId": "statement_" + "1" * 32,
         "function": ".fixture.f", "line": 2, "column": 2,
@@ -105,7 +105,7 @@ def artifact(test_id: str) -> dict[str, object]:
     ]
     return {
         "schemaVersion": 2, "kind": "resq-coverage", "framework": "resQ",
-        "frameworkVersion": "1.8.1", "summary": summary(),
+        "frameworkVersion": "1.8.1", "runId": run_id, "summary": summary(),
         "files": [{
             "path": path, "loaded": True, "functionFound": 1, "functionHit": 1,
             "statementFunctionsInstrumented": 1, "lineFound": 1, "lineHit": 1,
@@ -137,7 +137,20 @@ class CoverageContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.report = scale_report(1)
         self.report["coverage"] = report_coverage()
-        self.artifact = artifact(self.report["tests"][0]["testId"])
+        self.artifact = artifact(
+            self.report["tests"][0]["testId"], self.report["run"]["id"]
+        )
+
+    def test_rejects_absent_or_mismatched_run_identity(self) -> None:
+        missing = copy.deepcopy(self.artifact)
+        del missing["runId"]
+        with self.assertRaisesRegex(ValueError, "runId"):
+            validate_coverage_artifact(missing, self.report)
+
+        mismatched = copy.deepcopy(self.artifact)
+        mismatched["runId"] = "run_" + "f" * 32
+        with self.assertRaisesRegex(ValueError, "differs from report"):
+            validate_coverage_artifact(mismatched, self.report)
 
     def test_accepts_exact_report_and_detailed_coverage(self) -> None:
         validate_report_coverage(self.report["coverage"])

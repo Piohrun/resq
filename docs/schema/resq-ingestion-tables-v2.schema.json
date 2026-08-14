@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://resq.dev/schema/resq-ingestion-tables-v2.schema.json",
+  "title": "resQ normalized ingestion tables v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "source", "tables"],
+  "properties": {
+    "schemaVersion": {"const": 2},
+    "kind": {"const": "resq-ingestion-tables"},
+    "source": {
+      "type": "object",
+      "required": ["reportSchemaVersion", "frameworkVersion", "runId", "coverageIncluded"],
+      "properties": {
+        "reportSchemaVersion": {"const": 2},
+        "frameworkVersion": {"type": "string"},
+        "runId": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"},
+        "coverageIncluded": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "tables": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runs", "tests", "attempts", "benchmarks", "diagnostics",
+        "coverageRuns", "coverageFiles", "coverageFunctions", "coverageSites",
+        "coverageEdges", "coverageContexts", "coverageContextMetrics"
+      ],
+      "properties": {
+        "runs": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/run"}},
+        "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}},
+        "attempts": {"type": "array", "items": {"$ref": "#/$defs/attempt"}},
+        "benchmarks": {"type": "array", "items": {"$ref": "#/$defs/benchmark"}},
+        "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
+        "coverageRuns": {"type": "array", "maxItems": 1, "items": {"$ref": "#/$defs/runChild"}},
+        "coverageFiles": {"type": "array", "items": {"$ref": "#/$defs/coverageFile"}},
+        "coverageFunctions": {"type": "array", "items": {"$ref": "#/$defs/coverageFunction"}},
+        "coverageSites": {"type": "array", "items": {"$ref": "#/$defs/coverageSite"}},
+        "coverageEdges": {"type": "array", "items": {"$ref": "#/$defs/coverageEdge"}},
+        "coverageContexts": {"type": "array", "items": {"$ref": "#/$defs/coverageContext"}},
+        "coverageContextMetrics": {"type": "array", "items": {"$ref": "#/$defs/coverageContextMetric"}}
+      }
+    }
+  },
+  "$defs": {
+    "runChild": {
+      "type": "object", "required": ["runId"],
+      "properties": {"runId": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"}},
+      "additionalProperties": true
+    },
+    "run": {
+      "type": "object",
+      "required": ["runId", "startedAt", "finishedAt", "durationSeconds", "hostname", "qVersion", "os", "testCount", "labels"],
+      "properties": {
+        "runId": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"},
+        "startedAt": {"type": "string", "format": "date-time"},
+        "finishedAt": {"type": "string", "format": "date-time"},
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "hostname": {"type": "string"}, "qVersion": {"type": "string"},
+        "os": {"type": "string"}, "testCount": {"type": "integer", "minimum": 0},
+        "labels": {"type": "object", "additionalProperties": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "test": {
+      "type": "object", "required": ["runId", "executionId", "testId", "status", "durationSeconds"],
+      "properties": {"runId": {"type": "string"}, "executionId": {"type": "string"}, "testId": {"type": "string"}, "status": {"type": "string"}, "durationSeconds": {"type": "number", "minimum": 0}},
+      "additionalProperties": true
+    },
+    "attempt": {
+      "type": "object", "required": ["runId", "executionId", "attemptKey", "attempt", "status"],
+      "properties": {"runId": {"type": "string"}, "executionId": {"type": "string"}, "attemptKey": {"type": "string"}, "attempt": {"type": "integer"}, "status": {"type": "string"}},
+      "additionalProperties": true
+    },
+    "benchmark": {
+      "type": "object", "required": ["runId", "benchmarkId", "testId"],
+      "properties": {"runId": {"type": "string"}, "benchmarkId": {"type": "string"}, "testId": {"type": "string"}},
+      "additionalProperties": true
+    },
+    "diagnostic": {
+      "type": "object", "required": ["runId", "diagnosticKey", "severity", "message"],
+      "properties": {"runId": {"type": "string"}, "diagnosticKey": {"type": "string"}, "severity": {"type": "string"}, "message": {"type": "string"}},
+      "additionalProperties": true
+    },
+    "coverageFile": {
+      "type": "object", "required": ["runId", "coverageFileKey", "path"],
+      "properties": {"runId": {"type": "string"}, "coverageFileKey": {"type": "string"}, "path": {"type": "string"}},
+      "additionalProperties": true
+    },
+    "coverageFunction": {
+      "type": "object", "required": ["runId", "coverageFileKey", "coverageFunctionKey", "name"],
+      "properties": {"runId": {"type": "string"}, "coverageFileKey": {"type": "string"}, "coverageFunctionKey": {"type": "string"}, "name": {"type": "string"}},
+      "additionalProperties": true
+    },
+    "coverageSite": {
+      "type": "object",
+      "required": ["runId", "coverageFileKey", "coverageSiteKey", "siteId", "kind"],
+      "properties": {
+        "runId": {"type": "string"}, "coverageFileKey": {"type": "string"},
+        "coverageSiteKey": {"type": "string"}, "siteId": {"type": "string"},
+        "kind": {"enum": ["statement", "branch"]},
+        "hits": {"type": "integer", "minimum": 0},
+        "edgesHit": {"type": "integer", "minimum": 0}
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "statement"}}}, "then": {"required": ["hits"], "not": {"required": ["edgesHit"]}}},
+        {"if": {"properties": {"kind": {"const": "branch"}}}, "then": {"required": ["edgesHit"], "not": {"required": ["hits"]}}}
+      ],
+      "additionalProperties": true
+    },
+    "coverageEdge": {
+      "type": "object", "required": ["runId", "coverageSiteKey", "coverageEdgeKey", "edgeId"],
+      "properties": {"runId": {"type": "string"}, "coverageSiteKey": {"type": "string"}, "coverageEdgeKey": {"type": "string"}, "edgeId": {"type": "string"}},
+      "additionalProperties": true
+    },
+    "coverageContext": {
+      "type": "object", "required": ["runId", "coverageContextKey", "contextId", "kind"],
+      "properties": {"runId": {"type": "string"}, "coverageContextKey": {"type": "string"}, "contextId": {"type": "string"}, "kind": {"type": "string"}},
+      "additionalProperties": true
+    },
+    "coverageContextMetric": {
+      "type": "object", "required": ["runId", "coverageContextKey", "metricId", "kind", "hits"],
+      "properties": {"runId": {"type": "string"}, "coverageContextKey": {"type": "string"}, "metricId": {"type": "string"}, "kind": {"type": "string"}, "hits": {"type": "integer", "minimum": 0}},
+      "additionalProperties": true
+    }
+  }
+}

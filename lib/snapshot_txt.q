@@ -36,7 +36,7 @@ loadSnapTxt:{[name]
 saveSnapTxt:{[name;data]
     .tst.ensureDir[.tst.snapTxtDir];
     p: .tst.snapTxtPath name;
-    txt:.j.j .tst.textSnapshotDocument data;
+    txt:.tst.output.strictJson .tst.textSnapshotDocument data;
     hsym[p] 0: enlist txt;
  }
 

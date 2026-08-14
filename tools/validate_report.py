@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from datetime import datetime
@@ -54,12 +55,68 @@ def require(obj: dict[str, Any], keys: set[str], where: str) -> None:
 def iso8601(value: Any, where: str) -> datetime:
     if not isinstance(value, str):
         raise ValueError(f"{where}: expected ISO-8601 string")
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{where}: timezone offset is required")
+    return parsed
+
+
+def reject_non_finite_numbers(value: Any, where: str = "report") -> None:
+    """Reject Python's non-standard JSON float extensions at every boundary."""
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"{where}: non-finite number is not valid JSON evidence")
+    if isinstance(value, dict):
+        for key, child in value.items():
+            reject_non_finite_numbers(child, f"{where}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            reject_non_finite_numbers(child, f"{where}[{index}]")
+
+
+def validate_canonical_value_envelopes(value: Any, where: str = "report") -> None:
+    if isinstance(value, dict):
+        if value.get("kind") == "resq-canonical-value":
+            expected = {"schemaVersion", "kind", "codec", "canonicalBytes", "rendered"}
+            if set(value) != expected or value["schemaVersion"] != 1:
+                raise ValueError(f"{where}: malformed canonical-value envelope")
+            codec = value["codec"]
+            if not isinstance(codec, dict) or codec.get("name") != "resq-value-v1+q-ipc-leaves":
+                raise ValueError(f"{where}.codec: unsupported canonical-value envelope")
+            if codec.get("version") != 1 or codec.get("ipcSerialization") != "q unary -8!/-9!":
+                raise ValueError(f"{where}.codec: unsupported canonical-value envelope")
+            if codec.get("capabilityLevel") != "local unary serialization; no negotiated IPC connection capability":
+                raise ValueError(f"{where}.codec: unsupported canonical-value envelope")
+            if any(not isinstance(codec.get(name), str) or not codec[name] for name in ("qVersion", "qRelease")):
+                raise ValueError(f"{where}.codec: missing q serialization identity")
+            if not isinstance(value["canonicalBytes"], str) or not isinstance(value["rendered"], str):
+                raise ValueError(f"{where}: canonical-value evidence must be strings")
+            return
+        for key, child in value.items():
+            validate_canonical_value_envelopes(child, f"{where}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            validate_canonical_value_envelopes(child, f"{where}[{index}]")
 
 
 def require_non_negative_number(value: Any, where: str) -> None:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
         raise ValueError(f"{where}: expected non-negative number")
+
+
+def validate_numeric_status(
+    record: dict[str, Any], rules: dict[str, set[str]], where: str,
+) -> None:
+    status = record.get("numericStatus")
+    if status is None:
+        return  # additive producer extension; historical schema-v2 remains valid
+    if not isinstance(status, dict) or set(status) != set(rules):
+        raise ValueError(f"{where}.numericStatus: must classify every nullable numeric field")
+    for name, allowed in rules.items():
+        state = status[name]
+        if state not in allowed:
+            raise ValueError(f"{where}.numericStatus.{name}: invalid")
+        if (record.get(name) is not None) != (state == "finite"):
+            raise ValueError(f"{where}.numericStatus.{name}: disagrees with value")
 
 
 def validate_interval(record: dict[str, Any], where: str, duration_key: str = "durationSeconds") -> None:
@@ -162,6 +219,21 @@ def validate_benchmark_comparison(comparison: Any, where: str) -> None:
         raise ValueError(f"{where}.alpha: invalid")
     if not comparison["comparable"] and comparison["classification"] != "inconclusive":
         raise ValueError(f"{where}: non-comparable benchmark must be inconclusive")
+    validate_numeric_status(
+        comparison,
+        {
+            "baselineMedian": {"finite", "baselineMissing"},
+            "currentMedian": {"finite", "samplesMissing"},
+            "relativeChangePercent": {"finite", "baselineMissingOrZero"},
+            "u": {"finite", "notComparable"},
+            "z": {"finite", "notComparable"},
+            "pValue": {"finite", "notAvailable"},
+            "adjustedPValue": {"finite", "notComparable", "notAvailable"},
+            "alpha": {"finite", "notAvailable"},
+            "practicalEffectPercent": {"finite", "notAvailable"},
+        },
+        where,
+    )
 
 
 def validate_benchmark_telemetry(benchmark: Any, where: str, test_id: str) -> None:
@@ -589,6 +661,77 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
         raise ValueError("run.selection.selectedTestCount disagrees with selected execution IDs")
 
 
+def validate_run_shard(document: dict[str, Any]) -> None:
+    """Validate present shard metadata even when compact profiles omit the manifest.
+
+    Early report-v2 producers could omit the additive shard object entirely, so
+    absence remains a supported historical shape. Current producers always emit
+    it; whenever it is present, every profile receives the same validation.
+    """
+    run = document["run"]
+    shard = run.get("shard")
+    if shard is None:
+        return
+    if not isinstance(shard, dict):
+        raise ValueError("run.shard: expected object")
+    require(
+        shard,
+        {
+            "index", "count", "unit", "algorithm", "allFileCount",
+            "selectedFileCount", "allUnitCount", "selectedUnitCount",
+            "selectedFiles", "selectedExecutionIds",
+        },
+        "run.shard",
+    )
+    count = shard["count"]
+    index = shard["index"]
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        raise ValueError("run.shard.count: expected positive integer")
+    if shard["unit"] not in {"file", "test", "case"}:
+        raise ValueError("run.shard.unit: unsupported")
+    expected_algorithm = (
+        "sorted-index-mod-v1" if shard["unit"] == "file"
+        else "stable-id-weighted-hash-v1"
+    )
+    if shard["algorithm"] != expected_algorithm:
+        raise ValueError("run.shard.algorithm: disagrees with shard unit")
+    if index == -1:
+        if shard.get("merged") is not True or shard.get("indices") != list(range(count)):
+            raise ValueError("run.shard: aggregate index requires a complete merged topology")
+    elif not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < count:
+        raise ValueError("run.shard.index: outside shard range")
+    for name in ("allFileCount", "selectedFileCount", "allUnitCount", "selectedUnitCount"):
+        value = shard[name]
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValueError(f"run.shard.{name}: expected non-negative integer")
+    if shard["selectedFileCount"] > shard["allFileCount"]:
+        raise ValueError("run.shard: selected file count exceeds topology")
+    if shard["selectedUnitCount"] > shard["allUnitCount"]:
+        raise ValueError("run.shard: selected unit count exceeds topology")
+    selected_files = shard["selectedFiles"]
+    if (
+        not isinstance(selected_files, list)
+        or any(not isinstance(path, str) or not path for path in selected_files)
+        or len(selected_files) != len(set(selected_files))
+        or len(selected_files) != shard["selectedFileCount"]
+    ):
+        raise ValueError("run.shard.selectedFiles: expected unique selected-file inventory")
+    selected_ids = shard["selectedExecutionIds"]
+    if (
+        not isinstance(selected_ids, list)
+        or any(not isinstance(identity, str) or not HEX_ID.fullmatch(identity) for identity in selected_ids)
+        or len(selected_ids) != len(set(selected_ids))
+    ):
+        raise ValueError("run.shard.selectedExecutionIds: expected unique stable identities")
+    selection = run.get("selection")
+    if not isinstance(selection, dict):
+        raise ValueError("run.selection: expected object")
+    if selection.get("selectedTestCount") != len(selected_ids):
+        raise ValueError("run.selection.selectedTestCount disagrees with selected execution IDs")
+    if shard["unit"] == "file" and shard["selectedUnitCount"] != shard["selectedFileCount"]:
+        raise ValueError("run.shard.selectedUnitCount disagrees with selected files")
+
+
 def validate_completion(document: dict[str, Any], execution_ids: list[str]) -> None:
     completion = document["run"].get("completion")
     if completion is None:
@@ -734,6 +877,8 @@ def validate_events(events: Any, document: dict[str, Any]) -> None:
 def validate(document: Any) -> None:
     if not isinstance(document, dict):
         raise ValueError("report: expected object")
+    reject_non_finite_numbers(document)
+    validate_canonical_value_envelopes(document)
     profile = validate_profile(document)
     required = {"schemaVersion", "framework", "frameworkVersion", "run", "summary", "tests", "diagnostics"}
     if profile == "legacy-full":
@@ -787,6 +932,7 @@ def validate(document: Any) -> None:
         raise ValueError("run.vcs.dirty: expected boolean")
     if "status" in vcs and vcs["status"] not in {"ok", "unavailable", "disabled"}:
         raise ValueError("run.vcs.status: invalid")
+    validate_run_shard(document)
     require(summary, {"suiteCount", "testCount", "assertionCount", "passCount", "failCount", "errorCount", "skipCount", "duration", "durationSeconds"}, "summary")
     if summary["testCount"] != len(document["tests"]):
         raise ValueError("summary.testCount does not match tests length")
@@ -878,6 +1024,21 @@ def validate(document: Any) -> None:
         validate_benchmark_workload(measurement["workload"], f"{where}.workload", runs)
         validate_benchmark_samples(measurement["samples"], f"{where}.samples", runs)
         validate_benchmark_environment(measurement["environment"], f"{where}.environment")
+        validate_numeric_status(
+            measurement,
+            {
+                "avgTimeMs": {"finite", "notMeasured"},
+                "minTimeMs": {"finite", "notMeasured"},
+                "medTimeMs": {"finite", "notMeasured"},
+                "maxTimeMs": {"finite", "notMeasured"},
+                "devTimeMs": {"finite", "notMeasured"},
+                "avgSpaceBytes": {"finite", "notMeasured"},
+                "maxSpaceBytes": {"finite", "notMeasured"},
+                "timeLimitMs": {"finite", "notConfigured"},
+                "spaceLimitBytes": {"finite", "notConfigured"},
+            },
+            where,
+        )
         if measurement["comparison"]:
             validate_benchmark_comparison(measurement["comparison"], f"{where}.comparison")
         performance_ids.append(measurement["benchmarkId"])

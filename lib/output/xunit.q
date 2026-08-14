@@ -1,23 +1,3 @@
-.tst.output.escapeXml:{[val]
-    s: .tst.toString val;
-    if[0=count s; :""];
-    s: ssr[s;"&";"&amp;"];
-    s: ssr[s;"<";"&lt;"];
-    s: ssr[s;">";"&gt;"];
-    s: ssr[s;"\"";"&quot;"];
-    s: ssr[s;"'";"&apos;"];
-    / Strip control chars (0x00-0x1F) illegal in XML 1.0, keeping tab/LF/CR.
-    s: s where (s in "\t\n\r") or not s within ("\000";"\037");
-    s
- };
-
-.tst.output.toSeconds:{[v]
-    raw: $[0h = type v; 0N; 98h = type v; first v; v];
-    / Null guard FIRST: a null timespan/float (e.g. 0Nn from a synthetic row)
-    / would otherwise become 0Nf -> string "" -> time="" (invalid xsd:decimal).
-    $[null raw; 0f; -16h = type raw; raw % 1e9; 0f]
- };
-
 .tst.output.normalizeRows:{[rows]
     .tst.resultRows rows
  };
@@ -85,7 +65,7 @@
     outputNode: $[count rawOutput;
         "<output>",.tst.output.escapeXml[rawOutput],"</output>";
         ""];
-    t: .tst.output.toSeconds $[`time in key rec; rec`time; 0Nn];
+    t: .tst.output.decimalSeconds $[`time in key rec; rec`time; 0Nn];
     / xUnit v2 has no per-test Error outcome: an errored resQ expectation is a
     / failed test with a distinct exception-type on its <failure> node.
     resultWord: $[recStatus in `pass;         "Pass";
@@ -94,7 +74,7 @@
     stableSeed:$[`testId in key rec;.tst.toString rec`testId;idSeed];
     testId: .tst.output.xunitUuid stableSeed;
     attrs: " id=\"", testId, "\" type=\"", suite, "\" name=\"",
-           .tst.output.escapeXml[statusDesc], "\" time=\"", string[t],
+           .tst.output.escapeXml[statusDesc], "\" time=\"", t,
            "\" result=\"", resultWord, "\"";
     if[`attempts in key rec;
         attrs,:" resq-attempts=\"",string[rec`attempts],"\"";
@@ -148,7 +128,7 @@
     passCount: sum statuses = `pass;
     failedCount: sum statuses in `fail`error;
     skipCount: sum statuses in `skip`pending;
-    totalTime: .tst.output.toSeconds sum t`time;
+    totalTime: .tst.output.decimalSeconds sum t`time;
     framework: "resQ ", $[`VERSION in key `.resq; .tst.toString .resq.VERSION; "unknown"];
     assemblyName: $[`HOME in key `.resq; .tst.toString[.resq.HOME], "/resq.q"; "resQ"];
     runDate: 10 # stamp;
@@ -161,7 +141,7 @@
         "\" run-time=\"", runTime, "\" total=\"", string[totalCount],
         "\" passed=\"", string[passCount], "\" failed=\"", string[failedCount],
         "\" skipped=\"", string[skipCount], "\" errors=\"0\" time=\"",
-        string[totalTime], "\" not-run=\"0\">";
+        totalTime, "\" not-run=\"0\">";
 
     suites: distinct t`suite;
     collectionBlocks: raze {[t;runSeed;x]
@@ -174,12 +154,12 @@
         failCount: sum failMask;
         skipCount: sum skipMask;
         passCount: sum suiteStatus = `pass;
-        suiteTime: .tst.output.toSeconds sum suiteRows`time;
+        suiteTime: .tst.output.decimalSeconds sum suiteRows`time;
         collectionId: .tst.output.xunitUuid runSeed, "/collection/", .tst.toString x;
         header: "    <collection id=\"", collectionId, "\" name=\"", suiteName,
             "\" total=\"", string[testCount], "\" passed=\"", string[passCount],
             "\" failed=\"", string[failCount], "\" skipped=\"", string[skipCount],
-            "\" time=\"", string[suiteTime], "\" not-run=\"0\">";
+            "\" time=\"", suiteTime, "\" not-run=\"0\">";
         indices: til count suiteRows;
         bodyLines: {[rs;seed;i]
             rec:rs i;

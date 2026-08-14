@@ -75,6 +75,88 @@
     $[null raw;0f;-16h=type raw;raw%1e9;0f]
  };
 
+/ Shared reporter primitives live here because sanitize.q is loaded before any
+/ selectable reporter. Loading JSON/JUnit/xUnit in a different order must not
+/ redefine their escaping or numeric presentation contracts.
+.tst.output.escapeXml:{[val]
+    s:.tst.toString val;
+    if[0=count s;:""];
+    s:ssr[s;"&";"&amp;"];
+    s:ssr[s;"<";"&lt;"];
+    s:ssr[s;">";"&gt;"];
+    s:ssr[s;"\"";"&quot;"];
+    s:ssr[s;"'";"&apos;"];
+    s where (s in "\t\n\r") or not s within ("\000";"\037")
+ };
+
+.tst.output.toSeconds:{[v]
+    raw:$[0h=type v;0N;98h=type v;first v;v];
+    $[null raw;0f;-16h=type raw;raw%1e9;0f]
+ };
+
+/ XML Schema decimal has no exponent form. Render durations from integral
+/ nanoseconds so zero, sub-100us, and very large values stay fixed-point.
+.tst.output.decimalSeconds:{[v]
+    raw:$[0h=type v;0N;98h=type v;first v;v];
+    if[null raw;:"0.000000000"];
+    nanos:$[-16h=type raw;"j"$raw;
+        type[raw] in -8 -9h;"j"$0.5+1e9*"f"$raw;
+        0j];
+    if[nanos<0j;'"duration must be non-negative"];
+    whole:nanos div 1000000000j;
+    fraction:nanos mod 1000000000j;
+    fractionText:string fraction;
+    fractionText:((9-count fractionText)#"0"),fractionText;
+    string[whole],".",fractionText
+ };
+
+.tst.output.jsonValueEnvelope:{[raw]
+    `schemaVersion`kind`codec`canonicalBytes`rendered!(
+        1j;"resq-canonical-value";.tst.valueCodecMetadata[];
+        .tst.canonicalValueBytes raw;.tst.renderValueFull raw)
+ };
+
+.tst.output.hasJsonInfinity:{[raw]
+    valueType:type raw;
+    if[valueType in -8 -9h;
+        :not[null raw] and 0w=abs "f"$raw];
+    if[valueType in 8 9h;
+        :any (not null raw) and 0w=abs "f"$raw];
+    if[98h=valueType;
+        :any .tst.output.hasJsonInfinity each value flip raw];
+    if[99h=valueType;
+        :any .tst.output.hasJsonInfinity each value raw];
+    if[0h=valueType;
+        :any .tst.output.hasJsonInfinity each raw];
+    0b
+ };
+
+/ Evidence fields may contain arbitrary q values. Only a non-JSON float forces
+/ the canonical envelope; ordinary JSON-compatible values retain their shape.
+.tst.output.jsonSafeValue:{[raw]
+    valueType:type raw;
+    if[valueType in -8 -9 8 9h;
+        :$[.tst.output.hasJsonInfinity raw;
+            .tst.output.jsonValueEnvelope raw;raw]];
+    if[98h=valueType;
+        :{[table;i].tst.output.jsonSafeValue table i}[raw;] each til count raw];
+    if[99h=valueType;
+        :(key raw)!.tst.output.jsonSafeValue each value raw];
+    if[0h=valueType;
+        :.tst.output.jsonSafeValue each raw];
+    raw
+ };
+
+.tst.output.strictJson:{[raw]
+    if[.tst.output.hasJsonInfinity raw;
+        '"non-finite number is not valid JSON evidence"];
+    .j.j raw
+ };
+
+.tst.output.evidenceJson:{[raw]
+    .tst.output.strictJson .tst.output.jsonSafeValue raw
+ };
+
 .tst.output.jsonRow:{[row]
     out:row;
     rawMsg:$[`message in key row;row`message;""];
@@ -86,6 +168,27 @@
     rawTime:$[`time in key row;row`time;0Nn];
     out[`time]:string rawTime;
     out[`durationSeconds]:.tst.output.jsonDurationSeconds rawTime;
+    if[not `file in key out;out[`file]:""];
+    if[not `line in key out;out[`line]:0Ni];
+    if[not `namespace in key out;out[`namespace]:""];
+    if[not `tags in key out;out[`tags]:`symbol$()];
+    if[not `testId in key out;out[`testId]:""];
+    if[not `caseId in key out;out[`caseId]:""];
+    if[not `kind in key out;out[`kind]:`test];
+    if[not `parameters in key out;out[`parameters]:()!()];
+    if[not `attempts in key out;out[`attempts]:1i];
+    if[not `retried in key out;out[`retried]:0b];
+    if[not `flaky in key out;out[`flaky]:0b];
+    if[not `attemptHistory in key out;out[`attemptHistory]:()];
+    if[not `parameterCases in key out;out[`parameterCases]:()];
+    if[not `property in key out;out[`property]:()!()];
+    if[not `diagnostics in key out;out[`diagnostics]:()];
+    if[not `snapshots in key out;out[`snapshots]:()];
+    if[not `benchmark in key out;out[`benchmark]:()!()];
+    if[`quarantine in key out;
+        qstate:out`quarantine;
+        if[(not 99h=type qstate) or 0=count qstate;
+            out:(key[out] except enlist `quarantine)#out]];
     out[`output]:.tst.stripAnsi .tst.renderReportMessage $[`output in key out;out`output;""];
     out
  };

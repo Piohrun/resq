@@ -261,6 +261,8 @@
     must[not null r`maxTimeMs; "a max time must be recorded"];
     / The declared budget travels with the measurement so the margin is visible.
     (r`timeLimitMs) musteq 5000f;
+    (r[`numericStatus;`avgTimeMs]) musteq "finite";
+    (r[`numericStatus;`spaceLimitBytes]) musteq "notConfigured";
   };
 
   should["record nothing for a suite with no perf blocks"]{

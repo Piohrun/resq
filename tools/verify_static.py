@@ -36,7 +36,8 @@ REQUIRED = {
     "tools/report_profiles.py", "tools/verify_report_scale.py",
     "tests/contracts/report-scale-budgets.json",
     "docs/schema/resq-benchmark-baseline-v1.schema.json",
-    "docs/schema/resq-ingestion-tables-v1.schema.json", "docs/INGESTION.md",
+    "docs/schema/resq-ingestion-tables-v1.schema.json",
+    "docs/schema/resq-ingestion-tables-v2.schema.json", "docs/INGESTION.md",
     "docs/schema/resq-release-audit-v1.schema.json",
     "docs/examples/resq_ingestion.sql", "docs/examples/grafana-resq-overview.json",
     "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
@@ -181,6 +182,19 @@ def check_contracts() -> None:
         raise ValueError("report schema must declare JSON Schema draft 2020-12")
     if schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
         raise ValueError("report schema does not describe schemaVersion 2")
+    snapshot_statuses = set(
+        schema.get("$defs", {}).get("snapshot", {}).get("properties", {})
+        .get("status", {}).get("enum", [])
+    )
+    if snapshot_statuses != {
+        "created", "updated", "matched", "missing", "mismatch", "unsupported",
+    }:
+        raise ValueError("report schema snapshot statuses differ from runtime evidence")
+    if (
+        schema.get("$defs", {}).get("event", {}).get("properties", {})
+        .get("schemaVersion", {}).get("const") != 2
+    ):
+        raise ValueError("report schema does not describe observed-time event v2")
     coverage_schema = json.loads(
         (ROOT / "docs/schema/resq-coverage-v2.schema.json").read_text(encoding="utf-8")
     )
@@ -207,13 +221,20 @@ def check_contracts() -> None:
         raise ValueError("benchmark baseline schema does not describe schemaVersion 1")
     if baseline_schema.get("properties", {}).get("kind", {}).get("const") != "resq-benchmark-baseline":
         raise ValueError("benchmark baseline schema has the wrong document kind")
-    ingestion_schema = json.loads(
+    ingestion_schema_v1 = json.loads(
         (ROOT / "docs/schema/resq-ingestion-tables-v1.schema.json").read_text(
             encoding="utf-8"
         )
     )
-    if ingestion_schema.get("properties", {}).get("schemaVersion", {}).get("const") != 1:
-        raise ValueError("ingestion schema does not describe schemaVersion 1")
+    ingestion_schema_v2 = json.loads(
+        (ROOT / "docs/schema/resq-ingestion-tables-v2.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    if ingestion_schema_v1.get("properties", {}).get("schemaVersion", {}).get("const") != 1:
+        raise ValueError("legacy ingestion schema does not describe schemaVersion 1")
+    if ingestion_schema_v2.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
+        raise ValueError("ingestion schema does not describe schemaVersion 2")
     release_schema = json.loads(
         (ROOT / "docs/schema/resq-release-audit-v1.schema.json").read_text(
             encoding="utf-8"

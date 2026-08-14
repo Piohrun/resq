@@ -82,6 +82,30 @@
     "events": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/event"}}
   },
   "$defs": {
+    "canonicalValueEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "kind", "codec", "canonicalBytes", "rendered"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "kind": {"const": "resq-canonical-value"},
+        "codec": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version", "qVersion", "qRelease", "ipcSerialization", "capabilityLevel"],
+          "properties": {
+            "name": {"const": "resq-value-v1+q-ipc-leaves"},
+            "version": {"const": 1},
+            "qVersion": {"type": "string", "minLength": 1},
+            "qRelease": {"type": "string", "minLength": 1},
+            "ipcSerialization": {"const": "q unary -8!/-9!"},
+            "capabilityLevel": {"const": "local unary serialization; no negotiated IPC connection capability"}
+          }
+        },
+        "canonicalBytes": {"type": "string"},
+        "rendered": {"type": "string"}
+      }
+    },
     "coverageGate": {
       "type": "object",
       "additionalProperties": true,
@@ -495,7 +519,7 @@
       "properties": {
         "backend": {"enum": ["binary", "text"]},
         "name": {"type": "string"},
-        "status": {"enum": ["created", "updated", "matched", "missing", "mismatch"]},
+        "status": {"enum": ["created", "updated", "matched", "missing", "mismatch", "unsupported"]},
         "path": {"type": "string"},
         "root": {"type": "string"},
         "timestamp": {"type": "string", "format": "date-time"}
@@ -579,9 +603,31 @@
         "environmentAccepted": {"type": "boolean"},
         "metric": {"const": "timeNs"},
         "unit": {"const": "nanoseconds"},
+        "baselineMedian": {"type": ["number", "null"]},
+        "currentMedian": {"type": ["number", "null"]},
+        "relativeChangePercent": {"type": ["number", "null"]},
+        "u": {"type": ["number", "null"]},
+        "z": {"type": ["number", "null"]},
         "pValue": {"type": "number", "minimum": 0, "maximum": 1},
         "adjustedPValue": {"type": "number", "minimum": 0, "maximum": 1},
         "alpha": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "practicalEffectPercent": {"type": "number", "minimum": 0},
+        "numericStatus": {
+          "type": "object",
+          "required": ["baselineMedian", "currentMedian", "relativeChangePercent", "u", "z", "pValue", "adjustedPValue", "alpha", "practicalEffectPercent"],
+          "additionalProperties": false,
+          "properties": {
+            "baselineMedian": {"enum": ["finite", "baselineMissing"]},
+            "currentMedian": {"enum": ["finite", "samplesMissing"]},
+            "relativeChangePercent": {"enum": ["finite", "baselineMissingOrZero"]},
+            "u": {"enum": ["finite", "notComparable"]},
+            "z": {"enum": ["finite", "notComparable"]},
+            "pValue": {"enum": ["finite", "notAvailable"]},
+            "adjustedPValue": {"enum": ["finite", "notComparable", "notAvailable"]},
+            "alpha": {"enum": ["finite", "notAvailable"]},
+            "practicalEffectPercent": {"enum": ["finite", "notAvailable"]}
+          }
+        },
         "baselineRuns": {"type": "integer", "minimum": 0},
         "currentRuns": {"type": "integer", "minimum": 0}
       },
@@ -606,6 +652,22 @@
             {"type": "object", "maxProperties": 0},
             {"$ref": "#/$defs/benchmarkComparison"}
           ]
+        },
+        "numericStatus": {
+          "type": "object",
+          "required": ["avgTimeMs", "minTimeMs", "medTimeMs", "maxTimeMs", "devTimeMs", "avgSpaceBytes", "maxSpaceBytes", "timeLimitMs", "spaceLimitBytes"],
+          "additionalProperties": false,
+          "properties": {
+            "avgTimeMs": {"enum": ["finite", "notMeasured"]},
+            "minTimeMs": {"enum": ["finite", "notMeasured"]},
+            "medTimeMs": {"enum": ["finite", "notMeasured"]},
+            "maxTimeMs": {"enum": ["finite", "notMeasured"]},
+            "devTimeMs": {"enum": ["finite", "notMeasured"]},
+            "avgSpaceBytes": {"enum": ["finite", "notMeasured"]},
+            "maxSpaceBytes": {"enum": ["finite", "notMeasured"]},
+            "timeLimitMs": {"enum": ["finite", "notConfigured"]},
+            "spaceLimitBytes": {"enum": ["finite", "notConfigured"]}
+          }
         }
       },
       "additionalProperties": true
@@ -624,6 +686,15 @@
         "metric": {"const": "time"},
         "unit": {"const": "nanoseconds"},
         "runs": {"type": "integer", "minimum": 1},
+        "avgTimeMs": {"type": ["number", "null"], "minimum": 0},
+        "minTimeMs": {"type": ["number", "null"], "minimum": 0},
+        "medTimeMs": {"type": ["number", "null"], "minimum": 0},
+        "maxTimeMs": {"type": ["number", "null"], "minimum": 0},
+        "devTimeMs": {"type": ["number", "null"], "minimum": 0},
+        "avgSpaceBytes": {"type": ["number", "null"], "minimum": 0},
+        "maxSpaceBytes": {"type": ["number", "null"], "minimum": 0},
+        "timeLimitMs": {"type": ["number", "null"], "minimum": 0},
+        "spaceLimitBytes": {"type": ["number", "null"], "minimum": 0},
         "workload": {"$ref": "#/$defs/benchmarkWorkload"},
         "samples": {"$ref": "#/$defs/benchmarkSamples"},
         "environment": {"$ref": "#/$defs/benchmarkEnvironment"},
@@ -632,6 +703,22 @@
             {"type": "object", "maxProperties": 0},
             {"$ref": "#/$defs/benchmarkComparison"}
           ]
+        },
+        "numericStatus": {
+          "type": "object",
+          "required": ["avgTimeMs", "minTimeMs", "medTimeMs", "maxTimeMs", "devTimeMs", "avgSpaceBytes", "maxSpaceBytes", "timeLimitMs", "spaceLimitBytes"],
+          "additionalProperties": false,
+          "properties": {
+            "avgTimeMs": {"enum": ["finite", "notMeasured"]},
+            "minTimeMs": {"enum": ["finite", "notMeasured"]},
+            "medTimeMs": {"enum": ["finite", "notMeasured"]},
+            "maxTimeMs": {"enum": ["finite", "notMeasured"]},
+            "devTimeMs": {"enum": ["finite", "notMeasured"]},
+            "avgSpaceBytes": {"enum": ["finite", "notMeasured"]},
+            "maxSpaceBytes": {"enum": ["finite", "notMeasured"]},
+            "timeLimitMs": {"enum": ["finite", "notConfigured"]},
+            "spaceLimitBytes": {"enum": ["finite", "notConfigured"]}
+          }
         }
       },
       "additionalProperties": true
@@ -738,7 +825,7 @@
       "type": "object",
       "required": ["schemaVersion", "sequence", "type", "runId", "entityId", "parentId", "occurredAt", "payload"],
       "properties": {
-        "schemaVersion": {"const": 1},
+        "schemaVersion": {"const": 2},
         "sequence": {"type": "integer", "minimum": 1},
         "type": {"type": "string", "pattern": "^[a-z]+\\.[a-z]+$"},
         "runId": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"},

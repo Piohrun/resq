@@ -172,7 +172,17 @@
         .tst.benchmarkWorkload benchmark;.tst.benchmarkSamples benchmark;
         measurement;.tst.currentBenchmarkEnvironment[];
         $[`comparison in key benchmark;benchmark`comparison;()!()]);
-    fields!values
+    record:fields!values;
+    numericNames:`avgTimeMs`minTimeMs`medTimeMs`maxTimeMs`devTimeMs,
+        `avgSpaceBytes`maxSpaceBytes`timeLimitMs`spaceLimitBytes;
+    measurementNames:`avgTimeMs`minTimeMs`medTimeMs`maxTimeMs`devTimeMs,
+        `avgSpaceBytes`maxSpaceBytes;
+    record[`numericStatus]:numericNames!{[record;measurementNames;name]
+        $[not null record name;"finite";
+          name in measurementNames;"notMeasured";
+          "notConfigured"]
+      }[record;measurementNames;] each numericNames;
+    record
  };
 
 .tst.performanceRecords:{[results]
@@ -316,7 +326,18 @@
         "timeNs";"nanoseconds";baselineMedian;currentMedian;effect;
         test`u;test`z;test`pValue;test`pValue;config`alpha;
         config`practicalEffectPercent;"j"$count baselineSamples;"j"$count currentSamples);
-    fields!values
+    comparison:fields!values;
+    numericNames:`baselineMedian`currentMedian`relativeChangePercent`u`z,
+        `pValue`adjustedPValue`alpha`practicalEffectPercent;
+    comparison[`numericStatus]:numericNames!{[comparison;name]
+        if[not null comparison name;:"finite"];
+        $[name~`baselineMedian;"baselineMissing";
+          name~`currentMedian;"samplesMissing";
+          name~`relativeChangePercent;"baselineMissingOrZero";
+          name in `u`z`adjustedPValue;"notComparable";
+          "notAvailable"]
+      }[comparison;] each numericNames;
+    comparison
  };
 
 .tst.classifyBenchmarkComparisons:{[comparisons]

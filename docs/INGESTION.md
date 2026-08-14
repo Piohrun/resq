@@ -9,7 +9,13 @@ python3 tools/resq_to_tables.py test-results.json \
 ```
 
 The output conforms to
-[`schema/resq-ingestion-tables-v1.schema.json`](schema/resq-ingestion-tables-v1.schema.json).
+[`schema/resq-ingestion-tables-v2.schema.json`](schema/resq-ingestion-tables-v2.schema.json).
+Table contract v2 separates statement execution `hits` from branch
+`edgesHit`, validates the detailed coverage artifact against its authoritative
+`runId`, and includes host, q-version, and OS dimensions on `runs`. Consumers
+that still require the old conflated branch `hits` field may request the named
+compatibility projection with `--contract-version 1`; new pipelines must use
+the default v2 contract.
 Its tables and stable joins are:
 
 | Table | Primary identity | Parent join |
@@ -30,6 +36,8 @@ Its tables and stable joins are:
 execution identity is `testId`. Attempt identity is the parent execution plus
 its one-based attempt number. Coverage site identity is scoped by run and file,
 so equal site IDs in different files cannot collide.
+Statement-site rows carry `hits`; branch-site rows carry `edgesHit`. These are
+deliberately different measures and must not be aggregated into one column.
 
 ## Labels and cardinality
 

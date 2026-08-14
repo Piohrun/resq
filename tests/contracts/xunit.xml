@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <assemblies timestamp="2026-08-12T12:00:00Z">
-  <assembly name="resQ" total="1" passed="1" failed="0" skipped="0" time="0.001">
-    <collection name="contract suite" total="1" passed="1" failed="0" skipped="0" time="0.001">
-      <test name="passes" type="contract suite" method="passes" result="Pass" time="0.001" source-file="tests/test_contract.q" source-line="10" resq-test-id="test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" />
+  <assembly name="resQ" total="1" passed="1" failed="0" skipped="0" time="0.001000000">
+    <collection name="contract suite" total="1" passed="1" failed="0" skipped="0" time="0.001000000">
+      <test name="passes" type="contract suite" method="passes" result="Pass" time="0.001000000" source-file="tests/test_contract.q" source-line="10" resq-test-id="test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" />
     </collection>
   </assembly>
 </assemblies>

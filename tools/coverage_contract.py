@@ -9,6 +9,7 @@ from typing import Any
 
 SITE_ID = re.compile(r"^(?:statement|branch)_[0-9a-f]{32}$")
 EDGE_ID = re.compile(r"^edge_[0-9a-f]{32}$")
+RUN_ID = re.compile(r"^run_[0-9a-f]{32}$")
 CONTEXT_KINDS = {"test", "attempt", "unattributed", "overflow"}
 METRIC_KINDS = {"function", "statement", "branch"}
 FALLBACKS = {
@@ -319,11 +320,16 @@ def validate_coverage_artifact(
 ) -> None:
     root = require(
         document,
-        {"schemaVersion", "kind", "framework", "frameworkVersion", "summary", "files", "contextMeasurement"},
+        {
+            "schemaVersion", "kind", "framework", "frameworkVersion", "runId",
+            "summary", "files", "contextMeasurement",
+        },
         "coverage artifact",
     )
     if root["schemaVersion"] != 2 or root["kind"] != "resq-coverage" or root["framework"] != "resQ":
         raise ValueError("coverage artifact: unsupported producer/schema")
+    if not isinstance(root["runId"], str) or not RUN_ID.fullmatch(root["runId"]):
+        raise ValueError("coverage.runId: invalid")
     summary = validate_summary(root["summary"])
     files = root["files"]
     if not isinstance(files, list):
@@ -525,6 +531,8 @@ def validate_coverage_artifact(
         elif (path, metric["siteId"], metric["edgeIndex"]) not in edge_catalog:
             raise ValueError("coverage branch metric references an unknown edge")
     if report is not None:
+        if report.get("run", {}).get("id") != root["runId"]:
+            raise ValueError("coverage.runId differs from report")
         if report.get("frameworkVersion") != root["frameworkVersion"]:
             raise ValueError("coverage.frameworkVersion differs from report")
         validate_report_coverage(report.get("coverage", {}), "report.coverage")

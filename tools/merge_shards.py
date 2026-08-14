@@ -28,7 +28,10 @@ class MergeError(ValueError):
 
 
 def canonical(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        allow_nan=False,
+    )
 
 
 def frame(tag: str, payload: str) -> str:
@@ -40,7 +43,9 @@ def stable_hash_text(value: str) -> str:
 
 
 def diagnostic_id(parent_id: str, index: int, diagnostic: dict[str, Any]) -> str:
-    wire = json.dumps(diagnostic, separators=(",", ":"), ensure_ascii=False)
+    wire = json.dumps(
+        diagnostic, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
+    )
     payload = (
         frame("parentId", parent_id)
         + frame("diagnosticIndex", str(index))
@@ -502,7 +507,8 @@ def recompute_coverage(files: list[dict[str, Any]], template: dict[str, Any]) ->
         "schemaVersion": template["schemaVersion"],
         "kind": template.get("kind", "resq-coverage"),
         "framework": template["framework"],
-        "frameworkVersion": template["frameworkVersion"], "summary": summary,
+        "frameworkVersion": template["frameworkVersion"],
+        "runId": template["runId"], "summary": summary,
         "files": files,
     }
 
@@ -544,7 +550,10 @@ def merge_contexts(measurements: list[dict[str, Any]]) -> dict[str, Any]:
     return first
 
 
-def merge_coverage(report_paths: list[Path], destination: Path) -> dict[str, Any] | None:
+def merge_coverage(
+    report_paths: list[Path], reports: list[dict[str, Any]], destination: Path,
+    merged_run_id: str,
+) -> dict[str, Any] | None:
     paths = [path.with_name("coverage.json") for path in report_paths]
     present = [path.is_file() for path in paths]
     if any(present) and not all(present):
@@ -552,14 +561,15 @@ def merge_coverage(report_paths: list[Path], destination: Path) -> dict[str, Any
     if not any(present):
         return None
     documents = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
-    for document in documents:
-        validate_coverage_artifact(document)
+    for document, report in zip(documents, reports, strict=True):
+        validate_coverage_artifact(document, report)
     same(documents, lambda d: (d.get("schemaVersion"), d.get("kind"), d.get("framework"), d.get("frameworkVersion")), "coverage schema/framework")
     files = merge_records(
         (file for document in documents for file in document.get("files", [])),
         ("path",), FILE_SPEC,
     )
     merged = recompute_coverage(files, documents[0])
+    merged["runId"] = merged_run_id
     parse_diagnostics: list[dict[str, Any]] = []
     seen_parse_diagnostics: set[str] = set()
     for document in documents:
@@ -581,7 +591,10 @@ def merge_coverage(report_paths: list[Path], destination: Path) -> dict[str, Any
         merged["contextMeasurement"] = merge_contexts(measurements)
     validate_coverage_artifact(merged)
     destination.mkdir(parents=True, exist_ok=True)
-    (destination / "coverage.json").write_text(json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (destination / "coverage.json").write_text(
+        json.dumps(merged, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
     write_lcov(merged, destination / "coverage.lcov")
     return merged
 
@@ -799,12 +812,12 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
     validate_snapshot_ownership(rows)
     performance = merge_performance(documents)
     diagnostics = merge_diagnostics(documents)
-    destination.mkdir(parents=True, exist_ok=True)
-    coverage = merge_coverage(report_paths, destination)
-    started = min(iso(document["run"]["startedAt"]) for document in documents)
-    finished = max(iso(document["run"]["finishedAt"]) for document in documents)
     run_ids = [document["run"]["id"] for document in sorted(documents, key=lambda d: d["run"]["shard"]["index"])]
     run_id = "run_" + stable_hash_text(digest + "\n" + "\n".join(run_ids))
+    destination.mkdir(parents=True, exist_ok=True)
+    coverage = merge_coverage(report_paths, documents, destination, run_id)
+    started = min(iso(document["run"]["startedAt"]) for document in documents)
+    finished = max(iso(document["run"]["finishedAt"]) for document in documents)
     first_run = copy.deepcopy(documents[0]["run"])
     merged_shard = copy.deepcopy(first_run["shard"])
     merged_shard.update(
@@ -997,7 +1010,8 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
     )
     validate(report)
     (destination / "test-results.json").write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
+        encoding="utf-8",
     )
     blocking = [
         row for row in rows

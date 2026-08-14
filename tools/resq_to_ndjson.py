@@ -92,7 +92,9 @@ def convert(
     handle = sys.stdout if destination is None else destination.open("w", encoding="utf-8")
     try:
         for record in records(document):
-            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+            handle.write(json.dumps(
+                record, ensure_ascii=False, separators=(",", ":"), allow_nan=False,
+            ))
             handle.write("\n")
     finally:
         if destination is not None:

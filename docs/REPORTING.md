@@ -111,6 +111,17 @@ rendered from the same in-memory run model. The published schema is
 [`schema/resq-report-v2.schema.json`](schema/resq-report-v2.schema.json); the
 dependency-free `tools/validate_report.py` command validates artifacts in CI.
 
+JSON numbers are strict and finite: resQ never emits the non-standard bare
+tokens `NaN`, `Infinity`, or `-Infinity`. Durations, counts, percentages,
+coverage hits, and measured benchmark samples reject non-finite values.
+Benchmark values that are legitimately unavailable are JSON `null` and their
+`numericStatus` sibling records why (`notMeasured`, `notConfigured`,
+`baselineMissing`, or `notComparable`). If an arbitrary q evidence value such
+as a parameter contains an infinity, that value alone becomes a versioned
+`resq-canonical-value` envelope containing the value-codec metadata, canonical
+bytes, and full rendering. Ordinary JSON-compatible values retain their
+existing shape; there is no generic tagged-value dialect.
+
 Its stable top-level fields are:
 
 | Field | Meaning |

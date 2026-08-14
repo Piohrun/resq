@@ -29,6 +29,21 @@ All notable changes to the **resQ** project will be documented in this file.
   in an executed block, and `-` only when the whole branch block was unexecuted;
   shard-generated LCOV follows the same rule.
 
+### Fixed
+
+- Machine evidence now rejects bare non-finite JSON numbers. Known benchmark
+  fields use `null` with an explicit numeric-status map, while arbitrary q values
+  use the versioned canonical-value envelope. JUnit/xUnit durations use stable
+  fixed-point decimals and timestamp validation requires an explicit offset.
+- The ingestion table contract v2 preserves branch `edgesHit`, validates detailed
+  coverage against its authoritative run before normalization or shard merge,
+  and carries host, q, and OS metadata. A named v1 compatibility projection
+  remains available for existing consumers.
+- Report/shard validation now applies to full, results, and telemetry profiles;
+  Allure treats historical offsetless timestamps as UTC, and Python's unittest
+  and pytest collectors share the same adapter corpus without accidental helper
+  collection.
+
 ## [1.8.1] - 2026-08-14 - Evidence Integrity Hotfix
 
 `v1.8.0` is superseded by this release and should not be used for production

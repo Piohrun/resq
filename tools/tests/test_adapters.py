@@ -13,10 +13,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
 from report_profiles import project  # noqa: E402
+from resq_to_allure import epoch_millis  # noqa: E402
 
 
-def test_row(name: str, status: str, suffix: str) -> dict:
-    return {
+def make_test_row(name: str, status: str, suffix: str, **overrides: object) -> dict:
+    row = {
         "suite": "adapter suite",
         "description": name,
         "status": status,
@@ -45,10 +46,21 @@ def test_row(name: str, status: str, suffix: str) -> dict:
         "benchmark": {},
         "quarantine": {},
     }
+    row.update(overrides)
+    return row
 
 
 def report() -> dict:
-    rows = [test_row("passes", "pass", "b"), test_row("fails", "fail", "c")]
+    rows = [
+        make_test_row(
+            "passes", "pass", "b", line=10, tags=["unit", "fast"],
+            parameters={"region": "eu"},
+        ),
+        make_test_row(
+            "fails", "fail", "c", line=27, file="tests/test_adapter_fail.q",
+            output="captured failure output",
+        ),
+    ]
     return {
         "schemaVersion": 2,
         "framework": "resQ",
@@ -139,6 +151,53 @@ def report() -> dict:
 
 
 class ValidatorContractTests(unittest.TestCase):
+    def test_validator_requires_timezone_aware_timestamps(self) -> None:
+        document = report()
+        document["run"]["startedAt"] = "2026-08-12T12:00:00"
+        with self.assertRaisesRegex(ValueError, "timezone offset is required"):
+            validate(document)
+
+    def test_validator_accepts_only_versioned_canonical_value_envelopes(self) -> None:
+        document = report()
+        document["tests"][0]["parameters"] = {
+            "limit": {
+                "schemaVersion": 1,
+                "kind": "resq-canonical-value",
+                "codec": {
+                    "name": "resq-value-v1+q-ipc-leaves", "version": 1,
+                    "qVersion": "4.1", "qRelease": "2024.01.01",
+                    "ipcSerialization": "q unary -8!/-9!",
+                    "capabilityLevel": "local unary serialization; no negotiated IPC connection capability",
+                },
+                "canonicalBytes": "(fixture)", "rendered": "0w",
+            }
+        }
+        validate(document)
+        document["tests"][0]["parameters"]["limit"]["codec"]["name"] = "unknown"
+        with self.assertRaisesRegex(ValueError, "canonical-value envelope"):
+            validate(document)
+
+    def test_validator_checks_shards_for_every_profile_without_manifest(self) -> None:
+        full = json.loads(
+            (ROOT / "tests/contracts/report-v2.json").read_text(encoding="utf-8")
+        )
+        full["profile"] = "full"
+        full["completeness"] = {
+            "evidenceComplete": True, "omittedSections": [],
+            "omittedTestFields": [], "boundedFields": [],
+        }
+        documents = (
+            ("full", full),
+            ("results", project(report(), "results")),
+            ("telemetry", project(report(), "telemetry")),
+        )
+        for profile, document in documents:
+            document["run"]["shard"]["selectedFileCount"] = 2
+            with self.subTest(profile=profile), self.assertRaisesRegex(
+                ValueError, "selected file count"
+            ):
+                validate(document)
+
     def test_validator_enforces_bounded_deterministic_run_labels(self) -> None:
         base = report()
         base["run"]["labels"] = {"environment": "test", "service": "orders"}
@@ -264,6 +323,25 @@ class ValidatorContractTests(unittest.TestCase):
 
 
 class NdjsonAdapterTests(unittest.TestCase):
+    def test_non_finite_values_are_strict_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "report.json"
+            document = report()
+            document["tests"][0]["parameters"] = {"limit": float("inf")}
+            source.write_text(json.dumps(document, allow_nan=True), encoding="utf-8")
+            for command in (
+                [sys.executable, str(ROOT / "tools/resq_to_ndjson.py"), str(source)],
+                [sys.executable, str(ROOT / "tools/resq_to_allure.py"), str(source), str(root / "allure")],
+                [sys.executable, str(ROOT / "tools/resq_to_tables.py"), str(source)],
+            ):
+                with self.subTest(adapter=Path(command[1]).name):
+                    completed = subprocess.run(
+                        command, check=False, capture_output=True, text=True,
+                    )
+                    self.assertEqual(1, completed.returncode)
+                    self.assertIn("non-finite", completed.stderr)
+
     def test_ndjson_preserves_run_and_stable_test_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -362,6 +440,12 @@ class NdjsonAdapterTests(unittest.TestCase):
 
 
 class AllureAdapterTests(unittest.TestCase):
+    def test_allure_offsetless_time_is_utc(self) -> None:
+        self.assertEqual(
+            epoch_millis("2026-08-12T12:00:00"),
+            epoch_millis("2026-08-12T12:00:00Z"),
+        )
+
     def test_allure_maps_status_history_and_labels(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

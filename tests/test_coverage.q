@@ -365,6 +365,7 @@
         .tst.generateHTML htmlPath;
         payload:.j.k raze read0 hsym `$jsonPath;
         (payload`schemaVersion) musteq 2f;
+        (payload`runId) musteq .tst.app.runMetadata`id;
         payload[`contextMeasurement;`enabled] musteq 1b;
         outputContext:.tst.coverageCollectionAt[
             payload[`contextMeasurement;`contexts];0];

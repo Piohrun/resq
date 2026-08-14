@@ -309,6 +309,98 @@ def scale_report(
     return document
 
 
+def coverage_artifact(report: dict[str, Any]) -> dict[str, Any]:
+    """Return one semantically complete detailed-coverage fixture for a report."""
+    test_id = report["tests"][0]["testId"]
+    run_id = report["run"]["id"]
+    statement_id = "statement_" + "1" * 32
+    branch_id = "branch_" + "2" * 32
+    true_edge = "edge_" + "3" * 32
+    false_edge = "edge_" + "4" * 32
+    summary = {
+        "linesFound": 1, "linesHit": 1, "linePercent": 100.0,
+        "functionsFound": 1, "functionsHit": 1, "functionPercent": 100.0,
+        "statementSitesFound": 1, "statementSitesHit": 1,
+        "statementSitePercent": 100.0, "statementSitesInstrumented": 1,
+        "statementSiteInstrumentationPercent": 100.0,
+        "statementSiteInstrumentationComplete": True,
+        "branchesFound": 2, "branchesHit": 1, "branchPercent": 50.0,
+        "branchMode": True, "branchSitesEligible": 1,
+        "branchSitesInstrumented": 1, "branchInstrumentationPercent": 100.0,
+        "branchInstrumentationComplete": True,
+        "filesFound": 1, "filesLoaded": 1, "filesWithStatements": 1,
+        "functionsEligible": 1, "functionsInstrumented": 1,
+        "functionInstrumentationPercent": 100.0,
+        "statementMode": True, "statementFunctionsEligible": 1,
+        "statementFunctionsInstrumented": 1,
+        "statementInstrumentationPercent": 100.0,
+        "statementInstrumentationComplete": True, "fallbackCounts": {},
+    }
+    statement = {
+        "siteId": statement_id, "function": ".fixture.f", "line": 2,
+        "column": 2, "lambdaId": "", "lambdaDepth": 0, "anonymous": False,
+        "eligible": True, "instrumented": True, "fallbackReason": "none",
+        "hits": 1, "covered": True,
+    }
+    branch = {
+        "siteId": branch_id, "function": ".fixture.f", "kind": "if",
+        "conditionIndex": 0, "line": 3, "column": 2, "lambdaId": "",
+        "lambdaDepth": 0, "anonymous": False, "block": 0, "eligible": True,
+        "instrumented": True, "fallbackReason": "none", "edgesFound": 2,
+        "edgesHit": 1,
+        "edges": [
+            {"edgeId": true_edge, "index": 0, "label": "true", "hits": 1, "covered": True},
+            {"edgeId": false_edge, "index": 1, "label": "false", "hits": 0, "covered": False},
+        ],
+    }
+    function = {
+        "name": ".fixture.f", "line": 1, "hits": 1, "covered": True,
+        "functionEligible": True, "functionInstrumented": True,
+        "statementEligible": True, "statementInstrumented": True,
+        "fallbackReason": "none", "statementFound": 1, "statementHit": 1,
+        "statements": [{"line": 2, "hits": 1, "covered": True}],
+        "statementSitesFound": 1, "statementSitesHit": 1,
+        "statementSitesInstrumented": 1, "statementSites": [deepcopy(statement)],
+        "branchSitesEligible": 1, "branchSitesInstrumented": 1,
+        "branchFound": 2, "branchHit": 1, "branches": [deepcopy(branch)],
+    }
+    path = "src/fixture.q"
+    metrics = [
+        {"contextId": test_id, "metricId": "metric_function", "kind": "function", "file": path, "function": ".fixture.f", "siteId": "", "edgeIndex": -1, "edgeLabel": "", "hits": 1},
+        {"contextId": test_id, "metricId": "metric_statement", "kind": "statement", "file": path, "function": ".fixture.f", "siteId": statement_id, "edgeIndex": -1, "edgeLabel": "", "hits": 1},
+        {"contextId": test_id, "metricId": "metric_branch", "kind": "branch", "file": path, "function": ".fixture.f", "siteId": branch_id, "edgeIndex": 0, "edgeLabel": "true", "hits": 1},
+    ]
+    return {
+        "schemaVersion": 2, "kind": "resq-coverage", "framework": "resQ",
+        "frameworkVersion": report["frameworkVersion"], "runId": run_id,
+        "summary": summary,
+        "files": [{
+            "path": path, "loaded": True, "functionFound": 1, "functionHit": 1,
+            "statementFunctionsInstrumented": 1, "lineFound": 1, "lineHit": 1,
+            "statementSitesEligible": 1, "statementSitesInstrumented": 1,
+            "statementSitesHit": 1, "branchSitesEligible": 1,
+            "branchSitesInstrumented": 1, "branchFound": 2, "branchHit": 1,
+            "functions": [function], "lines": [{"line": 2, "hits": 1, "covered": True}],
+            "statementSites": [statement], "branches": [branch],
+        }],
+        "contextMeasurement": {
+            "schemaVersion": 1, "enabled": True, "detail": "test",
+            "contextLimit": 100, "entryLimit": 1000,
+            "summary": {
+                "contextsStored": 1, "metricEntriesStored": 3,
+                "functionHits": 1, "statementHits": 1, "branchHits": 1,
+                "unattributedHits": 0, "overflowActivations": 0,
+                "droppedMetricHits": 0, "truncated": False,
+            },
+            "contexts": [{
+                "contextId": test_id, "kind": "test", "testId": test_id,
+                "attempt": 0, "suite": "fixture", "description": "covers",
+                "file": "tests/test_fixture.q", "metrics": metrics,
+            }],
+        },
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="mode", required=True)

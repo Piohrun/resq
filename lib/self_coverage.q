@@ -47,7 +47,7 @@
         rows);
     jsonPath:out,"/self-coverage.json";
     textPath:out,"/self-coverage.txt";
-    (hsym `$jsonPath) 0:enlist .j.j payload;
+    (hsym `$jsonPath) 0:enlist .tst.output.strictJson payload;
     formatted:.cov.format.go rows;
     header:(
         "resQ self-coverage (optional external evidence; not a release gate)";

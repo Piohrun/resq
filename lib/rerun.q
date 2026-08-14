@@ -232,7 +232,7 @@
         .tst.isoTimestamp .z.p;
         count eligible;count ids;ids);
     tmp:path,".tmp.",string .z.i;
-    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.j.j doc);{[args;err]0b}];
+    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[args;err]0b}];
     if[not written;
         .tst.recordDiagnostic[`rerun;`warning;`persistence;
             "Unable to write rerun state";enlist[`path]!enlist .tst.repoRelativePath path];

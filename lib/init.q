@@ -70,11 +70,11 @@ if[`resq in key `;
     fields:`benchmarkId`testId`file`suite`description`metric`unit`runs,
         `avgTimeMs`minTimeMs`medTimeMs`maxTimeMs`devTimeMs,
         `avgSpaceBytes`maxSpaceBytes`timeLimitMs`spaceLimitBytes,
-        `workload`samples`measurement`environment`comparison;
+        `workload`samples`measurement`environment`comparison`numericStatus;
     values:(
         ();();();`symbol$();`symbol$();`symbol$();();`long$();
         `float$();`float$();`float$();`float$();`float$();
-        `float$();`float$();`float$();`float$();();();();();());
+        `float$();`float$();`float$();`float$();();();();();();());
     flip fields!values
  };
 .tst.app.perfResults: .tst.app.emptyPerfResults[];

@@ -2092,10 +2092,15 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     model:$[(99h=type .tst.lastCoverageModel) and `files in key .tst.lastCoverageModel;
         .tst.lastCoverageModel;.tst.coverageModel[]];
     public:.tst.coveragePublicModel model;
-    payload:`schemaVersion`kind`framework`frameworkVersion`summary`files`contextMeasurement!(
-        2;"resq-coverage";"resQ";.tst.toString @[get;`.resq.VERSION;{"unknown"}];
+    runMetadata:@[get;`.tst.app.runMetadata;{()!()}];
+    runId:$[(99h=type runMetadata) and `id in key runMetadata;
+        .tst.toString runMetadata`id;""];
+    if[not runId like "run_????????????????????????????????";
+        '"coverage JSON requires authoritative run identity"];
+    payload:`schemaVersion`kind`framework`frameworkVersion`runId`summary`files`contextMeasurement!(
+        2;"resq-coverage";"resQ";.tst.toString @[get;`.resq.VERSION;{"unknown"}];runId;
         public`summary;public`files;public`contextMeasurement);
-    (hsym (`$":" , outPath)) 0:enlist .j.j payload;
+    (hsym (`$":" , outPath)) 0:enlist .tst.output.strictJson payload;
     -1 "Coverage JSON written to: ",outPath;
     outPath
  };

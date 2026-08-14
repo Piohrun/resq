@@ -50,9 +50,19 @@ Allure `start`/`stop` are emitted only when the test row contains an observed
 interval (current event-v2 reports). Legacy event-v1 reports lack per-test
 observations, so the adapter omits timeline fields instead of fabricating them
 from run boundaries.
+Current report validation requires every timestamp to include `Z` or an
+explicit UTC offset. The Allure timestamp helper treats offset-less historical
+values as UTC for deterministic migration; it never interprets them in the
+converter host's local timezone.
 Benchmark tests add ID/classification/change/adjusted-p-value parameters, while
 `environment.properties` carries comparison/gate state and classification
 counts.
+
+All JSON adapters reject bare `NaN`, `Infinity`, and `-Infinity`. Ordinary
+machine numeric fields must be finite. Nullable benchmark fields pair JSON
+`null` with `numericStatus`; arbitrary q evidence containing a non-finite float
+uses the versioned `resq-canonical-value` envelope (codec metadata, canonical
+bytes, and full rendering) rather than a repository-wide tagged JSON dialect.
 
 ## Extension policy
 
