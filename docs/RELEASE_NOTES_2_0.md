@@ -94,6 +94,16 @@ file-level child-process concurrency with a group barrier and one q runtime/
 licence allocation per worker. resQ ships explicit trusted plugin callbacks,
 not an IDE integration, plugin marketplace, or mutation-testing product.
 
+## Qualification
+
+The [production audit](PRODUCTION_AUDIT_2_0.md) records a 25-step clean-clone
+qualification on the supported q 4.1/Linux x86-64 baseline: 765 tests and 2,523
+assertions in normal/isolated parity, 400 loader and 2,000 coverage differential
+seeds, calibrated coverage hot-path budgets, 20-cycle soak, required 10k report
+artifacts, recorded 100k lifecycle evidence, installed-launcher quickstart, and
+44 / 44 review findings closed. The compact evidence and full-archive checksum
+are committed under `docs/release-evidence/v2.0.0-candidate/`.
+
 ## Install
 
 ```sh

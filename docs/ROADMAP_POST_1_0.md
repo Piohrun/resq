@@ -184,8 +184,9 @@ following checked-in contracts; the final release gate invokes all of them:
   soak, 10k required-scale, and recorded 100k qualification gates.
 - [x] Harden isolated process classification, launcher signal cleanup,
   symlinked installs, and immutable GitHub Actions dependencies.
-- [ ] Complete the clean-clone v2.0.0 release qualification, archive the exact
-  evidence commit, and verify the pushed annotated tag.
+- [x] Complete the clean-clone v2.0.0 release qualification and archive the
+  exact candidate evidence. The certification commit is itself requalified
+  before the pushed annotated tag is accepted by its remote peeled target.
 
 ## Post-2.0 ecosystem ideas — not implemented
 
