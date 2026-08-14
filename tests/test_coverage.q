@@ -1160,7 +1160,12 @@
         fixture:.resq.HOME,"/tests/fixtures/coverage_lifecycle_probe.q";
         system "mkdir -p ",.utl.shellQuote root;
         inner:"timeout -k 2 20 ",.utl.shellQuote[.resq.HOME,"/bin/resq"],
-            " test ",.utl.shellQuote[fixture]," -strict -quiet > ",
+            " test ",.utl.shellQuote[fixture]," -strict -quiet",
+            " -outDir ",.utl.shellQuote[root,"/report"],
+            " -state-file ",.utl.shellQuote[root,"/state.json"],
+            " -flake-history ",.utl.shellQuote[root,"/flake.json"],
+            " -quarantine-file ",.utl.shellQuote[root,"/quarantine.json"],
+            " -flake-proposal-file ",.utl.shellQuote[root,"/proposals.json"]," > ",
             .utl.shellQuote[out]," 2>&1; code=$?; echo $code > ",
             .utl.shellQuote[status],"; true";
         @[system;"sh -c ",.utl.shellQuote inner;{[e]e}];
