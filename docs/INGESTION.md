@@ -58,6 +58,6 @@ with supplied environment/service labels; branch name alone is insufficient.
 resQ executes at most one cached Git status probe per run. `-no-vcs` or
 `"vcsProbe": false` disables it; outside a Git repository the status is
 `unavailable` and the run continues. CI variables are normalized for GitHub
-Actions, GitLab CI, Azure Pipelines, and Jenkins. Unknown systems use the
-`generic` provider plus explicit run labels rather than exposing arbitrary
-environment variables.
+Actions, GitLab CI, Azure Pipelines, Jenkins, CircleCI, Buildkite, TeamCity, and
+Bamboo. Unknown systems use the `generic` provider plus explicit run labels
+rather than exposing arbitrary environment variables.

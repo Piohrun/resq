@@ -679,7 +679,7 @@ def lifecycle(
                     diagnostic_id = "diagnostic_" + stable_hash(
                         f"{identity}\n{index}\n{canonical(diagnostic)}"
                     )
-                    emit("diagnostic.recorded", diagnostic_id, identity, run["finishedAt"], diagnostic)
+                    emit("diagnostic.recorded", diagnostic_id, identity, test_finished, diagnostic)
                 finished_payload = {
                     "status": row["status"], "duration": row["time"],
                     "durationSeconds": row.get("durationSeconds", 0),

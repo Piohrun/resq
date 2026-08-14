@@ -274,13 +274,99 @@ def private_state_args(output: Path, lane: str) -> list[str]:
     ]
 
 
-def require_residue_free_checkout() -> None:
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--ignored"], cwd=ROOT, text=True,
-        capture_output=True, check=True,
-    ).stdout.strip()
-    if status:
-        raise RuntimeError(f"release audit left checkout residue:\n{status}")
+def _git_output(root: Path, *arguments: str) -> str:
+    return subprocess.run(
+        ["git", *arguments], cwd=root, text=True, capture_output=True, check=True,
+    ).stdout
+
+
+def _is_excluded_checkout_path(path: Path, root: Path, output: Path | None) -> bool:
+    """Return whether release-owned or index-owned state may change during the gate."""
+    relative = path.relative_to(root)
+    if relative.parts and relative.parts[0] == ".codegraph":
+        return True
+    if output is None:
+        return False
+    try:
+        path.relative_to(output)
+        return True
+    except ValueError:
+        return False
+
+
+def _ignored_checkout_snapshot(root: Path, output: Path | None) -> dict[str, str]:
+    """Fingerprint ignored files so pre-existing state is allowed but residue is not."""
+    raw = subprocess.run(
+        ["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z"],
+        cwd=root, capture_output=True, check=True,
+    ).stdout
+    snapshot: dict[str, str] = {}
+    for encoded in raw.split(b"\0"):
+        if not encoded:
+            continue
+        relative = os.fsdecode(encoded)
+        path = root / relative
+        if _is_excluded_checkout_path(path, root, output):
+            continue
+        try:
+            metadata = path.lstat()
+            mode = metadata.st_mode & 0o7777
+            if path.is_symlink():
+                kind = "symlink"
+                digest = hashlib.sha256(os.fsencode(os.readlink(path))).hexdigest()
+            elif path.is_file():
+                kind = "file"
+                digest = sha256_file(path)
+            else:
+                kind = "other"
+                digest = hashlib.sha256(b"").hexdigest()
+        except FileNotFoundError:
+            # A concurrently disappearing ignored file is itself checkout drift;
+            # retain a stable marker so the final comparison reports it clearly.
+            mode = 0
+            kind = "missing"
+            digest = hashlib.sha256(b"").hexdigest()
+        snapshot[Path(relative).as_posix()] = f"{kind}:{mode:o}:{digest}"
+    return snapshot
+
+
+def require_residue_free_checkout(
+    *, root: Path = ROOT, output: Path | None = None,
+    ignored_baseline: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Require source cleanliness and optionally compare ignored state to a baseline."""
+    root = root.resolve()
+    output = output.resolve() if output is not None else None
+    tracked = _git_output(root, "status", "--porcelain", "--untracked-files=no").strip()
+    untracked = []
+    raw_untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd=root, capture_output=True, check=True,
+    ).stdout
+    for encoded in raw_untracked.split(b"\0"):
+        if not encoded:
+            continue
+        relative = os.fsdecode(encoded)
+        if not _is_excluded_checkout_path(root / relative, root, output):
+            untracked.append(relative)
+    if tracked or untracked:
+        details = [item for item in (tracked, *sorted(untracked)) if item]
+        raise RuntimeError("release checkout has tracked or non-ignored changes:\n" + "\n".join(details))
+
+    ignored = _ignored_checkout_snapshot(root, output)
+    if ignored_baseline is not None and ignored != ignored_baseline:
+        before = set(ignored_baseline)
+        after = set(ignored)
+        added = sorted(after - before)
+        removed = sorted(before - after)
+        changed = sorted(path for path in before & after if ignored_baseline[path] != ignored[path])
+        detail = [
+            *(f"added: {path}" for path in added),
+            *(f"removed: {path}" for path in removed),
+            *(f"changed: {path}" for path in changed),
+        ]
+        raise RuntimeError("release audit changed ignored checkout state:\n" + "\n".join(detail))
+    return ignored
 
 
 def verify_self_contract(document: dict[str, Any]) -> None:
@@ -402,7 +488,8 @@ def prepare_output(requested: Path | None) -> tuple[Path, tempfile.TemporaryDire
 
 
 def verify(q_executable: str, requested_output: Path | None) -> Path:
-    require_residue_free_checkout()
+    output_exclusion = requested_output.resolve() if requested_output is not None else None
+    ignored_baseline = require_residue_free_checkout(output=output_exclusion)
     commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
         capture_output=True, check=True,
@@ -562,7 +649,9 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         (output / "coverage-reconciliation.json").write_text(
             json.dumps(coverage_reconciliation, indent=2) + "\n", encoding="utf-8"
         )
-        require_residue_free_checkout()
+        require_residue_free_checkout(
+            output=output_exclusion, ignored_baseline=ignored_baseline,
+        )
 
         finished_at = datetime.now(timezone.utc)
         schema_paths = archive_schemas(output)

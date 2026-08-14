@@ -239,17 +239,19 @@
 / meaningless output and stay green. These build a mixed result set and assert
 / on the generated document directly.
 .tst.desc["Reporter XML structure"]{
-    should["omit empty quarantine and optional property boilerplate"]{
+    should["omit empty and non-material quarantine property boilerplate"]{
         row:.tst.completeResultRow `suite`description`status`assertsRun!(
             `S;"plain";`pass;1i);
+        .tst.loadOutputModule["json"];
+        jsonRow:.tst.output.jsonRow row;
+        row[`quarantine]:`state`active`nonBlocking`observations`passes`failures`flakes`owner`reason`issue`createdAt`expiresAt!(
+            "healthy";0b;0b;8j;8j;0j;0j;"";"";"";"";"");
         prevTop:@[get;`.tst.output.top;{::}];
         prevReport:.resq.report;
         .tst.loadOutputModule["junit"];
         junitProps:.tst.output.junitPropertyNode row;
         .tst.loadOutputModule["xunit"];
         xunitProps:.tst.output.xunitPropertyNode row;
-        .tst.loadOutputModule["json"];
-        jsonRow:.tst.output.jsonRow row;
         .tst.output.top:prevTop;.resq.report:prevReport;
         junitProps musteq "";
         xunitProps musteq "";

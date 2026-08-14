@@ -460,6 +460,10 @@
         0<count getv `GITLAB_CI;"gitlab";
         0<count getv `TF_BUILD;"azure";
         0<count getv `JENKINS_URL;"jenkins";
+        0<count getv `CIRCLECI;"circleci";
+        0<count getv `BUILDKITE;"buildkite";
+        0<count getv `TEAMCITY_VERSION;"teamcity";
+        (0<count getv `bamboo_buildKey) or (0<count getv `bamboo_buildResultKey);"bamboo";
         0<count getv `CI;"generic";"none"];
     pipelineId:"";jobId:"";attempt:"";commitSha:"";branch:"";
     repository:"";workflow:"";buildUrl:"";
@@ -489,6 +493,34 @@
         attempt:getv `BUILD_NUMBER;commitSha:getv `GIT_COMMIT;
         branch:getv `GIT_BRANCH;repository:getv `GIT_URL;
         workflow:getv `JOB_NAME;buildUrl:getv `BUILD_URL];
+    if[provider~"circleci";
+        pipelineId:getv `CIRCLE_WORKFLOW_ID;jobId:getv `CIRCLE_WORKFLOW_JOB_ID;
+        if[0=count jobId;jobId:getv `CIRCLE_JOB];
+        attempt:getv `CIRCLE_BUILD_NUM;commitSha:getv `CIRCLE_SHA1;
+        branch:getv `CIRCLE_BRANCH;workflow:getv `CIRCLE_JOB;
+        if[all 0<count each (getv `CIRCLE_PROJECT_USERNAME;getv `CIRCLE_PROJECT_REPONAME);
+            repository:(getv `CIRCLE_PROJECT_USERNAME),"/",getv `CIRCLE_PROJECT_REPONAME];
+        buildUrl:getv `CIRCLE_BUILD_URL];
+    if[provider~"buildkite";
+        pipelineId:getv `BUILDKITE_BUILD_ID;jobId:getv `BUILDKITE_JOB_ID;
+        attempt:getv `BUILDKITE_RETRY_COUNT;commitSha:getv `BUILDKITE_COMMIT;
+        branch:getv `BUILDKITE_BRANCH;repository:getv `BUILDKITE_REPO;
+        workflow:getv `BUILDKITE_PIPELINE_SLUG;buildUrl:getv `BUILDKITE_BUILD_URL];
+    if[provider~"teamcity";
+        pipelineId:getv `BUILD_ID;
+        if[0=count pipelineId;pipelineId:getv `BUILD_NUMBER];
+        jobId:getv `TEAMCITY_BUILDCONF_NAME;attempt:getv `BUILD_NUMBER;
+        commitSha:getv `BUILD_VCS_NUMBER;workflow:getv `TEAMCITY_PROJECT_NAME;
+        buildUrl:getv `BUILD_URL];
+    if[provider~"bamboo";
+        pipelineId:getv `bamboo_buildResultKey;jobId:getv `bamboo_buildKey;
+        attempt:getv `bamboo_buildNumber;commitSha:getv `bamboo_planRepository_revision;
+        branch:getv `bamboo_planRepository_branch;
+        repository:getv `bamboo_planRepository_repositoryUrl;
+        workflow:getv `bamboo_planName;
+        if[0=count workflow;workflow:getv `bamboo_buildPlanName];
+        buildUrl:getv `bamboo_buildResultsUrl;
+        if[0=count buildUrl;buildUrl:getv `bamboo_resultsUrl]];
     if[provider~"generic";
         pipelineId:getv `CI_PIPELINE_ID;jobId:getv `CI_JOB_ID;
         commitSha:getv `CI_COMMIT_SHA;branch:getv `CI_COMMIT_BRANCH];
@@ -504,9 +536,30 @@
         `TF_BUILD`BUILD_BUILDID`SYSTEM_JOBID`SYSTEM_JOBATTEMPT`BUILD_SOURCEVERSION,
         `BUILD_SOURCEBRANCHNAME`BUILD_REPOSITORY_NAME`BUILD_DEFINITIONNAME,
         `SYSTEM_TEAMFOUNDATIONCOLLECTIONURI`SYSTEM_TEAMPROJECT,
-        `JENKINS_URL`BUILD_ID`JOB_NAME`BUILD_NUMBER`GIT_COMMIT`GIT_BRANCH`GIT_URL`BUILD_URL;
+        `JENKINS_URL`BUILD_ID`JOB_NAME`BUILD_NUMBER`GIT_COMMIT`GIT_BRANCH`GIT_URL`BUILD_URL,
+        `CIRCLECI`CIRCLE_WORKFLOW_ID`CIRCLE_WORKFLOW_JOB_ID`CIRCLE_JOB`CIRCLE_BUILD_NUM,
+        `CIRCLE_SHA1`CIRCLE_BRANCH`CIRCLE_PROJECT_USERNAME`CIRCLE_PROJECT_REPONAME`CIRCLE_BUILD_URL,
+        `BUILDKITE`BUILDKITE_BUILD_ID`BUILDKITE_JOB_ID`BUILDKITE_RETRY_COUNT,
+        `BUILDKITE_COMMIT`BUILDKITE_BRANCH`BUILDKITE_REPO`BUILDKITE_PIPELINE_SLUG`BUILDKITE_BUILD_URL,
+        `TEAMCITY_VERSION`TEAMCITY_BUILDCONF_NAME`TEAMCITY_PROJECT_NAME`BUILD_VCS_NUMBER,
+        `bamboo_buildKey`bamboo_buildResultKey`bamboo_buildNumber`bamboo_planRepository_revision,
+        `bamboo_planRepository_branch`bamboo_planRepository_repositoryUrl`bamboo_planName,
+        `bamboo_buildPlanName`bamboo_buildResultsUrl`bamboo_resultsUrl;
     vals:{getenv x} each names;
     .tst.ciContextFrom names!vals
+ };
+
+/ Healthy and merely observed tests carry a complete quarantine state object in
+/ JSON, but that boilerplate is not useful as twelve JUnit properties or xUnit
+/ traits. XML publishes quarantine telemetry only when policy metadata exists.
+.tst.output.quarantineCarriesInformation:{[qstate]
+    if[not 99h=type qstate;:0b];
+    names:key qstate;
+    active:$[`active in names;1b~qstate`active;0b];
+    details:{[state;name]
+        $[name in key state;.tst.toString state name;""]
+      }[qstate;] each `owner`reason`issue;
+    active or (any 0<count each details)
  };
 
 .tst.shardMetadata:{[]

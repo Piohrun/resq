@@ -41,7 +41,7 @@
             .tst.output.escapeXml[v],"\"/>"
         }'[labels;values]];
     qstate:$[`quarantine in key rec;rec`quarantine;()!()];
-    if[(99h=type qstate) and 0<count qstate;
+    if[.tst.output.quarantineCarriesInformation qstate;
         qnames:`state`active`nonBlocking`observations`passes`failures`flakes`owner`reason`issue`createdAt`expiresAt;
         qlabels:{"resq.quarantine.",string x} each qnames;
         qvalues:{[qstate;n].tst.toString qstate n}[qstate;] each qnames;

@@ -514,6 +514,8 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
         },
         "run.shard",
     )
+    if manifest["shard"] != shard:
+        raise ValueError("manifest.shard disagrees with run.shard")
     if not isinstance(shard["count"], int) or shard["count"] < 1:
         raise ValueError("run.shard.count: expected positive integer")
     if shard["unit"] not in {"file", "test", "case"}:

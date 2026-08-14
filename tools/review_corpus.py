@@ -215,6 +215,7 @@ def scale_report(
         selectedFiles=["tests/generated/review_scale.q"],
         selectedExecutionIds=selected_ids,
     )
+    document["manifest"]["shard"] = deepcopy(run["shard"])
     document["tests"] = test_rows
     document["flake"]["insufficient"] = test_count
     document["snapshotInventory"]["generatedAt"] = run["finishedAt"]

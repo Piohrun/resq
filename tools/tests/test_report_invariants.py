@@ -62,7 +62,18 @@ class ReportInvariantTests(unittest.TestCase):
     def test_rejects_manifest_file_count_drift(self) -> None:
         document = self.document()
         document["run"]["shard"]["allFileCount"] = 2
+        document["manifest"]["shard"]["allFileCount"] = 2
         self.assert_invalid(document, "allFileCount disagrees")
+
+    def test_rejects_manifest_shard_all_file_count_drift(self) -> None:
+        document = self.document()
+        document["manifest"]["shard"]["allFileCount"] = 0
+        self.assert_invalid(document, "manifest.shard disagrees with run.shard")
+
+    def test_rejects_manifest_shard_selected_file_count_drift(self) -> None:
+        document = self.document()
+        document["manifest"]["shard"]["selectedFileCount"] = 0
+        self.assert_invalid(document, "manifest.shard disagrees with run.shard")
 
     def test_rejects_selection_count_drift(self) -> None:
         document = self.document()
@@ -89,6 +100,7 @@ class ReportInvariantTests(unittest.TestCase):
         )
         document["manifest"]["tests"].append(extra)
         document["run"]["shard"]["selectedExecutionIds"].append(missing_id)
+        document["manifest"]["shard"]["selectedExecutionIds"].append(missing_id)
         document["run"]["selection"]["selectedTestCount"] = 2
         document["run"]["completion"] = {
             "state": "incomplete",

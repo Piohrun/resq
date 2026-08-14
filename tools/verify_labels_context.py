@@ -13,6 +13,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+CI_PREFIXES = (
+    "GITHUB_", "GITLAB_", "CI_", "BUILD_", "SYSTEM_", "TEAMCITY_",
+    "CIRCLE_", "BUILDKITE_", "bamboo_",
+)
+CI_MARKERS = {"CI", "TF_BUILD", "JENKINS_URL", "CIRCLECI", "BUILDKITE"}
+
+
+def ci_environment(values: dict[str, str]) -> dict[str, str]:
+    environment = {
+        key: value for key, value in os.environ.items()
+        if key not in CI_MARKERS and not key.startswith(CI_PREFIXES)
+    }
+    environment.update(values)
+    return environment
+
 
 def execute(
     work: Path,
@@ -101,8 +116,7 @@ def verify() -> None:
         if load(outside_path)["run"]["vcs"]["status"] != "unavailable":
             raise AssertionError("a non-repository working directory did not degrade gracefully")
 
-        github = os.environ.copy()
-        github.update(
+        github = ci_environment(
             {
                 "GITHUB_ACTIONS": "true",
                 "GITHUB_RUN_ID": "9001",
@@ -121,6 +135,85 @@ def verify() -> None:
             raise AssertionError(f"GitHub context mapping mismatch: {ci!r}")
         if ci["buildUrl"] != "https://github.example/acme/orders/actions/runs/9001":
             raise AssertionError(f"GitHub build URL mismatch: {ci!r}")
+
+        providers = (
+            (
+                "circleci",
+                {
+                    "CIRCLECI": "true", "CIRCLE_WORKFLOW_ID": "workflow-42",
+                    "CIRCLE_WORKFLOW_JOB_ID": "job-17", "CIRCLE_BUILD_NUM": "3",
+                    "CIRCLE_SHA1": "circle-sha", "CIRCLE_BRANCH": "main",
+                    "CIRCLE_PROJECT_USERNAME": "acme", "CIRCLE_PROJECT_REPONAME": "orders",
+                    "CIRCLE_JOB": "unit", "CIRCLE_BUILD_URL": "https://circle.example/42",
+                },
+                {
+                    "provider": "circleci", "pipelineId": "workflow-42", "jobId": "job-17",
+                    "attempt": "3", "commitSha": "circle-sha", "branch": "main",
+                    "repository": "acme/orders", "workflow": "unit",
+                    "buildUrl": "https://circle.example/42",
+                },
+            ),
+            (
+                "buildkite",
+                {
+                    "BUILDKITE": "true", "BUILDKITE_BUILD_ID": "build-42",
+                    "BUILDKITE_JOB_ID": "job-17", "BUILDKITE_RETRY_COUNT": "2",
+                    "BUILDKITE_COMMIT": "buildkite-sha", "BUILDKITE_BRANCH": "main",
+                    "BUILDKITE_REPO": "git@example/acme/orders.git",
+                    "BUILDKITE_PIPELINE_SLUG": "orders-verify",
+                    "BUILDKITE_BUILD_URL": "https://buildkite.example/builds/42",
+                },
+                {
+                    "provider": "buildkite", "pipelineId": "build-42", "jobId": "job-17",
+                    "attempt": "2", "commitSha": "buildkite-sha", "branch": "main",
+                    "repository": "git@example/acme/orders.git", "workflow": "orders-verify",
+                    "buildUrl": "https://buildkite.example/builds/42",
+                },
+            ),
+            (
+                "teamcity",
+                {
+                    "TEAMCITY_VERSION": "2026.1", "BUILD_ID": "build-42",
+                    "TEAMCITY_BUILDCONF_NAME": "unit", "BUILD_NUMBER": "17",
+                    "BUILD_VCS_NUMBER": "teamcity-sha", "TEAMCITY_PROJECT_NAME": "orders",
+                    "BUILD_URL": "https://teamcity.example/build/42",
+                },
+                {
+                    "provider": "teamcity", "pipelineId": "build-42", "jobId": "unit",
+                    "attempt": "17", "commitSha": "teamcity-sha", "branch": "",
+                    "repository": "", "workflow": "orders",
+                    "buildUrl": "https://teamcity.example/build/42",
+                },
+            ),
+            (
+                "bamboo",
+                {
+                    "bamboo_buildKey": "ORDERS-VERIFY-JOB1",
+                    "bamboo_buildResultKey": "ORDERS-VERIFY-JOB1-42",
+                    "bamboo_buildNumber": "42", "bamboo_planRepository_revision": "bamboo-sha",
+                    "bamboo_planRepository_branch": "main",
+                    "bamboo_planRepository_repositoryUrl": "ssh://example/acme/orders.git",
+                    "bamboo_planName": "Orders verify",
+                    "bamboo_buildResultsUrl": "https://bamboo.example/result/42",
+                },
+                {
+                    "provider": "bamboo", "pipelineId": "ORDERS-VERIFY-JOB1-42",
+                    "jobId": "ORDERS-VERIFY-JOB1", "attempt": "42",
+                    "commitSha": "bamboo-sha", "branch": "main",
+                    "repository": "ssh://example/acme/orders.git", "workflow": "Orders verify",
+                    "buildUrl": "https://bamboo.example/result/42",
+                },
+            ),
+        )
+        for name, values, expected_ci in providers:
+            _, provider_path = execute(
+                work, name, ["-no-vcs"], ci_environment(values),
+            )
+            observed = load(provider_path)["run"]["ci"]
+            if observed != expected_ci:
+                raise AssertionError(
+                    f"{name} context mapping mismatch: {observed!r} != {expected_ci!r}"
+                )
 
 
 def main() -> int:

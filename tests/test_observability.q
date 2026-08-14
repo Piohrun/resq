@@ -172,6 +172,21 @@
     diagnostic:.tst.diagnostic[`cleanup;`error;`cleanup;"boom";enlist[`scope]!enlist `suite];
     `type`severity`phase`message`data mustin key diagnostic;
   };
+
+  should["timestamp a test diagnostic at its owning test finish"]{
+    diagnostic:.tst.diagnostic[`probe;`info;`execution;"observed";()!()];
+    started:"2026-08-12T12:00:00.100000Z";
+    finished:"2026-08-12T12:00:00.101000Z";
+    row:.tst.oneResultTable `suite`description`status`file`assertsRun`startedAt`finishedAt`diagnostics!(
+      `suite;`test;`pass;"tests/test_observability.q";1i;started;finished;enlist diagnostic);
+    model:.tst.withIsolatedRunState[{[payload]
+      .tst.beginRunMetadata[];
+      .tst.canonicalRunModel payload};enlist row];
+    diagnostics:.tst.eventRows model`events;
+    diagnostics:diagnostics where {"diagnostic.recorded"~x`type} each diagnostics;
+    count[diagnostics] musteq 1;
+    first[diagnostics][`occurredAt] musteq finished;
+  };
 };
 
 ::

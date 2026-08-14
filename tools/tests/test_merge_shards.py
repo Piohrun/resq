@@ -69,7 +69,7 @@ def shard_documents(count: int = 2, test_count: int = 4, unit: str = "test") -> 
             selectedFiles=["tests/generated/review_scale.q"] if unit != "file" or rows else [],
             selectedExecutionIds=selected_ids,
         )
-        document["manifest"]["shard"] = {"index": shard_index, "count": count}
+        document["manifest"]["shard"] = copy.deepcopy(document["run"]["shard"])
         for file_entry in document["manifest"]["files"]:
             file_entry["assignedShard"] = 0 if unit == "file" else -1
             file_entry["selected"] = unit != "file" or shard_index == 0
@@ -331,6 +331,31 @@ class MergerContractTests(unittest.TestCase):
             sorted(golden["manifestPublishedPayloadKeys"]),
             sorted(by_type["manifest.published"]["payload"]),
         )
+
+    def test_diagnostics_use_their_owning_test_or_run_finish_time(self) -> None:
+        document = scale_report(1)
+        row = document["tests"][0]
+        row.update(
+            startedAt="2026-08-12T12:00:00.100000Z",
+            finishedAt="2026-08-12T12:00:00.101000Z",
+            diagnostics=[{
+                "type": "test-probe", "severity": "info", "phase": "execution",
+                "message": "test diagnostic", "data": {},
+            }],
+        )
+        run_diagnostic = {
+            "type": "run-probe", "severity": "info", "phase": "reporting",
+            "message": "run diagnostic", "data": {},
+        }
+        events = lifecycle(
+            document["run"], document["manifest"], [row], summary([row]), {},
+            [run_diagnostic], document["snapshotInventory"], document["benchmarkAnalysis"],
+        )
+        diagnostics = [event for event in events if event["type"] == "diagnostic.recorded"]
+        test_event = next(event for event in diagnostics if event["parentId"] == row["testId"])
+        run_event = next(event for event in diagnostics if event["parentId"] == document["run"]["id"])
+        self.assertEqual(row["finishedAt"], test_event["occurredAt"])
+        self.assertEqual(document["run"]["finishedAt"], run_event["occurredAt"])
 
 
 if __name__ == "__main__":

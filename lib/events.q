@@ -338,7 +338,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                 while[di<count testDiags;
                     diagnostic:testDiags di;
                     diagId:"diagnostic_",.tst.stableHash[testId,"\n",string di,"\n",.Q.s1 diagnostic];
-                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"diagnostic.recorded";runId;diagId;testId;finished;diagnostic];
+                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"diagnostic.recorded";runId;diagId;testId;testFinished;diagnostic];
                     sequence+:1;
                     di+:1];
                 testFinishedPayload:`status`duration`durationSeconds`assertsRun`attempts`retried`flaky!(

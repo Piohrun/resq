@@ -82,8 +82,9 @@ resq test tests/ -strict -isolate -isolateTimeout 120 \
 ```
 
 The same labels may come from config or `RESQ_LABELS_JSON`; CLI values win.
-resQ normalizes GitHub Actions, GitLab CI, Azure Pipelines, and Jenkins fields
-into `run.ci`. Unknown providers should use explicit labels. Repository context
+resQ normalizes GitHub Actions, GitLab CI, Azure Pipelines, Jenkins, CircleCI,
+Buildkite, TeamCity, and Bamboo fields into `run.ci`. Unknown providers should
+use explicit labels. Repository context
 is collected with one cached Git probe; add `-no-vcs` where the checkout is
 absent or intentionally hidden.
 

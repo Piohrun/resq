@@ -102,10 +102,24 @@ def main() -> int:
         if state(first_report)["state"] != "insufficient":
             raise AssertionError("a first failure must never become suspect or quarantined")
 
-        second, second_report, _ = run(args.q, work, "02-pass", passing=True)
+        second, second_report, second_dir = run(
+            args.q, work, "02-pass", passing=True, reporters=True,
+        )
         expect_code(second, 0, "second pass")
         if state(second_report)["state"] != "insufficient":
             raise AssertionError("two observations are still below configured evidence")
+        for path, element, label in (
+            (second_dir / "test-results.junit.xml", "property", "JUnit"),
+            (second_dir / "test-results.xunit.xml", "trait", "xUnit"),
+        ):
+            leaked = sorted(
+                name for name in xml_properties(path, element)
+                if name.startswith("resq.quarantine.")
+            )
+            if leaked:
+                raise AssertionError(
+                    f"{label} emitted non-material quarantine boilerplate: {leaked!r}"
+                )
 
         third, third_report, _ = run(
             args.q, work, "03-suspect", passing=False, extra=["-flake-proposals"]

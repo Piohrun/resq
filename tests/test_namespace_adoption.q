@@ -60,13 +60,16 @@
     `code`payload`output!(exitCode;payload;outputText)
  };
 
-.tst.testState.adoption.runInitProbe:{[]
+.tst.testState.adoption.runInitProbeAt:{[home]
     wd: .utl.tempRoot[], "/resq_q_probe_", string[.z.i], "_", string `long$.z.p;
     scriptPath: wd, "/probe.q";
     outPath: wd, "/out.txt";
     .utl.ensureDir wd;
     (hsym `$scriptPath) 0: (
-        ".resq.HOME:", .Q.s1[.resq.HOME], ";";
+        / .Q.s1 is a console renderer and truncates long strings to the active
+        / console width. JSON string encoding is also valid q source for a char
+        / vector, and preserves every byte of a long checkout path.
+        ".resq.HOME:", .j.j[.tst.toString home], ";";
         ".q.resqProbeSentinel:42;";
         "qKeysBefore:key `.q;";
         "qValuesBefore:{get .Q.dd[`.q;x]} each qKeysBefore;";
@@ -87,6 +90,10 @@
     `code`output!(exitCode;outputText)
  };
 
+.tst.testState.adoption.runInitProbe:{[]
+    .tst.testState.adoption.runInitProbeAt .resq.HOME
+ };
+
 .tst.desc["reserved namespace adoption contract #slow"]{
     skipIf[not .tst.testState.adoption.canRun;
            "leave .q byte-for-byte equivalent while loading the framework"]{
@@ -94,6 +101,26 @@
         result[`code] musteq 0;
         must[result[`output] like "*Q_UNCHANGED=1*";
              "framework initialization must not add or replace .q members: ",
+             result`output];
+    };
+
+    skipIf[not .tst.testState.adoption.canRun;
+           "load framework initialization from a checkout path longer than the console width"]{
+        root: .utl.tempRoot[], "/resq_q_long_home_", string[.z.i], "_", string `long$.z.p;
+        longHome: root, "/", 96#"r";
+        .utl.ensureDir root;
+        linkLines: @[system;
+            "ln -s -- ", (.utl.shellQuote .resq.HOME), " ", (.utl.shellQuote longHome),
+            " 2>&1; echo $?";
+            {[err] enlist "-1"}];
+        linkCode: "J"$last linkLines;
+        result: $[0=linkCode;
+            .tst.testState.adoption.runInitProbeAt longHome;
+            `code`output!(-1j;"could not create long-path checkout symlink")];
+        if[root like "*/resq_q_long_home_*"; system "rm -rf -- ", .utl.shellQuote root];
+        result[`code] musteq 0;
+        must[result[`output] like "*Q_UNCHANGED=1*";
+             "long checkout path must survive child-script serialization: ",
              result`output];
     };
 

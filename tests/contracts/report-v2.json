@@ -143,7 +143,18 @@
     "identityAlgorithm": "resq-test-case-id-v2",
     "frameworkVersion": "1.8.0",
     "revision": {"sha": "deadbeef", "branch": "main", "dirty": false},
-    "shard": {"index": 0, "count": 1},
+    "shard": {
+      "index": 0,
+      "count": 1,
+      "unit": "file",
+      "algorithm": "sorted-index-mod-v1",
+      "allFileCount": 1,
+      "selectedFileCount": 1,
+      "allUnitCount": 1,
+      "selectedUnitCount": 1,
+      "selectedFiles": ["tests/test_contract.q"],
+      "selectedExecutionIds": ["test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+    },
     "files": [
       {
         "fileId": "file_dddddddddddddddddddddddddddddddd",
