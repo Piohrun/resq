@@ -2,7 +2,8 @@
 
 > **Historical only:** this audit records the original `v1.8.0` qualification,
 > which was superseded after false-green and evidence-integrity defects were
-> reproduced. Use the immutable `v1.8.1` audit for production decisions.
+> reproduced. Use the immutable [v1.8.1 audit](PRODUCTION_AUDIT_1_8_1.md) for
+> production decisions.
 
 The sealed qualification basis passed from a fresh clone of pushed `main` at
 `9ed7fdd2fb68f5dad354e81d33ff92522fc64e4e` on 2026-08-14. The run used

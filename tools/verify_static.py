@@ -47,6 +47,7 @@ REQUIRED = {
     "tools/verify_python_contracts.py",
     "docs/RELEASE_CHECKLIST.md",
     "docs/RELEASE_NOTES_1_8_1.md",
+    "docs/PRODUCTION_AUDIT_1_8_1.md",
     "docs/PRODUCTION_AUDIT_1_8.md",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
     "tests/contracts/xunit.xml",
