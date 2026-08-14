@@ -1,17 +1,25 @@
 # resQ 1.8.0 production audit
 
-The complete release gate passed from a fresh clone of pushed `main` at code
-candidate `fd3a38035099a194773df103924840e154a5c6f1` on 2026-08-13. The run used
-kdb+/q 4.1 on the supported Linux x86-64 baseline and produced a validated
+The sealed qualification basis passed from a fresh clone of pushed `main` at
+`9ed7fdd2fb68f5dad354e81d33ff92522fc64e4e` on 2026-08-14. The run used
+kdb+/q 4.1 on the supported Linux x86-64 baseline and produced schema-v1
 `release-audit.json` naming that exact commit and resQ 1.8.0.
+
+The certification commit adds this audit, the compact evidence record, and the
+completed plan ledger. That exact commit is run through the same clean-clone
+gate before `v1.8.0` is created. A document cannot contain its own Git commit
+without changing that commit, so the remote annotated tag and the release's
+attached `release-audit.json` are the authoritative final-SHA record.
 
 ## Result
 
 | Contract | Evidence |
 |---|---:|
-| Strict suite | 696 tests; 695 pass, 1 documented skip; 2,155 assertions |
-| Four-worker isolated suite | Identical 696-test inventory, counts, stable IDs, and verdicts |
-| Total audit wall time | 245.845 seconds |
+| Strict suite | 716 tests; 715 pass, 1 documented skip; 2,263 assertions |
+| Four-worker isolated suite | Identical 716-test semantic inventory, counts, stable IDs, and verdicts |
+| Extended differential corpus | 400 loader seeds and 2,000 coverage seeds |
+| Total audit wall time | 410.846 seconds |
+| Release-gate steps | 24 / 24 passed |
 
 ### Checked quickstart coverage
 
@@ -26,20 +34,36 @@ kdb+/q 4.1 on the supported Linux x86-64 baseline and produced a validated
 | Branch instrumentation completeness | 17 / 17 eligible sites |
 <!-- QUICKSTART_COVERAGE_END -->
 
-The gate also passed the licence-free contracts, Python schema/adapter tests,
-supported execution matrix, distributed merger matrix, property protocol,
-flake/quarantine policy, snapshot lifecycle, benchmark regression protocol,
-hostile process/filesystem environment, and both pinned external adoption
-pilots.
+The gate also passed licence-free contracts, dependency-free Python contracts,
+TTY/non-TTY behavior, preprocessing growth, supported execution modes,
+distributed merging, property generation and shrinking, flake/quarantine
+policy, snapshots, benchmark telemetry, hostile environments, bounded labels,
+normalized ingestion, two checked external pilots, native and pinned qspec
+compatibility, repeated-process soak, 10k green and failure-heavy report
+budgets, empty-prefix installation, and correctness/coverage reconciliation.
 
-An earlier attempt exposed an assertion-dense loader performance defect:
-`tests/test_config.q` could exceed the 90-second isolated-file budget. The
-token-candidate search was made bounded in commit `fd3a380`; that file then
-passed isolated in 5.6 seconds and the fresh-clone normal and isolated suites
-completed in 117.2 and 99.7 seconds respectively. This is why the audit is a
-release gate, not a documentation exercise.
+The measured preprocessing growth ratios were 2.128 and 2.074 for adjacent
+50/100/200-expectation inputs, below the 3.0 fail-closed ceiling. Twenty
+post-warm-up same-process soak cycles grew used memory by 3,648 bytes; heap,
+symbols, symbol bytes, namespaces, IPC handles, and OS handles had zero growth.
+The empty-prefix installation resolved the audited commit, reported resQ 1.8.0,
+and passed all 30 quickstart tests and 61 assertions through installed
+launchers.
 
-## Reproduce the evidence
+Several otherwise-green attempts were correctly rejected because nested test
+or terminal-verification processes wrote ignored `.resq/` state into the clean
+checkout. Their state was moved into private temporary lanes. Qualification was
+accepted only after the final `git status --short --ignored` was empty. This is
+why the audit is a release gate rather than a documentation exercise.
+
+## Evidence and reproduction
+
+The compact candidate record is committed as
+[`release-audit.json`](release-evidence/v1.8.0-candidate/release-audit.json)
+with its full-archive [`checksums.sha256`](release-evidence/v1.8.0-candidate/checksums.sha256).
+The complete raw archive, including command logs and all referenced files, is
+attached to the GitHub release. Its candidate archive SHA-256 is
+`69292db999423dddd664979419f09af082611a0e09c16ce7018796cd935ee3d9`.
 
 Run the authoritative gate from a clean checkout:
 
@@ -48,16 +72,10 @@ tools/verify_release_gate.py --q q --out-dir artifacts/release-audit
 ```
 
 The gate implementation is [verify_release_gate.py](../tools/verify_release_gate.py).
-It validates its JSON/XML artifacts, reconciles the console, report JSON,
-detailed coverage JSON, LCOV, HTML, and state inventories, and writes the exact
-commit, versions, timings, suite counts, coverage counts, and step durations to
-`release-audit.json`.
-
-The certification commit adds only this audit record, the evidence links, and
-the completed ledger. The same clean-checkout gate is run against the pushed
-certification SHA before the roadmap is considered complete; the generated
-JSON, rather than this self-referential document, is the authoritative final
-commit record.
+It validates its JSON/XML artifacts, reconciles normal and isolated execution,
+cross-checks console, report, detailed coverage, LCOV, HTML, and state
+inventories, checks tracked and ignored residue, and writes exact versions,
+environment, scope, timings, counts, schemas, logs, and checksums.
 
 ## Supported claim and limits
 
@@ -68,5 +86,8 @@ commit record.
   framework does not claim instruction coverage for arbitrary q bytecode.
 - Optional independent framework self-coverage remains partial and non-gating;
   it does not pretend resQ can safely instrument itself with its own rewriter.
-- No Git tag or GitHub release is created by this audit. Tagging remains the
-  explicit human step in the [release checklist](RELEASE_CHECKLIST.md).
+- Other q releases, macOS, Windows, the optional AxLibraries provider, and
+  unlisted external projects or CI providers remain explicitly unqualified.
+- The annotated `v1.8.0` tag identifies the exact final certification commit;
+  tag/ref verification and release publication follow the
+  [release checklist](RELEASE_CHECKLIST.md).

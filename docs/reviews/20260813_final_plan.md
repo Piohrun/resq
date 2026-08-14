@@ -63,7 +63,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 9 | Licence-free validator, merger, and adapter hardening | complete |
 | 10 | qspec migration, documentation, diagnostics, and hygiene | complete |
 | 11 | CI lanes, benchmark/soak evidence, and support runbooks | complete |
-| 12 | Fresh-clone qualification, release evidence, and `v1.8.0` tag | pending |
+| 12 | Fresh-clone qualification, release evidence, and `v1.8.0` tag | complete |
 
 ## Step 1 — Preserve the review failures as executable evidence
 
@@ -360,6 +360,19 @@ From a clean clone of the exact candidate commit, run:
 Archive candidate SHA, q/OS/runtime/licence environment, gate results, schemas, checksums, and explicit unqualified scope. Update the production audit to the immutable evidence. Commit and push that evidence. Then create an annotated `v1.8.0` tag on the exact audited commit, push the tag, verify the remote ref and README clone command, and publish release notes describing corrected loader semantics and report/event compatibility.
 
 **Validation:** the remote tag resolves to the audited SHA; a fresh clone by tag installs and passes its advertised gate; no required worktree evidence is ignored or uncommitted.
+
+**Completed 2026-08-14:** the 24-step qualification gate passed from a clean
+clone at candidate `9ed7fdd2fb68f5dad354e81d33ff92522fc64e4e`: normal and
+four-worker isolated execution reconciled exactly at 716 tests (715 pass, 1
+documented skip) and 2,263 assertions; 400 loader and 2,000 coverage
+differential seeds passed; preprocessing, execution, shard, property,
+quarantine, snapshot, benchmark, hostile-environment, label, ingestion, pilot,
+qspec, soak, 10k report/adapter, empty-prefix install, and quickstart coverage
+gates passed. All evidence checksums verified and the clean checkout had no
+tracked or ignored residue. The compact candidate record is committed with the
+production audit. The exact certification commit is requalified before the
+annotated tag is created; the remote tag, tag-clone install result, and attached
+release audit provide the non-self-referential final-SHA record.
 
 ## Complete finding map
 
