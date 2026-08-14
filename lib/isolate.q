@@ -851,6 +851,7 @@
     / Isolation children emit raw result rows. Apply evidence and quarantine
     / policy once, after all files have been merged, so the parent has one
     / denominator, one verdict, and one atomic history update.
+    .tst.restoreRunPersistenceConfig[];
     .tst.applyFlakeState[];
 
     status: .tst.normalizeResultStatus each .resq.state.results`status;

@@ -5,9 +5,23 @@
     if[not `runCoverage in key `.tst.app; .tst.app.runCoverage: 0b];
     / Pin the CLI/configured artifact destination before loading or executing
     / test code. A test may exercise private config helpers, but it must never
-    / redirect the enclosing run's reporters, snapshots, or coverage evidence.
+    / redirect the enclosing run's reporters, snapshots, coverage evidence, or
+    / persistence caches.  The shard coordinates are part of persistence path
+    / derivation, so pin them alongside the configured paths.
     if[not `runOutputDir in key `.tst.app;
         .tst.app.runOutputDir:.resq.config.outDir];
+    if[not `runStateFile in key `.tst.app;
+        .tst.app.runStateFile:.tst.app.stateFile];
+    if[not `runFlakeHistoryFile in key `.tst.app;
+        .tst.app.runFlakeHistoryFile:.tst.app.flakeHistoryFile];
+    if[not `runQuarantineFile in key `.tst.app;
+        .tst.app.runQuarantineFile:.tst.app.quarantineFile];
+    if[not `runFlakeProposalFile in key `.tst.app;
+        .tst.app.runFlakeProposalFile:.tst.app.flakeProposalFile];
+    if[not `runShardIndex in key `.tst.app;
+        .tst.app.runShardIndex:.tst.app.shardIndex];
+    if[not `runShardCount in key `.tst.app;
+        .tst.app.runShardCount:.tst.app.shardCount];
     reportFmt: .tst.normalizeFmt .resq.config.fmt;
 
     / Respect config format even when explicit xml flag was not set.
@@ -188,6 +202,25 @@
     / status, but suppresses every result reporter (text, XML, JSON).
     if[1b ~ @[get; `.tst.app.passOnly; 0b];
         .resq.report: {[results] ()}];
+ };
+
+/ Restore the persistence paths captured before test loading. Configuration
+/ self-tests legitimately exercise .tst.applyConfig, but those mutations must
+/ not retarget the enclosing run's durable state or alter shard suffixes.
+.tst.restoreRunPersistenceConfig:{[]
+    if[`runStateFile in key `.tst.app;
+        .tst.app.stateFile:.tst.app.runStateFile];
+    if[`runFlakeHistoryFile in key `.tst.app;
+        .tst.app.flakeHistoryFile:.tst.app.runFlakeHistoryFile];
+    if[`runQuarantineFile in key `.tst.app;
+        .tst.app.quarantineFile:.tst.app.runQuarantineFile];
+    if[`runFlakeProposalFile in key `.tst.app;
+        .tst.app.flakeProposalFile:.tst.app.runFlakeProposalFile];
+    if[`runShardIndex in key `.tst.app;
+        .tst.app.shardIndex:.tst.app.runShardIndex];
+    if[`runShardCount in key `.tst.app;
+        .tst.app.shardCount:.tst.app.runShardCount];
+    ::
  };
 
 / Run a suite-level hook (beforeAll/afterAll). Returns `ok or (`failed;errText).
@@ -1333,6 +1366,7 @@
     / These phases deliberately ignore `continue`: they are the finally path.
     .tst.runAllPhase.runSafely[`cleanup; .tst.runAllPhase.finalCleanup];
     .tst.runAllPhase.runSafely[`cleanupErrors; .tst.runAllPhase.injectCleanupErrors];
+    .tst.runAllPhase.runSafely[`restorePersistence; .tst.restoreRunPersistenceConfig];
     .tst.runAllPhase.runSafely[`flakeState; .tst.applyFlakeState];
     .tst.runAllPhase.runSafely[`resultsSummary; .tst.runAllPhase.computePassed];
     .tst.runAllPhase.runSafely[`plugins; .tst.runRegisteredPlugins];

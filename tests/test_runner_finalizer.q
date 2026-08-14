@@ -26,8 +26,15 @@
     payload: $[count rawJson; .j.k raze rawJson; ()!()];
     outputText: "\n" sv @[read0; hsym `$wd, "/out.txt"; {()}];
     probeText: raze @[read0; hsym `$probePath; {()}];
+    statePublished:.utl.pathExists wd,"/state.json";
+    redirected:any .utl.pathExists each
+        (probePath,"-state-redirected.json";
+         probePath,"-state-redirected.shard-1-of-3.json";
+         probePath,"-flake-redirected.json";
+         probePath,"-flake-redirected.shard-1-of-3.json");
     if[wd like "*/resq_finalizer_*"; system "rm -rf -- ", .utl.shellQuote wd];
-    `code`payload`output`probe!(exitCode;payload;outputText;probeText)
+    `code`payload`output`probe`statePublished`redirected!(
+        exitCode;payload;outputText;probeText;statePublished;redirected)
  };
 
 .tst.testState.finalizer.probeCleanup:{[probePath]
@@ -42,13 +49,18 @@
             {[probePath]
                 (".tst.desc[\"artifact destination\"]{";
                  "  should[\"cannot be redirected by test code\"]{";
-                 "    .resq.config.outDir:",.Q.s1[probePath,"-redirected"],";";
+                 "    .resq.config.outDir:",.tst.renderValueFull[probePath,"-redirected"],";";
+                 "    .tst.app.stateFile:",.tst.renderValueFull[probePath,"-state-redirected.json"],";";
+                 "    .tst.app.flakeHistoryFile:",.tst.renderValueFull[probePath,"-flake-redirected.json"],";";
+                 "    .tst.app.shardIndex:1j; .tst.app.shardCount:3j;";
                  "    1 musteq 1;";
                  "  };";
                  "};")};
             ""];
-        result[`code] musteq 0;
+        must[result[`code]=0;"immutable destination subprocess failed: ",result`output];
         result[`payload;`summary;`passCount] musteq 1f;
+        result[`statePublished] musteq 1b;
+        result[`redirected] musteq 0b;
     };
 
     skipIf[not .tst.testState.finalizer.canRun;
