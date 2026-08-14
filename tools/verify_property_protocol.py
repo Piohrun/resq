@@ -29,6 +29,9 @@ def verify(q_executable: str) -> None:
             str(ROOT / "tests/fixtures/property_protocol.q"),
             "-strict", "-json", "-junit", "-xunit", "-outDir", str(output),
             "-state-file", str(state),
+            "-flake-history", str(Path(directory) / "flake.json"),
+            "-quarantine-file", str(Path(directory) / "quarantine.json"),
+            "-flake-proposal-file", str(Path(directory) / "proposals.json"),
         ]
         completed = subprocess.run(
             command, cwd=ROOT, env=environment, text=True,

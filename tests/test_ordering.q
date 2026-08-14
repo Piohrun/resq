@@ -18,6 +18,10 @@
       " test ",.utl.shellQuote[fixtureA]," ",.utl.shellQuote[fixtureB],
       " -random-order -seed ",string[seed],
       $[isolated;" -isolate";""],
+      " -state-file ",.utl.shellQuote[wd,"/state.json"],
+      " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+      " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+      " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"],
       " -json -quiet -outDir ",.utl.shellQuote[report],
       " < /dev/null > ",.utl.shellQuote[wd,"/out.txt"]," 2>&1; echo $?";
   statusLines:@[system;"sh -c ",.utl.shellQuote cmd;{[err] enlist "-1"}];

@@ -21,6 +21,9 @@
       .utl.shellQuote[.resq.HOME,"/resq.q"]," test ",.utl.shellQuote[fixture],
       $[count mode;" ",mode;""],$[isolated;" -isolate";""],
       " -state-file ",.utl.shellQuote[stateFile],
+      " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+      " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+      " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"],
       " -json -quiet -outDir ",.utl.shellQuote[report],
       " < /dev/null > ",.utl.shellQuote[wd,"/out.txt"]," 2>&1; echo $?";
   statusLines:@[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "-1"}];
