@@ -154,8 +154,15 @@ def main() -> int:
                 raise AssertionError("native shard must publish a partial inventory")
             shard_reports.append(out / "test-results.json")
         merged, passed = merge(shard_reports, work / "merged")
-        if not passed or not merged["snapshotInventory"]["complete"]:
-            raise AssertionError("complete shard set did not reconstruct a complete snapshot inventory")
+        merged_inventory = merged["snapshotInventory"]
+        if not passed or merged_inventory["complete"]:
+            raise AssertionError(
+                "native partial shards were incorrectly promoted to a complete snapshot inventory"
+            )
+        if "sharded" not in merged_inventory["completenessReasons"]:
+            raise AssertionError(
+                "merged snapshot inventory lost the member incompleteness reason"
+            )
         if status_map(merged) != expected:
             raise AssertionError("merged snapshot classifications differ from unsharded audit")
 
@@ -206,7 +213,7 @@ def main() -> int:
 
     print(
         "resQ snapshot verification passed: complete/partial inventories, dynamic declarations, "
-        "normal/isolate parity, CI gate, event/JSON parity, shard merge, "
+        "normal/isolate parity, CI gate, event/JSON parity, fail-closed shard merge, "
         "dry-run/recoverable/idempotent prune, and hostile path safety"
     )
     return 0
