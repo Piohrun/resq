@@ -30,7 +30,9 @@ jobs:
       RESQ_COVERAGE_DIFF_SEEDS: ${{ inputs.coverage_seeds || '2000' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Verify runner prerequisites
         shell: bash
@@ -68,7 +70,7 @@ jobs:
 
       - name: Upload differential report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: resq-nightly-differential-${{ github.run_id }}
           path: artifacts/
@@ -80,7 +82,9 @@ jobs:
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Repeated watch/no-exit resource trends
         shell: bash
         run: |
@@ -96,7 +100,7 @@ jobs:
             2>&1 | tee artifacts/soak-scale/scale-console.txt
       - name: Upload soak/scale evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: resq-nightly-soak-scale-${{ github.run_id }}
           path: artifacts/soak-scale/

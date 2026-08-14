@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,45 @@ from tools.verify_release_gate import (
 
 
 class ReleaseGateContractTests(unittest.TestCase):
+    @staticmethod
+    def workflow_sources() -> list[tuple[Path, list[str]]]:
+        workflow_root = Path(__file__).resolve().parents[2] / ".github/workflows"
+        paths = sorted({*workflow_root.glob("*.yml"), *workflow_root.glob("*.yaml")})
+        return [
+            (path, path.read_text(encoding="utf-8").splitlines())
+            for path in paths
+        ]
+
+    def test_actions_are_sha_pinned(self) -> None:
+        uses_lines: list[tuple[Path, str]] = []
+        for path, lines in self.workflow_sources():
+            uses_lines.extend((path, line.strip()) for line in lines if "uses:" in line)
+        self.assertGreater(len(uses_lines), 0)
+        for path, line in uses_lines:
+            with self.subTest(path=path.name, line=line):
+                match = re.search(r"uses:\s+[^@\s]+@([0-9a-f]{40})(?:\s+#.*)?$", line)
+                self.assertIsNotNone(match, f"mutable or malformed action ref: {line}")
+
+    def test_checkout_does_not_persist_credentials(self) -> None:
+        checkout_count = 0
+        for path, lines in self.workflow_sources():
+            for index, line in enumerate(lines):
+                if "uses: actions/checkout@" not in line:
+                    continue
+                checkout_count += 1
+                indent = len(line) - len(line.lstrip())
+                block: list[str] = []
+                for following in lines[index + 1:]:
+                    following_indent = len(following) - len(following.lstrip())
+                    if following_indent == indent and following.lstrip().startswith("- "):
+                        break
+                    block.append(following.strip())
+                self.assertIn(
+                    "persist-credentials: false", block,
+                    f"{path.name}:{index + 1} checkout retains a write credential",
+                )
+        self.assertGreater(checkout_count, 0)
+
     def test_readme_examples_execute(self) -> None:
         q_count, shell_count = verify_readme_examples(os.environ.get("QBIN", "q"))
         self.assertGreater(q_count, 0)

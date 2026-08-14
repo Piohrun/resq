@@ -45,6 +45,13 @@ Public-fork pull requests run only the licence-free job. Licensed workflows may
 run a fork only after a maintainer reviews the exact commit and moves it to a
 trusted branch; self-hosted runners must not execute arbitrary fork code.
 
+Every workflow action is pinned to a reviewed 40-character commit SHA, and
+checkout explicitly disables credential persistence. Dependabot opens weekly
+GitHub Actions updates from `.github/dependabot.yml`; a maintainer verifies the
+upstream tag-to-commit mapping and release notes, reviews permission or runner
+behavior changes, and requires the licence-free plus licensed workflow policy
+tests before merging. Never replace a SHA with a floating tag during an update.
+
 ## Benchmark and soak interpretation
 
 Pin real performance baselines to one controlled runner class. Every benchmark

@@ -61,13 +61,58 @@ cleanup_guard() {
 }
 trap cleanup_guard EXIT
 
+child_pid=""
+child_pgid=""
+terminate_for_signal() {
+  local signal_name="$1"
+  local exit_code="$2"
+  trap - INT TERM
+  if [ -n "$child_pid" ] && kill -0 "$child_pid" 2>/dev/null; then
+    if [ -n "$child_pgid" ]; then
+      if command -v pkill >/dev/null 2>&1; then
+        pkill "-$signal_name" -s "$child_pgid" 2>/dev/null || true
+      fi
+      kill -s "$signal_name" -- "-$child_pgid" 2>/dev/null || true
+    else
+      kill -s "$signal_name" -- "$child_pid" 2>/dev/null || true
+    fi
+    sleep 1
+    if kill -0 "$child_pid" 2>/dev/null; then
+      if [ -n "$child_pgid" ]; then
+        if command -v pkill >/dev/null 2>&1; then
+          pkill -KILL -s "$child_pgid" 2>/dev/null || true
+        fi
+        kill -KILL -- "-$child_pgid" 2>/dev/null || true
+      else
+        kill -KILL -- "$child_pid" 2>/dev/null || true
+      fi
+    fi
+    wait "$child_pid" 2>/dev/null || true
+  fi
+  cleanup_guard
+  trap - EXIT
+  exit "$exit_code"
+}
+trap 'terminate_for_signal INT 130' INT
+trap 'terminate_for_signal TERM 143' TERM
+
 export RESQ_RUN_GUARD_DIR="$guard_dir"
 export RESQ_ISOLATE_ROOT="$isolate_root"
 # q treats a leading flag as an option/value pair, so flag-only runtime options
 # belong after the script path. Quiet startup keeps the banner out of the
 # framework-output contract; runtime and application diagnostics may remain.
-"$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1
+if command -v setsid >/dev/null 2>&1; then
+  setsid "$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1 &
+  child_pid=$!
+  child_pgid=$child_pid
+else
+  "$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1 &
+  child_pid=$!
+fi
+wait "$child_pid"
 q_status=$?
+child_pid=""
+child_pgid=""
 
 if [ "$q_status" -eq 0 ] && [ -f "$guard_dir/armed" ] &&
    { [ -f "$guard_dir/premature" ] || [ ! -f "$guard_dir/complete" ]; }; then

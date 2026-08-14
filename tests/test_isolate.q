@@ -119,6 +119,7 @@
 .tst.isotest.fxFail: enlist ".tst.desc[\"iso fail\"]{ should[\"bad\"]{ musteq[1; 2] }; };";
 .tst.isotest.fxDiagnostic: enlist ".tst.desc[\"iso diagnostics\"]{ should[\"noisy mismatch\"]{ -1 \"RESQ_CHILD_DIAGNOSTIC\"; (`a`b!1 2) musteq (`a`b!1 3) }; };";
 .tst.isotest.fxExit: enlist ".tst.desc[\"iso exiter\"]{ should[\"quits\"]{ exit 0 }; };";
+.tst.isotest.fxExit137: enlist "exit 137;";
 .tst.isotest.fxReportThenExit: (".resq.childReport:.resq.report;";
     ".resq.report:{[results] .resq.childReport results; exit 9};";
     ".tst.desc[\"iso contradictory exit\"]{ should[\"passes before process exit\"]{ must[1b; \"yes\"] }; };");
@@ -364,6 +365,19 @@
     musteq[r`code; 1];
     must[.tst.isotest.anyLike[r`out; "TIMEOUT"]; "timeout must be reported"];
     must[not .tst.isotest.childAlive $[count pidLines; first pidLines; ""]; "timed-out q child must be gone"];
+    must[0 = r`scratchCount; "private scratch must be removed"];
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "exit 137 is not timeout"]{
+    wd: .tst.isotest.workDir[];
+    fk: .tst.isotest.writeFixture[wd; "test_killed.q"; .tst.isotest.fxExit137];
+    r: .tst.isotest.run[.utl.shellQuote[fk], " -isolateTimeout 20 -quiet"];
+    musteq[r`code; 1];
+    must[not .tst.isotest.anyLike[r`out; "TIMEOUT"]; "natural 137 must not be called a timeout"];
+    must[.tst.isotest.anyLike[r`out; "ISOLATED_PROCESS_KILLED"];
+         "natural 137 must have distinct result telemetry"];
+    must[.tst.isotest.anyLike[r`out; "possible OOM or external kill"];
+         "natural 137 must explain likely causes"];
     must[0 = r`scratchCount; "private scratch must be removed"];
   };
 

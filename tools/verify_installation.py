@@ -76,11 +76,19 @@ def verify(
 
         (launchers / "resq").symlink_to(checkout / "bin/resq")
         (launchers / "qspec").symlink_to(checkout / "bin/qspec")
+        (launchers / "resq-merge").symlink_to(checkout / "bin/resq-merge")
         environment = dict(os.environ)
         environment["PATH"] = str(launchers) + os.pathsep + environment.get("PATH", "")
         environment["QBIN"] = q_executable
 
         version_output = package_version(checkout, q_executable)
+        # resq-merge symlink: resolve the installed target before locating tools.
+        merge_help = run(
+            [str(launchers / "resq-merge"), "--help"], cwd=project,
+            environment=environment,
+        ).stdout
+        if "merge" not in merge_help.lower() or "report" not in merge_help.lower():
+            raise RuntimeError("installed resq-merge symlink did not reach its CLI")
         report_dir = empty / "quickstart-evidence"
         completed = run(
             [
@@ -111,7 +119,8 @@ def verify(
             "versionOutput": version_output,
             "quickstart": summary,
             "emptyPrefix": True,
-            "symlinkLaunchers": ["resq", "qspec"],
+            "symlinkLaunchers": ["resq", "qspec", "resq-merge"],
+            "mergeHelp": True,
             "console": completed.stdout + completed.stderr,
         }
         if output:

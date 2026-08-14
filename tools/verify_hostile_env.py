@@ -169,64 +169,71 @@ def verify(q_executable: str) -> None:
             hostile_parent,
         )
 
-        # Start two unbounded children, inspect live permissions, then interrupt
-        # the whole foreground group. No q child or launcher-owned scratch may
-        # survive the interruption.
+        # signal cleanup: target only the launcher (not its process group) and
+        # prove its INT/TERM traps forward, reap, clean private state, and return
+        # conventional shell signal codes.
         pid_a = hostile_parent / "child a.pid"
         pid_b = hostile_parent / "child b.pid"
         hang_a = fixture_dir / "test hang a.q"
         hang_b = fixture_dir / "test hang b.q"
         write_hang(hang_a, pid_a, "interrupt a")
         write_hang(hang_b, pid_b, "interrupt b")
-        process = subprocess.Popen(
-            [
-                str(install / "bin/resq"), "test", str(hang_a), str(hang_b),
-                "-isolate", "-isolateWorkers", "2", "-isolateTimeout", "300", "-quiet",
-            ],
-            cwd=hostile_parent,
-            env=environment,
-            stdin=subprocess.DEVNULL,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
-        try:
-            ready = wait_for(lambda: pid_a.is_file() and pid_b.is_file())
-            if not ready:
-                raise RuntimeError("isolated children did not reach the interrupt fixture")
-            guards = list(hostile_parent.glob("resq-run-guard.*"))
-            if len(guards) != 1:
-                raise RuntimeError(f"expected one live launcher guard, got {guards!r}")
-            assert_private(guards[0])
-            assert_private(guards[0] / "isolate")
-            scratches = list((guards[0] / "isolate").glob("resq_isolate.*"))
-            if len(scratches) != 2:
-                raise RuntimeError(f"expected two live isolation scratches, got {scratches!r}")
-            for scratch in scratches:
-                assert_private(scratch)
-            pids = [int(pid_a.read_text().strip()), int(pid_b.read_text().strip())]
-            os.killpg(process.pid, signal.SIGINT)
-            process.wait(timeout=15)
-            wait_for(lambda: not any(alive(pid) for pid in pids), seconds=5)
-            survivors = [pid for pid in pids if alive(pid)]
-            if survivors:
-                raise RuntimeError(f"interrupted isolated children survived: {survivors!r}")
-            if list(hostile_parent.glob("resq-run-guard.*")):
-                raise RuntimeError("launcher-owned scratch survived interruption")
-        finally:
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait(timeout=5)
-            if process.stdout is not None:
-                process.stdout.close()
+        for signum, expected_status in ((signal.SIGINT, 130), (signal.SIGTERM, 143)):
+            pid_a.unlink(missing_ok=True)
+            pid_b.unlink(missing_ok=True)
+            process = subprocess.Popen(
+                [
+                    str(install / "bin/resq"), "test", str(hang_a), str(hang_b),
+                    "-isolate", "-isolateWorkers", "2", "-isolateTimeout", "300", "-quiet",
+                ],
+                cwd=hostile_parent,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            try:
+                ready = wait_for(lambda: pid_a.is_file() and pid_b.is_file())
+                if not ready:
+                    raise RuntimeError("isolated children did not reach the signal fixture")
+                guards = list(hostile_parent.glob("resq-run-guard.*"))
+                if len(guards) != 1:
+                    raise RuntimeError(f"expected one live launcher guard, got {guards!r}")
+                assert_private(guards[0])
+                assert_private(guards[0] / "isolate")
+                scratches = list((guards[0] / "isolate").glob("resq_isolate.*"))
+                if len(scratches) != 2:
+                    raise RuntimeError(f"expected two live isolation scratches, got {scratches!r}")
+                for scratch in scratches:
+                    assert_private(scratch)
+                pids = [int(pid_a.read_text().strip()), int(pid_b.read_text().strip())]
+                os.kill(process.pid, signum)
+                status = process.wait(timeout=15)
+                if status != expected_status:
+                    raise RuntimeError(
+                        f"launcher signal {signum} returned {status}, expected {expected_status}"
+                    )
+                wait_for(lambda: not any(alive(pid) for pid in pids), seconds=5)
+                survivors = [pid for pid in pids if alive(pid)]
+                if survivors:
+                    raise RuntimeError(f"signalled isolated children survived: {survivors!r}")
+                if list(hostile_parent.glob("resq-run-guard.*")):
+                    raise RuntimeError("launcher-owned scratch survived signal cleanup")
+            finally:
+                if process.poll() is None:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait(timeout=5)
+                if process.stdout is not None:
+                    process.stdout.close()
     finally:
         shutil.rmtree(hostile_parent, ignore_errors=True)
 
     print(
         "hostile-environment verification passed: quoting, symlinked/spaced install, "
         "QBIN propagation, reporter anchoring/fail-closed writes, 0700 scratch, "
-        "interrupt reaping, and cleanup"
+        "INT/TERM signal cleanup, conventional status, reaping, and cleanup"
     )
 
 

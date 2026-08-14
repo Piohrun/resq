@@ -33,9 +33,11 @@
 / Require timeout's kill-after form and prove it can preempt a busy process.
 .tst.isolate.probeTimeout:{[exe]
     if[(0 = count exe) or 0 = count .tst.isolate.shExe; :0b];
+    help: @[system; "LC_ALL=C ",.utl.shellQuote[exe], " --help 2>/dev/null"; {[e] ()}];
+    if[not any help like "*--verbose*"; :0b];
     busy: .utl.shellQuote "while :; do :; done";
-    cmd: .utl.shellQuote[exe], " -k 1 0.05 ",
-         .utl.shellQuote[.tst.isolate.shExe], " -c ", busy, "; echo $?";
+    cmd:"LC_ALL=C ",.utl.shellQuote[exe], " -k 1 0.05 ",
+         .utl.shellQuote[.tst.isolate.shExe], " -c ", busy, " 2>&1; echo $?";
     out: @[system; cmd; {[e] enlist "-1"}];
     if[0 = count out; :0b];
     code: "J"$last out;
@@ -192,6 +194,14 @@
     lines: "\n" vs .tst.isolate.readCaptured wd;
     lines: (neg n) sublist lines;
     $[count lines; "\n" sv lines; ""]
+ };
+
+/ GNU timeout's verbose line is evidence that the supervisor actually sent a
+/ deadline signal. Exit 124/137 alone is ambiguous: a child may return 124
+/ itself, and SIGKILL/OOM conventionally appears as 137 without any timeout.
+.tst.isolate.supervisorTimedOut:{[wd]
+    captured:.tst.isolate.readCaptured wd;
+    0 < count ss[captured; "timeout: sending signal "]
  };
 
 / Read at most reportLimit bytes from a child's combined stdout/stderr. For a
@@ -456,10 +466,11 @@
 / complete child tree if the foreground run is interrupted.
 .tst.isolate.processCommand:{[wd; file; timeoutSecs]
     childArgv: .tst.isolate.childArgv[file; wd];
-    timedArgv: (.tst.isolate.timeoutExe; "-k"; .tst.toString 5; string timeoutSecs), childArgv;
+    timedArgv: (.tst.isolate.timeoutExe; "--verbose"; "-k";
+        .tst.toString 5; string timeoutSecs), childArgv;
     / The parent launcher owns its completion marker. Isolated q children are
     / already supervised by this module and must not complete the parent's run.
-    "RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
+    "LC_ALL=C RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
         " < /dev/null > ", .utl.shellQuote[wd, "/out.txt"], " 2>&1"
  };
 
@@ -536,7 +547,8 @@
     hasFailingRows: any rowStatus in `fail`error;
     progress: "[", string[k], "/", string[n], "] ", file, " ... ";
 
-    if[code in 124 137;
+    timedOut:.tst.isolate.supervisorTimedOut wd;
+    if[timedOut;
         msg: "file exceeded isolateTimeout (", string[timeoutSecs], "s); killed",
              $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
         .tst.isolate.print progress, "TIMEOUT";
@@ -574,9 +586,22 @@
 
     detail: .tst.isolate.tail[wd; 20];
     if[0 = count raw;
+        if[code=137;
+            msg:"child exited 137 (SIGKILL; possible OOM or external kill); ",
+                "the isolate supervisor did not initiate a timeout",
+                $[count detail;"\n",detail;""];
+            .tst.isolate.print progress,"KILLED (exit 137, no results)";
+            :.tst.isolate.attachCaptured[wd;
+                enlist .tst.isolate.errorRow[`ISOLATED_PROCESS_KILLED;file;msg]]];
+        if[code=-1;
+            msg:"isolation infrastructure did not record a child exit status",
+                $[count detail;"\n",detail;""];
+            .tst.isolate.print progress,"INFRASTRUCTURE ERROR";
+            :.tst.isolate.attachCaptured[wd;
+                enlist .tst.isolate.errorRow[`ISOLATED_INFRASTRUCTURE_ERROR;file;msg]]];
         msg: .tst.isolate.noReportMessage[code;detail];
         licenseFailure:.tst.isolate.fatalHint[detail]~"couldn't connect to license daemon";
-        suite:$[licenseFailure;`ISOLATED_Q_STARTUP_ERROR;`ISOLATED_FILE_DIED];
+        suite:$[licenseFailure;`ISOLATED_Q_STARTUP_ERROR;`ISOLATED_PROCESS_EXIT];
         .tst.isolate.print progress,
             $[licenseFailure;"Q STARTUP ERROR";"DIED (exit ", string[code], ", no results)"];
         :.tst.isolate.attachCaptured[wd;
