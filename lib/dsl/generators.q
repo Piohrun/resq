@@ -173,10 +173,27 @@
   options[`values] idx
  };
 
+/ Preserve the element type when a list generator selects length zero. q's
+/ `each til 0` returns a general empty list, which made legacy typed-list specs
+/ depend on whether their deterministic length happened to be zero. Infer only
+/ where the generator protocol proves the element type; opaque maps/custom
+/ generators correctly retain a general empty list.
+.resq.gen.emptyList:{[generator]
+  kind:generator`kind;
+  options:generator`options;
+  if[kind in `type`scalar;
+    :0#enlist .tst.typeFuzzN options`typeName];
+  if[`constant~kind;:0#enlist options`value];
+  if[kind in `boundary`weightedChoice;:0#options`values];
+  if[kind in `nullable`filter;:.resq.gen.emptyList options`generator];
+  ()
+ };
+
 .resq.gen.sampleListOptions:{[options;seed;counter;stream]
   lo:options`minLength;
   span:1+options[`maxLength]-lo;
   n:lo+.tst.privateIndex[seed;counter;stream,"/length";span];
+  if[0=n;:.resq.gen.emptyList options`generator];
   {[g;s;c;st;i].resq.gen.sample[g;s;c*104729+i;st,"/item/",string i]}[
     options`generator;seed;counter;stream;] each til n
  };

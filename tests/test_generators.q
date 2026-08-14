@@ -92,6 +92,15 @@
       "built-in symbol generation must use the bounded symbol pool"];
   };
 
+  should["preserve typed legacy-list outputs at zero generated length"]{
+    dateLists:.resq.gen.sample[.resq.gen.adapt 20#0Nd;;0;"root"] each til 100;
+    intLists:.resq.gen.sample[.resq.gen.adapt 20#1i;;0;"root"] each til 100;
+    must[any 0=count each dateLists;"seed corpus must exercise an empty date list"];
+    must[any 0=count each intLists;"seed corpus must exercise an empty int list"];
+    must[all 14h=type each dateLists;"empty generated date lists must stay typed"];
+    must[all 6h=type each intLists;"empty generated int lists must stay typed"];
+  };
+
   should["replay an exact sample from its portable token"]{
     generator:.resq.gen.table[
       `x`flag!(.resq.gen.scalar[`long;-100;100];.resq.gen.typed `boolean);1;4];
