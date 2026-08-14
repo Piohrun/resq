@@ -15,7 +15,10 @@ The command writes `self-coverage.json` (versioned raw rows and summary),
 `self-coverage.txt` (the provider's formatted view), and
 `self-coverage-trend.json` (up to 100 timestamped summary points). It preserves
 the test run's exit status and fails if the provider or artifact contract is
-invalid.
+invalid. The q worker runs in a private process group with a 1,200-second
+deadline by default (`--timeout-seconds` overrides it). Evidence is built in a
+staging directory, so a timeout kills descendants and cannot publish a partial
+replacement artifact.
 
 The trend is experimental and explicitly records `gatingSupported:false`.
 It is useful for observing direction over repeated licensed runs, but neither a

@@ -21,46 +21,65 @@
  };
 
 .tst.emptyRerunState:{[statusName]
-    `status`failedTestIds`runId`updatedAt!(statusName;();"";"")
+    `status`diagnostic`failedTestIds`runId`updatedAt!(statusName;"";();"";"")
  };
 
 .tst.validFailedIds:{[ids]
     if[0=count ids;:1b];
-    if[10h=type ids;:1b];
     (0h=type ids) and all 10h=type each ids
  };
 
 .tst.decodeRerunState:{[lines]
     if[0=count lines;:.tst.emptyRerunState `missing];
     decoded:@[{[text](0b;.j.k text)};"\n" sv lines;{[err](1b;err)}];
-    if[first decoded;:.tst.emptyRerunState `invalid];
+    if[first decoded;
+        state:.tst.emptyRerunState `invalid;
+        state[`diagnostic]:"JSON parse failed: ",.tst.toString last decoded;
+        :state];
     doc:last decoded;
-    if[not 99h=type doc;:.tst.emptyRerunState `invalid];
+    if[not 99h=type doc;
+        state:.tst.emptyRerunState `invalid;
+        state[`diagnostic]:"JSON root must be an object";
+        :state];
     if[not all `schemaVersion`failedTestIds in key doc;
-        :.tst.emptyRerunState `invalid];
+        state:.tst.emptyRerunState `invalid;
+        state[`diagnostic]:"missing schemaVersion or failedTestIds";
+        :state];
+    if[not .tst.validJsonLong[doc`schemaVersion;0j];
+        state:.tst.emptyRerunState `invalid;
+        state[`diagnostic]:"schemaVersion must be an integral JSON number";
+        :state];
     if[not .tst.rerunStateVersion="j"$doc`schemaVersion;
-        :.tst.emptyRerunState `unsupported];
+        state:.tst.emptyRerunState `unsupported;
+        state[`diagnostic]:"unsupported schemaVersion";
+        :state];
     if[not .tst.validFailedIds doc`failedTestIds;
-        :.tst.emptyRerunState `invalid];
-    ids:$[10h=type doc`failedTestIds;enlist doc`failedTestIds;doc`failedTestIds];
+        state:.tst.emptyRerunState `invalid;
+        state[`diagnostic]:"failedTestIds must be an array of strings";
+        :state];
+    ids:doc`failedTestIds;
     ids:distinct .tst.toString each ids;
-    `status`failedTestIds`runId`updatedAt!(
-        `ok;ids;
+    `status`diagnostic`failedTestIds`runId`updatedAt!(
+        `ok;"";ids;
         $[`runId in key doc;.tst.toString doc`runId;""];
         $[`updatedAt in key doc;.tst.toString doc`updatedAt;""])
  };
 
 .tst.loadRerunState:{[]
     path:.tst.rerunStatePath[];
-    state:$[.utl.pathExists path;
-        .tst.decodeRerunState @[read0;hsym `$path;{()}];
-        .tst.emptyRerunState `missing];
+    state:.tst.emptyRerunState `missing;
+    if[.utl.pathExists path;
+        readResult:@[{[p](0b;read0 hsym `$p)};path;{[err](1b;.tst.toString err)}];
+        if[first readResult;
+            state:.tst.emptyRerunState `invalid;
+            state[`diagnostic]:"read failed: ",last readResult];
+        if[not first readResult;state:.tst.decodeRerunState last readResult]];
     .tst.app.rerunState:state;
     .tst.app.rerunStateStatus:state`status;
     if[(state`status) in `invalid`unsupported;
         .tst.recordDiagnostic[`rerun;`warning;`selection;
-            "Ignoring malformed or unsupported rerun state; running the full selection";
-            `path`status!(.tst.repoRelativePath path;state`status)]];
+            "Ignoring malformed or unsupported rerun state; running the full selection: ",state`diagnostic;
+            `path`status`diagnostic!(.tst.repoRelativePath path;state`status;state`diagnostic)]];
     state
  };
 

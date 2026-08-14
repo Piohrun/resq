@@ -279,6 +279,27 @@ class NdjsonAdapterTests(unittest.TestCase):
             self.assertTrue(all(e["runId"] == f"run_{'a' * 32}" for e in events))
             self.assertEqual(f"test_{'b' * 32}", events[1]["test"]["testId"])
 
+    def test_ndjson_preserves_labels_on_independent_envelopes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "report.json"
+            output = root / "events.ndjson"
+            document = report()
+            document["run"]["labels"] = {
+                "environment": "production", "service": "orders",
+            }
+            source.write_text(json.dumps(document), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(ROOT / "tools/resq_to_ndjson.py"), str(source), "-o", str(output)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            events = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+            expected = document["run"]["labels"]
+            self.assertTrue(all(event["labels"] == expected for event in events))
+            self.assertTrue(all(event["hostname"] == "ci-1" for event in events))
+            self.assertEqual(expected, events[0]["run"]["labels"])
+
     def test_ndjson_preserves_unicode_and_hostile_text_as_data(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

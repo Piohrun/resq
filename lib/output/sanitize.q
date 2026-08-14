@@ -308,6 +308,10 @@
     defaults:fields!(`;`;`pass;"";0Nn;(::);(::);();0i;"";0Ni;"";`symbol$();"";
         "";"";`test;()!();1i;0b;0b;();();()!();();();()!();()!());
     if[99h=type row;defaults[key row]:value row];
+    / Keep the grouping key atomic even when embedded callers supply a q string.
+    / Mixed symbol/string suite columns make `=` interpret a multi-character
+    / string as a vector and can crash JUnit/xUnit grouping with a length error.
+    defaults[`suite]:`$.tst.toString defaults`suite;
     if[0=count defaults`testId;
         defaults[`testId]:.tst.stableTestId[defaults`file;defaults`suite;defaults`description]];
     defaults[`file]:.tst.repoRelativePath defaults`file;

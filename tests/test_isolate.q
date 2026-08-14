@@ -149,8 +149,23 @@
     must["-no-line-annotations" in argv; "the annotation kill switch must reach the child"];
     (argv 1 + argv ? "-flake-history") musteq "/tmp/isolate/flake-history.json";
     (argv 1 + argv ? "-flake-proposal-file") musteq "/tmp/isolate/quarantine-proposals.json";
+    (argv 1 + argv ? "-state-file") musteq "/tmp/isolate/last-run.json";
+    must[not (.tst.rerunStatePath[])~(argv 1+argv?"-state-file");
+         "isolation children use private state"];
     must["-quarantine-file" in argv; "the reviewed quarantine manifest must reach the child"];
     (argv 1 + argv ? "-report-profile") musteq "full";
+  };
+
+  should["copy immutable parent selection into private child state"]{
+    wd:.utl.tempRoot[],"/resq_isolate_state_",string[.z.i],"_",string `long$.z.p;
+    .utl.ensureDir wd;
+    `.tst.app.rerunState mock `status`failedTestIds`runId`updatedAt!(
+        `ok;("test_a";"test_b");"run_parent";"2026-08-14T00:00:00Z");
+    must[.tst.isolate.preparePrivateRerunState wd;"private state must be writable"];
+    doc:.j.k "\n" sv read0 hsym `$.tst.isolate.privateRerunPath wd;
+    doc[`failedTestIds] musteq ("test_a";"test_b");
+    doc[`runId] musteq "run_parent";
+    system "rm -rf -- ",.utl.shellQuote wd;
   };
  };
 

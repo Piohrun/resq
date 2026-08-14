@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from process_control import run_bounded
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,6 +20,7 @@ CI_PREFIXES = (
     "CIRCLE_", "BUILDKITE_", "bamboo_",
 )
 CI_MARKERS = {"CI", "TF_BUILD", "JENKINS_URL", "CIRCLECI", "BUILDKITE"}
+Q_PROCESS_TIMEOUT_SECONDS = 60
 
 
 def ci_environment(values: dict[str, str]) -> dict[str, str]:
@@ -41,14 +44,14 @@ def execute(
         str(ROOT / "bin/resq"), "test", str(work / "test_labels.q"), "-strict", "-json",
         "-quiet", "-outDir", str(destination), *extra,
     ]
-    completed = subprocess.run(
+    completed = run_bounded(
         command,
         cwd=work,
         env=environment or os.environ.copy(),
+        timeout=Q_PROCESS_TIMEOUT_SECONDS,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        check=False,
     )
     if completed.returncode != expected:
         raise AssertionError(

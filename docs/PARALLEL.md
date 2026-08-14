@@ -85,7 +85,9 @@ This provides cross-machine parallelism with no shared q state. The merger
 fails closed for a missing index, provenance/configuration mismatch, duplicate
 or missing execution, snapshot/benchmark ownership conflict, or partial
 coverage artifact set. Valid aggregate and per-context coverage hits are summed
-by stable identity. Empty shards are valid; fail-fast-incomplete shards are not.
+by stable identity. Snapshot completeness and unverified evidence are folded
+from every required member rather than inferred from the merged entry union.
+Empty shards are valid; fail-fast-incomplete shards are not.
 
 See [CI.md](CI.md) for q runner licensing/prerequisites and the repository's
 checked-in workflow.

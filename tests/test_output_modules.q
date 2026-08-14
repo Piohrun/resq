@@ -334,6 +334,26 @@
              "the sandbox namespace must not reach the xUnit grouping key"];
     };
 
+    should["XML groups string suites"]{
+        raw:(
+            `suite`description`status`assertsRun!("Order validation";"from string";`pass;1i);
+            `suite`description`status`assertsRun!(`$"Order validation";"from symbol";`pass;1i);
+            `suite`description`status`assertsRun!("Returns";"other suite";`pass;1i));
+        completed:.tst.completeResultRow each raw;
+        must[all -11h=type each {x`suite} each completed;
+             "completeResultRow must normalize every suite to a symbol atom"];
+        rows:flip flip completed;
+        prevTop:@[get;`.tst.output.top;{::}];
+        prevReport:.resq.report;
+        .tst.loadOutputModule["junit"];junitXml:.tst.output.top rows;
+        .tst.loadOutputModule["xunit"];xunitXml:.tst.output.top rows;
+        .tst.output.top:prevTop;.resq.report:prevReport;
+        must[0<count ss[junitXml;"<testsuite name=\"Order validation\" tests=\"2\""];
+             "JUnit must group multi-character string and symbol suites"];
+        must[0<count ss[xunitXml;"type=\"Order validation\""];
+             "xUnit must accept the same normalized grouping key"];
+    };
+
     / XML attribute-value normalization collapses a newline to a space, so a
     / multi-line message crammed into message="..." reaches the consumer as one
     / run-on line. Summary in the attribute, full detail in the element body.

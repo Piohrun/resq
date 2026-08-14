@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -15,6 +16,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from self_coverage_trend import update_file  # noqa: E402
+from process_control import run_bounded  # noqa: E402
 
 
 def default_library() -> str:
@@ -51,6 +53,10 @@ def main() -> int:
         help="maximum experimental trend points retained (default: 100)",
     )
     parser.add_argument("--q", default=os.environ.get("QBIN", "q"), help="q executable")
+    parser.add_argument(
+        "--timeout-seconds", type=float, default=1200,
+        help="kill the complete q process group after this deadline (default: 1200)",
+    )
     parser.add_argument("resq_args", nargs=argparse.REMAINDER, help="arguments after -- (default: test tests -strict -quiet)")
     args = parser.parse_args()
 
@@ -70,33 +76,53 @@ def main() -> int:
         print("self-coverage cannot observe isolated child processes", file=sys.stderr)
         return 2
 
+    if args.timeout_seconds <= 0:
+        print("self-coverage timeout must be positive", file=sys.stderr)
+        return 2
     output = Path(args.output).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
-    environment = dict(os.environ)
-    environment.update(
-        QBIN=args.q,
-        RESQ_SELF_COVERAGE_LIBRARY=str(library.resolve()),
-        RESQ_SELF_COVERAGE_OUTPUT=str(output),
-    )
-    completed = subprocess.run(
-        [str(ROOT / "bin" / "resq"), *resq_args], cwd=ROOT, env=environment,
-        stdin=subprocess.DEVNULL,
-    )
-    artifact = output / "self-coverage.json"
-    if not artifact.is_file():
-        print("self-coverage provider did not produce self-coverage.json", file=sys.stderr)
-        return completed.returncode or 1
-    try:
-        document = validate_artifact(artifact)
-    except (OSError, json.JSONDecodeError, RuntimeError) as exc:
-        print(f"invalid self-coverage artifact: {exc}", file=sys.stderr)
-        return completed.returncode or 1
-    summary = document["summary"]
-    try:
-        trend = update_file(output / "self-coverage-trend.json", document, args.trend_limit)
-    except (OSError, json.JSONDecodeError, RuntimeError) as exc:
-        print(f"invalid self-coverage trend: {exc}", file=sys.stderr)
-        return completed.returncode or 1
+    with tempfile.TemporaryDirectory(prefix=".self-coverage-run-", dir=output) as raw:
+        staging = Path(raw)
+        environment = dict(os.environ)
+        environment.update(
+            QBIN=args.q,
+            RESQ_SELF_COVERAGE_LIBRARY=str(library.resolve()),
+            RESQ_SELF_COVERAGE_OUTPUT=str(staging),
+        )
+        try:
+            completed = run_bounded(
+                [str(ROOT / "bin" / "resq"), *resq_args], cwd=ROOT,
+                env=environment, timeout=args.timeout_seconds,
+                stdin=subprocess.DEVNULL,
+            )
+        except subprocess.TimeoutExpired:
+            print(
+                f"self-coverage q process timed out after {args.timeout_seconds:g}s",
+                file=sys.stderr,
+            )
+            return 124
+        staged_artifact = staging / "self-coverage.json"
+        staged_text = staging / "self-coverage.txt"
+        if not staged_artifact.is_file() or not staged_text.is_file():
+            print(
+                "self-coverage provider did not produce both JSON and text evidence",
+                file=sys.stderr,
+            )
+            return completed.returncode or 1
+        try:
+            document = validate_artifact(staged_artifact)
+        except (OSError, json.JSONDecodeError, RuntimeError) as exc:
+            print(f"invalid self-coverage artifact: {exc}", file=sys.stderr)
+            return completed.returncode or 1
+        artifact = output / "self-coverage.json"
+        os.replace(staged_artifact, artifact)
+        os.replace(staged_text, output / "self-coverage.txt")
+        summary = document["summary"]
+        try:
+            trend = update_file(output / "self-coverage-trend.json", document, args.trend_limit)
+        except (OSError, json.JSONDecodeError, RuntimeError) as exc:
+            print(f"invalid self-coverage trend: {exc}", file=sys.stderr)
+            return completed.returncode or 1
     print(
         "self-coverage evidence: "
         f"{summary['functionsHit']}/{summary['functionsMeasured']} loaded functions, "

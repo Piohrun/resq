@@ -24,13 +24,25 @@ is omitted from individual JSON rows/events and from JUnit/xUnit property
 groups. Absence is therefore the compact representation of “not enough
 evidence yet,” not a policy decision.
 
-History defaults to `.resq/flake-history.json` and is atomically replaced after
-a real run. Shards suffix their history files so concurrent jobs never race.
+History defaults to `.resq/flake-history.json`. Each write re-reads and merges
+the latest file by stable execution ID under a bounded single-writer lock, then
+atomically replaces it. Each execution retains at most `flakeWindow`
+observations and the file retains at most 100,000 executions in deterministic
+ID order. Shards suffix their history files so concurrent jobs never race.
+
+Filtered, rerun-selected, sharded, interrupted, fail-fast, and describe-only
+runs update IDs they actually observe but never erase or age unrelated IDs.
+Only a completed, unfiltered, unsharded full inventory increments
+`unseenCompleteRuns`; a deleted or renamed identity is removed after 20 such
+complete runs. This grace period distinguishes real deletion from temporarily
+partial evidence while keeping the cache bounded.
+
 In process-isolation mode, children remain raw execution workers: each receives
-private scratch state, while the parent classifies the merged rows, decides the
-run verdict, and appends exactly one observation per result. This keeps normal,
-isolated, and multi-worker isolated runs on the same single-writer contract.
-Malformed or unsupported history is ignored. Malformed, unsupported, or invalid
+an immutable private copy of the parent's rerun selection state plus private
+output paths, while the parent classifies the merged rows, decides the run
+verdict, and is the only durable state writer. This keeps normal, isolated, and
+multi-worker isolated runs on the same single-writer contract. Malformed or
+unsupported history is ignored with a structured cache diagnostic. Malformed, unsupported, or invalid
 quarantine policy fails closed: the raw failure remains blocking.
 
 ## Read-only proposals

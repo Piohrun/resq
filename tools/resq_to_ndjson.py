@@ -22,6 +22,8 @@ def records(document: dict[str, Any]) -> Iterable[dict[str, Any]]:
         "schemaVersion": document["schemaVersion"],
         "runId": run["id"],
         "startedAt": run["startedAt"],
+        "hostname": run.get("hostname", ""),
+        "labels": run.get("labels", {}),
         "vcs": run["vcs"],
         "ci": run["ci"],
         "profile": document.get("profile", "legacy-full"),
@@ -33,7 +35,7 @@ def records(document: dict[str, Any]) -> Iterable[dict[str, Any]]:
             "id", "startedAt", "finishedAt", "durationSeconds",
             "wallDurationSeconds", "hostname", "cwd", "qVersion", "qRelease",
             "os", "resqVersion", "vcs", "ci", "config", "ordering",
-            "selection", "completion",
+            "selection", "completion", "labels",
         )
         if name in run
     }

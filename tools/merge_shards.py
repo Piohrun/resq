@@ -673,7 +673,7 @@ def lifecycle(
                 if benchmark:
                     emit(
                         "benchmark.finished", str(benchmark["benchmarkId"]),
-                        row["testId"], run["finishedAt"], benchmark,
+                        row["testId"], test_finished, benchmark,
                     )
                 for index, diagnostic in enumerate(row.get("diagnostics", [])):
                     diagnostic_id = "diagnostic_" + stable_hash(
@@ -853,7 +853,7 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
             prior["unsafe"] = bool(prior.get("unsafe")) or bool(entry.get("unsafe"))
             prior["executionIds"] = sorted(set(prior.get("executionIds", [])) | set(entry.get("executionIds", [])))
             prior["observedStatuses"] = sorted(set(prior.get("observedStatuses", [])) | set(entry.get("observedStatuses", [])))
-    merged_entries = list(inventory_entries.values())
+    merged_entries = [inventory_entries[key] for key in sorted(inventory_entries)]
     for entry in merged_entries:
         referenced = bool(entry.get("referenced")) or bool(entry.get("declared"))
         entry["status"] = (
@@ -864,25 +864,52 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
         "referenced": sum(entry["status"] == "referenced" for entry in merged_entries),
         "missing": sum(entry["status"] == "missing" for entry in merged_entries),
         "obsolete": sum(entry["status"] == "obsolete" for entry in merged_entries),
-        "unverified": 0,
+        # Unverified paths are deliberately absent from entries, so their
+        # cardinality must be carried from every shard rather than recomputed
+        # from the union above.
+        "unverified": sum(
+            int(item.get("counts", {}).get("unverified", 0))
+            for item in snapshot_inventories
+        ),
         "unsafe": sum(bool(entry.get("unsafe")) for entry in merged_entries) +
                   sum(bool(root.get("symlink")) for root in inventory_roots.values()),
         "stored": sum(bool(entry.get("exists")) for entry in merged_entries),
         "declared": sum(bool(entry.get("declared")) for entry in merged_entries),
     }
     snapshot_gate_enabled = any(bool(item.get("gate", {}).get("enabled")) for item in snapshot_inventories)
-    snapshot_gate_reasons = []
+    inventory_complete = bool(snapshot_inventories) and all(
+        bool(item.get("enabled")) and bool(item.get("complete"))
+        for item in snapshot_inventories
+    )
+    completeness_reasons = sorted({
+        str(reason)
+        for item in snapshot_inventories
+        for reason in item.get("completenessReasons", [])
+        if str(reason)
+    })
+    if not inventory_complete and not completeness_reasons:
+        completeness_reasons.append("incomplete-member")
+    snapshot_gate_reasons = sorted({
+        str(reason)
+        for item in snapshot_inventories
+        for reason in item.get("gate", {}).get("reasons", [])
+        if str(reason)
+    })
+    if snapshot_gate_enabled and not inventory_complete:
+        snapshot_gate_reasons.append("incomplete-snapshot-inventory")
     if snapshot_gate_enabled and snapshot_counts["missing"]:
         snapshot_gate_reasons.append("missing-snapshots")
     if snapshot_gate_enabled and snapshot_counts["obsolete"]:
         snapshot_gate_reasons.append("obsolete-snapshots")
     if snapshot_gate_enabled and snapshot_counts["unsafe"]:
         snapshot_gate_reasons.append("unsafe-snapshot-paths")
+    snapshot_gate_reasons = sorted(set(snapshot_gate_reasons))
     snapshot_inventory = {
         "schemaVersion": 1, "kind": "resq-snapshot-inventory",
         "enabled": inventory_enabled, "generatedAt": run["finishedAt"],
-        "complete": inventory_enabled, "completenessReasons": [] if inventory_enabled else ["disabled"],
-        "roots": list(inventory_roots.values()), "entries": merged_entries,
+        "complete": inventory_complete, "completenessReasons": completeness_reasons,
+        "roots": [inventory_roots[key] for key in sorted(inventory_roots)],
+        "entries": merged_entries,
         "counts": snapshot_counts,
         "gate": {"enabled": snapshot_gate_enabled, "passed": not snapshot_gate_reasons,
                  "reasons": snapshot_gate_reasons},

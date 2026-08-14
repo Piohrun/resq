@@ -12,8 +12,9 @@ tools/resq_to_ndjson.py artifacts/test-results.json \
 ```
 
 The stream contains one `resq.run` event followed by `resq.test` events and any
-`resq.benchmark` events. Every record carries `runId`, framework/schema
-versions, VCS and CI context. Test payloads retain `testId`, `caseId`, attempts,
+`resq.benchmark` events. Every independently consumable record carries `runId`,
+hostname, the validated bounded `run.labels`, framework/schema versions, VCS,
+and CI context; the run payload retains the same labels. Test payloads retain `testId`, `caseId`, attempts,
 typed diagnostics, properties, snapshots, and benchmarks unchanged. Send this
 stream to OpenTelemetry collectors, ReportPortal transforms, log pipelines, or
 a warehouse without reconstructing identity from display names.

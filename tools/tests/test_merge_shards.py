@@ -293,6 +293,41 @@ class MergerContractTests(unittest.TestCase):
             detail = json.loads((root / "covered/coverage.json").read_text(encoding="utf-8"))
             self.assertEqual(2, len(detail["contextMeasurement"]["contexts"]))
 
+    def test_snapshot_completeness_aggregates_all_shards(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            documents = shard_documents()
+            for document in documents:
+                document["snapshotInventory"].update(
+                    enabled=True, complete=True, completenessReasons=[],
+                )
+            documents[0]["snapshotInventory"]["counts"]["unverified"] = 2
+            documents[1]["snapshotInventory"]["counts"]["unverified"] = 3
+            documents[1]["snapshotInventory"].update(
+                complete=False, completenessReasons=["interrupted"],
+            )
+            documents[1]["snapshotInventory"]["gate"] = {
+                "enabled": True, "passed": False, "reasons": ["member-incomplete"],
+            }
+            for document in documents:
+                document["events"] = lifecycle(
+                    document["run"], document["manifest"], document["tests"],
+                    document["summary"], {}, document["diagnostics"],
+                    document["snapshotInventory"], document["benchmarkAnalysis"],
+                )
+                validate(document)
+            report, passed = merge(write_documents(root, documents), root / "merged")
+            inventory = report["snapshotInventory"]
+            self.assertFalse(passed)
+            self.assertTrue(inventory["enabled"])
+            self.assertFalse(inventory["complete"])
+            self.assertEqual(["interrupted"], inventory["completenessReasons"])
+            self.assertEqual(5, inventory["counts"]["unverified"])
+            self.assertEqual(
+                ["incomplete-snapshot-inventory", "member-incomplete"],
+                inventory["gate"]["reasons"],
+            )
+
     def test_coverage_presence_and_malformed_detail_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -356,6 +391,27 @@ class MergerContractTests(unittest.TestCase):
         run_event = next(event for event in diagnostics if event["parentId"] == document["run"]["id"])
         self.assertEqual(row["finishedAt"], test_event["occurredAt"])
         self.assertEqual(document["run"]["finishedAt"], run_event["occurredAt"])
+
+    def test_benchmark_uses_its_owning_test_finish_time(self) -> None:
+        golden = json.loads(
+            (ROOT / "tests/contracts/lifecycle-v2-golden.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual("test.finishedAt", golden["observedTiming"]["benchmark.finished"])
+        document = scale_report(1)
+        row = document["tests"][0]
+        row.update(
+            startedAt="2026-08-12T12:00:00.100000Z",
+            finishedAt="2026-08-12T12:00:00.101000Z",
+            benchmark={"benchmarkId": "benchmark_" + "a" * 32},
+        )
+        events = lifecycle(
+            document["run"], document["manifest"], [row], summary([row]), {},
+            [], document["snapshotInventory"], document["benchmarkAnalysis"],
+        )
+        benchmark_event = next(
+            event for event in events if event["type"] == "benchmark.finished"
+        )
+        self.assertEqual(row["finishedAt"], benchmark_event["occurredAt"])
 
 
 if __name__ == "__main__":

@@ -331,7 +331,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                 bench:row`benchmark;
                 if[(99h=type bench) and count bench;
                     benchmarkId:.tst.toString bench`benchmarkId;
-                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"benchmark.finished";runId;benchmarkId;testId;finished;bench];
+                    events,:.tst.oneEventTable .tst.eventRecord[sequence;"benchmark.finished";runId;benchmarkId;testId;testFinished;bench];
                     sequence+:1];
                 testDiags:.tst.caseRows row`diagnostics;
                 di:0;

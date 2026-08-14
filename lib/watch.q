@@ -38,7 +38,9 @@
  };
 
 / Batch-stat a list of path STRINGS in ONE subprocess and return a path->mtime
-/ (epoch seconds) dict. The old code spawned one `stat` PER FILE PER TICK
+/ token dict. GNU stat contributes its nanosecond timestamp; the BSD fallback
+/ is marked second-resolution so fingerprintWith can add a content digest. The
+/ old code spawned one `stat` PER FILE PER TICK
 / (~2.6 ms each), so a 500-file tree blew past the 1s poll interval. Here every
 / tracked path is shell-quoted (.utl.shellQuote - spaces in paths are safe) and
 / passed to a SINGLE GNU `stat -c '%Y %n'` (BSD `stat -f '%m %N'` fallback).
@@ -58,21 +60,22 @@
     / nonzero exit on a missing file - is wrapped as a single `sh -c <quoted>`
     / argument; q then sees one simple command and captures its stdout normally.
     runner: {[inner] system "sh -c ", .utl.shellQuote inner};
-    / GNU form first; if it yields nothing usable, try the BSD form.
-    out: @[runner; "stat -c '%Y %n' ", quoted, " 2>/dev/null ; true"; {()}];
-    if[0 = count out;
-        out: @[runner; "stat -f '%m %N' ", quoted, " 2>/dev/null ; true"; {()}];
-    ];
-    / Parse "MTIME PATH" lines; split on the FIRST space (paths may have spaces).
-    parsed: {[ln]
-        if[0 = count ln; :()];
-        sp: ln ? " ";
-        if[sp <= 0; :()];
-        m: "J"$ sp # ln;
-        p: (sp + 1) _ ln;
-        if[null m; :()];
-        enlist[p]!enlist m
-    } each out;
+    / Tabs separate metadata from paths; a path containing a tab is reconstructed
+    / from every remaining field. `%y` retains GNU stat's fractional seconds.
+    out:@[runner;"stat --printf='%Y\\t%y\\t%n\\n' ",quoted," 2>/dev/null ; true";{()}];
+    highResolution:0<count out;
+    if[not highResolution;
+        out:@[runner;"stat -f '%m|%N' ",quoted," 2>/dev/null ; true";{()}]];
+    parsed:{[high;ln]
+        parts:$[high;"\t" vs ln;"|" vs ln];
+        minimum:$[high;3;2];
+        if[count[parts]<minimum;:()];
+        epoch:first parts;
+        if[null @["J"$;epoch;{0Nj}];:()];
+        token:$[high;"n:",epoch,":",parts 1;"s:",epoch];
+        path:$[high;"\t" sv 2_ parts;"|" sv 1_ parts];
+        enlist[path]!enlist token
+    }[highResolution;] each out;
     parsed: parsed where 0 < count each parsed;
     $[0 = count parsed; ()!(); (,/) parsed]
  }
@@ -95,13 +98,32 @@
 / per-file); mtime comes from the batched stat above and covers same-size edits.
 / A missing file (absent from mtimeMap) yields mtime 0; a missing handle yields
 / the (-1;-1) sentinel.
+.tst.watch.contentDigest:{[h]
+    size:@[hcount;h;{[e] -1}];
+    if[size<0;:""];
+    state:md5 "resq-watch-content-v1";
+    offset:0j;
+    failed:0b;
+    while[(not failed) and offset<size;
+        amount:65536j&size-offset;
+        chunk:@[read1;(h;offset;amount);{[e]::}];
+        if[(::)~chunk;failed:1b];
+        if[not failed;state:md5 state,md5 chunk];
+        offset+:amount];
+    $[failed;"";raze string state]
+ };
+
 .tst.watch.fingerprintWith:{[mtimeMap;f]
     h: .utl.pathToHsym f;
-    if[() ~ key h; :(-1; -1)];          / missing -> sentinel
-    sz: @[hcount; h; -1];
+    if[() ~ key h; :(-1; ""; "")];     / missing -> sentinel
+    sz: @[hcount; h; {[e] -1}];
     ps: .utl.pathToString f;
-    mt: $[ps in key mtimeMap; mtimeMap ps; 0];
-    (sz; mt)
+    mt:$[ps in key mtimeMap;mtimeMap ps;"s:0"];
+    / On platforms exposing only epoch seconds, add a fixed-width native digest.
+    / This keeps the poll subprocess count batched while detecting same-size,
+    / same-second rewrites that size+mtime alone cannot see.
+    digest:$[mt like "s:*";.tst.watch.contentDigest h;""];
+    (sz;mt;digest)
  }
 
 / Single-file fingerprint convenience (used by tests). Runs its own one-path

@@ -200,7 +200,9 @@ core and every recognized extension invariant; see the
 With `-snapshot-audit` or `-snapshot-gate`, the same inventory is also written
 as `snapshot-manifest.json`, and lifecycle events include one
 `snapshots.audited` event. A complete native shard set is recomputed by the
-strict merger; individual shard manifests remain explicitly partial.
+strict merger; `complete` is true only when every member is complete,
+completeness/gate reasons are unioned, and unverified counts are summed.
+Individual shard manifests remain explicitly partial.
 
 Benchmark records use `benchmarkId` as their time-series key and retain the raw
 samples, workload, and environment fingerprint needed to replay a comparison.
@@ -209,6 +211,8 @@ With baseline comparison enabled, `performance[].comparison`, the owning
 `benchmark.finished` payload, and the run-level `benchmarks.compared` event
 carry the same classification. Chart adjusted p-value and practical median
 change together; neither alone represents the gate decision.
+`benchmark.finished.occurredAt` is the owning test's `finishedAt`, not the
+later run boundary.
 
 Schema v2 intentionally breaks the flat schema-v1 aggregate layout. Consumers
 must read counts from `summary`, metadata from `run`, and use non-empty `caseId`

@@ -346,6 +346,22 @@
     "," sv .tst.toString each (),values
  };
 
+.tst.isolate.privateRerunPath:{[wd]wd,"/last-run.json"};
+
+/ Copy the parent's already-validated selection cache into each private child
+/ scratch. Children may then apply last-failed/failed-first consistently, but
+/ any state they publish is disposable and can never race the durable parent.
+.tst.isolate.preparePrivateRerunState:{[wd]
+    state:@[get;`.tst.app.rerunState;{.tst.emptyRerunState `missing}];
+    ids:$[`ok~state`status;state`failedTestIds;()];
+    doc:`schemaVersion`framework`runId`updatedAt`testCount`failedCount`failedTestIds!(
+        .tst.rerunStateVersion;"resQ";
+        $[`runId in key state;.tst.toString state`runId;""];
+        $[`updatedAt in key state;.tst.toString state`updatedAt;""];
+        "j"$count ids;"j"$count ids;ids);
+    .tst.atomicWriteJson[.tst.isolate.privateRerunPath wd;doc;`isolation]
+ };
+
 / A child owns one file, while suite/tag selection is global to the parent run.
 / Therefore a valid empty child report is neutral when any selector is active;
 / the parent still applies the ordinary no-results failure after all files have
@@ -385,7 +401,7 @@
         argv:.tst.isolate.appendValue[argv;"-seed";@[get;`.tst.app.executionSeed;0j]]];
     argv:.tst.isolate.appendFlag[argv;"-last-failed";@[get;`.tst.app.lastFailed;0b]];
     argv:.tst.isolate.appendFlag[argv;"-failed-first";@[get;`.tst.app.failedFirst;0b]];
-    argv:.tst.isolate.appendValue[argv;"-state-file";.tst.rerunStatePath[]];
+    argv:.tst.isolate.appendValue[argv;"-state-file";.tst.isolate.privateRerunPath wd];
     / The parent is the sole durable flake-history writer. Give every child
     / private scratch paths so concurrent workers cannot race, while propagating
     / the reviewed manifest and policy needed to keep fail-fast from stopping on
@@ -482,6 +498,8 @@
 
 .tst.isolate.runFileBody:{[wd; file; timeoutSecs; k; n]
     .tst.isolate.resetScratch wd;
+    if[not .tst.isolate.preparePrivateRerunState wd;
+        '"unable to prepare private rerun state"];
     @[system; .tst.isolate.fileCommand[wd; file; timeoutSecs]; {[e] ()}];
     .tst.isolate.interpretFile[wd; file; timeoutSecs; k; n; .tst.isolate.readExitCode wd]
  };
@@ -675,6 +693,8 @@
     } each files;
     okFlags: 0 < count each wds;
     {[wd] if[count wd; .tst.isolate.resetScratch wd]} each wds;
+    prepared:{[wd]$[count wd;.tst.isolate.preparePrivateRerunState wd;0b]} each wds;
+    okFlags:okFlags and prepared;
 
     cmds: {[timeoutSecs; wd; file]
         $[count wd; .tst.isolate.processCommand[wd; file; timeoutSecs]; ""]

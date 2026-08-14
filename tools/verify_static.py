@@ -40,6 +40,7 @@ REQUIRED = {
     "docs/examples/resq_ingestion.sql", "docs/examples/grafana-resq-overview.json",
     "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
     "tools/verify_labels_context.py",
+    "tools/process_control.py",
     "tools/coverage_contract.py", "tools/validate_coverage.py",
     "tools/reconcile_coverage.py", "tools/verify_coverage_contract.py",
     "tools/self_coverage_trend.py",

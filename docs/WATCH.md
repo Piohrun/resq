@@ -16,7 +16,13 @@ Pass one or more directories to watch. On each detected change, resQ re-runs the
 
 ### Change detection
 
-The watcher polls the watched directories on a fixed interval. Each `.q` file is fingerprinted by its size and mtime; a change to either triggers a test run. New and deleted files are detected too. Hidden files (names starting with `.`) are ignored.
+The watcher polls the watched directories on a fixed interval. Each `.q` file
+is fingerprinted by its size and high-resolution modification token; platforms
+that expose only whole seconds add a fixed-width, 64 KiB-chunked content digest. Same-size edits
+within one second therefore still trigger a run. Metadata remains batch-statted
+in bounded chunks rather than launching one subprocess per file. New and
+deleted files are detected too. Hidden files (names starting with `.`) are
+ignored.
 
 ### What gets re-run
 

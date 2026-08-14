@@ -144,7 +144,7 @@
     (hsym `$tf) 0: enlist "/ a";
     fp1: .tst.watch.fingerprint tf;
     / mtime is the second slot; spaced paths used to yield 0 here.
-    must[fp1[1] > 0; "mtime must be non-zero for a spaced path"];
+    must[0<count fp1 1; "mtime token must be nonempty for a spaced path"];
     / Sleep past 1s so the mtime second-granularity ticks even if size matched.
     system "sleep 1.1";
     (hsym `$tf) 0: ("/ a"; "/ bb");
@@ -162,6 +162,26 @@
     must[tf in key mm; "present path must appear in the mtime map"];
     must[not (wd, "/gone.q") in key mm; "missing path must be absent (mtime 0)"];
     system "rm -rf ", .utl.shellQuote wd;
+  };
+  should["watch detects same-size same-second edit"]{
+    wd:.utl.tempRoot[],"/resq_watchfp_same_",string[.z.i],"_",string `long$.z.p;
+    tf:wd,"/test_same.q";
+    system "mkdir -p ",.utl.shellQuote wd;
+    (hsym `$tf) 0:enlist "AAAA";
+    setMtime:{[path;nanos]
+      code:"import os,sys; n=int(sys.argv[2]); os.utime(sys.argv[1], ns=(n,n))";
+      system "python3 -c ",.utl.shellQuote[code]," ",.utl.shellQuote[path],
+        " ",string nanos};
+    setMtime[tf;1700000000100000000j];
+    fp1:.tst.watch.fingerprint tf;
+    (hsym `$tf) 0:enlist "BBBB";
+    setMtime[tf;1700000000200000000j];
+    fp2:.tst.watch.fingerprint tf;
+    must[(first fp1)=first fp2;"the fixture must preserve file size"];
+    seconds:{first ":" vs 2 _ x} each (fp1 1;fp2 1);
+    seconds[0] musteq seconds 1;
+    must[not fp1~fp2;"subsecond fingerprint must detect the rewrite"];
+    system "rm -rf ",.utl.shellQuote wd;
   };
  };
 

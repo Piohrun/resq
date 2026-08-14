@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import copy
+import os
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 from tools.review_corpus import scale_report
+from tools.process_control import run_bounded
 from tools.verify_release_gate import (
     private_state_args,
     reconcile_suites,
@@ -69,6 +73,51 @@ class ReleaseGateContractTests(unittest.TestCase):
             )
             self.assertTrue(all(str(root / "state") in path for path in normal[1::2]))
             self.assertTrue(set(normal[1::2]).isdisjoint(isolated[1::2]))
+
+    def test_q_verifiers_have_timeouts(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            pid_file = root / "pids.txt"
+            partial = root / "partial-evidence.json"
+            script = root / "fake_q.py"
+            script.write_text(
+                "import os,signal,subprocess,sys,time\n"
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                "child=subprocess.Popen([sys.executable, '-c', "
+                "'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'])\n"
+                "open(sys.argv[1], 'w').write(f'{os.getpid()} {child.pid}')\n"
+                "time.sleep(30)\n"
+                "open(sys.argv[2], 'w').write('partial')\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(subprocess.TimeoutExpired):
+                run_bounded(
+                    [sys.executable, str(script), str(pid_file), str(partial)],
+                    timeout=0.3, kill_grace=0.1,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                )
+            pids = [int(value) for value in pid_file.read_text().split()]
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                alive = []
+                for pid in pids:
+                    try:
+                        os.kill(pid, 0)
+                        alive.append(pid)
+                    except ProcessLookupError:
+                        pass
+                if not alive:
+                    break
+                time.sleep(0.05)
+            self.assertEqual([], alive, f"timed-out descendants survived: {alive}")
+            self.assertFalse(partial.exists())
+
+        labels_source = (Path(__file__).parents[1] / "verify_labels_context.py").read_text()
+        self_coverage_source = (Path(__file__).parents[1] / "run_self_coverage.py").read_text()
+        self.assertIn("run_bounded", labels_source)
+        self.assertIn("Q_PROCESS_TIMEOUT_SECONDS", labels_source)
+        self.assertIn("run_bounded", self_coverage_source)
+        self.assertIn("--timeout-seconds", self_coverage_source)
 
     def test_residue_gate_allows_unchanged_preexisting_ignored_state(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

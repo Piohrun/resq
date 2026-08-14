@@ -109,4 +109,24 @@
   };
  };
 
+.tst.desc["benchmark event uses test finish"]{
+  should["timestamp benchmark.finished with its owning test observation"]{
+    golden:.j.k "\n" sv read0 hsym `$ .resq.HOME,
+        "/tests/contracts/lifecycle-v2-golden.json";
+    golden[`observedTiming;`$"benchmark.finished"] musteq "test.finishedAt";
+    doc:.j.k "\n" sv read0 hsym `$ .resq.HOME,
+        "/tests/contracts/report-v2.json";
+    rows:.tst.eventRows doc`tests;
+    row:first rows;
+    row[`time]:"N"$row`time;
+    row[`finishedAt]:"2026-08-12T12:00:00.123456789Z";
+    row[`benchmark]:enlist[`benchmarkId]!enlist
+        "benchmark_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    doc[`tests]:enlist row;
+    events:.tst.lifecycleEvents[doc;doc`manifest];
+    benchmarkEvent:first events where {"benchmark.finished"~x`type} each events;
+    benchmarkEvent[`occurredAt] musteq row`finishedAt;
+  };
+ };
+
 ::

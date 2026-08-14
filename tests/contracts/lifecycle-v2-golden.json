@@ -18,7 +18,8 @@
     "test.started": "startedAt",
     "attempt.started": "attempt.startedAt",
     "attempt.finished": "attempt.finishedAt",
-    "test.finished": "finishedAt"
+    "test.finished": "finishedAt",
+    "benchmark.finished": "test.finishedAt"
   },
   "manifestPublishedPayloadKeys": [
     "schemaVersion",
