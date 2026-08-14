@@ -27,6 +27,16 @@ FRAMEWORK_MARKERS = (
 APPLICATION_MARKER = "RESQ_APPLICATION_OUTPUT"
 
 
+def private_state(work: Path, lane: str) -> list[str]:
+    state = work / "state"
+    return [
+        "-state-file", str(state / f"{lane}-last-run.json"),
+        "-flake-history", str(state / f"{lane}-flake.json"),
+        "-quarantine-file", str(state / f"{lane}-quarantine.json"),
+        "-flake-proposal-file", str(state / f"{lane}-proposals.json"),
+    ]
+
+
 def run_command(
     command: list[str], environment: dict[str, str], *, tty_stdin: bool,
 ) -> tuple[int, str]:
@@ -118,7 +128,7 @@ def main() -> int:
                 out_dir = work / f"{fixture.stem}-{mode}"
                 command = [
                     str(ROOT / "bin/resq"), "test", str(fixture), "-pass", "-json",
-                    "-outDir", str(out_dir),
+                    "-outDir", str(out_dir), *private_state(work, f"{fixture.stem}-{mode}"),
                 ]
                 code, output = run_command(command, environment, tty_stdin=tty_stdin)
                 label = f"{fixture.name}/{mode}"
@@ -134,7 +144,10 @@ def main() -> int:
                 raise AssertionError(f"{fixture.name}: TTY changed the exit code")
 
         code, output = run_command(
-            [str(ROOT / "bin/resq"), "test", str(passing)],
+            [
+                str(ROOT / "bin/resq"), "test", str(passing),
+                *private_state(work, "normal-output"),
+            ],
             environment,
             tty_stdin=False,
         )
