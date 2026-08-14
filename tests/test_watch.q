@@ -198,8 +198,14 @@
   / timeout needs -k: q's watch loop survives plain SIGTERM (same lesson as
   / isolate.q), and an unkilled child holds this test's pipes open forever.
   reportDir:wd,"/report";
+  stateDir:wd,"_state";
+  system "mkdir -p ",stateDir;
   cmd: "mkdir -p ", wd, " && ( timeout -k 2 9 q ", .resq.HOME, "/resq.q watch ", wd,
        " -json -outDir ",reportDir,
+       " -state-file ",stateDir,"/last-run.json",
+       " -flake-history ",stateDir,"/flake.json",
+       " -quarantine-file ",stateDir,"/quarantine.json",
+       " -flake-proposal-file ",stateDir,"/proposals.json",
        " < /dev/null > ", out, " 2>&1 & echo started )",
        " && sleep 2 && echo '/ touched' >> ", tf,
        " && sleep 4 ; true";
@@ -208,7 +214,7 @@
   reportExists:.utl.pathExists reportDir,"/test-results.json";
   rawReport:@[read0;hsym `$reportDir,"/test-results.json";{()}];
   schemaVersion:$[count rawReport;"j"$(.j.k "\n" sv rawReport)`schemaVersion;0j];
-  system "rm -rf ", wd;
+  system "rm -rf ",wd," ",stateDir;
   `out`reportExists`schemaVersion!(o;reportExists;schemaVersion)
  };
 
