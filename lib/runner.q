@@ -3,6 +3,10 @@
     / Defensive: ensure state exists
     if[not `xmlOutput in key `.tst.app; .tst.app.xmlOutput: 0b];
     if[not `runCoverage in key `.tst.app; .tst.app.runCoverage: 0b];
+    / Pin the CLI/configured artifact destination before loading or executing
+    / test code. A test may exercise private config helpers, but it must never
+    / redirect the enclosing run's reporters, snapshots, or coverage evidence.
+    .tst.app.runOutputDir:.resq.config.outDir;
     reportFmt: .tst.normalizeFmt .resq.config.fmt;
 
     / Respect config format even when explicit xml flag was not set.
@@ -30,7 +34,7 @@
       xmlReport: $[first buildOutcome;
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?><testsuites tests=\"1\" failures=\"0\" errors=\"1\"><testsuite name=\"resq reporter\" tests=\"1\" failures=\"0\" errors=\"1\"><testcase name=\"report generation\"><error message=\"reporter_failed\">Reporter generation failed; see stderr.</error></testcase></testsuite></testsuites>";
         last buildOutcome];
-      outDirStr: .tst.toString .resq.config.outDir;
+      outDirStr: .tst.toString .tst.runOutputDir[];
       if[0 = count outDirStr; outDirStr: "."];
       baseDirStr: .tst.toString .tst.app.baseDir;
       if[0 = count baseDirStr; baseDirStr: system "cd"];
@@ -1106,7 +1110,7 @@
 .tst.runAllPhase.generateCoverage:{[]
     if[not 1b ~ .tst.app.runCoverage; :()];
 
-    outDirStr: .tst.toString .resq.config.outDir;
+    outDirStr: .tst.toString .tst.runOutputDir[];
     if[0 = count outDirStr; outDirStr: "."; -1 "Coverage outDir was empty; defaulting to '.'"];
     baseDirStr: .tst.toString .tst.app.baseDir;
     if[0 = count baseDirStr; baseDirStr: system "cd"];

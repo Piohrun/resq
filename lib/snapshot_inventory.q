@@ -224,7 +224,7 @@ if[not `snapshot in key `.resq;.resq.snapshot.init_:1b];
     inventory:@[get;`.tst.app.snapshotInventory;{.tst.emptySnapshotInventory 0b}];
     if[not 99h=type inventory;:1b];
     if[not 1b~inventory`enabled;:1b];
-    outDir:.tst.toString .resq.config.outDir;
+    outDir:.tst.toString .tst.runOutputDir[];
     if[0=count outDir;outDir:"."];
     base:.tst.toString @[get;`.tst.app.baseDir;{system "cd"}];
     if[not "/"=first outDir;outDir:base,"/",outDir];

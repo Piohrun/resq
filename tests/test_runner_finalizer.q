@@ -37,6 +37,21 @@
 
 .tst.desc["runSpec always-finalize contract #slow"]{
     skipIf[not .tst.testState.finalizer.canRun;
+           "keep the enclosing run artifact destination immutable"]{
+        result:.tst.testState.finalizer.run[
+            {[probePath]
+                (".tst.desc[\"artifact destination\"]{";
+                 "  should[\"cannot be redirected by test code\"]{";
+                 "    .resq.config.outDir:",.Q.s1[probePath,"-redirected"],";";
+                 "    1 musteq 1;";
+                 "  };";
+                 "};")};
+            ""];
+        result[`code] musteq 0;
+        result[`payload;`summary;`passCount] musteq 1f;
+    };
+
+    skipIf[not .tst.testState.finalizer.canRun;
            "restore pollution after beforeAll throws, before the next suite"]{
         result: .tst.testState.finalizer.run[
             {[probePath]

@@ -92,7 +92,7 @@
     jsonPayload:.tst.output.profileRunModel[jsonPayload;profile];
     jsonReport: .j.j jsonPayload;
 
-    outDirStr: .tst.toString .resq.config.outDir;
+    outDirStr: .tst.toString .tst.runOutputDir[];
     if[0 = count outDirStr; outDirStr: "."];
     baseDirStr: .tst.toString .tst.app.baseDir;
     if[0 = count baseDirStr; baseDirStr: system "cd"];

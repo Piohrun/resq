@@ -41,6 +41,9 @@ changing the documented identity-v2 algorithm or other major-version contracts.
 - Watch fingerprints detect same-size same-second rewrites, isolated children
   receive private rerun state, and q-backed verification/self-coverage helpers
   have bounded process-group cleanup with staged evidence publication.
+- The run's configured artifact directory is pinned before test loading, so
+  test code that exercises internal config helpers cannot redirect final JSON,
+  XML, snapshot-inventory, or coverage evidence.
 
 ### Compatibility and migration
 

@@ -113,6 +113,7 @@
                 system "rm -rf -- ", .utl.shellQuote p]
         };enlist reportDir];
         `.resq.config.outDir mock reportDir;
+        `.tst.app.runOutputDir mock reportDir;
         rows: enlist `suite`description`status`message`time`failures`assertsRun!(
             "S";"ok";`pass;"";0Nn;();1i);
         outcome: @[

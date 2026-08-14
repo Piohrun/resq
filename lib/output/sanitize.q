@@ -426,6 +426,10 @@
     cfg,(extra!(get each {` sv (`.resq.config;x)} each extra))
  };
 
+.tst.runOutputDir:{[]
+    @[get;`.tst.app.runOutputDir;{.resq.config.outDir}]
+ };
+
 .tst.vcsContext:{[root]
     disabled:`sha`branch`dirty`status!("";"";0b;"disabled");
     if[not 1b~@[get;`.tst.app.vcsProbe;1b];:disabled];
@@ -612,7 +616,7 @@
 / handler is a function (never an eager side effect), and restoration happens
 / before a trapped error is re-signalled.
 .tst.runStateKeys:`runStartedAt`runFinishedAt`runMetadata`diagnostics,
-    `canonicalRunSnapshot`selectedExecutionIds`selectedTestCount,
+    `canonicalRunSnapshot`runOutputDir`selectedExecutionIds`selectedTestCount,
     `allDiscoveredFiles`discoveredFiles`executionInventory,
     `shardAllUnitCount`shardSelectedUnitCount`shardAllFileCount,
     `shardSelectedFileCount`executionState`executionIncompleteReason,
