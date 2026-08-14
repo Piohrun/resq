@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -73,6 +74,7 @@ class Audit:
         started = time.monotonic()
         environment = dict(os.environ)
         environment["QBIN"] = self.q_executable
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
         environment.update(extra_environment or {})
         try:
             completed = subprocess.run(
@@ -171,7 +173,10 @@ def require_supported_environment(document: dict[str, Any]) -> None:
 
 
 def verdict(document: dict[str, Any]) -> dict[str, str]:
-    return {row["testId"]: row["status"] for row in document["tests"]}
+    pairs = [((row.get("caseId") or row["testId"]), row["status"]) for row in document["tests"]]
+    if len(pairs) != len({identity for identity, _ in pairs}):
+        raise RuntimeError("report contains duplicate execution identities")
+    return dict(pairs)
 
 
 def semantic_test_projection(document: dict[str, Any]) -> list[dict[str, Any]]:
@@ -183,7 +188,9 @@ def semantic_test_projection(document: dict[str, Any]) -> list[dict[str, Any]]:
     )
     return [
         {key: row.get(key) for key in keys}
-        for row in sorted(document["tests"], key=lambda item: item["testId"])
+        for row in sorted(
+            document["tests"], key=lambda item: item.get("caseId") or item["testId"]
+        )
     ]
 
 
@@ -254,6 +261,26 @@ def write_checksums(output: Path) -> Path:
         rows.append(f"{sha256_file(path)}  {path.relative_to(output)}")
     checksum_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return checksum_path
+
+
+def private_state_args(output: Path, lane: str) -> list[str]:
+    state = output / "state"
+    state.mkdir(parents=True, exist_ok=True)
+    return [
+        "-state-file", str(state / f"{lane}-last-run.json"),
+        "-flake-history", str(state / f"{lane}-flake-history.json"),
+        "-quarantine-file", str(state / f"{lane}-quarantine.json"),
+        "-flake-proposal-file", str(state / f"{lane}-proposals.json"),
+    ]
+
+
+def require_residue_free_checkout() -> None:
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--ignored"], cwd=ROOT, text=True,
+        capture_output=True, check=True,
+    ).stdout.strip()
+    if status:
+        raise RuntimeError(f"release audit left checkout residue:\n{status}")
 
 
 def verify_self_contract(document: dict[str, Any]) -> None:
@@ -375,12 +402,7 @@ def prepare_output(requested: Path | None) -> tuple[Path, tempfile.TemporaryDire
 
 
 def verify(q_executable: str, requested_output: Path | None) -> Path:
-    status = subprocess.run(
-        ["git", "status", "--porcelain"], cwd=ROOT, text=True,
-        capture_output=True, check=True,
-    ).stdout.strip()
-    if status:
-        raise RuntimeError("release audit requires a clean worktree")
+    require_residue_free_checkout()
     commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
         capture_output=True, check=True,
@@ -412,7 +434,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             [
                 str(ROOT / "bin/resq"), "test", "tests", "-strict", "-json", "-junit",
                 "-quiet", "-report-profile", "full", "-outDir", str(normal_dir),
-                "-state-file", str(output / "normal-state.json"),
+                *private_state_args(output, "normal"),
             ],
             timeout=1800,
         )
@@ -427,7 +449,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
                 str(ROOT / "bin/resq"), "test", "tests", "-strict", "-isolate",
                 "-isolateTimeout", "90", "-isolateWorkers", "4", "-json", "-junit",
                 "-quiet", "-report-profile", "full", "-outDir", str(isolated_dir),
-                "-state-file", str(output / "isolated-state.json"),
+                *private_state_args(output, "isolated"),
             ],
             timeout=1800,
         )
@@ -446,7 +468,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
                 "tests/test_coverage_differential.q", "nightly/test_oversized_desc.q",
                 "-strict", "-json", "-junit", "-quiet", "-report-profile", "full",
                 "-outDir", str(differential_dir),
-                "-state-file", str(output / "differential-state.json"),
+                *private_state_args(output, "differential"),
             ],
             timeout=1200,
             extra_environment={
@@ -511,7 +533,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
                 "-strict", "-isolate", "-isolateTimeout", "90", "-isolateWorkers", "2",
                 "-json", "-junit", "-quiet", "-report-profile", "full",
                 "-outDir", str(coverage_correctness_dir),
-                "-state-file", str(output / "coverage-correctness-state.json"),
+                *private_state_args(output, "coverage-correctness"),
             ],
             timeout=300,
         )
@@ -528,7 +550,8 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
                 "-cov-min", "70", "-cov-lines-min", "80", "-cov-completeness-min", "100",
                 "-cov-branches-min", "50", "-cov-branch-completeness-min", "100",
                 "-json", "-junit", "-quiet",
-                "-outDir", str(coverage_dir), "-state-file", str(output / "coverage-state.json"),
+                "-outDir", str(coverage_dir),
+                *private_state_args(output, "coverage"),
             ],
             timeout=300,
         )
@@ -539,6 +562,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         (output / "coverage-reconciliation.json").write_text(
             json.dumps(coverage_reconciliation, indent=2) + "\n", encoding="utf-8"
         )
+        require_residue_free_checkout()
 
         finished_at = datetime.now(timezone.utc)
         schema_paths = archive_schemas(output)

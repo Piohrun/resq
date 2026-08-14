@@ -27,6 +27,7 @@ SUITES = {
     "supporting": [
         "tools.tests.test_ingestion",
         "tools.tests.test_review_corpus",
+        "tools.tests.test_release_gate",
     ],
 }
 
