@@ -398,6 +398,10 @@
     qHome: .utl.shellQuote $[repoCwd; "resq.q"; .tst.cliResqHome, "/resq.q"];
     cmd: "mkdir -p ", qWd, " && cd ", qCwd,
          " && timeout -k 5 20 ", qExe, " ", qHome, " ", argLine,
+         " -state-file ",.utl.shellQuote[wd,"/state.json"],
+         " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+         " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+         " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"],
          " < /dev/null > ", qOut, " 2>&1; echo $?";
     statusLines: @[system; cmd; {[e] enlist "-1"}];
     code: "J"$last statusLines;

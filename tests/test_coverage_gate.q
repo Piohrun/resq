@@ -7,6 +7,13 @@
     (0 < count @[system; "which q 2>/dev/null"; {()}]) and
     (0 < count @[system; "which timeout 2>/dev/null"; {()}]);
 
+.tst.testState.covgate.stateFlags:{[wd]
+    " -state-file ",.utl.shellQuote[wd,"/state.json"],
+    " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+    " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+    " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"]
+ };
+
 / `extra` appends raw CLI flags so the same fixture can be driven in BOTH coverage
 / modes: default (function-level) and -cov-statements (measured lines).
 .tst.testState.covgate.runWith:{[minimum; extra]
@@ -26,7 +33,8 @@
     cmd: "true && timeout -k 2 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
          " cover ", (.utl.shellQuote fixturePath), " -cov-include ",
          (.utl.shellQuote sourcePath), " -cov-min ", string[minimum], " ", extra,
-         " -json -outDir ", (.utl.shellQuote wd), " -quiet > ",
+         " -json -outDir ", (.utl.shellQuote wd),
+         .tst.testState.covgate.stateFlags[wd]," -quiet > ",
          (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
     exitLines: @[system; cmd; {[err] enlist "-1"}];
     exitCode: "J"$last exitLines;
@@ -63,7 +71,8 @@
     cmd: "true && timeout -k 2 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
          " cover ", (.utl.shellQuote fixturePath), " --source ",
          (.utl.shellQuote sourceDir), " ",extra," -json -outDir ",
-         (.utl.shellQuote wd), " -quiet > ",
+         (.utl.shellQuote wd),.tst.testState.covgate.stateFlags[wd],
+         " -quiet > ",
          (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
     exitLines: @[system; cmd; {[err] enlist "-1"}];
     exitCode: "J"$last exitLines;
@@ -125,6 +134,7 @@
     cmd:"true && timeout -k 2 60 q ",(.utl.shellQuote .resq.HOME,"/resq.q"),
         " cover ",(.utl.shellQuote fixturePath),scope,
         " -cov-branches ",extra," -json -outDir ",(.utl.shellQuote wd),
+        .tst.testState.covgate.stateFlags[wd],
         " -quiet > ",(.utl.shellQuote wd,"/out.txt")," 2>&1; echo $?";
     exitLines:@[system;cmd;{[err]enlist "-1"}];
     exitCode:"J"$last exitLines;

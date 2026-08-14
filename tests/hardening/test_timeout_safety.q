@@ -17,7 +17,12 @@
         "};");
     cmd: "true && timeout -k 2 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
          " test ", (.utl.shellQuote fixturePath), " -maxTestTime 10 -json -outDir ",
-         (.utl.shellQuote wd), " -quiet > ", (.utl.shellQuote wd, "/out.txt"),
+         (.utl.shellQuote wd),
+         " -state-file ",.utl.shellQuote[wd,"/state.json"],
+         " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+         " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+         " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"],
+         " -quiet > ", (.utl.shellQuote wd, "/out.txt"),
          " 2>&1; echo $?";
     exitLines: @[system; cmd; {[err] enlist "-1"}];
     exitCode: "J"$last exitLines;

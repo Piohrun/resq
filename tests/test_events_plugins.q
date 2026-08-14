@@ -18,7 +18,10 @@
         " timeout -k 2 30 q ",.utl.shellQuote[.resq.HOME,"/resq.q"],
         " test ",.utl.shellQuote[fixture]," -plugin ",.utl.shellQuote[plugin],
         " -json -quiet -outDir ",.utl.shellQuote[report],
-        " -state-file ",.utl.shellQuote[state]," ",extra,
+        " -state-file ",.utl.shellQuote[state],
+        " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+        " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+        " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"]," ",extra,
         " > ",.utl.shellQuote[wd,"/out.txt"]," 2>&1; echo $?";
     code:"J"$last @[system;"sh -c ",.utl.shellQuote cmd;{[e]enlist "-1"}];
     raw:@[read0;hsym `$report,"/test-results.json";{()}];
