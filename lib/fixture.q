@@ -149,12 +149,19 @@ loadFixtureDir:{[f;name]
         / Clear any previously loaded tables before switching fixtures
         origCtx: system "d";
         ctx: $[`context in key `.tst; .tst.context; origCtx];
-        system "d ", string ctx;
-        tbls: tables[];
-        if[count tbls; ![ctx; (); 0b; tbls]];
-        / Load fixture data in the current test context (protected)
-        res: @[.utl.loadQFile; p; {[p;e] '("Fixture load failed for '", p, "': ", e)}[p]];
+        / Switching namespace, clearing tables, and reading/parsing the database
+        / are one protected operation. Restore the caller's namespace before
+        / propagating any error -- q has no implicit finally block.
+        outcome: .[{[ctx;p]
+              system "d ", string ctx;
+              tbls: tables[];
+              if[count tbls; ![ctx; (); 0b; tbls]];
+              (0b; .utl.loadQFile p)
+            };
+            (ctx;p);
+            {[e](1b;e)}];
         system "d ", string origCtx;
+        if[first outcome; '"Fixture load failed for '", p, "': ", last outcome];
         .tst.currentDirFixture: fixtureName
     ];
     / Return the fixture name (like other load functions)

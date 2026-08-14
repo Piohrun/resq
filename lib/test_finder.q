@@ -100,21 +100,21 @@
 / Scan tests for coverage.
 / NOTE: this is a NAME-PRESENCE scan over test source, not execution coverage --
 / a function referenced anywhere in a test file counts, even if it is never called.
-/ Use `resq cover` for measured coverage. Comments are stripped first so the scan
-/ at least reflects live code.
+/ Use `resq cover` for measured coverage. Exact executable identifier tokens are
+/ used so comments/strings do not count and `.app.runAll` cannot cover `.app.run`.
 .tst.checkCoverage:{[srcFns;testDir]
   if[not count srcFns; :srcFns];
   testPaths: .tst.findSources[testDir];
-  tc: $[0<count testPaths;
-        raze raze .tst.stripQComments each read0 each hsym each testPaths;
-        ""];
+  tokens: $[0<count testPaths;
+            distinct raze .tst.static.symbolTokens each read0 each hsym each testPaths;
+            ()];
   if[not 98h=type srcFns; srcFns: enlist srcFns];
   ns: exec name from srcFns;
   res: `boolean$();
   i: 0;
   do[count ns;
     nStr: .tst.toStr ns i;
-    match: tc like "*", nStr, "*";
+    match: nStr in tokens;
     res,: match;
     i+: 1;
   ];

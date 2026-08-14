@@ -142,8 +142,8 @@ q resq.q discover src/ tests/ -scaffold -outDir artifacts/discovery
 - **Namespace Aware**: Correctly identifies functions within `\d` namespace blocks.
 
 Discovery exits 1 when any source function is unreferenced and 0 when all are
-referenced. It strips q comments before scanning, but a live-code reference can
-still count even if that code never executes.
+referenced. It masks q comments and strings, then matches exact identifier
+tokens; a live-code reference can still count even if that code never executes.
 
 ---
 
@@ -151,7 +151,7 @@ still count even if that code never executes.
 
 ```q
 / Simple benchmark
-.tst.benchmark.hist[.tst.benchmark.measure[100; {sma[20;1000?100f]}]`time; 10];
+.tst.benchmark.hist[.tst.benchmark.measure[100; {sma[20;1000?100f]}]`samples`timeNs; 10];
 
 / Assert performance thresholds
 perf["Fast SMA"; `maxTime`runs!(10; 100)]{

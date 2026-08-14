@@ -30,6 +30,18 @@
         stats[`p50_ns] mustlt stats[`p99_ns] + 1;
     };
 
+    should["benchmark quantiles small samples"]{
+        .tst.benchPercentile[(); .5] mustmatch 0n;
+        .tst.benchPercentile[enlist 42; .99] musteq 42f;
+        .tst.benchPercentile[0 10; .25] musteq 2.5;
+        .tst.benchPercentile[til 10; .5] musteq 4.5;
+        .tst.benchPercentile[til 10; .99] musteq 8.91;
+        .tst.benchPercentile[2 2 2 2; .95] musteq 2f;
+        .tst.benchPercentile[0 10 20 30; .9] musteq 27f;
+        .tst.benchPercentile[10 20; -1] musteq 10f;
+        .tst.benchPercentile[10 20; 2] musteq 20f;
+    };
+
     should["generate histogram with correct structure"]{
         stats: .tst.bench[{1+1}; `iterations`warmup!(100;10)];
         hist: stats`histogram;

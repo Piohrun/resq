@@ -10,8 +10,9 @@ request. This is a name-presence audit, not runtime coverage.
 - **Dependency-Aware**: Parses function bodies to find calls to other namespaces (e.g., detecting that `.order.new` calls `.risk.check`).
 - **Smart Stubs**: With `-scaffold`, generates test code that includes `.tst.mock` suggestions for identified dependencies.
 - **Project Tree**: Visualizes code coverage structure in the terminal.
-- **Comment aware**: Removes q line/block comments before checking test source,
-  so a commented-out test does not count as coverage.
+- **Lexically exact**: Masks q strings and line/block comments, then matches
+  exact fully-qualified identifier tokens, so neither commented-out tests nor
+  longer names with a shared prefix count as coverage.
 
 ---
 
@@ -47,8 +48,8 @@ q resq.q discover src/ tests/ -scaffold -outDir artifacts/discovery
 1.  **Static Analysis**: Uses `lib/static_analysis.q` to parse `.q` files.
 2.  **Function Extraction**: Identifies function definitions (including multi-line).
 3.  **Dependency Scanning**: Tokenizes function bodies to find external calls (e.g., `.other.func`).
-4.  **Matching**: Strips comments from all discovered test files, then checks
-    whether each function name appears anywhere in the remaining test source.
+4.  **Matching**: Masks comments and strings in all discovered test files, then
+    checks whether each function name appears as an exact identifier token.
 
 A reference in a branch that never runs still counts. Use `resq cover` to
 measure execution.

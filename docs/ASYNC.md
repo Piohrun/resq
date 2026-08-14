@@ -15,7 +15,7 @@ Everything lives in `.tst` and is loaded by default — no `require` needed.
 
 | Function | Purpose |
 |----------|---------|
-| `.tst.deferred[]` | Create a pending deferred; returns its id |
+| `.tst.deferred[]` | Create a pending deferred; returns an opaque long handle |
 | `.tst.resolve[id; value]` | Settle it successfully |
 | `.tst.reject[id; reason]` | Settle it as failed |
 | `.tst.await[id; timeoutMs]` | Block until settled; return the value or throw the reason |
@@ -34,8 +34,9 @@ Everything lives in `.tst` and is loaded by default — no `require` needed.
 
 ## Deferreds
 
-A deferred is a named slot that is `pending` until something settles it. The id
-is a symbol, so it can be captured in a closure or stashed in a global.
+A deferred is a named slot that is `pending` until something settles it. The
+opaque long handle can be captured in a closure or stashed in a global without
+interning a new q symbol for every operation.
 
 ```q
 should["complete the order once payment confirms"]{
@@ -55,6 +56,13 @@ should["complete the order once payment confirms"]{
 `resolve` and `reject` both settle. A deferred can only settle **once** —
 settling an already-settled deferred throws `Promise already settled`, and
 settling an unknown id throws `Unknown deferred`.
+
+`await` consumes the settled registry entry before it returns or rethrows. Any
+abandoned pending entries are cleared at the end of every run, including each
+watch rerun, so a long-lived process retains bounded state. Legacy `` `def_N ``
+handles remain accepted at API boundaries; use
+`.tst.legacyDeferredHandle[id]` only when an integration explicitly requires
+the old printable spelling.
 
 ```q
 d: .tst.deferred[];

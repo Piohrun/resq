@@ -169,5 +169,5 @@ res: .tst.benchmark.measure[100; { myFunc[] }];
 / returns dictionary with `time, `space (retained) and `heapGrowth stats
 / (min/med/max/avg/dev); see "What the memory numbers mean" above
 
-.tst.benchmark.hist[res`time; 10]; / Print ASCII histogram of timing
+.tst.benchmark.hist[res`samples`timeNs; 10]; / Print ASCII histogram (nanoseconds)
 ```

@@ -59,3 +59,25 @@
         .tst.testState.tdunwind musteq enlist `a;
     };
  };
+
+.tst.desc["fixture directory namespace unwind"]{
+    should["directory fixture restores namespace on error"]{
+        .tst.testState.fixtureOriginalDir:: system "d";
+        `.utl.loadQFile mock {[path]
+            system "d .tst";
+            '"synthetic fixture parse failure"
+        };
+        result: .[.tst.loadFixtureDir; (`$":/synthetic/broken"; `);
+            {[error] error}];
+        result musteq "Fixture load failed for '/synthetic/broken': synthetic fixture parse failure";
+        (system "d") musteq .tst.testState.fixtureOriginalDir;
+    };
+ };
+
+/ A separate following suite catches runner-level leakage that an assertion in
+/ the throwing fixture's own suite could miss.
+.tst.desc["fixture namespace following suite"]{
+    should["start in the namespace active before the failed fixture"]{
+        (system "d") musteq .tst.testState.fixtureOriginalDir;
+    };
+ };

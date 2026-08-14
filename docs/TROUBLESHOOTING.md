@@ -612,8 +612,10 @@ when every discovered source-function name appears in live test source and **1**
 when any are absent (the count is printed as `Untested: N`). This lets CI flag a
 new function that has no corresponding test reference.
 
-Discovery is a static name-presence scan after q comments are removed. A
-function name in live test code counts even if that branch never executes. Use
+Discovery is a static name-presence scan after q comments and strings are
+masked. Fully-qualified identifiers match as exact tokens, so `.app.runAll`
+does not cover `.app.run`. A function name in live test code counts even if
+that branch never executes. Use
 `resq cover` when the question is whether code actually ran. Discovery always
 writes `coverage_report.html` to `outDir`; it writes `missingTests/` stubs only
 with `-scaffold`.

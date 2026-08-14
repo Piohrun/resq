@@ -79,6 +79,17 @@
 
 / ----------------------------------------------------------------------------
 
+.tst.desc["runSpecBody outcome contract"]{
+    should["runSpecBody outcome is consumed"]{
+        completed:`title`result!(`sample;`pass);
+        (.tst.consumeRunSpecOutcome (0b;completed)) mustmatch completed;
+        mustthrow["*runSpecBody boom*";
+            (.tst.consumeRunSpecOutcome; (1b;"runSpecBody boom"))];
+    };
+};
+
+/ ----------------------------------------------------------------------------
+
 .tst.desc["runAll phase: filterSpecs"]{
     before{
         / Mock a spec-builder helper and the .tst.app.* keys this suite reads.

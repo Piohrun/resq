@@ -127,8 +127,26 @@
   .resq.gen.constant spec
  };
 
+.resq.gen.typeEdges:{[typeName]
+  $[typeName~`boolean;(0b;1b);
+    typeName~`byte;(0x00;0x01;0xfe;0xff);
+    typeName~`short;(-0Wh;0Nh;-1h;0h;1h;0Wh);
+    typeName~`int;(-0Wi;0Ni;-1i;0i;1i;0Wi);
+    typeName~`long;(-0Wj;0Nj;-1j;0j;1j;0Wj);
+    typeName~`real;"e"$(-0w;-1e30;-1e-30;"E"$"-0";0f;1e-30;1e30;0w;0n);
+    typeName~`float;"f"$(-0w;-1e300;-1e-300;"F"$"-0";0f;1e-300;1e300;0w;0n);
+    ()]
+ };
+
+/ One counter in four walks the type's edge pool. The seed rotates the starting
+/ edge, so replay remains seed-specific while every contiguous 4*n samples cover
+/ all n declared edges. The remaining 75% retain the broad legacy domain.
 .resq.gen.sampleType:{[typeName;seed;counter;stream]
-  .tst.privateScalar[.tst.typeFuzzN typeName;seed;counter;stream]
+  edges:.resq.gen.typeEdges typeName;
+  if[(count edges) and 0=counter mod 4;
+    offset:.tst.privateIndex[seed;0;stream,"/edge-offset";count edges];
+    :edges (offset+counter div 4) mod count edges];
+  .tst.privateScalar[.tst.typeFuzzN typeName;seed;counter;stream,"/broad"]
  };
 
 .resq.gen.sampleScalar:{[options;seed;counter;stream]

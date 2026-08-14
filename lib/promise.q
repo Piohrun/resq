@@ -4,7 +4,41 @@
 
 deferredStates: ()!();
 
-deferredCounter: 0;
+deferredCounter: 0j;
+
+/ Normalize the v2 opaque long handle. Legacy `def_N symbols remain accepted
+/ at API boundaries, but new deferreds never intern a per-request symbol.
+deferredKey:{[id]
+    if[(type id) in -5 -6 -7h; :"j"$id];
+    if[-11h=type id;
+        text:string id;
+        if[text like "def_*";
+            parsed:@[{"J"$x};4_text;{0Nj}];
+            if[not null parsed;:parsed];
+        ];
+    ];
+    0Nj
+ };
+
+/ Explicit source-compatibility adapter for callers that must expose the old
+/ printable spelling. This is opt-in because constructing it interns a symbol.
+legacyDeferredHandle:{[id]
+    keyValue:.tst.deferredKey id;
+    if[null keyValue;'"Unknown deferred"];
+    `$"def_",string keyValue
+ };
+
+dropDeferred:{[id]
+    keyValue:.tst.deferredKey id;
+    if[(not null keyValue) and keyValue in key .tst.deferredStates;
+        .tst.deferredStates:: (enlist keyValue) _ .tst.deferredStates];
+    ::
+ };
+
+clearDeferreds:{[]
+    .tst.deferredStates:: ()!();
+    ::
+ };
 
 
 
@@ -12,15 +46,14 @@ deferredCounter: 0;
 
 / Uses global state dictionary for mutability
 
-/ @return (symbol) Deferred ID
+/ @return (long) Opaque deferred handle
 
 deferred:{[]
 
     if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: deferred called"];
 
-    / Generate unique ID from counter
-
-    id: `$ "def_", string .tst.deferredCounter;
+    / Generate a unique numeric handle without growing q's interned symbol pool.
+    id: .tst.deferredCounter;
 
     .tst.deferredCounter +: 1;
 
@@ -51,6 +84,8 @@ deferred:{[]
 
 resolve:{[id;v]
 
+    id: .tst.deferredKey id;
+
     if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: resolve called for ",string id];
 
     if[not id in key .tst.deferredStates;
@@ -76,6 +111,8 @@ resolve:{[id;v]
 / Reject a deferred with an error
 
 reject:{[id;e]
+
+    id: .tst.deferredKey id;
 
     if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: reject called for ",string id];
 
@@ -104,6 +141,9 @@ reject:{[id;e]
 
 isSettled:{[id]
 
+    id: .tst.deferredKey id;
+
+    if[null id; :0b];
     if[not id in key .tst.deferredStates; :0b];
 
     not ((first .tst.deferredStates[id;`state]) ~ `pending)
@@ -115,6 +155,8 @@ isSettled:{[id]
 / Get state of deferred
 
 getState:{[id]
+
+    id: .tst.deferredKey id;
 
     if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: getState called for ",string id];
 
@@ -168,18 +210,28 @@ eventually:{[cond; timeoutMs; intervalMs]
  };
 
 / Wait for a deferred to settle
-/ @param id (symbol) Deferred ID
+/ @param id (long, or legacy def_N symbol) Deferred ID
 / @param timeoutMs (long) Timeout in milliseconds
 / @return (any) Resolved value or throws if rejected/timeout
 await:{[id; timeoutMs]
     if[null timeoutMs; timeoutMs: 5000];
-    
-    / Poll until settled (build niladic function with bound id)
-    checkFn: value raze ("{ .tst.isSettled[`"; string id; "] }");
-    eventually[checkFn; timeoutMs; 10];
+    id: .tst.deferredKey id;
+    if[null id;'"Unknown deferred"];
+
+    / Poll directly. Besides avoiding dynamic source evaluation, this works for
+    / opaque numeric handles and legacy adapters alike.
+    startTime: .z.p;
+    timeout: startTime + "j"$timeoutMs * 1000000;
+    while[not .tst.isSettled id;
+        if[.z.p > timeout;'"Eventually timed out after ",string[timeoutMs],"ms"];
+        .tst.sleep 10;
+    ];
     
     / Get final state
     state: .tst.getState[id];
+    / Await is consuming: once the result has been copied locally, delete its
+    / registry row before returning or re-throwing the rejection.
+    .tst.dropDeferred id;
     
     / Return value or throw error
     $[state[`state] ~ `resolved;

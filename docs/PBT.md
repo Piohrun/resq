@@ -85,6 +85,29 @@ All legacy `vars` forms remain accepted. Type symbols, typed empty lists,
 explicit choices, dictionaries, atoms, and generator functions are adapted by
 `.resq.gen.adapt` before sampling.
 
+### Typed default domains
+
+`.resq.gen.typed` is intentionally edge-biased. One counter in four walks a
+deterministic edge pool (the seed rotates its starting point); the other three
+sample the broad legacy domain. Consequently a contiguous `4 * edgeCount`
+sample covers every declared edge while remaining exactly replayable.
+
+| Type family | Declared edge/default domain |
+|---|---|
+| `boolean` | false and true |
+| `byte` | unsigned zero, one, and both upper endpoints (`0xfe`, `0xff`); q bytes have no distinct null atom |
+| `short`, `int`, `long` | negative/positive q bounds, null, `-1`, zero, and `1` |
+| `real`, `float` | negative/positive infinity, null, signed zero, signed tiny magnitudes, and signed large magnitudes |
+| `guid` | deterministic full-width GUIDs (plus the null-guid shrink target) |
+| `char` | q's bounded character alphabet |
+| `symbol` | the fixed `` `a`b`c`d`e`f`g `` pool |
+| temporal types | deterministic values within the type-specific bounded calendar/time window, shrinking to the documented type default |
+
+The scalar shrink target is zero (or the type default), followed by halving
+toward it. If a property cannot accept nulls or infinities, use a finite bounded
+`.resq.gen.scalar`, or a bounded `.resq.gen.filter` with an explicit attempt
+ceiling; do not assume the typed numeric defaults are finite.
+
 ### Composite example
 
 ```q

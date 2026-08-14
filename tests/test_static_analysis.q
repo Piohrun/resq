@@ -31,6 +31,21 @@
 };
 
 .tst.desc["Static analysis: findDeps"]{
+    should["static analysis exact symbols"]{
+        source: (".app.runAll[]";
+                 "\".app.run\"";
+                 "/ .app.run[]";
+                 ".app.run[]");
+        tokens: .tst.static.symbolTokens source;
+        must[".app.run" in tokens; "live fully-qualified symbol must be found"];
+        must[".app.runAll" in tokens; "longer symbol must remain distinct"];
+        (sum tokens ~\: ".app.run") musteq 1i;
+
+        maskedOnly: ("\".hidden.call[]\""; "/ .hidden.call[]");
+        must[not .tst.static.hasExactSymbol[maskedOnly; ".hidden.call"];
+             "strings and comments must not create dependencies"];
+    };
+
     should["pick out dotted-namespace references"]{
         body: "{ .foo.bar[x] + .baz.qux y }";
         deps: .tst.static.findDeps[body; ""];
@@ -49,6 +64,12 @@
         body: "{ .my.helper[x] }";
         deps: .tst.static.findDeps[body; ".my.helper"];
         must[not (`$".my.helper") in deps; "self-name should be excluded"];
+    };
+
+    should["ignore dependencies written only in strings or comments"]{
+        body: "{ .live.call[]; \".fake.string[]\"; / .fake.comment[]";
+        deps: .tst.static.findDeps[body; ""];
+        deps mustmatch enlist `$".live.call";
     };
 };
 
@@ -81,6 +102,15 @@
         (hsym `$tf) 0: contents;
         fns: .tst.static.exploreFile tf;
         (exec name from fns) mustmatch `f`g;
+    };
+
+    should["exploreFile not treat indexing as a lambda argument list"]{
+        tf: .tst.tempFile ".q";
+        contents: ("indexed:{x[0]+1}"; "declared:{ [x;y] x+y }");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch `indexed`declared;
+        (exec count each args from fns) mustmatch 0 2;
     };
 
     should["exploreFile reset namespace on \\d ."]{

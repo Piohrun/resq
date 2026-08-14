@@ -1355,7 +1355,10 @@ The custom sample function receives `[seed;counter;stream]`; the custom shrink
 function receives the current value and returns ordered candidates. A filter
 throws if no value satisfies its predicate within `maxAttempts`. Built-in
 symbols come only from a fixed seven-symbol pool, avoiding unbounded symbol
-interning. See [Property-Based Testing](PBT.md) for composite examples,
+interning. Typed integer and floating defaults deliberately include null/boundary
+values (including signed zero and infinities for floating types); use `scalar`
+or a bounded filter when a property requires finite values. See
+[Property-Based Testing](PBT.md) for the exact type domains, composite examples,
 determinism boundaries, replay stability, and shrinking behavior.
 
 ---
@@ -1431,7 +1434,7 @@ Wait for a deferred to settle.
 **Parameters:**
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | symbol | Deferred ID |
+| `id` | long (legacy `` `def_N `` symbol accepted) | Opaque deferred handle |
 | `timeoutMs` | long | Timeout in milliseconds |
 
 **Returns:** Resolved value
@@ -1543,7 +1546,7 @@ Full guide with worked examples: [`ASYNC.md`](ASYNC.md).
 
 | Function | Signature | Notes |
 |----------|-----------|-------|
-| `.tst.deferred` | `[]` → symbol | Create a pending deferred |
+| `.tst.deferred` | `[]` → long | Create an opaque pending-deferred handle |
 | `.tst.resolve` | `id; value` | Settle successfully; throws if already settled |
 | `.tst.reject` | `id; reason` | Settle as failed; reason may be a string or symbol |
 | `.tst.await` | `id; timeoutMs` | Returns the value, or throws the rejection reason. `0N` → 5000ms. Throws on timeout |
@@ -1703,7 +1706,7 @@ Run a benchmark and collect statistics.
 | `max_ns/us` | Maximum time |
 | `avg_ns/us` | Average time |
 | `std_ns/us` | Standard deviation |
-| `p50/p90/p95/p99_ns/us` | Percentiles |
+| `p50/p90/p95/p99_ns/us` | Linear-interpolated percentiles |
 | `histogram` | Distribution table |
 | `raw_ns` | All raw timings |
 
@@ -1765,6 +1768,10 @@ Print formatted benchmark results to console.
 ```
 
 Generate histogram table from timing data.
+
+Percentiles use linear interpolation at zero-based position `(n - 1) * p`,
+with `p` clamped to `0..1`. This keeps singleton and small-sample percentiles in
+range. The percentile helper returns `0n` for an empty sample vector.
 
 ---
 

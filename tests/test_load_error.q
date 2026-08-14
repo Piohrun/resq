@@ -4,6 +4,26 @@
         res: @[value; code; {(`err0x; x)}];
         must[(2 = count res) and (first res) ~ `err0x; "Expected error trap to return err0x tuple"];
     };
+
+    should["standalone init load"]{
+        wd:.utl.tempRoot[],"/resq_standalone_init_",(string .z.i),"_",string["j"$.z.p];
+        script:wd,"/probe.q";
+        output:wd,"/output.txt";
+        .utl.ensureDir wd;
+        (hsym `$script) 0:(
+            "ok:(0=count .resq.state.results) and all `deferred`resolve`loadFixture`asserts in key `.tst;";
+            "-1 \"STANDALONE_INIT=\",string ok;";
+            "exit not ok;");
+        command:"true && cd ",.utl.shellQuote[.utl.tempRoot[]]," && timeout -k 2 30 q ",
+            .utl.shellQuote[.resq.HOME,"/lib/init.q"]," < ",.utl.shellQuote[script],
+            " > ",.utl.shellQuote[output]," 2>&1; echo $?";
+        status:"J"$last @[system;command;{[error]enlist "-1"}];
+        lines:@[read0;hsym `$output;{()}];
+        if[wd like "*/resq_standalone_init_*";system "rm -rf -- ",.utl.shellQuote wd];
+        status musteq 0;
+        must[any lines like "*STANDALONE_INIT=1*";
+             "absolute standalone init failed outside the checkout: ","\n" sv lines];
+    };
 };
 
 .tst.desc["oversized desc block diagnostics"]{

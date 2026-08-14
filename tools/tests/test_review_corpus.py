@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from review_corpus import loader_source, scale_report  # noqa: E402
-from benchmark_review_regressions import growth_ratios  # noqa: E402
+from benchmark_review_regressions import growth_ratios, robust_samples  # noqa: E402
 from validate_report import validate  # noqa: E402
 
 
@@ -29,6 +29,22 @@ class ReviewCorpusTests(unittest.TestCase):
             {"expectations": 200, "preprocessSeconds": 0.44},
         ]
         self.assertEqual([2.1, 2.095238], growth_ratios(measurements))
+
+    def test_review_benchmarks_use_robust_samples(self) -> None:
+        values = iter([100.0, 200.0, 1.0, 2.0, 500.0, 3.0, 4.0])
+        calls = []
+
+        def measure() -> dict[str, float]:
+            calls.append(1)
+            return {"wallSeconds": next(values), "peakBytes": 10.0}
+
+        samples, medians = robust_samples(measure, warmups=2, samples=5)
+        self.assertEqual(7, len(calls))
+        self.assertEqual(5, len(samples))
+        self.assertEqual(3.0, medians["wallSeconds"])
+        self.assertEqual(10.0, medians["peakBytes"])
+        with self.assertRaisesRegex(ValueError, ">=3 samples"):
+            robust_samples(measure, warmups=0, samples=1)
 
     def test_constructor_fixture_covers_every_affected_token(self) -> None:
         source = (ROOT / "tests/fixtures/review/loader_constructor_literals.q").read_text(

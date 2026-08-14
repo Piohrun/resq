@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from tools.review_corpus import scale_report
+from tools.readme_examples import verify as verify_readme_examples
 from tools.process_control import run_bounded
 from tools.verify_release_gate import (
     private_state_args,
@@ -20,6 +21,11 @@ from tools.verify_release_gate import (
 
 
 class ReleaseGateContractTests(unittest.TestCase):
+    def test_readme_examples_execute(self) -> None:
+        q_count, shell_count = verify_readme_examples(os.environ.get("QBIN", "q"))
+        self.assertGreater(q_count, 0)
+        self.assertGreater(shell_count, 0)
+
     @staticmethod
     def git(root: Path, *arguments: str) -> None:
         subprocess.run(["git", *arguments], cwd=root, check=True, capture_output=True)

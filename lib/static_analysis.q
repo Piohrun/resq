@@ -99,6 +99,26 @@
     1b
  }
 
+/ Return the exact q identifiers present in executable source. Strings,
+/ comments, block comments and text after a script terminator are masked first;
+/ punctuation then becomes a separator while namespace dots remain part of the
+/ token. This is deliberately lexical rather than an evaluator: discovery is
+/ advisory, but a reference to .app.runAll must never count as .app.run.
+.tst.static.symbolTokens:{[source]
+    lines: $[10h=type source; "\n" vs source;
+             0h=type source; .tst.static.toStr each source;
+             enlist .tst.static.toStr source];
+    s: "\n" sv .tst.static.maskLines lines;
+    allowed: .Q.a, .Q.A, .Q.n, "._";
+    s: @[s; where not s in allowed; :; " "];
+    tokens: " " vs s;
+    distinct tokens where 0 < count each tokens
+ }
+
+.tst.static.hasExactSymbol:{[source;name]
+    .tst.static.toStr[name] in .tst.static.symbolTokens source
+ }
+
 .tst.static.getDir:{[x]
   x: .tst.static.toStr x; 
   if[not count x; :"" ];
@@ -150,10 +170,8 @@
  }
 
 .tst.static.findDeps:{[body;selfName]
-  s: body;
-  s: @[s; where s in "()[]{};:\"\n\t"; :; " "];
-  tokens: " " vs s;
-  tokens: distinct tokens where (count each tokens) > 2;
+  tokens: .tst.static.symbolTokens body;
+  tokens: tokens where (count each tokens) > 2;
   deps: tokens where { ("."=first x) and "." in 1_x } each tokens;
   deps: deps where not deps like ".q.*";
   deps: deps where not deps like ".Q.*";
@@ -276,11 +294,22 @@
                   currLine: i+1;
                   currBody: cleanL;
                   currArgs: ();
-                  if[(cleanL?"[") < cleanL?"]";
-                    argPart: (1 + cleanL?"[") _ (cleanL?"]") # cleanL;
-                    currArgs: trim each ";" vs argPart;
-                    / Remove empty args
-                    currArgs: currArgs where 0 < count each currArgs;
+                  / A lambda has an explicit argument declaration only when
+                  / the first executable character after "{" is "[". The old
+                  / first-bracket search misclassified indexing such as
+                  / f:{x[0]+1} as a one-argument declaration.
+                  tailMasked: (bracePos+1) _ maskedL;
+                  codePositions: where not tailMasked in " \t";
+                  if[count codePositions;
+                    openRel: first codePositions;
+                    closeRel: tailMasked ? "]";
+                    if[((tailMasked openRel)="[") and (openRel < closeRel);
+                      tailRaw: (bracePos+1) _ l;
+                      argPart: (openRel+1) _ closeRel # tailRaw;
+                      currArgs: trim each ";" vs argPart;
+                      / Remove empty args
+                      currArgs: currArgs where 0 < count each currArgs;
+                    ];
                   ];
                   inFunc: 1b;
               ];

@@ -21,6 +21,21 @@ benchHistogram:{[data;nbins]
   ([] bucket: til nbins; range_start: minV + binWidth * til nbins; range_end: minV + binWidth * 1 + til nbins; cnt: counts; pct: 100 * counts % count data)
  };
 
+/ Linear-interpolated percentile over a sorted zero-based sample vector. The
+/ position is clamp[p;0;1] * (n-1), so endpoints are always in range and small
+/ samples do not return null merely because p is close to 1. Empty input has no
+/ percentile and returns the float null 0n.
+benchPercentile:{[data;p]
+  if[0=count data; :0n];
+  sorted: asc "f"$data;
+  probability: 0f | 1f & "f"$p;
+  position: probability * (count[sorted] - 1);
+  lo: "j"$floor position;
+  hi: "j"$ceiling position;
+  weight: position - lo;
+  (sorted lo) + weight * (sorted hi) - sorted lo
+ };
+
 / Print histogram as ASCII bar chart
 benchPrintHistogram:{[hist]
   maxPct: max hist`pct;
@@ -69,11 +84,10 @@ bench:{[func;opts]
   result[`max_us]: (`float$result`max_ns) % 1000;
   result[`avg_us]: (`float$result`avg_ns) % 1000;
   result[`std_us]: (`float$result`std_ns) % 1000;
-  sorted: asc times;
-  result[`p50_ns]: sorted `long$0.5 * n;
-  result[`p90_ns]: sorted `long$0.9 * n;
-  result[`p95_ns]: sorted `long$0.95 * n;
-  result[`p99_ns]: sorted `long$0.99 * n;
+  result[`p50_ns]: benchPercentile[times; 0.50];
+  result[`p90_ns]: benchPercentile[times; 0.90];
+  result[`p95_ns]: benchPercentile[times; 0.95];
+  result[`p99_ns]: benchPercentile[times; 0.99];
   result[`p50_us]: (`float$result`p50_ns) % 1000;
   result[`p90_us]: (`float$result`p90_ns) % 1000;
   result[`p95_us]: (`float$result`p95_ns) % 1000;

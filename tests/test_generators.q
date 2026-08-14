@@ -54,6 +54,29 @@
     typeCodes mustmatch neg 12 13 14 15 16 17 18 19h;
   };
 
+  should["typed generators bias edge values"]{
+    names:`byte`short`int`long`real`float;
+    {[name]
+      generator:.resq.gen.typed name;
+      edges:.resq.gen.typeEdges name;
+      samples:.resq.gen.sampleList[generator;4*count edges;20260814;"edge-contract"];
+      sampledBytes:.tst.canonicalValueBytes each samples;
+      edgeBytes:.tst.canonicalValueBytes each edges;
+      must[all edgeBytes in sampledBytes;
+        "fixed seed must cover every declared edge for ",string name];
+      musteq[type each samples;(count samples)#enlist neg .tst.typeCodes .tst.typeNames?name];
+    } each names;
+
+    floatBytes:.tst.canonicalValueBytes each .resq.gen.typeEdges `float;
+    count[distinct floatBytes] musteq count floatBytes;
+    / Counter zero is an edge slot; replay and direct sampling must be exact.
+    generator:.resq.gen.typed `int;
+    token:.resq.gen.replayToken[20260814;0];
+    .resq.gen.replay[generator;token]
+      mustmatch .resq.gen.sample[generator;20260814;0;"root"];
+    first[.resq.gen.shrinkCandidates[.resq.gen.typed `float;0w]] musteq 0f;
+  };
+
   should["adapt legacy vars forms and keep generated symbols bounded"]{
     specs:(`int;`a`b`c;`int$();`a`b!(`int;`float);{42});
     generators:.resq.gen.adapt each specs;

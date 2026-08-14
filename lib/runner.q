@@ -500,6 +500,16 @@
     spec
  };
 
+/ Consume the tagged runSpecBody outcome explicitly. The previous trailing
+/ defensive expression was easy to read as a discarded projection and had no
+/ direct contract test; one path returns the completed spec, the other rethrows
+/ the original framework error.
+.tst.consumeRunSpecOutcome:{[outcome]
+    if[not first outcome; :last outcome];
+    originalError:last outcome;
+    'originalError
+ };
+
 / Lifecycle wrapper: snapshot once, execute under a structural outcome tag,
 / always finalize, then preserve the original result or re-signal the original
 / exception for runDiscoveredSpecs to turn into a canonical error row.
@@ -527,8 +537,7 @@
                 "afterAll dispatch failed: ", .tst.toString err]}]];
     .tst.finalizeSpec[
         runCtx;specTitle;pollutionGuard;namespaces;fullSnapshot;origResources;origTs];
-    if[first runOutcome; 'last runOutcome];
-    last runOutcome
+    .tst.consumeRunSpecOutcome runOutcome
  };
 
 / Per-expectation callback. Records the result row in .resq.state.results
@@ -1262,6 +1271,7 @@
         @[get;`.tst.app.executionIncompleteReason;""];`incomplete;`completed];
     @[.tst.cleanupAllFixtures; (); {[e] .tst.recordCleanupError[`sessionFixture;e]}];
     @[.tst.restore; (); {[e] .tst.recordCleanupError[`mockRestore;e]}];
+    @[.tst.clearDeferreds; (); {[e] .tst.recordCleanupError[`deferredCleanup;e]}];
 
     / Coverage wrappers outlive test loading, so they need their own finally
     / boundary. stopCoverage is idempotent and keeps failed wrapper ownership

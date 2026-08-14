@@ -1,8 +1,30 @@
 if[not `utl in key `; .utl:(enlist `)!enlist (::)];
+/ `lib/init.q` is a supported standalone entry point. When the dispatcher has
+/ not already loaded bootstrap.q, locate it beside this file, load it through a
+/ temporary cwd switch, and restore the caller's directory before continuing.
+.utl.initSourcePath: string .z.f;
+if[.utl.initSourcePath like ":*";.utl.initSourcePath:1_.utl.initSourcePath];
+.utl.initSourceParts: "/" vs .utl.initSourcePath;
+.utl.initSourceDir: $[1<count .utl.initSourceParts;
+    "/" sv -1_.utl.initSourceParts;
+    "."];
+if[0=count .utl.initSourceDir;.utl.initSourceDir:"/"];
+.utl.ensureInitBootstrap:{[]
+    if[`require in key `.utl;:()];
+    previousDirectory:system "cd";
+    system "cd ",.utl.initSourceDir;
+    system "l bootstrap.q";
+    system "cd ",previousDirectory;
+    ::
+ };
+.utl.ensureInitBootstrap[];
 / Anchor module loads at the install root if it has been set (by resq.q).
-/ Falls back to "lib" for direct `q lib/init.q` usage from inside the repo.
+/ Otherwise use the directory containing this init file, including when q was
+/ launched from outside the checkout with an absolute script path.
 .utl.resqHomeAtBoot: @[get; `.resq.HOME; {""}];
-if[not `PKGLOADING in key .utl; .utl.PKGLOADING: $[count .utl.resqHomeAtBoot; .utl.resqHomeAtBoot,"/lib"; "lib"]];
+.utl.PKGLOADING: $[count .utl.resqHomeAtBoot;
+    .utl.resqHomeAtBoot,"/lib";
+    .utl.initSourceDir];
 .utl.DEBUG: 0b;
 
 / Initialize .resq sub-namespaces. Each guarded independently because
