@@ -1,0 +1,1263 @@
+{
+  "schemaVersion": 1,
+  "kind": "resq-release-audit",
+  "framework": "resQ",
+  "status": "pass",
+  "commit": "47629f731b19071ac215cafdd0513ce2a89778ca",
+  "startedAt": "2026-08-14T22:11:55.103064Z",
+  "finishedAt": "2026-08-14T22:22:41.906917Z",
+  "durationSeconds": 646.803853,
+  "qVersion": "4.1",
+  "resqVersion": "2.0.1",
+  "environment": {
+    "platform": "Linux-7.1.6-201.fc44.x86_64-x86_64-with-glibc2.43",
+    "system": "Linux",
+    "release": "7.1.6-201.fc44.x86_64",
+    "machine": "x86_64",
+    "runnerIdentity": "fedora",
+    "pythonVersion": "3.14.6",
+    "qExecutable": "/home/greg/.local/bin/q",
+    "licensedRuntime": {
+      "available": true,
+      "credentialMaterialArchived": false,
+      "note": "The gate records runtime availability, never licence secrets."
+    }
+  },
+  "qualificationScope": {
+    "qualified": [
+      "kdb+/q 4.1.x 64-bit on Linux x86-64"
+    ],
+    "unqualified": [
+      "other q 4.x releases",
+      "macOS",
+      "Windows",
+      "optional AxLibraries self-coverage provider",
+      "unlisted external codebases and CI providers"
+    ]
+  },
+  "selfSuite": {
+    "suiteCount": 190,
+    "testCount": 766,
+    "assertionCount": 2526,
+    "passCount": 765,
+    "failCount": 0,
+    "errorCount": 0,
+    "skipCount": 1,
+    "duration": "0D00:01:48.185495562",
+    "durationSeconds": 108.1855,
+    "testDurationSumSeconds": 108.1855
+  },
+  "isolatedSuite": {
+    "suiteCount": 190,
+    "testCount": 766,
+    "assertionCount": 2526,
+    "passCount": 765,
+    "failCount": 0,
+    "errorCount": 0,
+    "skipCount": 1,
+    "duration": "0D00:01:46.230904577",
+    "durationSeconds": 106.2309,
+    "testDurationSumSeconds": 106.2309
+  },
+  "suiteReconciliation": {
+    "schemaVersion": 1,
+    "kind": "resq-suite-reconciliation",
+    "status": "pass",
+    "modeIndependentSummary": {
+      "suiteCount": 190,
+      "testCount": 766,
+      "passCount": 765,
+      "failCount": 0,
+      "errorCount": 0,
+      "skipCount": 1,
+      "assertionCount": 2526
+    },
+    "testInventorySha256": "8637b5be6a628b9226eaa738803e1182d0b63f19008f5511874b0cde2ee20f10",
+    "stableIdVerdictParity": true,
+    "semanticInventoryParity": true
+  },
+  "differentialCorpus": {
+    "loaderSeeds": 400,
+    "coverageSeeds": 2000,
+    "summary": {
+      "suiteCount": 3,
+      "testCount": 5,
+      "assertionCount": 10,
+      "passCount": 5,
+      "failCount": 0,
+      "errorCount": 0,
+      "skipCount": 0,
+      "duration": "0D00:02:20.162956914",
+      "durationSeconds": 140.163,
+      "testDurationSumSeconds": 140.163
+    }
+  },
+  "preprocessingBudget": {
+    "environment": {
+      "platform": "Linux-7.1.6-201.fc44.x86_64-x86_64-with-glibc2.43",
+      "python": "3.14.6"
+    },
+    "kind": "resq-review-benchmark",
+    "loader": [
+      {
+        "aggregation": "median",
+        "expectations": 50,
+        "preprocessSeconds": 0.112498,
+        "sampleCount": 7,
+        "samples": [
+          0.117267,
+          0.112313,
+          0.112498,
+          0.112338,
+          0.112816,
+          0.114505,
+          0.111402
+        ],
+        "warmups": 2
+      },
+      {
+        "aggregation": "median",
+        "expectations": 100,
+        "preprocessSeconds": 0.229815,
+        "sampleCount": 7,
+        "samples": [
+          0.229815,
+          0.227866,
+          0.231887,
+          0.232433,
+          0.227981,
+          0.230499,
+          0.229402
+        ],
+        "warmups": 2
+      },
+      {
+        "aggregation": "median",
+        "expectations": 200,
+        "preprocessSeconds": 0.494423,
+        "sampleCount": 7,
+        "samples": [
+          0.497734,
+          0.492124,
+          0.495228,
+          0.494209,
+          0.495081,
+          0.490775,
+          0.494423
+        ],
+        "warmups": 2
+      }
+    ],
+    "loaderGrowthRatios": [
+      2.042836,
+      2.151396
+    ],
+    "report": {
+      "aggregation": "median",
+      "bytes": 24082819,
+      "bytesPerTest": 2408.2819,
+      "failureEvery": 0,
+      "peakBytes": 93837330,
+      "sampleCount": 7,
+      "samples": [
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837386,
+          "tests": 10000,
+          "wallSeconds": 1.80636
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837330,
+          "tests": 10000,
+          "wallSeconds": 1.817068
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837330,
+          "tests": 10000,
+          "wallSeconds": 1.809324
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837330,
+          "tests": 10000,
+          "wallSeconds": 1.819346
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837330,
+          "tests": 10000,
+          "wallSeconds": 1.825238
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93845514,
+          "tests": 10000,
+          "wallSeconds": 1.827814
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93845474,
+          "tests": 10000,
+          "wallSeconds": 1.82502
+        }
+      ],
+      "tests": 10000,
+      "wallSeconds": 1.819346,
+      "warmups": 2
+    },
+    "schemaVersion": 1,
+    "verdicts": {
+      "correctness": {
+        "passed": true,
+        "reason": "every generated report validated"
+      },
+      "performance": {
+        "failures": [],
+        "passed": true
+      }
+    }
+  },
+  "coverage": {
+    "functionsFound": 20,
+    "functionsHit": 14,
+    "linesFound": 59,
+    "linesHit": 48,
+    "statementSitesFound": 72,
+    "statementSitesHit": 51,
+    "branchesFound": 34,
+    "branchesHit": 19,
+    "statementInstrumentationPercent": 100,
+    "branchInstrumentationPercent": 100
+  },
+  "coverageReconciliation": {
+    "schemaVersion": 1,
+    "kind": "resq-coverage-reconciliation",
+    "framework": "resQ",
+    "frameworkVersion": "2.0.1",
+    "matched": true,
+    "correctnessRunId": "run_19a481a30a3b93fe44324c49499ed3db",
+    "coverageRunId": "run_c2b5437f7941497314a470d28d81a718",
+    "manifestDigest": "manifest_d463408837e0309ed07dd327304b7c52",
+    "inventory": {
+      "tests": 30,
+      "assertions": 61,
+      "passes": 30,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "comparedExecutionFields": [
+      "testId",
+      "caseId",
+      "suite",
+      "description",
+      "file",
+      "status",
+      "assertsRun"
+    ],
+    "allowedDifferences": [
+      "run identity and timestamps",
+      "wall-clock and per-test durations",
+      "coverage configuration, diagnostics, events, and artifacts",
+      "isolation process metadata"
+    ]
+  },
+  "coveragePerformance": {
+    "budgets": {
+      "maxContextOverheadRatio": 25.0,
+      "maxReportNsPerEntry": 6000.0,
+      "maxStatementOverheadRatio": 5.0
+    },
+    "medians": {
+      "contextNsPerHit": 4919.736,
+      "contextOverheadRatio": 17.47977815123662,
+      "controlNsPerHit": 281.453,
+      "reportNsPerEntry": 3057.357,
+      "statementNsPerHit": 1260.738,
+      "statementOverheadRatio": 4.479390875208295
+    }
+  },
+  "soak": {
+    "schemaVersion": 1,
+    "kind": "resq-soak-evidence",
+    "status": "pass",
+    "qVersion": "4.1",
+    "platform": "Linux-7.1.6-201.fc44.x86_64-x86_64-with-glibc2.43",
+    "cycles": 20,
+    "warmupCycles": 2,
+    "watchCycles": 3,
+    "fixture": "tests/fixtures/distributed/coverage_suite.q",
+    "coverageSource": "tests/fixtures/distributed/coverage_source.q",
+    "limits": {
+      "maxUsedGrowthBytes": 16777216,
+      "maxHeapGrowthBytes": 67108864,
+      "maxSymbolGrowth": 64,
+      "maxSymbolBytesGrowth": 65536,
+      "maxNamespaceGrowth": 1,
+      "maxIpcHandleGrowth": 0,
+      "maxOsHandleGrowth": 0
+    },
+    "observed": {
+      "usedGrowthBytes": 0,
+      "heapGrowthBytes": 0,
+      "symbolGrowth": 0,
+      "symbolBytesGrowth": 0,
+      "namespaceGrowth": 0,
+      "ipcHandleGrowth": 0,
+      "osHandleGrowth": 0
+    },
+    "samples": [
+      {
+        "cycle": 1,
+        "usedBytes": 3778784,
+        "heapBytes": 67108864,
+        "symbolCount": 5752,
+        "symbolBytes": 353751,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 2,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 3,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 4,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 5,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 6,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 7,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 8,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 9,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 10,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 11,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 12,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 13,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 14,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 15,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 16,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 17,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 18,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 19,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 20,
+        "usedBytes": 3782896,
+        "heapBytes": 67108864,
+        "symbolCount": 5754,
+        "symbolBytes": 353983,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      }
+    ],
+    "violations": [],
+    "note": "q symbols and empty namespace names are interned; this gate exercises bounded coverage identity/context caches across re-initialization, bounds post-warmup growth, and never claims reclamation"
+  },
+  "reportScale": {
+    "failureHeavy": {
+      "artifacts": {
+        "allure": {
+          "bytes": 17410000,
+          "bytesPerTest": 1741.0,
+          "maxRecordBytes": 2765,
+          "peakBytes": 407578,
+          "wallSeconds": 0.593503
+        },
+        "full": {
+          "bytes": 44422942,
+          "bytesPerTest": 4442.2942,
+          "maxRecordBytes": 0,
+          "peakBytes": 88846446,
+          "wallSeconds": 0.953238
+        },
+        "junit": {
+          "bytes": 12828981,
+          "bytesPerTest": 1282.8981,
+          "maxRecordBytes": 0,
+          "peakBytes": 134217728,
+          "wallSeconds": 9.910418
+        },
+        "model": {
+          "bytes": 0,
+          "bytesPerTest": 0.0,
+          "maxRecordBytes": 0,
+          "peakBytes": 45767442,
+          "wallSeconds": 0.623126
+        },
+        "ndjson": {
+          "bytes": 15430745,
+          "bytesPerTest": 1543.0745,
+          "maxRecordBytes": 2056,
+          "peakBytes": 411616,
+          "wallSeconds": 0.59756
+        },
+        "results": {
+          "bytes": 27340227,
+          "bytesPerTest": 2734.0227,
+          "maxRecordBytes": 0,
+          "peakBytes": 62600616,
+          "wallSeconds": 0.363947
+        },
+        "telemetry": {
+          "bytes": 8590420,
+          "bytesPerTest": 859.042,
+          "maxRecordBytes": 0,
+          "peakBytes": 62595768,
+          "wallSeconds": 0.155468
+        }
+      },
+      "tests": 10000,
+      "transcript": {
+        "complete": true,
+        "expectedBytes": 1024,
+        "failureCount": 5000,
+        "profileMessagesEqual": true
+      }
+    },
+    "green": {
+      "artifacts": {
+        "allure": {
+          "bytes": 7170000,
+          "bytesPerTest": 717.0,
+          "maxRecordBytes": 717,
+          "peakBytes": 404413,
+          "wallSeconds": 0.578658
+        },
+        "full": {
+          "bytes": 23922940,
+          "bytesPerTest": 2392.294,
+          "maxRecordBytes": 0,
+          "peakBytes": 62282672,
+          "wallSeconds": 0.889799
+        },
+        "junit": {
+          "bytes": 2588981,
+          "bytesPerTest": 258.8981,
+          "maxRecordBytes": 0,
+          "peakBytes": 67108864,
+          "wallSeconds": 9.053302
+        },
+        "model": {
+          "bytes": 0,
+          "bytesPerTest": 0.0,
+          "maxRecordBytes": 0,
+          "peakBytes": 45693875,
+          "wallSeconds": 0.625017
+        },
+        "ndjson": {
+          "bytes": 10310743,
+          "bytesPerTest": 1031.0743,
+          "maxRecordBytes": 1849,
+          "peakBytes": 409536,
+          "wallSeconds": 0.588437
+        },
+        "results": {
+          "bytes": 6840225,
+          "bytesPerTest": 684.0225,
+          "maxRecordBytes": 0,
+          "peakBytes": 62280432,
+          "wallSeconds": 0.317191
+        },
+        "telemetry": {
+          "bytes": 3470418,
+          "bytesPerTest": 347.0418,
+          "maxRecordBytes": 0,
+          "peakBytes": 62275768,
+          "wallSeconds": 0.147298
+        }
+      },
+      "tests": 10000,
+      "transcript": {
+        "complete": true,
+        "expectedBytes": 0,
+        "failureCount": 0,
+        "profileMessagesEqual": true
+      }
+    },
+    "kind": "resq-report-scale-measurement",
+    "lifecycle": {
+      "baseline": {
+        "expectedEvents": 42204,
+        "files": 100,
+        "pythonSamples": [
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17374459,
+            "bytesPerTest": 1737.4459,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 25804624,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 1.497654
+          },
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17374459,
+            "bytesPerTest": 1737.4459,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 25804576,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 1.494025
+          },
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17374459,
+            "bytesPerTest": 1737.4459,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 25804576,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 1.493394
+          }
+        ],
+        "qSamples": [
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17604457,
+            "bytesPerTest": 1760.4457,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 67108864,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 0.417832
+          },
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17604457,
+            "bytesPerTest": 1760.4457,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 67108864,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 0.4205329
+          },
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17604457,
+            "bytesPerTest": 1760.4457,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 67108864,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 0.4222916
+          }
+        ],
+        "suites": 1000,
+        "tests": 10000
+      },
+      "qualification": {
+        "expectedEvents": 402204,
+        "files": 100,
+        "pythonSamples": [
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 167169872,
+            "bytesPerTest": 1671.69872,
+            "eventCount": 402204,
+            "maxRecordBytes": 4004177,
+            "peakBytes": 246377376,
+            "sequenceComplete": true,
+            "typeOrderDigest": "c32f11fc6061ffa9112d2d89c5946552",
+            "wallSeconds": 14.785344
+          }
+        ],
+        "qSamples": [
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 169469870,
+            "bytesPerTest": 1694.6987,
+            "eventCount": 402204,
+            "maxRecordBytes": 4004177,
+            "peakBytes": 1140850688,
+            "sequenceComplete": true,
+            "typeOrderDigest": "c32f11fc6061ffa9112d2d89c5946552",
+            "wallSeconds": 4.343191
+          }
+        ],
+        "suites": 1000,
+        "tests": 100000
+      },
+      "selector": "lifecycle 100k near-linear"
+    },
+    "schemaVersion": 2
+  },
+  "installation": {
+    "schemaVersion": 1,
+    "kind": "resq-installation-evidence",
+    "status": "pass",
+    "repository": "/home/greg/.cache/resq-gate-201/candidate",
+    "requestedRef": "47629f731b19071ac215cafdd0513ce2a89778ca",
+    "branchClone": false,
+    "resolvedCommit": "47629f731b19071ac215cafdd0513ce2a89778ca",
+    "versionOutput": "resQ version 2.0.1",
+    "quickstart": {
+      "suiteCount": 6,
+      "testCount": 30,
+      "assertionCount": 61,
+      "passCount": 30,
+      "failCount": 0,
+      "errorCount": 0,
+      "skipCount": 0,
+      "duration": "0D00:00:00.124536105",
+      "durationSeconds": 0.1245361,
+      "testDurationSumSeconds": 0.1245361
+    },
+    "emptyPrefix": true,
+    "symlinkLaunchers": [
+      "resq",
+      "qspec",
+      "resq-merge"
+    ],
+    "mergeHelp": true,
+    "console": "\n=== Benchmark Results ===\nIterations: 100\nTiming: Min=48us Avg=57us Max=283us\nPercentiles: p50=48us p99=121us\nDistribution (us):\n  47.70 - 71.18 us         |############################## 92%\n  71.18 - 94.66 us         |# 2%\n  94.66 - 118.14 us        |# 3%\n  118.14 - 141.62 us       |# 2%\n  141.62 - 165.10 us       | 0%\n  165.10 - 188.58 us       | 0%\n  188.58 - 212.06 us       | 0%\n  212.06 - 235.54 us       | 0%\n  235.54 - 259.02 us       | 0%\n  259.02 - 282.51 us       | 1%\n\nComparing: SMA window=10 vs SMA window=100\nSMA window=10: Avg=49us\nSMA window=100: Avg=50us\nWinner: SMA window=10 (1.010601x faster)\nSystem shutdown triggered by admin\nWARNING: Test 'Order Processing Service' modified globals in order: .order.orders\n  -> Restored modified globals in order.\nComparing: each vs matrix\neach: Avg=33us\nmatrix: Avg=25us\nWinner: matrix (1.305365x faster)\nEVENT: userCreated for user 1\nEVENT: userCreated for user 1\nEVENT: userCreated for user 2\nEVENT: userCreated for user 3\nEVENT: userCreated for user 4\nEVENT: userCreated for user 5\nEVENT: userCreated for user 6\nEVENT: userCreated for user 7\nEVENT: userCreated for user 8\nEVENT: userCreated for user 9\nEVENT: userCreated for user 1\nEVENT: userCreated for user 1\nEVENT: roleUpdated for user 1\nEVENT: userCreated for user 1\nEVENT: userDeactivated for user 1\nEVENT: userCreated for user 1\nEVENT: userCreated for user 2\nEVENT: userDeactivated for user 1\nWARNING: Test 'User Management Service' modified globals in user: .user.users\n  -> Restored modified globals in user.\n\n======================================================================\nSUMMARY\n----------------------------------------------------------------------\nTests:      30 total (30 passed, 0 failed, 0 error, 0 skipped)\nAssertions: 61 total\nDuration:   00:00:00s\n======================================================================\n\n----------------------------------------------------------------\nAll tests passed.\nJSON Report written to /tmp/resq-empty-install-m2f8gn9u/quickstart-evidence/test-results.json\n"
+  },
+  "findingLedger": {
+    "kind": "resq-fable-review-findings",
+    "baselineCommit": "4aeb532b46264e4cd602d29ec9f86b7477ebf4cc",
+    "reviewDate": "2026-08-14",
+    "total": 44,
+    "closed": 44,
+    "open": 0
+  },
+  "schemas": [
+    "schemas/resq-benchmark-baseline-v1.schema.json",
+    "schemas/resq-coverage-v2.schema.json",
+    "schemas/resq-ingestion-tables-v1.schema.json",
+    "schemas/resq-ingestion-tables-v2.schema.json",
+    "schemas/resq-release-audit-v1.schema.json",
+    "schemas/resq-report-v2.schema.json",
+    "schemas/ci-lanes.json",
+    "schemas/quickstart-coverage.json",
+    "schemas/report-scale-budgets.json",
+    "schemas/soak-budgets.json",
+    "schemas/fable-findings.json"
+  ],
+  "archive": {
+    "checksumAlgorithm": "SHA-256",
+    "checksumManifest": "checksums.sha256",
+    "rawCommandLogs": "logs/",
+    "retentionPolicy": "90-day CI artifact plus attached release archive"
+  },
+  "steps": [
+    {
+      "name": "shell syntax contracts",
+      "status": "pass",
+      "command": [
+        "bash",
+        "-n",
+        "/home/greg/.cache/resq-gate-201/candidate/bin/resq",
+        "/home/greg/.cache/resq-gate-201/candidate/bin/qspec",
+        "/home/greg/.cache/resq-gate-201/candidate/bin/resq-merge"
+      ],
+      "durationSeconds": 0.001751,
+      "log": "logs/01-shell-syntax-contracts.log",
+      "logSha256": "c5c0d7dd5a59c7ca212729421f58a334160fc097f55782f477a603f1fe6bf0ef"
+    },
+    {
+      "name": "licence-free contracts",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_static.py"
+      ],
+      "durationSeconds": 0.115136,
+      "log": "logs/02-licence-free-contracts.log",
+      "logSha256": "09e1810b6aee7267839c8faa33695b0a4ab0ad75ac6b3edcd0e6af25ce046840"
+    },
+    {
+      "name": "Python contract tests",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_python_contracts.py"
+      ],
+      "durationSeconds": 2.251742,
+      "log": "logs/03-python-contract-tests.log",
+      "logSha256": "6f0468d91806febf179afc388a94eec77ce7d6167be3d7d776a54e4a15d02010"
+    },
+    {
+      "name": "CLI terminal contract",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_cli_terminal.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 1.234728,
+      "log": "logs/04-cli-terminal-contract.log",
+      "logSha256": "9e894e974e22b9691896a057b90182cc8be17d0c20863a49d936c1bf790cacee"
+    },
+    {
+      "name": "full strict suite",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/bin/resq",
+        "test",
+        "tests",
+        "-strict",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-report-profile",
+        "full",
+        "-outDir",
+        "/home/greg/.cache/resq-gate-201/evidence1/normal",
+        "-state-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/normal-last-run.json",
+        "-flake-history",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/normal-flake-history.json",
+        "-quarantine-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/normal-quarantine.json",
+        "-flake-proposal-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/normal-proposals.json"
+      ],
+      "durationSeconds": 128.65182,
+      "log": "logs/05-full-strict-suite.log",
+      "logSha256": "aca0a4867caf5f122e2db5321413f577ed9262d4e8184d82d47ac370710de14d"
+    },
+    {
+      "name": "full strict isolated suite",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/bin/resq",
+        "test",
+        "tests",
+        "-strict",
+        "-isolate",
+        "-isolateTimeout",
+        "90",
+        "-isolateWorkers",
+        "4",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-report-profile",
+        "full",
+        "-outDir",
+        "/home/greg/.cache/resq-gate-201/evidence1/isolated",
+        "-state-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/isolated-last-run.json",
+        "-flake-history",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/isolated-flake-history.json",
+        "-quarantine-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/isolated-quarantine.json",
+        "-flake-proposal-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/isolated-proposals.json"
+      ],
+      "durationSeconds": 109.325258,
+      "log": "logs/06-full-strict-isolated-suite.log",
+      "logSha256": "a3a32e37290105e1c5ab57bf9ac534e0476eba4b115f42ba873bccc1bce87b72"
+    },
+    {
+      "name": "extended loader and coverage differentials",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/bin/resq",
+        "test",
+        "tests/test_loader_differential.q",
+        "tests/test_coverage_differential.q",
+        "nightly/test_oversized_desc.q",
+        "-strict",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-report-profile",
+        "full",
+        "-outDir",
+        "/home/greg/.cache/resq-gate-201/evidence1/differential",
+        "-state-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/differential-last-run.json",
+        "-flake-history",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/differential-flake-history.json",
+        "-quarantine-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/differential-quarantine.json",
+        "-flake-proposal-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/differential-proposals.json"
+      ],
+      "durationSeconds": 141.39059,
+      "log": "logs/07-extended-loader-and-coverage-differentials.log",
+      "logSha256": "7633184531f8d1110b8362844c76735a8d21f4412cb4139cba01998683a7599f"
+    },
+    {
+      "name": "linear preprocessing budget",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/benchmark_review_regressions.py",
+        "--q",
+        "q",
+        "--report-tests",
+        "10000",
+        "--loader-counts",
+        "50",
+        "100",
+        "200",
+        "--max-loader-growth-ratio",
+        "3.0",
+        "--output",
+        "/home/greg/.cache/resq-gate-201/evidence1/preprocess-budget.json"
+      ],
+      "durationSeconds": 33.239349,
+      "log": "logs/08-linear-preprocessing-budget.log",
+      "logSha256": "724c47d3f99322dea124ce72e2f268865ecc8295bc35aadf02bd98922dfe0474"
+    },
+    {
+      "name": "supported execution matrix",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_execution_matrix.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 5.493311,
+      "log": "logs/09-supported-execution-matrix.log",
+      "logSha256": "58cf68291cdaaf7d35d66ee65c51c0fb727a1512a2365d6e5e60c0964e507517"
+    },
+    {
+      "name": "distributed shard merge matrix",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_shard_merge.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 6.207492,
+      "log": "logs/10-distributed-shard-merge-matrix.log",
+      "logSha256": "bde3f3ac3c4021bb4a1dd4beb0c428f7632cbeb6da16c758f9fb8f31117d4bba"
+    },
+    {
+      "name": "property generator and shrink protocol",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_property_protocol.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 0.300641,
+      "log": "logs/11-property-generator-and-shrink-protocol.log",
+      "logSha256": "0ec314a2cdbb85d5d8610e44c9305b6579ddc680d39171f293b3b0f06c9a6f20"
+    },
+    {
+      "name": "flake evidence and quarantine policy",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_quarantine.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 2.342492,
+      "log": "logs/12-flake-evidence-and-quarantine-policy.log",
+      "logSha256": "b296fbfae5e40b6ac8c2df5536911d264e60b2b10e629bc566113f916e59a9fe"
+    },
+    {
+      "name": "snapshot inventory and recoverable pruning",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_snapshot_inventory.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 3.117338,
+      "log": "logs/13-snapshot-inventory-and-recoverable-pruning.log",
+      "logSha256": "03c741cc03068068b43bbfc4179b954a187dd400839798dacb95eae8de22e29b"
+    },
+    {
+      "name": "benchmark regression baselines and telemetry",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_benchmark_regression.py"
+      ],
+      "durationSeconds": 4.475436,
+      "log": "logs/14-benchmark-regression-baselines-and-telemetry.log",
+      "logSha256": "55f83030a8be7d7dca088c5ba9609239964f25a3522cc5f13936c81d6f849398"
+    },
+    {
+      "name": "hostile environment audit",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_hostile_env.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 8.397081,
+      "log": "logs/15-hostile-environment-audit.log",
+      "logSha256": "2e0df450842e52be6f843469d21901512be425357bb736944087ad58a9d4038c"
+    },
+    {
+      "name": "bounded labels and execution context",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_labels_context.py"
+      ],
+      "durationSeconds": 2.08674,
+      "log": "logs/16-bounded-labels-and-execution-context.log",
+      "logSha256": "f88cd189ee58555fa37eb0cae7e6056d526027bfb521d52639314a40f55d9cd0"
+    },
+    {
+      "name": "normalized ingestion contract",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_ingestion_contract.py"
+      ],
+      "durationSeconds": 0.128588,
+      "log": "logs/17-normalized-ingestion-contract.log",
+      "logSha256": "169d6dbdcedaf06d757d56e54a00ac6f6188c93074af0007c9c4a7559b9ac9a3"
+    },
+    {
+      "name": "external adoption pilots",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_external_pilots.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 1.68159,
+      "log": "logs/18-external-adoption-pilots.log",
+      "logSha256": "94a34a6bc246d6501e4288d68c5f8a201a733f5608f2d23ef1dd238abfba4ec0"
+    },
+    {
+      "name": "pinned qspec compatibility lanes",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_qspec_compatibility.py",
+        "--q",
+        "q",
+        "--out-dir",
+        "/home/greg/.cache/resq-gate-201/evidence1/compatibility"
+      ],
+      "durationSeconds": 1.48841,
+      "log": "logs/19-pinned-qspec-compatibility-lanes.log",
+      "logSha256": "5b876529b230d95af08d1d1bf15182df6030d6d6f93d0df312a8f809f9386637"
+    },
+    {
+      "name": "repeated-process soak budget",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_soak.py",
+        "--q",
+        "q",
+        "--output",
+        "/home/greg/.cache/resq-gate-201/evidence1/soak-evidence.json"
+      ],
+      "durationSeconds": 11.143806,
+      "log": "logs/20-repeated-process-soak-budget.log",
+      "logSha256": "298d7dd72360e753c06b52483bcdf66cbddcf82309c652acda3decd053b087a8"
+    },
+    {
+      "name": "coverage hot-path performance budget",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_coverage_performance.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 0.781376,
+      "log": "logs/21-coverage-hot-path-performance-budget.log",
+      "logSha256": "c3d6c7d8445206c34fa4aa148416799dd0868df8b8c8cd37794d4e0a23e2bd8a"
+    },
+    {
+      "name": "10k artifact and 100k lifecycle scale budgets",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_report_scale.py",
+        "--q",
+        "q",
+        "--output",
+        "/home/greg/.cache/resq-gate-201/evidence1/report-scale.json"
+      ],
+      "durationSeconds": 179.291812,
+      "log": "logs/22-10k-artifact-and-100k-lifecycle-scale-budgets.log",
+      "logSha256": "f0eaa0ae49790b53edf54698ba4ad2e4b390195dbd677a96d0d41fc28fca093c"
+    },
+    {
+      "name": "empty-prefix installation",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/tools/verify_installation.py",
+        "--repository",
+        "/home/greg/.cache/resq-gate-201/candidate",
+        "--ref",
+        "47629f731b19071ac215cafdd0513ce2a89778ca",
+        "--q",
+        "q",
+        "--output",
+        "/home/greg/.cache/resq-gate-201/evidence1/installation-evidence.json"
+      ],
+      "durationSeconds": 1.243165,
+      "log": "logs/23-empty-prefix-installation.log",
+      "logSha256": "7660efff557b20b3043b2f78c6ea65ec49f2cf13e625ef83aeaee55d43678934"
+    },
+    {
+      "name": "isolated quickstart correctness",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/bin/resq",
+        "test",
+        "examples/quickstart/test",
+        "-strict",
+        "-isolate",
+        "-isolateTimeout",
+        "90",
+        "-isolateWorkers",
+        "2",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-report-profile",
+        "full",
+        "-outDir",
+        "/home/greg/.cache/resq-gate-201/evidence1/coverage-correctness",
+        "-state-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/coverage-correctness-last-run.json",
+        "-flake-history",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/coverage-correctness-flake-history.json",
+        "-quarantine-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/coverage-correctness-quarantine.json",
+        "-flake-proposal-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/coverage-correctness-proposals.json"
+      ],
+      "durationSeconds": 1.333094,
+      "log": "logs/24-isolated-quickstart-correctness.log",
+      "logSha256": "8854507ed1a6464afa19d9dcd45581566d964ca9c2ba293f729a8879c55ec466"
+    },
+    {
+      "name": "canonical quickstart coverage",
+      "status": "pass",
+      "command": [
+        "/home/greg/.cache/resq-gate-201/candidate/bin/resq",
+        "cover",
+        "examples/quickstart/test",
+        "--source",
+        "examples/quickstart/src",
+        "-strict",
+        "-cov-statements",
+        "-cov-branches",
+        "-cov-contexts",
+        "-cov-min",
+        "70",
+        "-cov-lines-min",
+        "80",
+        "-cov-completeness-min",
+        "100",
+        "-cov-branches-min",
+        "50",
+        "-cov-branch-completeness-min",
+        "100",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-outDir",
+        "/home/greg/.cache/resq-gate-201/evidence1/coverage",
+        "-state-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/coverage-last-run.json",
+        "-flake-history",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/coverage-flake-history.json",
+        "-quarantine-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/coverage-quarantine.json",
+        "-flake-proposal-file",
+        "/home/greg/.cache/resq-gate-201/evidence1/state/coverage-proposals.json"
+      ],
+      "durationSeconds": 0.907238,
+      "log": "logs/25-canonical-quickstart-coverage.log",
+      "logSha256": "92155c4bbf0d2c02436ca5ee50646a816791469ae2dd6d49d81d02d2cbf450a7"
+    }
+  ]
+}

@@ -58,6 +58,7 @@ REQUIRED = {
     "docs/RELEASE_CHECKLIST.md",
     "docs/RELEASE_NOTES_2_0.md",
     "docs/RELEASE_NOTES_2_0_1.md",
+    "docs/PRODUCTION_AUDIT_2_0_1.md",
     "docs/PRODUCTION_AUDIT_2_0.md",
     "docs/RELEASE_NOTES_1_8_1.md",
     "docs/PRODUCTION_AUDIT_1_8_1.md",

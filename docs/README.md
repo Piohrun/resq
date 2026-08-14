@@ -36,6 +36,7 @@
 - [Post-1.0 delivery ledger](ROADMAP_POST_1_0.md) — Branch coverage, distributed execution, quality automation, and completion gates
 - [Release checklist](RELEASE_CHECKLIST.md) — Executable release gate and human sign-off
 - [resQ 2.0.1 release notes](RELEASE_NOTES_2_0_1.md) — Diagnostic-identity polish and gate hardening
+- [resQ 2.0.1 production audit](PRODUCTION_AUDIT_2_0_1.md) — Clean-clone certification and supported claim
 - [resQ 2.0.0 release notes](RELEASE_NOTES_2_0.md) — Typed identity migration, evidence hardening, and release scope
 - [resQ 2.0.0 production audit](PRODUCTION_AUDIT_2_0.md) — Clean-clone certification, scale evidence, and supported claim
 - [resQ 1.8.1 release notes](RELEASE_NOTES_1_8_1.md) — Evidence-integrity hotfixes and snapshot-v2 migration
@@ -85,6 +86,7 @@
 | `ROADMAP_POST_1_0.md` | Contributors | Post-1.0 delivery tasks, dependencies, and release gates |
 | `RELEASE_CHECKLIST.md` | Maintainers | One-command release evidence and manual sign-off |
 | `RELEASE_NOTES_2_0_1.md` | Users / maintainers | resQ 2.0.1 diagnostic-identity polish and gate-hardening release notes |
+| `PRODUCTION_AUDIT_2_0_1.md` | Users / maintainers | resQ 2.0.1 clean-clone production evidence and limits |
 | `RELEASE_NOTES_2_0.md` | Users / maintainers | resQ 2.0.0 typed-identity migration and evidence-integrity release notes |
 | `PRODUCTION_AUDIT_2_0.md` | Users / maintainers | resQ 2.0.0 clean-clone production, performance, scale, and scope evidence |
 | `RELEASE_NOTES_1_8_1.md` | Users / maintainers | resQ 1.8.1 evidence-integrity fixes and migration guidance |
