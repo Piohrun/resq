@@ -70,7 +70,7 @@ asserts:()!()
 / to test: million-element vectors and large tables should be cheap when green.
 .tst.assertValueText:{[val]
   limit: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
-  .tst.truncate[val;`long$limit % 2]
+  .tst.renderValueBounded[val;`long$limit % 2]
  };
 
 .tst.deferAssertionMessage:{[fn;args]
@@ -121,7 +121,7 @@ asserts[`must]:{[val;message];
         "must condition is null, which is not a truth value: ", .tst.toString val;
     not all $[kind = `numeric; 0 <> val; val];
       [ renderedMessage: .tst.renderAssertionMessage message;
-        m: $[10h = abs type renderedMessage; renderedMessage; .Q.s1 renderedMessage];
+        m: $[10h = abs type renderedMessage; renderedMessage;.tst.renderValueFull renderedMessage];
         / Which assertion in this test failed. assertState resets per
         / expectation, so assertsRun is this assertion's ordinal. q gives no
         / file/line for a failing assertion (nothing throws, and definitions
@@ -272,9 +272,9 @@ asserts[`mustthrow]:{[e;c];
   isErr: 1b ~ first r;
   errMsg: $[isErr; last r; ""];
   / Ensure errMsg is string for concatenation
-  errStr: $[10h = type errMsg; errMsg; -3!errMsg];
+  errStr: $[10h = type errMsg; errMsg;.tst.renderValueFull errMsg];
   p:1b;
-  m:"Expected '", (-3!c), "' to throw ";
+  m:"Expected '",.tst.assertValueText[c], "' to throw ";
 
   / Normalize patterns to a list of STRING patterns. A pattern may be a string,
   / a SYMBOL (stringified so `like` works), a symbol vector, or a list of
@@ -303,8 +303,8 @@ asserts[`mustnotthrow]:{[e;c];
   isErr: 1b ~ first r;
   errMsg: $[isErr; last r; ""];
   / Ensure errMsg is string for concatenation
-  errStr: $[10h = type errMsg; errMsg; -3!errMsg];
-  m:"Expected '", (-3!c), "' to not throw ";
+  errStr: $[10h = type errMsg; errMsg;.tst.renderValueFull errMsg];
+  m:"Expected '",.tst.assertValueText[c], "' to not throw ";
 
   / Normalize patterns to a list of STRING patterns (see mustthrow: symbols are
   / stringified so `like` matches against the string error message).
@@ -381,8 +381,8 @@ asserts[`mustHaveBeenCalledWith]:{[name;args]
   calls: .tst.spyLog.calls[name];
   / Use ~ match for complex args comparison
   found: any { x ~ y }[args] each calls;
-  msg: "Expected ", (.tst.toString name), " to have been called with ", (-3!args);
-  if[not found; msg,: ". Actual calls: ", $[0 = count calls; "(none)"; -3!calls]];
+  msg: "Expected ", (.tst.toString name), " to have been called with ",.tst.assertValueText args;
+  if[not found; msg,: ". Actual calls: ", $[0 = count calls; "(none)";.tst.assertValueText calls]];
   .tst.asserts[`must][found; msg];
  };
 

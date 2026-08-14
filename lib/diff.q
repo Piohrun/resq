@@ -38,7 +38,8 @@ fmt.color:{[c;txt]
 
 / format Value for diff (colorized)
 fmtVal:{[v;color]
-    s: .Q.s1 v;
+    limit:$[`reportLimit in key `.tst.output;.tst.output.reportLimit;50000];
+    s:.tst.renderValueBounded[v;"j"$limit%2];
     if[count s; :.tst.fmt.color[color; s]];
     s
  };
@@ -65,8 +66,8 @@ diffDeep:{[path;expected;actual]
         missing: kExp except kAct;
         extra: kAct except kExp;
         
-        if[count missing; msg,: enlist pStr, "Missing keys: ", .tst.fmt.color[`red; .Q.s1 missing]];
-        if[count extra;   msg,: enlist pStr, "Extra keys:   ", .tst.fmt.color[`cyan; .Q.s1 extra]];
+        if[count missing; msg,: enlist pStr, "Missing keys: ", .tst.fmt.color[`red; .tst.renderValueFull missing]];
+        if[count extra;   msg,: enlist pStr, "Extra keys:   ", .tst.fmt.color[`cyan; .tst.renderValueFull extra]];
         
         / Value mismatches for common keys
         common: kExp inter kAct;

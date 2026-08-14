@@ -36,15 +36,66 @@ loadSnapTxt:{[name]
 saveSnapTxt:{[name;data]
     .tst.ensureDir[.tst.snapTxtDir];
     p: .tst.snapTxtPath name;
-    txt: .Q.s1 data;
+    txt:.j.j .tst.textSnapshotDocument data;
     hsym[p] 0: enlist txt;
  }
+
+.tst.textSnapshotDocument:{[raw]
+    canonical:.tst.canonicalValueBytes raw;
+    rendering:.tst.renderValueFull raw;
+    `schemaVersion`kind`codec`digestAlgorithm`digest`canonicalPayload`ipcPayloadHex`rendering`renderingDigest!(
+        2j;"resq-text-snapshot";.tst.valueCodecMetadata[];"md5";
+        .tst.canonicalValueDigest canonical;canonical;
+        .tst.valueHexBytes -8!raw;rendering;.tst.canonicalValueDigest rendering)
+ };
+
+.tst.textSnapshotCodecMatches:{[codec]
+    if[not 99h=type codec;:0b];
+    expected:.tst.valueCodecMetadata[];
+    required:key expected;
+    if[not all required in key codec;:0b];
+    all {[left;right;setting]
+        $[setting~`version;("j"$left setting)=("j"$right setting);
+          .tst.toString[left setting]~.tst.toString[right setting]]
+      }[codec;expected;] each required
+ };
+
+.tst.parseTextSnapshot:{[text]
+    fail:{[state;reason]`state`reason`document!(state;reason;()!())};
+    parsed:@[{[raw](0b;.j.k raw)};text;{[err](1b;err)}];
+    if[first parsed;:fail[`legacy;"unversioned or malformed text snapshot"]];
+    doc:last parsed;
+    if[not 99h=type doc;:fail[`legacy;"unversioned text snapshot"]];
+    required:`schemaVersion`kind`codec`digestAlgorithm`digest`canonicalPayload`ipcPayloadHex`rendering`renderingDigest;
+    if[not all required in key doc;
+        :fail[`legacy;"text snapshot v1 has no trusted full-value payload"]];
+    if[not 2="j"$doc`schemaVersion;
+        :fail[`unsupported;"unsupported text snapshot schema version"]];
+    if[not "resq-text-snapshot"~.tst.toString doc`kind;
+        :fail[`unsupported;"unexpected text snapshot kind"]];
+    if[not "md5"~.tst.toString doc`digestAlgorithm;
+        :fail[`unsupported;"unsupported text snapshot digest"]];
+    if[not .tst.textSnapshotCodecMatches doc`codec;
+        :fail[`unsupported;"snapshot codec/q build differs; explicit migration is required"]];
+    canonical:.tst.toString doc`canonicalPayload;
+    rendering:.tst.toString doc`rendering;
+    if[not .tst.toString[doc`digest]~.tst.canonicalValueDigest canonical;
+        :fail[`invalid;"canonical payload digest mismatch"]];
+    if[not .tst.toString[doc`renderingDigest]~.tst.canonicalValueDigest rendering;
+        :fail[`invalid;"rendering digest mismatch"]];
+    `state`reason`document!(`ok;"";doc)
+ };
+
+.tst.textSnapshotMigrationRequired:{[name;reason]
+    ' "Text snapshot migration required for '",name,"': ",reason,
+      ". Re-run with explicit snapshot update mode to write trusted v2 evidence."
+ };
 
 mustmatchTxtSnap:{[actual;name]
     / Validate before any filesystem access or snapshot creation.
     validatedPath: .tst.snapTxtPath name;
     n: $[10h=type name; name; string name];
-    actTxt: .Q.s1 actual;
+    actualDocument:.tst.textSnapshotDocument actual;
     / Decide existence by FILE PRESENCE, not by ()~stored.
     missing: not .tst.snapTxtExists n;
 
@@ -70,15 +121,20 @@ mustmatchTxtSnap:{[actual;name]
         :1b;
     ];
 
-    stored: .tst.loadSnapTxt[n];
-    if[not actTxt~stored;
+    storedText:.tst.loadSnapTxt[n];
+    parsed:.tst.parseTextSnapshot storedText;
+    if[not (parsed`state)~`ok;
+        .tst.recordSnapshotEvent[`text;n;`unsupported;validatedPath];
+        .tst.textSnapshotMigrationRequired[n;parsed`reason]];
+    stored:parsed`document;
+    if[not (actualDocument`canonicalPayload)~stored`canonicalPayload;
         .tst.recordSnapshotEvent[`text;n;`mismatch;validatedPath];
         -1 "SNAPSHOT MISMATCH for '",n,"'";
         -1 "----------------------------------------------------------------";
         -1 "Expected (Stored):";
-        -1 stored;
+        -1 stored`rendering;
         -1 "Actual (Current):";
-        -1 actTxt;
+        -1 actualDocument`rendering;
         -1 "----------------------------------------------------------------";
         'snapshotTxtMismatch
     ];

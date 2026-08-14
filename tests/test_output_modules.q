@@ -259,6 +259,26 @@
              "an empty quarantine object must not be serialized"];
     };
 
+    should["emit full property replay inputs in JUnit and xUnit"]{
+        tail:(240#"p"),"PROPERTY_REPLAY_TAIL";
+        row:.tst.completeResultRow `suite`description`status`assertsRun!(
+            `S;"property";`fail;1i);
+        row[`property]:`originalInput`minimalInput!(
+            `nested`input!((enlist `payload)!enlist tail;til 120);
+            `nested`input!((enlist `payload)!enlist tail;til 3));
+        prevTop:@[get;`.tst.output.top;{::}];
+        prevReport:.resq.report;
+        .tst.loadOutputModule["junit"];
+        junitProps:.tst.output.junitPropertyNode row;
+        .tst.loadOutputModule["xunit"];
+        xunitProps:.tst.output.xunitPropertyNode row;
+        .tst.output.top:prevTop;.resq.report:prevReport;
+        must[0<count ss[junitProps;"PROPERTY_REPLAY_TAIL"];
+             "JUnit property evidence must retain the full original/minimal input"];
+        must[0<count ss[xunitProps;"PROPERTY_REPLAY_TAIL"];
+             "xUnit property evidence must retain the full original/minimal input"];
+    };
+
     should["declare exact full results and telemetry profile projections"]{
         prevTop:@[get;`.tst.output.top;{::}];
         prevReport:.resq.report;

@@ -114,6 +114,115 @@
         / The file must NOT have been created under -strict.
         must[not .tst.snapTxtExists[snapName]; "missing text snapshot must not be auto-created under -strict"];
     };
+
+    should["text snapshot full fidelity detects differences beyond the display boundary"]{
+        snapName:"tmp_resq_txtsnap_full_fidelity";
+        snapFile:.tst.snapTxtPath snapName;
+        @[hdel;snapFile;{}];
+        .tst.registerCleanup[{[p]@[hdel;p;{}]};enlist snapFile];
+        priorUpdate:.tst.updateSnaps;
+        .tst.registerCleanup[{[old].tst.setUpdateSnaps old};enlist priorUpdate];
+        prefix:240#"a";
+        original:`text`vector`nested!(prefix,"LEFT";til 160;
+            (enlist `payload)!enlist (prefix,"tail-left"));
+        changed:`text`vector`nested!(prefix,"RIGHT";til 160;
+            (enlist `payload)!enlist (prefix,"tail-right"));
+
+        .tst.setUpdateSnaps 1b;
+        .tst.mustmatchst[original;snapName] musteq 1b;
+        .tst.setUpdateSnaps 0b;
+        document:.j.k .tst.loadSnapTxt snapName;
+        document[`schemaVersion] musteq 2f;
+        document[`kind] musteq "resq-text-snapshot";
+        must[count[document`canonicalPayload]>79;
+             "canonical snapshot evidence must not stop at console width"];
+        must[0<count ss[document`rendering;"tail-left"];
+             "full rendering must retain distinguishing tail data"];
+        mustthrow["*snapshotTxtMismatch*";(.tst.mustmatchst;changed;snapName)];
+    };
+
+    should["canonical values and full rendering ignore console geometry"]{
+        oldConsole:system "c";
+        .tst.registerCleanup[{[dims]
+            system "c ",string[dims 0]," ",string dims 1};enlist oldConsole];
+        sample:`longText`numbers`nested!((300#"z"),"TAIL";til 200;
+            (`a`b!((120#"q"),"END";1.2345678901234567f)));
+        system "c 25 40";
+        narrow:(.tst.canonicalValueBytes sample;.tst.renderValueFull sample);
+        system "c 25 500";
+        wide:(.tst.canonicalValueBytes sample;.tst.renderValueFull sample);
+        system "c ",string[oldConsole 0]," ",string oldConsole 1;
+        narrow mustmatch wide;
+        rendered:last narrow;
+        must[(0<count ss[rendered;"TAIL"]) and 0<count ss[rendered;"END"];
+             "full renderer must retain nested tails"];
+    };
+
+    should["canonical IPC leaf oracle round-trips supported value shapes"]{
+        samples:(42j;1.2345678901234567f;"full text";`symbol;
+            1 2 3 4j;("nested";`a`b!1 2);`c1`c2!(`x`y;10 20j);
+            ([] sym:`a`b;px:1.25 2.5f));
+        must[all {x~-9!(-8!x)} each samples;
+             "q IPC fidelity oracle must round-trip every supported sample"];
+        must[not .tst.canonicalValueBytes[1j]~.tst.canonicalValueBytes[1f];
+             "canonical framing must preserve numeric type"];
+        .tst.canonicalValueBytes[1j] musteq
+            "(26:resq-value-v1+q-ipc-leaves:51:(9:leaf/-7/1:34:0100000011000000f90100000000000000))";
+        .tst.canonicalValueBytes[(1j;"x")] musteq
+            "(26:resq-value-v1+q-ipc-leaves:131:(8:list/0/2:114:(4:item:51:(9:leaf/-7/1:34:0100000011000000f90100000000000000))(4:item:39:(10:leaf/-10/1:20:010000000a000000f678))))";
+    };
+
+    should["text snapshots distinguish precision-sensitive floats"]{
+        snapName:"tmp_resq_txtsnap_float_precision";
+        snapFile:.tst.snapTxtPath snapName;
+        @[hdel;snapFile;{}];
+        .tst.registerCleanup[{[p]@[hdel;p;{}]};enlist snapFile];
+        priorUpdate:.tst.updateSnaps;
+        .tst.registerCleanup[{[old].tst.setUpdateSnaps old};enlist priorUpdate];
+        .tst.setUpdateSnaps 1b;
+        / Both values render as "1f" through the former .Q.s1 boundary at
+        / default precision, but their canonical bytes are distinct.
+        must[not .tst.renderValueFull[1.0000001]~.tst.renderValueFull[1.0000002];
+             "full float evidence must preserve a visible distinction"];
+        .tst.mustmatchst[1.0000001;snapName] musteq 1b;
+        .tst.setUpdateSnaps 0b;
+        mustthrow["*snapshotTxtMismatch*";
+            (.tst.mustmatchst;1.0000002;snapName)];
+    };
+
+    should["legacy text snapshots require explicit migration to v2"]{
+        snapName:"tmp_resq_txtsnap_legacy";
+        snapFile:.tst.snapTxtPath snapName;
+        @[hdel;snapFile;{}];
+        .tst.registerCleanup[{[p]@[hdel;p;{}]};enlist snapFile];
+        priorUpdate:.tst.updateSnaps;
+        .tst.registerCleanup[{[old].tst.setUpdateSnaps old};enlist priorUpdate];
+        hsym[snapFile] 0:enlist .Q.s1 `legacy`value!(1;200#"x");
+        .tst.setUpdateSnaps 0b;
+        mustthrow["*Text snapshot migration required*";
+            (.tst.mustmatchst;`legacy`value!(1;200#"x");snapName)];
+        .tst.setUpdateSnaps 1b;
+        .tst.mustmatchst[`legacy`value!(1;200#"x");snapName] musteq 1b;
+        parsed:.tst.parseTextSnapshot .tst.loadSnapTxt snapName;
+        parsed[`state] musteq `ok;
+    };
+
+    should["reject text snapshots from a different pinned codec build"]{
+        snapName:"tmp_resq_txtsnap_codec_mismatch";
+        snapFile:.tst.snapTxtPath snapName;
+        @[hdel;snapFile;{}];
+        .tst.registerCleanup[{[p]@[hdel;p;{}]};enlist snapFile];
+        priorUpdate:.tst.updateSnaps;
+        .tst.registerCleanup[{[old].tst.setUpdateSnaps old};enlist priorUpdate];
+        document:.tst.textSnapshotDocument `a`b!1 2;
+        codec:document`codec;
+        codec[`qRelease]:"different-q-release";
+        document[`codec]:codec;
+        hsym[snapFile] 0:enlist .j.j document;
+        .tst.setUpdateSnaps 0b;
+        mustthrow["*explicit migration is required*";
+            (.tst.mustmatchst;`a`b!1 2;snapName)];
+    };
 };
 
 .tst.desc["Snapshot Name Containment"]{

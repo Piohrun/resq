@@ -82,15 +82,7 @@ if[not `reportListLimit in key `.tst.output; .tst.output.reportListLimit: 1000];
 / Truncation utility for safely outputting large values
 / Prevents memory exhaustion from very large test outputs
 .tst.truncate:{[val;maxLen]
-    s: -3!val;
-    n: count s;
-    if[n > maxLen;
-        truncLen: maxLen - 30;
-        origLen: n;
-        s: truncLen # s;
-        s,: "... [truncated ", string[origLen - truncLen], " chars]"
-    ];
-    s
+    .tst.renderValueBounded[val;maxLen]
  };
 
 / Ensure the .resq namespaces exist before the keyed defaults below probe them.

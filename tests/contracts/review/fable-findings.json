@@ -5,7 +5,7 @@
   "reviewDate": "2026-08-14",
   "findings": [
     {"id":"FB-1","severity":"P0","release":"1.8.1","step":1,"status":"closed","baselineProbe":{"path":"lib/benchmark_regression.q","contains":["[data;] each unique","sum ties*ties*ties-ties"]},"regression":{"path":"tests/test_perf.q","selector":"Mann-Whitney reference statistics"}},
-    {"id":"FB-2","severity":"P0","release":"1.8.1","step":2,"status":"open","baselineProbe":{"path":"lib/snapshot_txt.q","contains":["actTxt: .Q.s1 actual"]},"regression":{"path":"tests/test_snapshot.q","selector":"text snapshot full fidelity"}},
+    {"id":"FB-2","severity":"P0","release":"1.8.1","step":2,"status":"closed","baselineProbe":{"path":"lib/snapshot_txt.q","contains":["actTxt: .Q.s1 actual"]},"regression":{"path":"tests/test_snapshot.q","selector":"text snapshot full fidelity"}},
     {"id":"FB-3","severity":"P0","release":"1.8.1","step":1,"status":"closed","baselineProbe":{"path":"lib/config.q","contains":["not (type cfg n) in -5 -6 -7h"]},"regression":{"path":"tests/test_config.q","selector":"JSON config numeric normalization"}},
     {"id":"FB-4","severity":"P0","release":"1.8.1","step":3,"status":"open","baselineProbe":{"path":"lib/coverage.q","contains":[".tst.origFuncs:: ()!();"]},"regression":{"path":"tests/test_coverage.q","selector":"coverage repeated lifecycle"}},
     {"id":"FB-5","severity":"P1","release":"2.0.0","step":6,"status":"open","baselineProbe":{"path":"lib/output/sanitize.q","contains":[".Q.s1 parameters"]},"regression":{"path":"tests/test_observability.q","selector":"identity is geometry independent"}},

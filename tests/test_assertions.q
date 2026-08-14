@@ -124,7 +124,21 @@
   (first testedFailures) mustlike "Got 5 *";
   must[(first testedFailures) like "*expected 7*"; "message should name the expected value"];
   };
- };
+};
+
+.tst.desc["assertion full-value evidence budget"]{
+ should["cap only after full rendering and include a stable digest"]{
+  `.tst.output.reportLimit mock 50000;
+  raw:(30000#"x"),"DISTINGUISHING_TAIL";
+  full:.tst.renderValueFull raw;
+  bounded:.tst.assertValueText raw;
+  must[0<count ss[full;"DISTINGUISHING_TAIL"];
+       "full evidence renderer must retain the tail"];
+  (count bounded) musteq 25000;
+  must[(0<count ss[bounded;"truncated"]) and 0<count ss[bounded;"md5="];
+       "bounded assertion evidence must make truncation and identity visible"];
+  };
+};
 
 .tst.desc["failure diff context"]{
  should["derive a suite and test label for streamed diff headers"]{

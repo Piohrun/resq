@@ -7,9 +7,16 @@ from `git diff`.
 
 ## Text Snapshots (`mustmatchst`)
 
-Text snapshots serialise the actual value to a plain `.txt` file using `.Q.s1`
-and compare it against the stored text on subsequent runs. The file is human-
-readable and produces meaningful `git diff` output.
+Text snapshots use a versioned JSON envelope. Equality is decided from a full,
+type-and-shape-preserving canonical payload; the envelope also stores a complete
+human-readable rendering for meaningful `git diff` output. Neither boundary
+uses q's console-width-dependent display formatter.
+
+Schema v2 records the resQ codec version, q version/release, the exact local
+unary `-8!/-9!` leaf-fidelity mode (with no negotiated IPC connection
+capability), canonical and rendering digests, and the full rendering. A codec
+or q-build mismatch is an explicit migration event rather than a silent digest
+change.
 
 ### Usage
 ```q
@@ -44,6 +51,12 @@ prevents a missing snapshot from producing a false green in CI.
 ```
 Or delete the snapshot file and re-run.
 
+Unversioned text snapshots created before schema v2 may already contain a
+console-truncated value and are therefore not trusted as equality evidence.
+They fail with `Text snapshot migration required`; only explicit update mode
+may replace them with v2. resQ never auto-migrates or silently blesses the old
+text.
+
 ---
 
 ## Binary Snapshots (`mustmatchs`)
@@ -76,7 +89,7 @@ silent creation.
 |--|--|--|
 | File | `tests/__snapshots__/<name>.snap.txt` | `tests/snapshots/<name>.snap` |
 | Override dir | `.tst.setSnapTxtDir` | `.tst.setSnapDir` |
-| Git diff | Human-readable plain text | Opaque binary |
+| Git diff | Versioned JSON with full readable rendering | Opaque binary |
 | Best for | Tables, reports, large structures | Exact binary round-trip |
 
 Both backends honour `-strict`, `setUpdateSnaps[1b]`, and file-presence existence

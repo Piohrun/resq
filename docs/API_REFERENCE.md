@@ -1595,12 +1595,16 @@ result mustmatchs "query_output";
 actual mustmatchst name
 ```
 
-Assert value matches stored text snapshot (serialised with `.Q.s1`). Produces
-human-readable `git diff` output.
+Assert value matches a schema-v2 text snapshot. Equality uses the complete
+canonical payload; the JSON envelope carries a full human-readable rendering,
+codec/q-build metadata, and integrity digests for reviewable `git diff` output.
 
 **Storage:** `tests/__snapshots__/<name>.snap.txt` — override with `.tst.setSnapTxtDir`
 
 **Behavior:** Same first-run and `-strict` semantics as binary snapshots.
+Unversioned/v1 text is rejected as untrusted evidence and must be rewritten
+through explicit `setUpdateSnaps[1b]` mode. Codec or q-build changes likewise
+require explicit migration.
 
 **Example:**
 ```q

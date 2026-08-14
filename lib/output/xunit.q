@@ -34,7 +34,7 @@
     if[(99h=type prop) and 0<count prop;
         values:{[p;n]
             if[not (n in key p);:""];
-            $[n in `originalInput`minimalInput;.Q.s1 p n;.tst.toString p n]
+            $[n in `originalInput`minimalInput;.tst.renderValueFull p n;.tst.toString p n]
         }[prop;] each names;
         body,:raze {[n;v]
             "<trait name=\"",.tst.output.escapeXml[n],"\" value=\"",
