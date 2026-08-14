@@ -87,9 +87,9 @@ jobs:
           ./bin/resq test tests -strict -json -junit -quiet -report-profile full \
             -outDir artifacts/correctness/normal \
             -state-file artifacts/correctness/state/normal.json \
-            -flake-history artifacts/correctness/state/flake.json \
-            -quarantine-file artifacts/correctness/state/quarantine.json \
-            -flake-proposal-file artifacts/correctness/state/proposals.json \
+            -flake-history artifacts/correctness/state/normal-flake.json \
+            -quarantine-file artifacts/correctness/state/normal-quarantine.json \
+            -flake-proposal-file artifacts/correctness/state/normal-proposals.json \
             2>&1 | tee artifacts/correctness/normal-console.txt
       - name: Strict isolated evidence
         shell: bash
@@ -99,16 +99,20 @@ jobs:
             -isolateWorkers 4 -json -junit -quiet -report-profile full \
             -outDir artifacts/correctness/isolated \
             -state-file artifacts/correctness/state/isolated.json \
-            -flake-history artifacts/correctness/state/flake.json \
-            -quarantine-file artifacts/correctness/state/quarantine.json \
-            -flake-proposal-file artifacts/correctness/state/proposals.json \
+            -flake-history artifacts/correctness/state/isolated-flake.json \
+            -quarantine-file artifacts/correctness/state/isolated-quarantine.json \
+            -flake-proposal-file artifacts/correctness/state/isolated-proposals.json \
             2>&1 | tee artifacts/correctness/isolated-console.txt
       - name: Validate and reconcile correctness evidence
         run: |
           python3 - <<'PY'
           import json
+          import sys
           from pathlib import Path
-          from tools.validate_report import validate
+
+          sys.path.insert(0, "tools")
+          from validate_report import validate
+          from verify_release_gate import reconcile_suites
 
           root = Path("artifacts/correctness")
           reports = {}
@@ -116,18 +120,7 @@ jobs:
               report = json.loads((root / name / "test-results.json").read_text())
               validate(report)
               reports[name] = report
-          project = lambda report: {row["testId"]: row["status"] for row in report["tests"]}
-          if project(reports["normal"]) != project(reports["isolated"]):
-              raise SystemExit("normal/isolated stable-ID verdicts differ")
-          receipt = {
-              "schemaVersion": 1,
-              "kind": "resq-correctness-parity",
-              "status": "pass",
-              "normal": reports["normal"]["summary"],
-              "isolated": reports["isolated"]["summary"],
-              "verdictParity": True,
-          }
-          (root / "parity.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          reconcile_suites(reports["normal"], reports["isolated"], root / "parity.json")
           PY
       - name: Upload correctness evidence
         if: always()

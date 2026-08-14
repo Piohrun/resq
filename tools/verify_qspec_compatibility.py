@@ -43,7 +43,13 @@ def run(command: list[str], output: Path, q_executable: str, state_root: Path) -
 
 
 def verdict(report: dict[str, Any]) -> dict[str, str]:
-    return {row["testId"]: row["status"] for row in report["tests"]}
+    pairs = [
+        ((row.get("caseId") or row["testId"]), row["status"])
+        for row in report["tests"]
+    ]
+    if len(pairs) != len({identity for identity, _ in pairs}):
+        raise RuntimeError("compatibility report contains duplicate execution identities")
+    return dict(pairs)
 
 
 def verify(q_executable: str, destination: Path) -> Path:

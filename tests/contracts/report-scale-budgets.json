@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "resq-report-scale-budgets",
   "corpusTests": 10000,
   "failureEvery": 2,
@@ -7,7 +7,37 @@
   "referenceMeasurement": {
     "date": "2026-08-14",
     "greenBytesPerTest": {"full": 2352.2276, "results": 684.0225, "telemetry": 347.0418, "ndjson": 990.0702, "junit": 252.8981, "allure": 717.0},
-    "failureHeavyBytesPerTest": {"full": 4402.2278, "results": 2734.0227, "telemetry": 859.042, "ndjson": 1502.0704, "junit": 1276.8981, "allure": 1741.0}
+    "failureHeavyBytesPerTest": {"full": 4402.2278, "results": 2734.0227, "telemetry": 859.042, "ndjson": 1502.0704, "junit": 1276.8981, "allure": 1741.0},
+    "lifecycle": {
+      "qVersion": "4.1",
+      "baselineTests": 10000,
+      "qualificationTests": 100000,
+      "eventCounts": [42204, 402204],
+      "pythonWallSeconds": [1.498649, 14.703099],
+      "pythonPeakBytes": [25804496, 246377248],
+      "qWallSeconds": [0.4393098, 4.484736],
+      "qPeakBytes": [67108864, 1140850688],
+      "qBytesPerTest": [1760.4457, 1694.6987],
+      "typeOrderDigests": ["44486596c05f34c296527d6aae787933", "c32f11fc6061ffa9112d2d89c5946552"]
+    }
+  },
+  "lifecycle": {
+    "baselineTests": 10000,
+    "qualificationTests": 100000,
+    "baselineSamples": 3,
+    "files": 100,
+    "suitesPerFile": 10,
+    "maxOutputBytesPerTest": 1900,
+    "maxWallGrowthRatio": 15,
+    "maxPeakGrowthRatio": 20,
+    "python": {
+      "baseline": {"maxWallSeconds": 5, "maxPeakBytes": 67108864},
+      "qualification": {"maxWallSeconds": 60, "maxPeakBytes": 536870912}
+    },
+    "q": {
+      "baseline": {"maxWallSeconds": 5, "maxPeakBytes": 134217728},
+      "qualification": {"maxWallSeconds": 30, "maxPeakBytes": 2147483648}
+    }
   },
   "limits": {
     "model": {"maxBytesPerTest": 0, "maxPeakBytes": 536870912, "maxWallSeconds": 30, "maxRecordBytes": 0},

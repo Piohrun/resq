@@ -76,7 +76,7 @@ jobs:
           retention-days: 30
 
   soak-scale:
-    name: Repeated-process soak and 10k report scale
+    name: Repeated-process soak, 10k artifacts, and 100k lifecycle scale
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 45
     steps:
@@ -88,7 +88,7 @@ jobs:
           mkdir -p artifacts/soak-scale
           tools/verify_soak.py --q q --output artifacts/soak-scale/soak-evidence.json \
             2>&1 | tee artifacts/soak-scale/soak-console.txt
-      - name: Green and failure-heavy report scale
+      - name: Green/failure-heavy artifacts and lifecycle qualification
         shell: bash
         run: |
           set -euo pipefail

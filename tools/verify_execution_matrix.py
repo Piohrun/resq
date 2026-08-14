@@ -75,7 +75,13 @@ def run_mode(
 
 
 def verdict(document: dict[str, Any]) -> dict[str, str]:
-    return {row["testId"]: row["status"] for row in document["tests"]}
+    pairs = [
+        ((row.get("caseId") or row["testId"]), row["status"])
+        for row in document["tests"]
+    ]
+    if len(pairs) != len({identity for identity, _ in pairs}):
+        raise RuntimeError("execution report contains duplicate execution identities")
+    return dict(pairs)
 
 
 def event_signature(document: dict[str, Any]) -> list[tuple[Any, ...]]:

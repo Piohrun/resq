@@ -30,6 +30,7 @@ SUITES = {
         "tools.tests.test_identity_migration",
         "tools.tests.test_coverage_performance",
         "tools.tests.test_review_corpus",
+        "tools.tests.test_report_scale",
         "tools.tests.test_release_gate",
     ],
 }

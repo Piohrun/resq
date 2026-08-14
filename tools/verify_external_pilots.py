@@ -91,7 +91,11 @@ def run_mode(
 
 
 def verdict(document: dict[str, Any]) -> dict[str, str]:
-    return {row["testId"]: row["status"] for row in document["tests"]}
+    pairs = [((row.get("caseId") or row["testId"]), row["status"])
+             for row in document["tests"]]
+    if len(pairs) != len({identity for identity, _ in pairs}):
+        raise RuntimeError("external pilot report contains duplicate execution identities")
+    return dict(pairs)
 
 
 def verify(q_executable: str) -> None:

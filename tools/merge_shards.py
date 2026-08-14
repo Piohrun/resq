@@ -695,8 +695,10 @@ def lifecycle(
     })
     files = {entry["path"]: entry for entry in manifest["files"]}
     inventory = {entry["executionId"]: entry for entry in manifest["tests"]}
-    for file_path in dict.fromkeys(row["file"] for row in rows):
-        file_rows = [row for row in rows if row["file"] == file_path]
+    rows_by_file: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        rows_by_file.setdefault(row["file"], []).append(row)
+    for file_path, file_rows in rows_by_file.items():
         file_entry = files.get(file_path, {
             "fileId": "file_" + stable_hash_text(file_path), "path": file_path,
             "sourceDigest": "", "assignedShard": -1, "selected": True, "shardable": False,
@@ -704,8 +706,10 @@ def lifecycle(
         file_id = file_entry["fileId"]
         file_started, file_finished = interval(file_rows, run["startedAt"], run["finishedAt"])
         emit("file.started", file_id, run["id"], file_started, file_entry)
-        for suite in dict.fromkeys(row["suite"] for row in file_rows):
-            suite_rows = [row for row in file_rows if row["suite"] == suite]
+        rows_by_suite: dict[str, list[dict[str, Any]]] = {}
+        for row in file_rows:
+            rows_by_suite.setdefault(row["suite"], []).append(row)
+        for suite, suite_rows in rows_by_suite.items():
             first_entry = inventory[execution_id(suite_rows[0])]
             suite_id = first_entry["suiteId"]
             suite_started, suite_finished = interval(suite_rows, file_started, file_finished)

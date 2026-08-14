@@ -54,6 +54,30 @@ class ReleaseGateContractTests(unittest.TestCase):
         self.assertTrue(receipt["semanticInventoryParity"])
         self.assertEqual(2, len(verdict(normal)))
 
+    def test_execution_identity_parity(self) -> None:
+        normal = scale_report(2)
+        isolated = copy.deepcopy(normal)
+        parent_id = "test_" + "f" * 32
+        for document in (normal, isolated):
+            document["tests"][0].update(
+                testId=parent_id, caseId="case_" + "a" * 32,
+                parameters={"case": "first"},
+            )
+            document["tests"][1].update(
+                testId=parent_id, caseId="case_" + "b" * 32,
+                parameters={"case": "second"},
+            )
+        # Mutate the non-final case. A testId-keyed dict overwrites this row
+        # with the final case and therefore false-passes; execution IDs do not.
+        isolated["tests"][0]["status"] = "fail"
+        self.assertEqual(
+            {parent_id: "pass"},
+            {row["testId"]: row["status"] for row in isolated["tests"]},
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            with self.assertRaisesRegex(RuntimeError, "semantic test inventory"):
+                reconcile_suites(normal, isolated, Path(raw) / "receipt.json")
+
     def test_reconciliation_rejects_policy_state_drift(self) -> None:
         normal = scale_report(1)
         isolated = copy.deepcopy(normal)

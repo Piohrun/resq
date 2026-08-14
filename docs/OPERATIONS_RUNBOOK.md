@@ -16,7 +16,7 @@ lane evidence exists.
 | Compatibility | `tools/verify_qspec_compatibility.py --out-dir …` | Pinned upstream, native, and qspec-launcher reports plus receipt, 14 days |
 | Performance | `tools/verify_benchmark_regression.py` | Raw contract log naming workload/environment mismatch decisions, 14 days |
 | Hostile/release | execution/shard/property/quarantine/snapshot/TTY/hostile/pilot tools | Combined fail-closed fault log, 14 days; the release workflow retains the complete audit for 90 days |
-| Soak/scale | `tools/verify_soak.py` and `tools/verify_report_scale.py` nightly | Resource samples and 10k green/failure-heavy measurements, 30 days |
+| Soak/scale | `tools/verify_soak.py` and `tools/verify_report_scale.py` nightly | Resource samples, 10k green/failure-heavy artifacts, and repeated 10k plus qualified 100k q/Python lifecycle measurements, 30 days |
 
 GitHub Actions artifacts are the archived example result for each workflow run.
 The authoritative release artifact is schema-v1 `release-audit.json` together
@@ -63,6 +63,16 @@ bounds, not a claim that q interned symbols or empty namespace names can be
 reclaimed. Repeated growth above the contract requires recycling the watch
 process and investigating the first divergent sample; do not raise a threshold
 from one noisy run.
+
+The scale gate keeps the 10k artifact/adapter ceiling and separately builds
+lifecycle events over a deterministic 100-file, 1,000-suite topology. It
+repeats 10k three times, qualifies 100k once in both q and Python, checks the
+same event-order digest and benchmark timestamp contract, and enforces wall,
+peak-memory, and encoded-output budgets from
+`tests/contracts/report-scale-budgets.json`. The checked q 4.1 reference grew
+from 42,204 to 402,204 events in 0.44s to 4.48s; Python grew from 1.50s to
+14.70s. Treat the emitted artifact as the machine-readable evidence and retain
+it with the runner logs.
 
 ## External pilots and support claims
 

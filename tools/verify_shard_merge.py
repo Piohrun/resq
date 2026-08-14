@@ -118,7 +118,13 @@ def run_strict_plugin_shard(
 
 
 def verdict(document: dict[str, Any]) -> dict[str, str]:
-    return {(row["caseId"] or row["testId"]): row["status"] for row in document["tests"]}
+    pairs = [
+        ((row.get("caseId") or row["testId"]), row["status"])
+        for row in document["tests"]
+    ]
+    if len(pairs) != len({identity for identity, _ in pairs}):
+        raise RuntimeError("shard report contains duplicate execution identities")
+    return dict(pairs)
 
 
 def merged(root: Path, name: str, reports: list[Path]) -> dict[str, Any]:

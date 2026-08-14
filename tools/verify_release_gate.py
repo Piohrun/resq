@@ -599,7 +599,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             timeout=900,
         )
         audit.run(
-            "10k report and adapter scale budgets",
+            "10k artifact and 100k lifecycle scale budgets",
             [str(ROOT / "tools/verify_report_scale.py"), "--q", q_executable,
              "--output", str(output / "report-scale.json")],
             timeout=900,
