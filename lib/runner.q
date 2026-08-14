@@ -6,7 +6,8 @@
     / Pin the CLI/configured artifact destination before loading or executing
     / test code. A test may exercise private config helpers, but it must never
     / redirect the enclosing run's reporters, snapshots, or coverage evidence.
-    .tst.app.runOutputDir:.resq.config.outDir;
+    if[not `runOutputDir in key `.tst.app;
+        .tst.app.runOutputDir:.resq.config.outDir];
     reportFmt: .tst.normalizeFmt .resq.config.fmt;
 
     / Respect config format even when explicit xml flag was not set.

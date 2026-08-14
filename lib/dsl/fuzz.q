@@ -73,6 +73,7 @@ privateScalar:{[default;seed;counter;stream]
  };
 
 privateVector:{[default;length;seed;counter;stream]
+    if[0=length;:0#enlist default];
     {[d;s;c;st;j].tst.privateScalar[d;s;c*101+j;st]}[
         default;seed;counter;stream;] each til length
  };

@@ -161,4 +161,9 @@
   all 14h = type each l;
   all (count each l) <= 20;
   };
+
+ should["preserve the element type when a generated list is empty"]{
+  type[.tst.privateVector[0Nd;0;42j;0j;"typed-empty"]] musteq 14h;
+  type[.tst.privateVector[`symbol;0;42j;0j;"typed-empty"]] musteq 11h;
+  };
  };

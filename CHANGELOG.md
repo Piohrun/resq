@@ -44,6 +44,9 @@ changing the documented identity-v2 algorithm or other major-version contracts.
 - The run's configured artifact directory is pinned before test loading, so
   test code that exercises internal config helpers cannot redirect final JSON,
   XML, snapshot-inventory, or coverage evidence.
+- Legacy fuzz vectors retain their q element type even when a deterministic
+  seed produces an empty vector, removing checkout-path-dependent failures in
+  the pinned upstream qspec compatibility corpus.
 
 ### Compatibility and migration
 
