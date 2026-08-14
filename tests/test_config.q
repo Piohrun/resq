@@ -66,6 +66,76 @@
   badWarnings:.tst.validateConfig (enlist `seed)!enlist -1;
   must[any badWarnings like "seed must be >= 0*";"negative seeds must be rejected"];
   };
+ should["JSON config numeric normalization applies gates and exact seeds"]{
+  json:"{\"coverageMin\":80,\"coverageLineMin\":75,\"shardIndex\":1,\"shardCount\":3,\"benchmarkAlphaPercent\":5,\"benchmarkEffectMin\":7,\"benchmarkMinSamples\":9,\"seed\":9007199254740991,\"runSpecs\":[\"alpha*\",\"beta*\"],\"excludeSpecs\":\"slow*,flaky*\"}";
+  hsym[`$":test_config.json"] 0:enlist json;
+  cfg:.tst.loadConfig "test_config.json";
+  .tst.validateConfig[cfg] mustmatch ();
+  allLong:all -7h=type each cfg `coverageMin`coverageLineMin`shardIndex`shardCount,
+      `benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`seed;
+  allLong musteq 1b;
+  cfg[`seed] musteq 9007199254740991j;
+  cfg[`runSpecs] mustmatch ("alpha*";"beta*");
+  cfg[`excludeSpecs] mustmatch ("slow*";"flaky*");
+
+  previous:@[get;`.tst.app.coverageMin;0];
+  .tst.applyConfig cfg;
+  decision:.tst.coverageGateDecision[
+      `functionsFound`functionsHit`functionPercent!(10j;7j;70f);
+      .tst.app.coverageMin];
+  .tst.app.coverageMin:previous;
+  decision[`minimum] musteq 80j;
+  decision[`passed] musteq 0b;
+  };
+ should["normalize every JSON integer key class from a real config file"]{
+  names:.tst.configIntegerNames;
+  doc:names!((count names)#7f);
+  doc[`seed]:42f;
+  doc[`shardIndex]:0f;doc[`shardCount]:1f;
+  doc[`flakeEvidenceMin]:3f;doc[`flakeFailureMin]:2f;doc[`flakeWindow]:20f;
+  doc[`benchmarkAlphaPercent]:5f;doc[`benchmarkEffectMin]:5f;
+  doc[`benchmarkMinSamples]:5f;
+  hsym[`$":test_config.json"] 0:enlist .j.j doc;
+  loaded:.tst.loadConfig "test_config.json";
+  .tst.validateConfig[loaded] mustmatch ();
+  (all -7h=type each loaded names) musteq 1b;
+  loaded[names] mustmatch "j"$doc names;
+  };
+ should["accept large decimal seed strings through the finite q-long maximum"]{
+  hsym[`$":test_config.json"] 0:enlist "{\"seed\":\"9223372036854775806\"}";
+  maximum:.tst.loadConfig "test_config.json";
+  maximum[`seed] musteq 9223372036854775806j;
+  .tst.validateConfig[maximum] mustmatch ();
+
+  hsym[`$":test_config.json"] 0:enlist "{\"seed\":\"9007199254740992\"}";
+  beyondSafe:.tst.loadConfig "test_config.json";
+  beyondSafe[`seed] musteq 9007199254740992j;
+
+  hsym[`$":test_config.json"] 0:enlist "{\"seed\":\"+42\"}";
+  positive:.tst.loadConfig "test_config.json";
+  positive[`seed] musteq 42j;
+  };
+ should["reject fractional unsafe and overflowing JSON config integers visibly"]{
+  hsym[`$":test_config.json"] 0:enlist "{\"coverageMin\":80.5,\"seed\":9007199254740992}";
+  unsafe:.tst.loadConfig "test_config.json";
+  invalid:.tst.invalidConfigKeys unsafe;
+  `coverageMin`seed mustin invalid;
+  warnings:.tst.validateConfig unsafe;
+  must[any warnings like "seed JSON numbers above 2^53-1*";
+       "unsafe numeric seed must direct the user to a string spelling"];
+
+  hsym[`$":test_config.json"] 0:enlist "{\"seed\":\"9223372036854775807\"}";
+  overflow:.tst.loadConfig "test_config.json";
+  .tst.invalidConfigKeys[overflow] musteq enlist `seed;
+  must[any .tst.validateConfig[overflow] like "seed decimal string is*";
+       "overflowing decimal seed must be diagnosed"];
+
+  badTexts:("-1";"12x";"");
+  {[text]
+    cfg:(enlist `seed)!enlist text;
+    .tst.invalidConfigKeys[cfg] musteq enlist `seed;
+  } each badTexts;
+  };
  should["validate rerun selection settings"]{
   warnings:.tst.validateConfig `lastFailed`failedFirst`stateFile!(1b;0b;"cache/state.json");
   warnings mustmatch ();

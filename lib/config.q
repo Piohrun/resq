@@ -159,6 +159,152 @@ defaultConfig:defaultConfig,`finalDiffs`finalDiffLimit!(0b;4000);
     `state`value!(`ok;lines)
  };
 
+/ JSON numbers are decoded by .j.k as floats. They are trustworthy as integer
+/ spellings only through IEEE-754's exact-integer boundary. Larger execution
+/ seeds remain available through strict decimal strings.
+.tst.CONFIG_JSON_SAFE_INTEGER_MAX:"J"$"9007199254740991";
+.tst.CONFIG_SPEC_MAX_COUNT:256j;
+.tst.CONFIG_SPEC_MAX_LENGTH:1024j;
+.tst.configIntegerNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit,
+    `diffLargeTableThreshold`diffHugeTableThreshold`coverageMin,
+    `coverageFunctionMin`coverageLineMin`coverageCompletenessMin,
+    `coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax,
+    `coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin,
+    `flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin,
+    `benchmarkMinSamples`finalDiffLimit;
+
+.tst.configDecimalSyntax:{[text]
+    if[not 10h=type text;:0b];
+    if[0=count text;:0b];
+    body:$[(first text) in "+-";1_text;text];
+    if[0=count body;:0b];
+    all body in "0123456789"
+ };
+
+.tst.parseConfigSeedText:{[raw]
+    if[not .tst.configDecimalSyntax raw;:raw];
+    parsed:"J"$raw;
+    if[(null parsed) or parsed in (0W;-0W);:raw];
+    if[parsed<0;:raw];
+    parsed
+ };
+
+.tst.configJsonSkipValue:{[text;start]
+    i:.tst.labelSkipWhitespace[text;start];
+    if[i>=count text;:i];
+    ch:text i;
+    if[ch="\"";
+        scanned:.tst.labelScanString[text;i;1b];
+        :$[scanned`ok;scanned`next;i]];
+    if[ch in "[{";
+        stack:enlist ch;
+        i+:1;
+        inString:0b;escaped:0b;
+        while[(i<count text) and count stack;
+            ch:text i;
+            wasInString:inString;
+            if[wasInString;
+                $[escaped;escaped:0b;
+                  ch="\\";escaped:1b;
+                  ch="\"";inString:0b;
+                  ::];
+                i+:1];
+            if[not wasInString;
+                if[ch="\"";inString:1b;i+:1];
+                if[not inString;
+                    if[ch in "[{";stack,:ch;i+:1];
+                    if[ch in "]}";stack:-1_stack;i+:1];
+                    if[not ch in "[]{}";i+:1]]];
+        ];
+        :i];
+    while[(i<count text) and not text[i] in ",}";i+:1];
+    i
+ };
+
+/ Recover an exactly-spelled top-level JSON seed at the one boundary where
+/ .j.k rounds 2^53-1 upward. Other values still come from the JSON decoder.
+.tst.exactJsonNumericSeed:{[text]
+    missing:`found`seed!(0b;0j);
+    i:.tst.labelSkipWhitespace[text;0];
+    if[(i>=count text) or not text[i]="{";:missing];
+    i:.tst.labelSkipWhitespace[text;i+1];
+    answer:missing;
+    while[(i<count text) and not text[i]="}";
+        keyScan:.tst.labelScanString[text;i;1b];
+        if[not keyScan`ok;:missing];
+        i:.tst.labelSkipWhitespace[text;keyScan`next];
+        if[(i>=count text) or not text[i]=":";:missing];
+        valueStart:.tst.labelSkipWhitespace[text;i+1];
+        valueEnd:.tst.configJsonSkipValue[text;valueStart];
+        tokenEnd:valueEnd;
+        while[(tokenEnd>valueStart) and text[tokenEnd-1] in " \t\r\n";tokenEnd-:1];
+        token:(tokenEnd-valueStart)#valueStart _ text;
+        if[((keyScan`value)~"seed") and .tst.configDecimalSyntax token;
+            parsed:"J"$token;
+            if[not null parsed;
+                if[not parsed in (0W;-0W);
+                    if[parsed>=0;
+                        if[parsed<=.tst.CONFIG_JSON_SAFE_INTEGER_MAX;
+                            answer:`found`seed!(1b;parsed)]]]]];
+        i:.tst.labelSkipWhitespace[text;valueEnd];
+        if[(i<count text) and text[i]=",";i:.tst.labelSkipWhitespace[text;i+1]];
+    ];
+    answer
+ };
+
+.tst.normalizeConfigIntegerValue:{[setting;raw]
+    if[(setting~`seed) and 10h=type raw;:.tst.parseConfigSeedText raw];
+    if[not -9h=type raw;:raw];
+    if[(null raw) or raw in (0w;-0w);:raw];
+    if[raw<>floor raw;:raw];
+    parsed:"j"$raw;
+    if[(parsed in (0W;-0W)) or abs[parsed]>.tst.CONFIG_JSON_SAFE_INTEGER_MAX;:raw];
+    parsed
+ };
+
+/ Spec filters stay as strings: config input is untrusted and must never grow
+/ the process symbol table. The validator below enforces the public bounds.
+.tst.normalizeConfigSpecPatterns:{[patterns]
+    $[10h=type patterns;"," vs patterns;
+      -11h=type patterns;enlist string patterns;
+      11h=type patterns;string each patterns;
+      0h=type patterns;{$[10h=type x;x;-11h=type x;string x;x]} each patterns;
+      patterns]
+ };
+
+.tst.validConfigSpecPatterns:{[patterns]
+    if[not 0h=type patterns;:0b];
+    if[count[patterns]>.tst.CONFIG_SPEC_MAX_COUNT;:0b];
+    if[not all {10h=type x} each patterns;:0b];
+    all (count each patterns) within (0;.tst.CONFIG_SPEC_MAX_LENGTH)
+ };
+
+/ Pure value-layer normalization shared by file loading, validation, and
+/ application. It returns a new dictionary and never weakens an invalid value
+/ into a default; rejected values remain visible to validation diagnostics.
+.tst.normalizeConfigDocument:{[document]
+    cfg:document;
+    if[(type cfg) in -20 20h;cfg:(enlist key cfg)!enlist value cfg];
+    if[not 99h=type cfg;:cfg];
+    integerNames:.tst.configIntegerNames where .tst.configIntegerNames in key cfg;
+    if[count integerNames;
+        integerValues:{[doc;setting]
+            .tst.normalizeConfigIntegerValue[setting;doc setting]}[cfg;] each integerNames;
+        cfg:cfg,integerNames!integerValues];
+    if[`excludeSpecs in key cfg;
+        cfg[`excludeSpecs]:.tst.normalizeConfigSpecPatterns cfg`excludeSpecs];
+    if[`runSpecs in key cfg;
+        cfg[`runSpecs]:.tst.normalizeConfigSpecPatterns cfg`runSpecs];
+    if[`shardUnit in key cfg;
+        if[10h=type cfg`shardUnit;cfg[`shardUnit]:`$lower cfg`shardUnit]];
+    if[`reportProfile in key cfg;
+        if[10h=type cfg`reportProfile;cfg[`reportProfile]:`$lower cfg`reportProfile]];
+    if[`testFilePatterns in key cfg;
+        if[10h=type cfg`testFilePatterns;
+            cfg[`testFilePatterns]:enlist cfg`testFilePatterns]];
+    cfg
+ };
+
 / Load configuration from JSON file
 / @param path (string) Path to config file (default: "resq.json")
 / @return (dict) Configuration dictionary
@@ -190,48 +336,14 @@ loadConfig:{[path]
         -1 "WARNING: Config JSON root must be an object; using defaults";
         cfg:()!()
     ];
+    if[`seed in key cfg;
+        exactSeed:.tst.exactJsonNumericSeed cfgText;
+        if[exactSeed`found;
+            cfg:cfg,(enlist `seed)!enlist exactSeed`seed]];
     .tst.configTestFilePatternsExplicit:`testFilePatterns in key cfg;
-
-    merged:$[0 < count cfg; .tst.defaultConfig, cfg; .tst.defaultConfig];
-
-    if[10h = type merged`excludeSpecs;
-        merged[`excludeSpecs]: `$"," vs merged`excludeSpecs
-    ];
-    if[10h = type merged`runSpecs;
-        merged[`runSpecs]: `$"," vs merged`runSpecs
-    ];
-    if[`fmt in key merged;
-        merged[`fmt]: .tst.normalizeFmt merged`fmt
-    ];
-    if[10h = type merged`fuzzLimit;
-        merged[`fuzzLimit]: "I"$merged`fuzzLimit
-    ];
-    if[10h = type merged`maxTestTime;
-        merged[`maxTestTime]: "I"$merged`maxTestTime
-    ];
-    if[10h = type merged`reportLimit;
-        merged[`reportLimit]: "I"$merged`reportLimit
-    ];
-    if[10h = type merged`reportListLimit;
-        merged[`reportListLimit]: "I"$merged`reportListLimit
-    ];
-    if[10h = type merged`seed;
-        merged[`seed]: "J"$merged`seed
-    ];
-    if[10h = type merged`shardIndex;merged[`shardIndex]:"J"$merged`shardIndex];
-    if[10h = type merged`shardCount;merged[`shardCount]:"J"$merged`shardCount];
-    if[10h=type merged`shardUnit;merged[`shardUnit]:`$lower merged`shardUnit];
-    if[10h=type merged`reportProfile;merged[`reportProfile]:`$lower merged`reportProfile];
-    if[10h=type merged`finalDiffLimit;merged[`finalDiffLimit]:"I"$merged`finalDiffLimit];
-    coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples;
-    {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
-    if[`testFilePatterns in key merged;
-        if[.tst.validTestFilePatterns merged`testFilePatterns;
-            merged[`testFilePatterns]:.tst.normalizeTestFilePatterns merged`testFilePatterns
-        ];
-    ];
-
-    merged
+    cfg:.tst.normalizeConfigDocument cfg;
+    if[`fmt in key cfg;cfg[`fmt]:.tst.normalizeFmt cfg`fmt];
+    $[0<count cfg;.tst.defaultConfig,cfg;.tst.defaultConfig]
  }
 
 .tst.normalizeFmtInput:{[fmt]
@@ -309,6 +421,7 @@ loadConfig:{[path]
 validateConfig:{[cfg]
   if[(type cfg) in -20 20h; cfg:(enlist key cfg)!enlist value cfg];
   if[not 99h = type cfg; cfg:()!()];
+  cfg:.tst.normalizeConfigDocument cfg;
 
   warnings:();
   knownKeys:key .tst.defaultConfig;
@@ -359,7 +472,7 @@ validateConfig:{[cfg]
             "finalDiffs must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`finalDiffLimit;
+  intNames:.tst.configIntegerNames;
   intMsgs:("fuzzLimit must be an integer scalar";
            "maxTestTime must be an integer scalar";
            "reportLimit must be an integer scalar";
@@ -385,6 +498,16 @@ validateConfig:{[cfg]
            "benchmarkMinSamples must be an integer scalar";
            "finalDiffLimit must be an integer scalar");
   warnings,: raze checkType[cfg;;(-5h;-6h;-7h);]'[intNames; intMsgs];
+  if[`seed in key cfg;
+    seedValue:cfg`seed;
+    if[-9h=type seedValue;
+      if[(not null seedValue) and not seedValue in (0w;-0w);
+        if[("j"$abs seedValue)>.tst.CONFIG_JSON_SAFE_INTEGER_MAX;
+          warnings,:enlist "seed JSON numbers above 2^53-1 are unsafe; use a decimal string"]]];
+    if[10h=type seedValue;
+      if[.tst.configDecimalSyntax seedValue;
+        warnings,:enlist "seed decimal string is negative or outside the finite q-long range";
+        warnings,:enlist "seed must be a strict decimal string"]]];
 
   / Range check: numeric keys must be non-negative. A correctly-typed but
   / negative value (e.g. fuzzLimit:-5, maxTestTime:-1) is nonsensical; warn and
@@ -505,9 +628,11 @@ validateConfig:{[cfg]
       warnings,:enlist "lastFailed and failedFirst cannot both be true"];
 
   specNames:`excludeSpecs`runSpecs;
-  specMsgs:("excludeSpecs should be a symbol list or comma-separated string";
-            "runSpecs should be a symbol list or comma-separated string");
-  warnings,: raze checkType[cfg;;(0h;11h;-11h);]'[specNames; specMsgs];
+  specMsgs:("excludeSpecs must be at most 256 strings of at most 1024 bytes";
+            "runSpecs must be at most 256 strings of at most 1024 bytes");
+  warnings,:raze {[cfg;name;message]
+      $[(name in key cfg) and not .tst.validConfigSpecPatterns cfg name;
+        enlist message;()]}[cfg;;]'[specNames;specMsgs];
   warnings,: raze checkType[cfg;;(0h;10h;11h;-11h);]'[
       enlist `pluginFiles;enlist "pluginFiles must be a string/symbol or list"];
 
@@ -534,6 +659,7 @@ validateConfig:{[cfg]
 invalidConfigKeys:{[cfg]
   if[(type cfg) in -20 20h; cfg:(enlist key cfg)!enlist value cfg];
   if[not 99h = type cfg; cfg:()!()];
+  cfg:.tst.normalizeConfigDocument cfg;
 
   invalid:`symbol$();
   knownKeys:key .tst.defaultConfig;
@@ -554,7 +680,7 @@ invalidConfigKeys:{[cfg]
   / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
   / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
   / with a warning, default retained (the warn-and-ignore contract).
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow`finalDiffLimit;
+  intNames:.tst.configIntegerNames;
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
@@ -632,9 +758,11 @@ invalidConfigKeys:{[cfg]
      1b~$[`failedFirst in key cfg;cfg`failedFirst;0b];
       invalid,:`lastFailed`failedFirst];
 
-  / spec lists: symbol list or comma-separated string.
+  / Spec lists are bounded strings only; normalization converts legacy symbols
+  / and comma-separated strings without interning file input.
   specNames:`excludeSpecs`runSpecs;
-  invalid,: specNames where {[cfg;n] (n in key cfg) and not (type cfg n) in 0 11 -11h}[cfg] each specNames;
+  invalid,:specNames where {[cfg;n]
+      (n in key cfg) and not .tst.validConfigSpecPatterns cfg n}[cfg] each specNames;
   if[`pluginFiles in key cfg;
     if[not (type cfg`pluginFiles) in 0 10 11 -11h;invalid,:`pluginFiles]];
 
@@ -665,6 +793,7 @@ applyConfig:{[cfg]
         -1 "CONFIG WARNING: ignoring malformed configuration (expected dictionary)";
         :()
     ];
+    cfg:.tst.normalizeConfigDocument cfg;
 
     invalid: .tst.invalidConfigKeys cfg;
     if[0 < count invalid;

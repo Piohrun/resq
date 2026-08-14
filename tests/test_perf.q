@@ -134,6 +134,49 @@
         (abs[(result`pValue)-0.0121857804] < 0.0000001) musteq 1b;
     };
 
+    should["Mann-Whitney reference statistics cover order, ties, and unequal samples"]{
+        / These goldens use SciPy's two-sided asymptotic method with average
+        / ranks, tie correction and continuity correction. SciPy is an
+        / authoring cross-check only; resQ has no runtime Python dependency.
+        cases:((1 2 3 4 5f;1 2 3 4 5f;12.5f;0f;1f);
+               (1 1 2 2 3f;1 1 2 2 3f;12.5f;0f;1f);
+               (1 2 3 4 5f;6 7 8 9 10f;0f;2.5067182457620487f;0.0121857803553449f);
+               (1 2 2 3f;2 3 3 4 5 5f;3f;1.863748291027437f;0.0623570603614063f);
+               (1 3 5f;2 4 6 8f;3f;0.8838834764831843f;0.3767591178115821f));
+        / Deliberately slow pairwise U oracle. It is structurally independent
+        / of the production rank implementation and stays small enough to read.
+        referenceU:{[left;right]
+            wins:sum {[other;item]sum item>other}[right;] each left;
+            ties:sum {[other;item]sum item=other}[right;] each left;
+            firstU:wins+0.5f*ties;
+            min firstU,((count left)*count right)-firstU
+        };
+        {[referenceU;row]
+            result:.tst.benchmarkMannWhitney[row 0;row 1];
+            swapped:.tst.benchmarkMannWhitney[row 1;row 0];
+            (result`u) musteq referenceU[row 0;row 1];
+            (abs[result[`u]-row 2]<0.0000000001) musteq 1b;
+            (abs[result[`z]-row 3]<0.0000001) musteq 1b;
+            (abs[result[`pValue]-row 4]<0.0000002) musteq 1b;
+            (abs[result[`pValue]-swapped`pValue]<0.0000000001) musteq 1b;
+            p:result`pValue;
+            ((p>=0f) and (p<=1f)) musteq 1b;
+        }[referenceU;] each cases;
+    };
+
+    should["classify only significant effects at the practical boundary"]{
+        template:`comparable`pValue`alpha`relativeChangePercent`practicalEffectPercent`classification!(
+          1b;0.01f;0.05f;4.999f;5f;`inconclusive);
+        below:first .tst.classifyBenchmarkComparisons enlist template;
+        boundary:template;boundary[`relativeChangePercent]:5f;
+        above:first .tst.classifyBenchmarkComparisons enlist boundary;
+        improvement:template;improvement[`relativeChangePercent]:-5f;
+        better:first .tst.classifyBenchmarkComparisons enlist improvement;
+        below[`classification] musteq `stable;
+        above[`classification] musteq `regressed;
+        better[`classification] musteq `improved;
+    };
+
     should["apply Holm-Bonferroni without decreasing adjusted p-values"]{
         adjusted:.tst.benchmarkHolm 0.01 0.04 0.03 0.002f;
         adjusted musteq 0.03 0.06 0.06 0.008f;

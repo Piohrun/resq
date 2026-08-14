@@ -76,7 +76,7 @@
 .tst.benchmarkRanks:{[data]
     sorted:asc data;
     unique:distinct sorted;
-    rankValues:{[vals;v]avg 1f+where vals=v}[data;] each unique;
+    rankValues:{[vals;v]avg 1f+where vals=v}[sorted;] each unique;
     rankValues[unique?data]
  };
 
@@ -103,11 +103,11 @@
     ranks:.tst.benchmarkRanks combined;
     rankX:sum nx#ranks;
     u1:rankX-(nx*(nx+1))%2f;
-    u2:nx*ny-u1;
+    u2:(nx*ny)-u1;
     u:min u1,u2;
     total:nx+ny;
     ties:count each value group asc combined;
-    tieTerm:sum ties*ties*ties-ties;
+    tieTerm:sum (ties*ties*ties)-ties;
     variance:(nx*ny%12f)*((total+1f)-tieTerm%(total*(total-1f)));
     if[variance<=0f;
         :`valid`u`z`pValue!(0b;u;0nf;1f)];
@@ -320,21 +320,20 @@
 
 .tst.classifyBenchmarkComparisons:{[comparisons]
     comparable:where {1b~x`comparable} each comparisons;
-    if[count comparable;
-        adjusted:.tst.benchmarkHolm {"f"$x`pValue} each comparisons comparable;
-        i:0;
-        while[i<count comparable;
-            at:comparable i;
-            comparison:comparisons at;
-            comparison[`adjustedPValue]:adjusted i;
-            significant:(adjusted i)<=comparison`alpha;
-            practical:(not null comparison`relativeChangePercent) and
-                abs[comparison`relativeChangePercent]>=comparison`practicalEffectPercent;
-            comparison[`classification]:$[significant and practical;
-                $[(comparison`relativeChangePercent)>0f;`regressed;`improved];`stable];
-            comparisons[at]:comparison;
-            i+:1]];
-    comparisons
+    if[0=count comparable;:comparisons];
+    adjusted:.tst.benchmarkHolm {"f"$x`pValue} each comparisons comparable;
+    byPosition:(count comparisons)#0nf;
+    byPosition[comparable]:adjusted;
+    {[adjustedP;comparison]
+        if[not 1b~comparison`comparable;:comparison];
+        comparison[`adjustedPValue]:adjustedP;
+        significant:adjustedP<=comparison`alpha;
+        practical:(not null comparison`relativeChangePercent) and
+            abs[comparison`relativeChangePercent]>=comparison`practicalEffectPercent;
+        comparison[`classification]:$[significant and practical;
+            $[(comparison`relativeChangePercent)>0f;`regressed;`improved];`stable];
+        comparison
+      }'[byPosition;comparisons]
  };
 
 .tst.benchmarkCounts:{[comparisons]
