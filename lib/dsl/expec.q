@@ -206,8 +206,8 @@ validateTestFixtures:{[params;description]
  if[0=count missing; :()];
  availFix:", " sv string key .tst.fixtures;
  err:"Fixture Injection Error:\n",
-     "  Test: ",.Q.s1[description],"\n",
-     "  Missing fixture(s): ",.Q.s1[missing],"\n",
+     "  Test: ",.tst.renderValueFull[description],"\n",
+     "  Missing fixture(s): ",.tst.renderValueFull[missing],"\n",
      "  Available fixtures: [",availFix,"]\n",
      "  Hint: Register missing fixtures in a before{} block or .tst.registerFixture";
  'err

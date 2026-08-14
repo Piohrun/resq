@@ -36,7 +36,8 @@
     cores:@[{"J"$x};coresText;{0Nj}];
     values:`qVersion`qRelease`os`architecture`cpuModel`logicalCores!(
         string .z.K;string .z.k;string .z.o;architecture;cpuModel;cores);
-    values[`fingerprint]:"environment_",.tst.stableHash "\n" sv .tst.toString each value values;
+    values[`fingerprint]:"environment_",.tst.stableHashBytes
+        .tst.canonicalValueBytes values;
     values
  };
 

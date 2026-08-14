@@ -4,7 +4,20 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+
+- Identity v3 length-frames textual fields and hashes parameter values from a
+  canonical typed-byte codec, making test/case/diagnostic identities independent
+  of console geometry and preserving q type and shape. Execution-manifest schema
+  v3 records the exact q serialization envelope and shard merging rejects mixed
+  identity generations.
+- Rerun, flake-history, quarantine, and proposal state now records the identity
+  algorithm and codec. Incompatible state is preserved in a named recovery
+  archive; the explicit `migrate_identity_state.py` tool migrates only mappings
+  proven unambiguous by old/new execution manifests.
+- Console-dependent q formatters are confined to the console reporter by a
+  licence-free static gate. Machine evidence uses full rendering and identity or
+  equality paths use framed text or canonical bytes.
 
 ## [1.8.1] - 2026-08-14 - Evidence Integrity Hotfix
 

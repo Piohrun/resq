@@ -202,15 +202,98 @@
     $[p ~ root; "."; p]
  };
 
-.tst.stableHash:{[input] raze string md5 .tst.toString input};
+.tst.IDENTITY_ALGORITHM:"resq-test-case-id-v3";
+
+/ Textual and typed-value identities are deliberately separate. Text callers
+/ must provide an already-normalized byte string; arbitrary q values go through
+/ canonicalValueBytes so type, shape, and length remain part of the digest.
+.tst.stableHashBytes:{[input]
+    if[not type[input] in 4 10h;'"stableHashBytes expects a byte or char vector"];
+    raze string md5 input
+ };
+
+.tst.stableHashText:{[input]
+    if[not 10h=type input;'"stableHashText expects an explicit text byte string"];
+    .tst.stableHashBytes .tst.valueFrame["resq-utf8-text-v1";input]
+ };
+
+.tst.identityText:{[input]
+    if[10h=type input;:input];
+    if[-11h=type input;:string input];
+    '"identity text fields must be strings or symbols"
+ };
+
+.tst.identityCodecMetadata:{[].tst.valueCodecMetadata[]};
+
+/ Persistent state that contains identity keys is valid only for the exact
+/ algorithm and q serialization envelope that produced those keys.  The IPC
+/ leaf codec is deliberately pinned to the q build: a q upgrade is a migration
+/ event, never an implicit cache rewrite.
+.tst.identityCodecMatches:{[codec]
+    if[not 99h=type codec;:0b];
+    expected:.tst.identityCodecMetadata[];
+    required:key expected;
+    if[not all required in key codec;:0b];
+    if[(count key codec)<>count required;:0b];
+    if[not (type codec`version) in -5 -6 -7 -8 -9h;:0b];
+    converted:@["j"$;codec`version;{0Nj}];
+    if[null converted;:0b];
+    if[not ("f"$converted)="f"$codec`version;:0b];
+    all (converted=expected`version;
+        (codec`name)~expected`name;
+        (codec`qVersion)~expected`qVersion;
+        (codec`qRelease)~expected`qRelease;
+        (codec`ipcSerialization)~expected`ipcSerialization;
+        (codec`capabilityLevel)~expected`capabilityLevel)
+ };
+
+.tst.identityDocumentMatches:{[doc]
+    if[not 99h=type doc;:0b];
+    if[not all `identityAlgorithm`identityCodec in key doc;:0b];
+    if[not .tst.IDENTITY_ALGORITHM~doc`identityAlgorithm;:0b];
+    .tst.identityCodecMatches doc`identityCodec
+ };
+
+/ Preserve incompatible identity-bearing caches for explicit migration.  The
+/ original path is freed for a clean rebuild, while the unique sibling remains
+/ recoverable and is named in the caller's diagnostic.
+.tst.archiveIdentityState:{[path]
+    if[not .utl.pathExists path;:""];
+    stamp:.tst.stableHashText[string[.z.p],"|",string .z.i];
+    base:path,".identity-mismatch.",stamp,".bak";
+    archive:base;
+    suffix:1j;
+    while[.utl.pathExists archive;
+        archive:base,".",string suffix;
+        suffix+:1j];
+    moved:.[{[src;dst]
+        system "mv -- ",.utl.shellQuote[src]," ",.utl.shellQuote dst;
+        1b};(path;archive);{[args;err]0b}];
+    $[moved;archive;""]
+ };
 
 .tst.stableTestId:{[file;suite;description]
-    "test_", .tst.stableHash[.tst.repoRelativePath[file], "\n",
-        .tst.toString[suite], "\n", .tst.toString description]
+    payload:.tst.valueFrame["file";.tst.repoRelativePath file],
+        .tst.valueFrame["suite";.tst.identityText suite],
+        .tst.valueFrame["description";.tst.identityText description];
+    "test_",.tst.stableHashBytes .tst.valueFrame["resq-test-id-v3";payload]
  };
 
 .tst.stableCaseId:{[testId;index;parameters]
-    "case_", .tst.stableHash[testId, "\n", string[index], "\n", .Q.s1 parameters]
+    payload:.tst.valueFrame["testId";.tst.identityText testId],
+        .tst.valueFrame["caseIndex";string "j"$index],
+        .tst.valueFrame["parameters";.tst.canonicalValueBytes parameters];
+    "case_",.tst.stableHashBytes .tst.valueFrame["resq-case-id-v3";payload]
+ };
+
+.tst.stableDiagnosticId:{[parentId;index;diagnostic]
+    payload:.tst.valueFrame["parentId";.tst.identityText parentId],
+        .tst.valueFrame["diagnosticIndex";string "j"$index],
+        / Diagnostics are public JSON structures. Hash their exact canonical
+        / JSON wire bytes so the Python shard merger can reproduce IDs without
+        / pretending JSON retained private q types.
+        .tst.valueFrame["diagnosticJson";.j.j diagnostic];
+    "diagnostic_",.tst.stableHashBytes .tst.valueFrame["resq-diagnostic-id-v3";payload]
  };
 
 .tst.expectationTestId:{[spec;expec]
@@ -274,7 +357,7 @@
     bench:()!();
     if[`perf in key e;
         perfOpts:$[`props in key e;$[99h=type e`props;e`props;()!()];()!()];
-        benchmarkId:"benchmark_",.tst.stableHash[testId,"\ntime"];
+        benchmarkId:"benchmark_",.tst.stableHashText[testId,"\ntime"];
         measurement:e`perf;
         workload:$[`workload in key measurement;measurement`workload;
             `runs`warmup`gcBefore`gcEach`space!(
@@ -656,7 +739,7 @@
     root:.utl.normalizePath system "cd";
     host:getenv `HOSTNAME;
     if[0=count host;host:.tst.firstCommandLine "hostname 2>/dev/null"];
-    runId:"run_",.tst.stableHash[string[started],"\n",root,"\n",host];
+    runId:"run_",.tst.stableHashText[string[started],"\n",root,"\n",host];
     .tst.app.runStartedAt:started;
     .tst.app.runFinishedAt:0Np;
     .tst.app.vcsContextCache:()!();

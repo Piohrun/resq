@@ -1938,7 +1938,7 @@ owns its bounded combined child stdout/stderr in `output`; JUnit publishes the
 same value as `<system-out>` and xUnit v2 as `<output>`. A reporter error fails
 the run after every selected reporter has been attempted.
 
-JSON additionally embeds execution-manifest schema v2 and lifecycle-event
+JSON additionally embeds execution-manifest schema v3 and lifecycle-event
 schema v2 (while validators continue to accept legacy event v1). Event v2 uses
 recorded test/attempt/case intervals rather than run-boundary projections.
 Its manifest publication event carries linkage metadata and counts rather than
@@ -1958,11 +1958,13 @@ stdout/stderr unless `-quiet` suppresses them. See
 size limits.
 
 Every run that executes at least one real test atomically replaces the
-versioned rerun cache at `stateFile`. Collection/framework-only failures and
+versioned rerun cache at `stateFile`. State schema v2 records the identity-v3
+algorithm and exact q codec envelope. Collection/framework-only failures and
 describe-only runs leave prior history intact. `-last-failed` and
 `-failed-first` use the report's stable `testId`; missing, empty, corrupt, or
 unsupported history falls back to the complete current selection and emits a
-typed rerun diagnostic. The default `.resq/` cache directory should remain
+typed rerun diagnostic; identity-mismatched state is preserved beside the
+cache for explicit migration. The default `.resq/` cache directory should remain
 uncommitted. Multi-shard runs suffix this cache per shard to avoid concurrent
 writers.
 

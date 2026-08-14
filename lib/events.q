@@ -3,7 +3,7 @@
 / merged canonical model, so isolation/concurrency cannot reorder semantics.
 
 .tst.EVENT_SCHEMA_VERSION:2j;
-.tst.MANIFEST_SCHEMA_VERSION:2j;
+.tst.MANIFEST_SCHEMA_VERSION:3j;
 
 / Persistent registries: watch/repeated runs keep registrations, while each run
 / gets a fresh event projection. Registering the same name replaces it, making
@@ -61,12 +61,12 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
 .tst.fileContentDigest:{[file]
     path:.utl.pathToString file;
     lines:@[read0;hsym `$path;{()}];
-    $[count lines;.tst.stableHash "\n" sv lines;""]
+    $[count lines;.tst.stableHashText "\n" sv lines;""]
  };
 
-.tst.manifestFileId:{[path] "file_",.tst.stableHash .tst.toString path};
+.tst.manifestFileId:{[path] "file_",.tst.stableHashText .tst.identityText path};
 .tst.manifestSuiteId:{[file;suite]
-    "suite_",.tst.stableHash[.tst.toString[file],"\n",.tst.toString suite]
+    "suite_",.tst.stableHashText[.tst.identityText[file],"\n",.tst.identityText suite]
  };
 
 .tst.manifestInventoryFromResults:{[runModel]
@@ -172,14 +172,17 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
         (.tst.toString entry`path),"\t",(.tst.toString entry`sourceDigest),
             "\t",string[entry`assignedShard]
       } each fileRows;
-    digest:"manifest_",.tst.stableHash "\n" sv ((
-        "resq-execution-manifest-v2";
+    identityCodec:.tst.identityCodecMetadata[];
+    digest:"manifest_",.tst.stableHashText "\n" sv ((
+        "resq-execution-manifest-v3";
+        "identityAlgorithm=",.tst.IDENTITY_ALGORITHM;
+        "identityCodec=",.j.j identityCodec;
         "unit=",string[unit],";count=",string shardCount;
         .tst.toString @[get;`.resq.VERSION;{"unknown"}]),sourceBasis);
     revision:$[(99h=type run) and `vcs in key run;run`vcs;()!()];
-    `schemaVersion`kind`digest`digestAlgorithm`identityAlgorithm`frameworkVersion`revision`shard`files`tests!(
+    `schemaVersion`kind`digest`digestAlgorithm`identityAlgorithm`identityCodec`frameworkVersion`revision`shard`files`tests!(
         .tst.MANIFEST_SCHEMA_VERSION;"resq-execution-manifest";digest;
-        "md5-source-topology-v2";"resq-test-case-id-v2";
+        "md5-source-topology-v3";.tst.IDENTITY_ALGORITHM;identityCodec;
         .tst.toString @[get;`.resq.VERSION;{"unknown"}];revision;
         $[(99h=type run) and `shard in key run;run`shard;()!()];
         fileEntries;testEntries)
@@ -245,9 +248,9 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
         `frameworkVersion`ordering`selection`shard!(
             runModel`frameworkVersion;run`ordering;run`selection;run`shard)];
     sequence+:1;
-    manifestNotice:`schemaVersion`kind`digest`digestAlgorithm`identityAlgorithm`frameworkVersion`fileCount`testCount!(
+    manifestNotice:`schemaVersion`kind`digest`digestAlgorithm`identityAlgorithm`identityCodec`frameworkVersion`fileCount`testCount!(
         manifest`schemaVersion;manifest`kind;manifest`digest;manifest`digestAlgorithm;
-        manifest`identityAlgorithm;manifest`frameworkVersion;
+        manifest`identityAlgorithm;manifest`identityCodec;manifest`frameworkVersion;
         "j"$count manifest`files;"j"$count manifest`tests);
     events,:.tst.oneEventTable .tst.eventRecord[sequence;"manifest.published";runId;manifest`digest;runId;started;manifestNotice];
     sequence+:1;
@@ -319,7 +322,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                 while[ci<count cases;
                     case:cases ci;
                     caseId:$[`caseId in key case;.tst.toString case`caseId;
-                        "case_",.tst.stableHash[testId,"\n",string ci,"\n",.Q.s1 case`parameters]];
+                        .tst.stableCaseId[testId;ci;case`parameters]];
                     caseStarted:.tst.eventTimestamp[case;`startedAt;testStarted];
                     caseFinished:.tst.eventTimestamp[case;`finishedAt;testFinished];
                     events,:.tst.oneEventTable .tst.eventRecord[sequence;"case.started";runId;caseId;testId;caseStarted;
@@ -337,7 +340,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
                 di:0;
                 while[di<count testDiags;
                     diagnostic:testDiags di;
-                    diagId:"diagnostic_",.tst.stableHash[testId,"\n",string di,"\n",.Q.s1 diagnostic];
+                    diagId:.tst.stableDiagnosticId[testId;di;diagnostic];
                     events,:.tst.oneEventTable .tst.eventRecord[sequence;"diagnostic.recorded";runId;diagId;testId;testFinished;diagnostic];
                     sequence+:1;
                     di+:1];
@@ -375,7 +378,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
     di:0;
     while[di<count runDiags;
         diagnostic:runDiags di;
-        diagId:"diagnostic_",.tst.stableHash[runId,"\n",string di,"\n",.Q.s1 diagnostic];
+        diagId:.tst.stableDiagnosticId[runId;di;diagnostic];
         events,:.tst.oneEventTable .tst.eventRecord[sequence;"diagnostic.recorded";runId;diagId;runId;finished;diagnostic];
         sequence+:1;
         di+:1];

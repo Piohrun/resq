@@ -323,7 +323,7 @@ def validate_test(row: Any, index: int) -> None:
             },
             f"{where}.quarantine",
         )
-        if quarantine["schemaVersion"] != 1:
+        if quarantine["schemaVersion"] != 2:
             raise ValueError(f"{where}.quarantine: unsupported schema")
         if quarantine["state"] not in {
             "insufficient", "healthy", "suspect", "quarantined", "expired"
@@ -414,19 +414,37 @@ def validate_manifest(manifest: Any, document: dict[str, Any]) -> None:
         manifest,
         {
             "schemaVersion", "kind", "digest", "digestAlgorithm",
-            "identityAlgorithm", "frameworkVersion", "revision", "shard",
+            "identityAlgorithm", "identityCodec", "frameworkVersion", "revision", "shard",
             "files", "tests",
         },
         "manifest",
     )
-    if manifest["schemaVersion"] != 2 or manifest["kind"] != "resq-execution-manifest":
-        raise ValueError("manifest: expected resQ execution manifest v2")
+    if manifest["schemaVersion"] != 3 or manifest["kind"] != "resq-execution-manifest":
+        raise ValueError("manifest: expected resQ execution manifest v3")
     if not isinstance(manifest["digest"], str) or not MANIFEST_ID.fullmatch(manifest["digest"]):
         raise ValueError("manifest.digest: invalid")
-    if manifest["digestAlgorithm"] != "md5-source-topology-v2":
+    if manifest["digestAlgorithm"] != "md5-source-topology-v3":
         raise ValueError("manifest.digestAlgorithm: unsupported")
-    if manifest["identityAlgorithm"] != "resq-test-case-id-v2":
+    if manifest["identityAlgorithm"] != "resq-test-case-id-v3":
         raise ValueError("manifest.identityAlgorithm: unsupported")
+    codec = manifest["identityCodec"]
+    if not isinstance(codec, dict):
+        raise ValueError("manifest.identityCodec: expected object")
+    require(
+        codec,
+        {"name", "version", "qVersion", "qRelease", "ipcSerialization", "capabilityLevel"},
+        "manifest.identityCodec",
+    )
+    if (
+        codec["name"] != "resq-value-v1+q-ipc-leaves"
+        or codec["version"] != 1
+        or not isinstance(codec["qVersion"], str) or not codec["qVersion"]
+        or not isinstance(codec["qRelease"], str) or not codec["qRelease"]
+        or codec["ipcSerialization"] != "q unary -8!/-9!"
+        or codec["capabilityLevel"]
+        != "local unary serialization; no negotiated IPC connection capability"
+    ):
+        raise ValueError("manifest.identityCodec: unsupported")
     if manifest["frameworkVersion"] != document["frameworkVersion"]:
         raise ValueError("manifest.frameworkVersion does not match report")
     if not isinstance(manifest["files"], list) or not isinstance(manifest["tests"], list):
@@ -661,12 +679,13 @@ def validate_events(events: Any, document: dict[str, Any]) -> None:
             "digest": manifest["digest"],
             "digestAlgorithm": manifest["digestAlgorithm"],
             "identityAlgorithm": manifest["identityAlgorithm"],
+            "identityCodec": manifest["identityCodec"],
             "frameworkVersion": manifest["frameworkVersion"],
             "fileCount": len(manifest["files"]),
             "testCount": len(manifest["tests"]),
         }
         if events[1]["payload"] != expected_notice:
-            raise ValueError("events[1]: manifest notice must contain digest/version/counts only")
+            raise ValueError("events[1]: manifest notice must contain digest/identity/version/counts only")
         run_start = iso8601(document["run"]["startedAt"], "run.startedAt")
         run_finish = iso8601(document["run"]["finishedAt"], "run.finishedAt")
         for index, event in enumerate(events):
@@ -808,7 +827,7 @@ def validate(document: Any) -> None:
             },
             "flake",
         )
-        if flake["schemaVersion"] != 1:
+        if flake["schemaVersion"] != 2:
             raise ValueError("flake: unsupported schema")
         if flake["historyStatus"] not in {"ok", "missing", "invalid", "unsupported"}:
             raise ValueError("flake.historyStatus: invalid")

@@ -372,7 +372,7 @@
       "type": "object",
       "required": ["schemaVersion", "state", "active", "nonBlocking", "observations", "passes", "failures", "flakes", "owner", "reason", "evidence", "issue", "createdAt", "expiresAt"],
       "properties": {
-        "schemaVersion": {"const": 1},
+        "schemaVersion": {"const": 2},
         "state": {"enum": ["insufficient", "healthy", "suspect", "quarantined", "expired"]},
         "active": {"type": "boolean"},
         "nonBlocking": {"type": "boolean"},
@@ -393,7 +393,7 @@
       "type": "object",
       "required": ["schemaVersion", "historyPath", "historyStatus", "manifestPath", "manifestStatus", "nonBlockingEnabled", "evidenceMin", "failureMin", "window", "healthy", "suspect", "quarantined", "expired", "insufficient", "proposalCount"],
       "properties": {
-        "schemaVersion": {"const": 1},
+        "schemaVersion": {"const": 2},
         "historyPath": {"type": "string"},
         "historyStatus": {"enum": ["ok", "missing", "invalid", "unsupported"]},
         "manifestPath": {"type": "string"},
@@ -666,13 +666,26 @@
     },
     "manifest": {
       "type": "object",
-      "required": ["schemaVersion", "kind", "digest", "digestAlgorithm", "identityAlgorithm", "frameworkVersion", "revision", "shard", "files", "tests"],
+      "required": ["schemaVersion", "kind", "digest", "digestAlgorithm", "identityAlgorithm", "identityCodec", "frameworkVersion", "revision", "shard", "files", "tests"],
       "properties": {
-        "schemaVersion": {"const": 2},
+        "schemaVersion": {"const": 3},
         "kind": {"const": "resq-execution-manifest"},
         "digest": {"type": "string", "pattern": "^manifest_[0-9a-f]{32}$"},
-        "digestAlgorithm": {"const": "md5-source-topology-v2"},
-        "identityAlgorithm": {"const": "resq-test-case-id-v2"},
+        "digestAlgorithm": {"const": "md5-source-topology-v3"},
+        "identityAlgorithm": {"const": "resq-test-case-id-v3"},
+        "identityCodec": {
+          "type": "object",
+          "required": ["name", "version", "qVersion", "qRelease", "ipcSerialization", "capabilityLevel"],
+          "properties": {
+            "name": {"const": "resq-value-v1+q-ipc-leaves"},
+            "version": {"const": 1},
+            "qVersion": {"type": "string", "minLength": 1},
+            "qRelease": {"type": "string", "minLength": 1},
+            "ipcSerialization": {"const": "q unary -8!/-9!"},
+            "capabilityLevel": {"const": "local unary serialization; no negotiated IPC connection capability"}
+          },
+          "additionalProperties": false
+        },
         "frameworkVersion": {"type": "string"},
         "revision": {"type": "object"},
         "shard": {"type": "object"},

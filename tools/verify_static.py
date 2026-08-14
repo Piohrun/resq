@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
 from report_profiles import project  # noqa: E402
 from render_quickstart_coverage import check_document as check_quickstart_coverage  # noqa: E402
+from verify_formatter_boundaries import check as check_formatter_boundaries  # noqa: E402
 
 
 REQUIRED = {
@@ -45,6 +46,7 @@ REQUIRED = {
     "tools/reconcile_coverage.py", "tools/verify_coverage_contract.py",
     "tools/self_coverage_trend.py",
     "tools/verify_python_contracts.py",
+    "tools/verify_formatter_boundaries.py", "tools/migrate_identity_state.py",
     "docs/RELEASE_CHECKLIST.md",
     "docs/RELEASE_NOTES_1_8_1.md",
     "docs/PRODUCTION_AUDIT_1_8_1.md",
@@ -101,6 +103,7 @@ def check_package(expected_tag: str = "") -> None:
         "tools/validate_coverage.py", "tools/reconcile_coverage.py",
         "tools/verify_coverage_contract.py",
         "tools/verify_python_contracts.py",
+        "tools/verify_formatter_boundaries.py", "tools/migrate_identity_state.py",
         "tools/render_quickstart_coverage.py",
         "tools/verify_qspec_compatibility.py", "tools/verify_soak.py",
         "tools/verify_installation.py",
@@ -321,6 +324,12 @@ def main() -> int:
     args = parser.parse_args()
     try:
         check_package(args.expected_tag)
+        formatter_violations = check_formatter_boundaries()
+        if formatter_violations:
+            details = ", ".join(
+                f"{item.path}:{item.line}:{item.token}" for item in formatter_violations
+            )
+            raise ValueError(f"formatter boundary violations: {details}")
         links = check_docs()
         check_contracts()
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError, ElementTree.ParseError, ValueError) as exc:

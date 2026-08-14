@@ -354,8 +354,8 @@
 .tst.isolate.preparePrivateRerunState:{[wd]
     state:@[get;`.tst.app.rerunState;{.tst.emptyRerunState `missing}];
     ids:$[`ok~state`status;state`failedTestIds;()];
-    doc:`schemaVersion`framework`runId`updatedAt`testCount`failedCount`failedTestIds!(
-        .tst.rerunStateVersion;"resQ";
+    doc:`schemaVersion`identityAlgorithm`identityCodec`framework`runId`updatedAt`testCount`failedCount`failedTestIds!(
+        .tst.rerunStateVersion;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];"resQ";
         $[`runId in key state;.tst.toString state`runId;""];
         $[`updatedAt in key state;.tst.toString state`updatedAt;""];
         "j"$count ids;"j"$count ids;ids);

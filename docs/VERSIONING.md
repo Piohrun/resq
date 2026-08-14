@@ -15,7 +15,7 @@ The SemVer promise covers:
   names, and coverage gate meanings;
 - stable test/case identity inputs and algorithms described in
   [IDENTITY.md](IDENTITY.md);
-- execution-manifest schema v2, lifecycle-event schema v1, and the documented
+- execution-manifest schema v3, lifecycle-event schemas v1/v2, and the documented
   `.resq` observer/reporter registration and failure policy;
 - benchmark-baseline, flake-history/quarantine, snapshot-inventory, property
   replay, and merged-shard artifact versions documented by their owning tools;

@@ -5,7 +5,7 @@
 / failure channel and are annotated in place, allowing every row to run and the
 / enclosing expectation to finish with status `fail rather than `error.
 runParamCase:{[pNames;args;func]
-    params: ", " sv {(.tst.toString x),"=",(-3!y)} ./: flip (pNames; args);
+    params: ", " sv {(.tst.toString x),"=",.tst.renderValueFull y} ./: flip (pNames; args);
     oldFailList: .tst.assertState.failures;
     oldAsserts:.tst.assertState.assertsRun;
     caseStart:.z.p;

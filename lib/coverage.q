@@ -50,11 +50,9 @@ if[not `coverageContextDroppedHits in key `.tst;.tst.coverageContextDroppedHits:
  };
 
 .tst._covNameStr:{[x]
-    s: -3! x;
-    if[(count s) > 0;
-        if[first s = "`"; s: 1 _ s];
-    ];
-    s
+    $[-11h=type x;string x;
+      10h=type x;x;
+      .tst.renderValueFull x]
  };
 
 .tst._covNumStr:{[x] string `long$x };
@@ -225,7 +223,7 @@ if[not `coverageContextDroppedHits in key `.tst;.tst.coverageContextDroppedHits:
     executionId:$[count caseId;caseId;testId];
     detail:1b~@[get;`.tst.coverageAttemptContexts;0b];
     contextId:$[detail;
-        "attempt_",.tst.stableHash[executionId,"\n",string["j"$attempt]];
+        "attempt_",.tst.stableHashText[executionId,"\n",string["j"$attempt]];
         executionId];
     file:$[`tstPath in key spec;.utl.pathToString spec`tstPath;""];
     metadata:.tst.coverageContextMeta[
@@ -261,8 +259,8 @@ if[not `coverageContextDroppedHits in key `.tst;.tst.coverageContextDroppedHits:
     identity:(.tst.toString kind),"\n",path,"\n",
         (.tst.toString functionName),"\n",(.tst.toString siteId),"\n",
         string["j"$edgeIndex];
-    metricId:"metric_",.tst.stableHash identity;
-    entryId:`$"entry_",.tst.stableHash[contextId,"\n",metricId];
+    metricId:"metric_",.tst.stableHashText identity;
+    entryId:`$"entry_",.tst.stableHashText[contextId,"\n",metricId];
     if[entryId in key .tst.coverageContextMetricHits;
         .tst.coverageContextMetricHits[entryId]+:1j;:()];
     if[count[.tst.coverageContextMetricHits]>=
@@ -894,7 +892,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
                 location:.tst.covOffsetLocation[raw;startLine;openAt];
                 anonymous:lambdaDepth>0;
                 lambdaId:$[anonymous;
-                    "lambda_",.tst.stableHash[
+                    "lambda_",.tst.stableHashText[
                         relativePath,"\n",functionText,"\n",
                         string[location 0],":",string[location 1]];
                     ""];
@@ -967,7 +965,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
         while[j<count positions;
             position:positions j;
             rewriteAt:lineOffsets[("j"$position 0)-startLine]+position 1;
-            siteId:"statement_",.tst.stableHash[
+            siteId:"statement_",.tst.stableHashText[
                 relativePath,"\n",functionText,"\n",
                 string[position 0],":",string[position 1],"\n",
                 .tst.toString owner`lambdaId];
@@ -1039,7 +1037,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
                     not 1b~owner`eligible;`lambda_rewrite_rejected;`none];
                 lambdaId:$[owned;owner`lambdaId;""];
                 lambdaDepth:$[owned;"j"$owner`lambdaDepth;0j];
-                siteId:"branch_",.tst.stableHash[
+                siteId:"branch_",.tst.stableHashText[
                     relativePath,"\n",functionText,"\n",token,"\n",
                     string[location 0],":",string[location 1],"\n",string ci];
                 sites,:enlist `siteId`function`kind`conditionIndex`line`column`lambdaId`lambdaDepth`anonymous`eligible`fallbackReason`rewriteStart`rewriteEnd!(
@@ -1385,7 +1383,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
         label:allLabels index;
         hit:allHits index;
         `edgeId`index`label`hits`covered!(
-            "edge_",.tst.stableHash[id,"\n",label];"j"$index;label;
+            "edge_",.tst.stableHashText[id,"\n",label];"j"$index;label;
             "j"$hit;hit>0)
       }[siteId;labels;hits;] each 0 1j;
     mode:1b~@[get;`.tst.coverageBranches;0b];
@@ -1657,7 +1655,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
             while[k<.tst.coverageCollectionCount metricRows;
                 metricRow:.tst.coverageCollectionAt[metricRows;k];
                 metricId:.tst.toString metricRow`metricId;
-                entryKey:`$"merge_",.tst.stableHash[
+                entryKey:`$"merge_",.tst.stableHashText[
                     string[targetId],"\n",metricId];
                 metricKeys:(key metricRow) except `hits;
                 metricMetadataRow:metricKeys!metricRow metricKeys;

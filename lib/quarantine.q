@@ -2,9 +2,9 @@
 
 / Evidence-based flake history and explicit quarantine policy. History is an
 / observation cache; only the separately reviewed manifest is authoritative.
-.tst.FLAKE_HISTORY_VERSION:1;
-.tst.QUARANTINE_MANIFEST_VERSION:1;
-.tst.FLAKE_PROPOSAL_VERSION:1;
+.tst.FLAKE_HISTORY_VERSION:2;
+.tst.QUARANTINE_MANIFEST_VERSION:2;
+.tst.FLAKE_PROPOSAL_VERSION:2;
 .tst.FLAKE_HISTORY_MAX_TESTS:100000j;
 .tst.FLAKE_HISTORY_UNSEEN_LIMIT:20j;
 
@@ -54,8 +54,8 @@
     if[first decoded;:result[`invalid;()!();"JSON parse failed: ",.tst.toString last decoded]];
     doc:last decoded;
     if[not 99h=type doc;:result[`invalid;()!();"JSON root must be an object"]];
-    missing:required except key doc;
-    if[count missing;:result[`invalid;doc;"missing required key(s): ","," sv string missing]];
+    if[not `schemaVersion in key doc;
+        :result[`invalid;doc;"missing required key(s): schemaVersion"]];
     schema:doc`schemaVersion;
     if[not (type schema) in -5 -6 -7 -8 -9h;
         :result[`invalid;doc;"schemaVersion must be an integral JSON number"]];
@@ -65,7 +65,31 @@
         :result[`invalid;doc;"schemaVersion must be integral"]];
     if[expectedVersion<>converted;
         :result[`unsupported;doc;"unsupported schemaVersion ",string converted]];
+    missing:required except key doc;
+    if[count missing;:result[`invalid;doc;"missing required key(s): ","," sv string missing]];
     result[`ok;doc;""]
+ };
+
+.tst.requireIdentityDocument:{[raw]
+    if[not `ok~raw`status;:raw];
+    doc:raw`document;
+    if[not all `identityAlgorithm`identityCodec in key doc;
+        raw[`status]:`unsupported;
+        raw[`diagnostic]:"identity metadata is missing; migrate or rebuild the state";
+        :raw];
+    if[not .tst.identityDocumentMatches doc;
+        raw[`status]:`unsupported;
+        raw[`diagnostic]:"identity algorithm or codec does not match this runtime"];
+    raw
+ };
+
+.tst.archiveUnsupportedIdentityState:{[raw;path]
+    if[not `unsupported~raw`status;:raw];
+    archive:.tst.archiveIdentityState path;
+    raw[`diagnostic]:raw[`diagnostic],$[count archive;
+        "; archived at ",.tst.repoRelativePath archive;
+        "; unable to archive incompatible state"];
+    raw
  };
 
 .tst.validJsonText:{[x]10h=type x};
@@ -115,7 +139,9 @@
 
 .tst.loadFlakeState:{[]
     hpath:.tst.flakeHistoryPath[];
-    rawHistory:.tst.readVersionedJson[hpath;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`kind`tests];
+    rawHistory:.tst.readVersionedJson[hpath;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`tests];
+    rawHistory:.tst.requireIdentityDocument rawHistory;
+    rawHistory:.tst.archiveUnsupportedIdentityState[rawHistory;hpath];
     history:.tst.emptyFlakeHistory rawHistory`status;
     history[`diagnostic]:rawHistory`diagnostic;
     if[`ok~rawHistory`status;
@@ -134,7 +160,9 @@
             history:.tst.emptyFlakeHistory `invalid;
             history[`diagnostic]:"history kind, row types, or execution IDs are invalid"]];
     mpath:.tst.quarantineManifestPath[];
-    rawManifest:.tst.readVersionedJson[mpath;.tst.QUARANTINE_MANIFEST_VERSION;`schemaVersion`kind`entries];
+    rawManifest:.tst.readVersionedJson[mpath;.tst.QUARANTINE_MANIFEST_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`entries];
+    rawManifest:.tst.requireIdentityDocument rawManifest;
+    rawManifest:.tst.archiveUnsupportedIdentityState[rawManifest;mpath];
     manifest:.tst.emptyQuarantineManifest rawManifest`status;
     manifest[`diagnostic]:rawManifest`diagnostic;
     if[`ok~rawManifest`status;
@@ -428,7 +456,8 @@
  };
 
 .tst.readFlakeHistoryAt:{[path]
-    raw:.tst.readVersionedJson[path;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`kind`tests];
+    raw:.tst.readVersionedJson[path;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`tests];
+    raw:.tst.requireIdentityDocument raw;
     state:.tst.emptyFlakeHistory raw`status;
     state[`diagnostic]:raw`diagnostic;
     if[not `ok~raw`status;:state];
@@ -490,11 +519,18 @@
         :0b];
     outcome:.[{[eligible;path]
         latest:.tst.readFlakeHistoryAt path;
+        if[`unsupported~latest`status;
+            archive:.tst.archiveIdentityState path;
+            if[0=count archive;:(0b;0b;"refusing to overwrite incompatible identity history")];
+            .tst.recordDiagnostic[`flake;`warning;`persistence;
+                "Archived incompatible identity history before rebuilding";
+                `path`archive!(.tst.repoRelativePath path;.tst.repoRelativePath archive)]];
         .tst.app.flakeHistory:latest;
         entries:.tst.appendFlakeObservations eligible;
         now:.tst.isoTimestamp .z.p;
-        hdoc:`schemaVersion`kind`updatedAt`window`retention`tests!(
-            .tst.FLAKE_HISTORY_VERSION;"resq-flake-history";now;
+        hdoc:`schemaVersion`identityAlgorithm`identityCodec`kind`updatedAt`window`retention`tests!(
+            .tst.FLAKE_HISTORY_VERSION;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];
+            "resq-flake-history";now;
             "j"$@[get;`.tst.app.flakeWindow;20j];
             `maxTests`unseenCompleteRuns!(
                 .tst.FLAKE_HISTORY_MAX_TESTS;.tst.FLAKE_HISTORY_UNSEEN_LIMIT);
@@ -505,8 +541,9 @@
                 `ok;"";now;entries)];
         if[1b~@[get;`.tst.app.flakeProposalsEnabled;0b];
             proposals:@[get;`.tst.app.flakeProposals;{()}];
-            pdoc:`schemaVersion`kind`generatedAt`historyPath`manifestPath`proposals!(
-                .tst.FLAKE_PROPOSAL_VERSION;"resq-quarantine-proposals";now;
+            pdoc:`schemaVersion`identityAlgorithm`identityCodec`kind`generatedAt`historyPath`manifestPath`proposals!(
+                .tst.FLAKE_PROPOSAL_VERSION;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];
+                "resq-quarantine-proposals";now;
                 .tst.repoRelativePath path;
                 .tst.repoRelativePath .tst.quarantineManifestPath[];proposals);
             ok:ok and .tst.atomicWriteJson[.tst.flakeProposalPath[];pdoc;`flake]];

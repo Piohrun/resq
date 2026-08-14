@@ -31,19 +31,36 @@ def canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def stable_hash(value: str) -> str:
-    return hashlib.md5(value.encode()).hexdigest()
+def frame(tag: str, payload: str) -> str:
+    return f"({len(tag.encode('utf-8'))}:{tag}:{len(payload.encode('utf-8'))}:{payload})"
+
+
+def stable_hash_text(value: str) -> str:
+    return hashlib.md5(frame("resq-utf8-text-v1", value).encode()).hexdigest()
+
+
+def diagnostic_id(parent_id: str, index: int, diagnostic: dict[str, Any]) -> str:
+    wire = json.dumps(diagnostic, separators=(",", ":"), ensure_ascii=False)
+    payload = (
+        frame("parentId", parent_id)
+        + frame("diagnosticIndex", str(index))
+        + frame("diagnosticJson", wire)
+    )
+    return "diagnostic_" + hashlib.md5(frame("resq-diagnostic-id-v3", payload).encode()).hexdigest()
 
 
 def execution_id(row: dict[str, Any]) -> str:
     return str(row.get("caseId") or row.get("testId") or row.get("executionId") or "")
 
 
-def load_report(path: Path) -> dict[str, Any]:
+def read_report(path: Path) -> dict[str, Any]:
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise MergeError(f"{path}: cannot read report: {exc}") from exc
+
+
+def validate_loaded_report(path: Path, document: dict[str, Any]) -> dict[str, Any]:
     try:
         validate(document)
     except (TypeError, ValueError) as exc:
@@ -51,6 +68,36 @@ def load_report(path: Path) -> dict[str, Any]:
     if document.get("profile", "full") != "full":
         raise MergeError(f"{path}: shard merge requires report profile full")
     return document
+
+
+def load_report(path: Path) -> dict[str, Any]:
+    return validate_loaded_report(path, read_report(path))
+
+
+def load_reports(paths: list[Path]) -> list[dict[str, Any]]:
+    raw = [read_report(path) for path in paths]
+    algorithms = {
+        str(document.get("manifest", {}).get("identityAlgorithm", "<missing>"))
+        for document in raw
+    }
+    if len(algorithms) != 1:
+        raise MergeError(
+            "mixed identity algorithms across shards; migrate every shard to one "
+            f"identity generation before merging: {sorted(algorithms)!r}"
+        )
+    codecs = {
+        canonical(document.get("manifest", {}).get("identityCodec", "<missing>"))
+        for document in raw
+    }
+    if len(codecs) != 1:
+        raise MergeError(
+            "mixed identity codecs across shards; an explicit q serialization "
+            "migration is required"
+        )
+    return [
+        validate_loaded_report(path, document)
+        for path, document in zip(paths, raw)
+    ]
 
 
 def same(documents: list[dict[str, Any]], getter, label: str) -> Any:
@@ -609,6 +656,7 @@ def lifecycle(
         "digest": manifest["digest"],
         "digestAlgorithm": manifest["digestAlgorithm"],
         "identityAlgorithm": manifest["identityAlgorithm"],
+        "identityCodec": manifest["identityCodec"],
         "frameworkVersion": manifest["frameworkVersion"],
         "fileCount": len(manifest["files"]),
         "testCount": len(manifest["tests"]),
@@ -618,7 +666,7 @@ def lifecycle(
     for file_path in dict.fromkeys(row["file"] for row in rows):
         file_rows = [row for row in rows if row["file"] == file_path]
         file_entry = files.get(file_path, {
-            "fileId": "file_" + stable_hash(file_path), "path": file_path,
+            "fileId": "file_" + stable_hash_text(file_path), "path": file_path,
             "sourceDigest": "", "assignedShard": -1, "selected": True, "shardable": False,
         })
         file_id = file_entry["fileId"]
@@ -658,11 +706,9 @@ def lifecycle(
                     })
                     emit("attempt.finished", attempt_id, identity, attempt_finished, attempt)
                 for index, case in enumerate(row.get("parameterCases", [])):
-                    case_id = str(case.get("caseId") or (
-                        "case_" + stable_hash(
-                            f"{row['testId']}\n{index}\n{canonical(case.get('parameters', {}))}"
-                        )
-                    ))
+                    case_id = str(case.get("caseId", ""))
+                    if not case_id:
+                        raise MergeError("parameter case lacks its producer-generated identity-v3 ID")
                     case_started = observed(case, "startedAt", test_started)
                     case_finished = observed(case, "finishedAt", test_finished)
                     emit("case.started", case_id, row["testId"], case_started, {
@@ -676,10 +722,8 @@ def lifecycle(
                         row["testId"], test_finished, benchmark,
                     )
                 for index, diagnostic in enumerate(row.get("diagnostics", [])):
-                    diagnostic_id = "diagnostic_" + stable_hash(
-                        f"{identity}\n{index}\n{canonical(diagnostic)}"
-                    )
-                    emit("diagnostic.recorded", diagnostic_id, identity, test_finished, diagnostic)
+                    diag_id = diagnostic_id(row["testId"], index, diagnostic)
+                    emit("diagnostic.recorded", diag_id, row["testId"], test_finished, diagnostic)
                 finished_payload = {
                     "status": row["status"], "duration": row["time"],
                     "durationSeconds": row.get("durationSeconds", 0),
@@ -698,10 +742,8 @@ def lifecycle(
     if benchmark_analysis.get("enabled"):
         emit("benchmarks.compared", "benchmarks", run["id"], run["finishedAt"], benchmark_analysis)
     for index, diagnostic in enumerate(diagnostics):
-        diagnostic_id = "diagnostic_" + stable_hash(
-            f"{run['id']}\n{index}\n{canonical(diagnostic)}"
-        )
-        emit("diagnostic.recorded", diagnostic_id, run["id"], run["finishedAt"], diagnostic)
+        diag_id = diagnostic_id(run["id"], index, diagnostic)
+        emit("diagnostic.recorded", diag_id, run["id"], run["finishedAt"], diagnostic)
     emit("run.finished", run["id"], "", run["finishedAt"], stats)
     return events
 
@@ -709,9 +751,11 @@ def lifecycle(
 def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], bool]:
     if not report_paths:
         raise MergeError("no shard reports supplied")
-    documents = [load_report(path) for path in report_paths]
+    documents = load_reports(report_paths)
     unit, shard_count, _ = topology(documents)
     framework_version = same(documents, lambda d: d["frameworkVersion"], "framework version")
+    same(documents, lambda d: d["manifest"]["identityAlgorithm"], "identity algorithm")
+    same(documents, lambda d: d["manifest"]["identityCodec"], "identity codec")
     digest = same(documents, lambda d: d["manifest"]["digest"], "manifest digest")
     revision = same(documents, lambda d: d["manifest"]["revision"], "revision")
     same(documents, lambda d: d["run"]["qVersion"], "q version")
@@ -741,7 +785,7 @@ def merge(report_paths: list[Path], destination: Path) -> tuple[dict[str, Any], 
     started = min(iso(document["run"]["startedAt"]) for document in documents)
     finished = max(iso(document["run"]["finishedAt"]) for document in documents)
     run_ids = [document["run"]["id"] for document in sorted(documents, key=lambda d: d["run"]["shard"]["index"])]
-    run_id = "run_" + stable_hash(digest + "\n" + "\n".join(run_ids))
+    run_id = "run_" + stable_hash_text(digest + "\n" + "\n".join(run_ids))
     first_run = copy.deepcopy(documents[0]["run"])
     merged_shard = copy.deepcopy(first_run["shard"])
     merged_shard.update(

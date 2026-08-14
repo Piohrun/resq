@@ -27,6 +27,7 @@
     "digest",
     "digestAlgorithm",
     "identityAlgorithm",
+    "identityCodec",
     "frameworkVersion",
     "fileCount",
     "testCount"

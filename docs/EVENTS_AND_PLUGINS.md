@@ -3,7 +3,7 @@
 Every JSON schema-v2 report produced by resQ includes two additive, independently
 versioned contracts:
 
-- `manifest` is execution-manifest schema v2;
+- `manifest` is execution-manifest schema v3;
 - `events[]` is an ordered lifecycle stream whose current records use event
   schema v2; event v1 remains readable for compatibility.
 
@@ -75,7 +75,7 @@ Event schema changes follow the public versioning policy. Additive payload
 members do not change the current version; a required-field removal, field-type change,
 or semantic reinterpretation requires a new event schema version.
 
-## Execution manifest v2
+## Execution manifest v3
 
 `manifest.files[]` records a stable `fileId`, repository-relative path,
 line-normalized source digest, deterministic assigned shard, whether the file
@@ -86,7 +86,8 @@ display/source metadata, deterministic `assignedShard`, and selection state.
 For test/case sharding the complete inventory appears in every member; file
 shards retain the complete source inventory and their selected test inventory.
 The manifest also carries VCS provenance, framework version, shard metadata,
-and the public test/case identity algorithm.
+the public test/case identity algorithm, and the exact canonical-value codec
+envelope. Mergers reject mixed algorithms or codec envelopes before joining.
 
 `manifest.digest` is deterministic across repeated runs, isolation worker
 counts, every member of one shard topology, and relocated checkouts with

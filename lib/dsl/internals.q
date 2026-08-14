@@ -120,12 +120,12 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
       -11h = t; string x;                   / Symbol - convert normally
       11h = t; " " sv string x;             / Symbol list - join with spaces
       t within -19 -1h; string x;           / Negative atom types (atoms)
-      t within 1 19h; -3!x;                 / Positive simple list types
-      0h = t; -3!x;                         / General list - use -3!
-      99h = t; -3!x;                        / Dictionary
-      98h = t; -3!x;                        / Table
+      t within 1 19h; .tst.renderValueFull x; / Positive simple list types
+      0h = t; .tst.renderValueFull x;       / General list
+      99h = t; .tst.renderValueFull x;      / Dictionary
+      98h = t; .tst.renderValueFull x;      / Table
       null x; "";                           / Null - empty string
-      -3!x]                                 / Fallback - use -3! (show)
+      .tst.renderValueFull x]                / Geometry-independent fallback
  };
 
 / Normalize internal execution states to the public result contract.

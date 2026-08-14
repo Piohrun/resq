@@ -3,7 +3,7 @@
 / Versioned, repository-local execution history for --last-failed and
 / --failed-first. This is deliberately a cache, never an authority: missing or
 / malformed history falls back to the complete selected suite.
-.tst.rerunStateVersion:1;
+.tst.rerunStateVersion:2;
 
 .tst.rerunStatePath:{[]
     configured:.tst.toString @[get;`.tst.app.stateFile;{".resq/last-run.json"}];
@@ -41,9 +41,9 @@
         state:.tst.emptyRerunState `invalid;
         state[`diagnostic]:"JSON root must be an object";
         :state];
-    if[not all `schemaVersion`failedTestIds in key doc;
+    if[not `schemaVersion in key doc;
         state:.tst.emptyRerunState `invalid;
-        state[`diagnostic]:"missing schemaVersion or failedTestIds";
+        state[`diagnostic]:"missing schemaVersion";
         :state];
     if[not .tst.validJsonLong[doc`schemaVersion;0j];
         state:.tst.emptyRerunState `invalid;
@@ -52,6 +52,14 @@
     if[not .tst.rerunStateVersion="j"$doc`schemaVersion;
         state:.tst.emptyRerunState `unsupported;
         state[`diagnostic]:"unsupported schemaVersion";
+        :state];
+    if[not all `failedTestIds`identityAlgorithm`identityCodec in key doc;
+        state:.tst.emptyRerunState `unsupported;
+        state[`diagnostic]:"identity metadata is missing; migrate or rebuild the cache";
+        :state];
+    if[not .tst.identityDocumentMatches doc;
+        state:.tst.emptyRerunState `unsupported;
+        state[`diagnostic]:"identity algorithm or codec does not match this runtime";
         :state];
     if[not .tst.validFailedIds doc`failedTestIds;
         state:.tst.emptyRerunState `invalid;
@@ -76,6 +84,13 @@
         if[not first readResult;state:.tst.decodeRerunState last readResult]];
     .tst.app.rerunState:state;
     .tst.app.rerunStateStatus:state`status;
+    archive:"";
+    if[`unsupported~state`status;
+        archive:.tst.archiveIdentityState path;
+        if[count archive;
+            state[`diagnostic]:state[`diagnostic],"; archived at ",.tst.repoRelativePath archive];
+        if[0=count archive;
+            state[`diagnostic]:state[`diagnostic],"; unable to archive incompatible state"]];
     if[(state`status) in `invalid`unsupported;
         .tst.recordDiagnostic[`rerun;`warning;`selection;
             "Ignoring malformed or unsupported rerun state; running the full selection: ",state`diagnostic;
@@ -190,12 +205,29 @@
     eligible:rows where {[row] (row`kind) in `test`fuzz`perf} each rows;
     / Collection/framework-only runs must not erase useful prior history.
     if[0=count eligible;:1b];
+    / Re-check immediately before publication: another process or operator may
+    / have replaced the path after init. Never overwrite a different identity
+    / generation merely because this run already loaded its selection state.
+    if[.utl.pathExists path;
+        currentRead:@[{[p](0b;read0 hsym `$p)};path;{[err](1b;())}];
+        if[not first currentRead;
+            currentState:.tst.decodeRerunState last currentRead;
+            if[`unsupported~currentState`status;
+                archive:.tst.archiveIdentityState path;
+                if[0=count archive;
+                    .tst.recordDiagnostic[`rerun;`warning;`persistence;
+                        "Refusing to overwrite incompatible rerun identity state";
+                        enlist[`path]!enlist .tst.repoRelativePath path];
+                    :0b];
+                .tst.recordDiagnostic[`rerun;`warning;`persistence;
+                    "Archived incompatible rerun identity state before rebuilding";
+                    `path`archive!(.tst.repoRelativePath path;.tst.repoRelativePath archive)]]]];
     statuses:.tst.normalizeResultStatus each {x`status} each eligible;
     failedRows:eligible where statuses in `fail`error;
     ids:distinct {.tst.toString x`testId} each failedRows;
     runMeta:@[get;`.tst.app.runMetadata;{()!()}];
-    doc:`schemaVersion`framework`runId`updatedAt`testCount`failedCount`failedTestIds!(
-        .tst.rerunStateVersion;"resQ";
+    doc:`schemaVersion`identityAlgorithm`identityCodec`framework`runId`updatedAt`testCount`failedCount`failedTestIds!(
+        .tst.rerunStateVersion;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];"resQ";
         $[`id in key runMeta;runMeta`id;""];
         .tst.isoTimestamp .z.p;
         count eligible;count ids;ids);

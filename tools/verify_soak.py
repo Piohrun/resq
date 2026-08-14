@@ -22,7 +22,7 @@ PREFIX = "RESQ_SOAK_SAMPLE="
 def q_driver(cycles: int) -> str:
     return "\n".join((
         ".tst.captureResourceState[];",
-        ".soak.timerFingerprint:.Q.s1 @[get;`.z.ts;{::}];",
+        ".soak.timerFingerprint:.tst.canonicalValueDigest .tst.canonicalValueBytes @[get;`.z.ts;{::}];",
         '.soak.sample:{[cycle] w:.Q.w[];resources:.tst.captureResourceState[];`cycle`usedBytes`heapBytes`symbolCount`symbolBytes`namespaceCount`ipcHandleCount`osHandleCount`timerFingerprint!(cycle;"j"$w`used;"j"$w`heap;"j"$w`syms;"j"$w`symw;"j"$count key `;"j"$count resources`ipcHandles;"j"$count resources`osHandles;.soak.timerFingerprint)};',
         '-1 "RESQ_SOAK_SAMPLE=",.j.j .soak.sample 1j;',
         "i:1j;",

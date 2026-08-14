@@ -261,7 +261,7 @@
   out:();seen:();
   ( {[original;state;candidate]
       if[original~candidate;:state];
-      keyText:-3!candidate;
+      keyText:.tst.canonicalValueBytes candidate;
       if[any keyText~/:state 1;:state];
       (state[0],enlist candidate;state[1],enlist keyText)
     }[original]/[(out;seen);candidates]) 0

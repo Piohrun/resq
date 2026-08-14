@@ -35,14 +35,22 @@
   statuses:{`$.tst.toString x`status} each rows;
   testIds:{.tst.toString x`testId} each rows;
   selection:$[(99h=type doc) and `run in key doc;doc[`run;`selection];()!()];
-  `code`labels`statuses`testIds`selection`stateFile!(
-      code;labels;statuses;testIds;selection;stateFile)
+  diagnostics:$[(99h=type doc) and `diagnostics in key doc;doc`diagnostics;()];
+  `code`labels`statuses`testIds`selection`stateFile`diagnostics!(
+      code;labels;statuses;testIds;selection;stateFile;diagnostics)
  };
 
 .tst.reruntest.corrupt:{[]
   path:.tst.reruntest.base,"/state/last-run.json";
   .utl.ensureDir .tst.reruntest.base,"/state";
   (hsym `$path) 0:enlist "{not-json";
+ };
+
+.tst.reruntest.legacy:{[]
+  path:.tst.reruntest.base,"/state/last-run.json";
+  .utl.ensureDir .tst.reruntest.base,"/state";
+  doc:`schemaVersion`framework`failedTestIds!(1j;"resQ";enlist "test_legacy");
+  (hsym `$path) 0:enlist .j.j doc;
  };
 
 .tst.reruntest.cleanup:{[]
@@ -71,7 +79,10 @@
     stateLines:read0 hsym `$initial`stateFile;
     stateDoc:.j.k "\n" sv stateLines;
     stateVersion:"j"$stateDoc`schemaVersion;
-    stateVersion musteq 1j;
+    stateVersion musteq 2j;
+    stateDoc[`identityAlgorithm] musteq .tst.IDENTITY_ALGORITHM;
+    must[.tst.identityCodecMatches stateDoc`identityCodec;
+         "persisted identity codec must match this runtime"];
     failedIds:initial[`testIds] where initial[`statuses]=`fail;
     stateDoc[`failedTestIds] musteq failedIds;
 
@@ -105,6 +116,29 @@
     count[fallback`labels] musteq 3;
     fallback[`selection;`historyStatus] musteq "invalid";
     fallback[`selection;`applied] musteq 0b;
+  };
+
+  skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];
+         "legacy identity state is archived before a clean rebuild"]{
+    .tst.reruntest.legacy[];
+    fallback:.tst.reruntest.run["-last-failed";1b;0b];
+    fallback[`code] musteq 0;
+    count[fallback`labels] musteq 3;
+    fallback[`selection;`historyStatus] musteq "unsupported";
+    fallback[`selection;`applied] musteq 0b;
+    entries:string key hsym `$ .tst.reruntest.base,"/state";
+    archives:entries where entries like "last-run.json.identity-mismatch.*.bak";
+    count[archives] musteq 1;
+    archived:.j.k raze read0 hsym `$ .tst.reruntest.base,"/state/",first archives;
+    archivedVersion:"j"$archived`schemaVersion;
+    archivedVersion musteq 1j;
+    rebuilt:.j.k raze read0 hsym `$fallback`stateFile;
+    rebuiltVersion:"j"$rebuilt`schemaVersion;
+    rebuiltVersion musteq 2j;
+    rebuiltAlgorithm:rebuilt`identityAlgorithm;
+    rebuiltAlgorithm musteq .tst.IDENTITY_ALGORITHM;
+    messages:{.tst.toString x`message} each fallback`diagnostics;
+    must[any messages like "*archived at*";"the migration diagnostic must name the archive"];
   };
  };
 

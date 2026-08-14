@@ -67,7 +67,7 @@
     manifestKeys musteq expectedManifestKeys;
     doc[`run;`wallDurationSeconds] musteq doc[`run;`durationSeconds];
     doc[`summary;`testDurationSumSeconds] musteq doc[`summary;`durationSeconds];
-    doc[`manifest;`schemaVersion] musteq 2f;
+    doc[`manifest;`schemaVersion] musteq 3f;
     doc[`manifest;`kind] musteq "resq-execution-manifest";
     doc[`manifest;`digest] mustlike "manifest_*";
     count[doc[`manifest;`files]] musteq 1;

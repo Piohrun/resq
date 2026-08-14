@@ -52,7 +52,7 @@ class ReleaseGateContractTests(unittest.TestCase):
         normal = scale_report(1)
         isolated = copy.deepcopy(normal)
         isolated["tests"][0]["quarantine"] = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "state": "healthy",
         }
         with tempfile.TemporaryDirectory() as raw:

@@ -68,7 +68,7 @@
 / Construct via `value` on a fixed source string. Inputs to the format are
 / all internally generated, so this re-introduces no user-controlled eval.
 .tst.spy8Wrapper:{[name]
-    nameStr: .Q.s1 name;
+    nameStr: .tst.renderValueFull name;
     value "{[a0;a1;a2;a3;a4;a5;a6;a7] .tst.spyLogCallback[",nameStr,"; (a0;a1;a2;a3;a4;a5;a6;a7)]; .tst.spyLog.impls[",nameStr,"] . (a0;a1;a2;a3;a4;a5;a6;a7)}"
  };
 
@@ -147,7 +147,7 @@
     r: count (value orig) 1;
     argNames: `$"a",/:string til r;
     args: ";" sv string argNames;
-    wrapper: "{[",args,"] .tst.nextSeq[",(.Q.s1 name),"]}";
+    wrapper: "{[",args,"] .tst.nextSeq[",(.tst.renderValueFull name),"]}";
     .tst.mock[name; value wrapper];
  }
 

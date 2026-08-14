@@ -10,6 +10,32 @@
     leftId mustlike "test_*";
   };
 
+  should["derive geometry-independent typed identity-v3 goldens"]{
+    oldConsole:system "c";
+    oldPrecision:system "P";
+    prefix:240#"x";
+    leftParams:`value`kind!((prefix,"left-tail");1j);
+    rightParams:`value`kind!((prefix,"right-tail");1j);
+    typedParams:`value`kind!((prefix,"left-tail");1f);
+    system "c 20 35";
+    system "P 3";
+    narrow:(.tst.stableTestId["tests/test_identity.q";`identity;"long case"];
+      .tst.stableCaseId["test_0123456789abcdef0123456789abcdef";0j;leftParams]);
+    system "c 80 500";
+    system "P 17";
+    wide:(.tst.stableTestId["tests/test_identity.q";`identity;"long case"];
+      .tst.stableCaseId["test_0123456789abcdef0123456789abcdef";0j;leftParams]);
+    system "c ",string[oldConsole 0]," ",string oldConsole 1;
+    system "P ",string oldPrecision;
+    narrow musteq wide;
+    last[narrow] mustne .tst.stableCaseId[
+      "test_0123456789abcdef0123456789abcdef";0j;rightParams];
+    last[narrow] mustne .tst.stableCaseId[
+      "test_0123456789abcdef0123456789abcdef";0j;typedParams];
+    first[narrow] musteq "test_fb3a48a62c4ab9456444ee9869a3851c";
+    last[narrow] musteq "case_a2782e7e50990daae89c8a7babaa6aad";
+  };
+
   should["capture complete run metadata without absolute test identity noise"]{
     runInfo:.tst.withIsolatedRunState[{[]
       .tst.beginRunMetadata[];
@@ -150,6 +176,9 @@
     firstRow:modelRows 0;
     firstRow[`testId] mustlike "test_*";
     firstRow[`file] musteq "tests/test_observability.q";
+    model[`manifest;`schemaVersion] musteq 3j;
+    model[`manifest;`identityAlgorithm] musteq "resq-test-case-id-v3";
+    model[`manifest;`identityCodec] mustmatch .tst.identityCodecMetadata[];
     count[.tst.resultRows model] musteq 1;
   };
 

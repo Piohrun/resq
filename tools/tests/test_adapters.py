@@ -92,7 +92,7 @@ def report() -> dict:
         "coverage": {},
         "diagnostics": [],
         "flake": {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "historyPath": ".resq/flake-history.json",
             "historyStatus": "missing",
             "manifestPath": ".resq/quarantine.json",
@@ -199,6 +199,7 @@ class ValidatorContractTests(unittest.TestCase):
             "digest": manifest["digest"],
             "digestAlgorithm": manifest["digestAlgorithm"],
             "identityAlgorithm": manifest["identityAlgorithm"],
+            "identityCodec": manifest["identityCodec"],
             "frameworkVersion": manifest["frameworkVersion"],
             "fileCount": len(manifest["files"]),
             "testCount": len(manifest["tests"]),
@@ -252,7 +253,7 @@ class ValidatorContractTests(unittest.TestCase):
 
         bad_quarantine = report()
         bad_quarantine["tests"][0]["quarantine"] = {
-            "schemaVersion": 1, "state": "expired", "active": False,
+            "schemaVersion": 2, "state": "expired", "active": False,
             "nonBlocking": True, "observations": 4, "passes": 2,
             "failures": 2, "flakes": 0, "owner": "quality",
             "reason": "known intermittent", "evidence": {}, "issue": "Q-1",
@@ -373,7 +374,7 @@ class AllureAdapterTests(unittest.TestCase):
             )
             document["tests"][0]["parameters"] = {"region": "eu", "size": 3}
             document["tests"][0]["quarantine"] = {
-                "schemaVersion": 1, "state": "quarantined", "active": True,
+                "schemaVersion": 2, "state": "quarantined", "active": True,
                 "nonBlocking": True, "observations": 4, "passes": 2,
                 "failures": 2, "flakes": 0, "owner": "quality",
                 "reason": "known intermittent", "evidence": {}, "issue": "Q-1",

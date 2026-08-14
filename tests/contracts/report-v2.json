@@ -94,7 +94,7 @@
   "coverage": {},
   "diagnostics": [],
   "flake": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "historyPath": ".resq/flake-history.json",
     "historyStatus": "missing",
     "manifestPath": ".resq/quarantine.json",
@@ -136,11 +136,19 @@
     "gate": {"enabled": false, "deferred": false, "passed": true, "reasons": []}
   },
   "manifest": {
-    "schemaVersion": 2,
+    "schemaVersion": 3,
     "kind": "resq-execution-manifest",
     "digest": "manifest_cccccccccccccccccccccccccccccccc",
-    "digestAlgorithm": "md5-source-topology-v2",
-    "identityAlgorithm": "resq-test-case-id-v2",
+    "digestAlgorithm": "md5-source-topology-v3",
+    "identityAlgorithm": "resq-test-case-id-v3",
+    "identityCodec": {
+      "name": "resq-value-v1+q-ipc-leaves",
+      "version": 1,
+      "qVersion": "4.1",
+      "qRelease": "2026.05.01",
+      "ipcSerialization": "q unary -8!/-9!",
+      "capabilityLevel": "local unary serialization; no negotiated IPC connection capability"
+    },
     "frameworkVersion": "1.8.1",
     "revision": {"sha": "deadbeef", "branch": "main", "dirty": false},
     "shard": {

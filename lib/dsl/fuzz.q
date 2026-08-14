@@ -41,8 +41,8 @@ orderItems:{[items;stream]
  };
 
 privateGuid:{[seed;counter;stream]
-    hex:raze string md5 raze (
-        .tst.toString[seed];"/";.tst.toString[counter];"/";.tst.toString stream);
+    hex:.tst.stableHashBytes .tst.valueFrame["resq-private-guid-v2";
+        .tst.canonicalValueBytes (seed;counter;stream)];
     text:(8#hex),"-",(4#8 _ hex),"-",(4#12 _ hex),"-",
         (4#16 _ hex),"-",(12#20 _ hex);
     "G"$text
@@ -327,8 +327,8 @@ runners[`fuzz]:{[expec]
     -1 "  Replay: ",first tokens;
     shrinkInfo:.tst.shrinkTree[
       expec`code;generator;firstFail;firstFailResult;.tst.shrinkLimits props];
-    -1 "  Original failing input: ",.Q.s1 shrinkInfo`original;
-    -1 "  Minimal reproducible input: ",.Q.s1 shrinkInfo`minimal;
+    -1 "  Original failing input: ",.tst.renderValueFull shrinkInfo`original;
+    -1 "  Minimal reproducible input: ",.tst.renderValueFull shrinkInfo`minimal;
     -1 "  Shrink: ",string[shrinkInfo`steps]," accepted / ",
        string[shrinkInfo`candidates]," tried (",string[shrinkInfo`termination],")";
     expec[`shrunkFailure]:shrinkInfo`minimal;
@@ -350,7 +350,7 @@ runners[`fuzz]:{[expec]
   / Strict '>' so the default maxFailRate 0f means "no failures tolerated":
   / failRate 0 does NOT exceed 0, so an all-passing holds block passes.
   $[(expec[`failRate]:(count expec`failedFuzz)%expec`runs) > expec`maxFailRate;
-   expec[`failures`result`assertsRun]:(enlist "Over max failure rate. Shrunk: ", .Q.s1 expec`shrunkFailure;`fuzzFail;assertsRun);
+   expec[`failures`result`assertsRun]:(enlist "Over max failure rate. Shrunk: ", .tst.renderValueFull expec`shrunkFailure;`fuzzFail;assertsRun);
    expec[`failures`result`assertsRun]:(();`pass;assertsRun)];
   .tst.assertState: origState;
   .tst.suppressAssertionDiff: origSuppress;

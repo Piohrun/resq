@@ -51,7 +51,7 @@
  };
 
 .tst.output.xunitUuid:{[seed]
-    h: raze string md5 .tst.toString seed;
+    h:.tst.stableHashBytes .tst.canonicalValueBytes seed;
     (8 # h), "-", (4 # 8 _ h), "-", (4 # 12 _ h), "-",
         (4 # 16 _ h), "-", (12 # 20 _ h)
  };

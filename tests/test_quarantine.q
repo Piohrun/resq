@@ -207,8 +207,10 @@
     `.tst.app.shardCount mock 1j;
     (hsym `$history) 0:enlist
       "{\"schemaVersion\":\"one\",\"kind\":\"resq-flake-history\",\"tests\":[]}";
-    (hsym `$manifest) 0:enlist
-      "{\"schemaVersion\":1,\"kind\":\"resq-quarantine-manifest\",\"entries\":\"bad\"}";
+    badManifest:`schemaVersion`identityAlgorithm`identityCodec`kind`entries!(
+      2j;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];
+      "resq-quarantine-manifest";"bad");
+    (hsym `$manifest) 0:enlist .j.j badManifest;
     (hsym `$rerun) 0:enlist
       "{\"schemaVersion\":{},\"failedTestIds\":\"test_bad\"}";
     outcome:@[{.tst.loadFlakeState[];.tst.loadRerunState[];0b};::;{[e]1b}];
@@ -225,6 +227,25 @@
       "{\"schemaVersion\":99,\"kind\":\"resq-flake-history\",\"tests\":[]}";
     .tst.loadFlakeState[];
     .tst.app.flakeHistory[`status] musteq `unsupported;
+    must[not .utl.pathExists history;
+         "unsupported identity history must be removed from the live cache path"];
+    archives:string key hsym `$wd;
+    archives:archives where archives like "flake.json.identity-mismatch.*.bak";
+    count[archives] musteq 1;
+    must[.utl.pathExists wd,"/",first archives;
+         "unsupported identity history must remain recoverable for migration"];
+
+    mismatched:`schemaVersion`identityAlgorithm`identityCodec`kind`tests!(
+      2j;"resq-test-case-id-v2";.tst.identityCodecMetadata[];
+      "resq-flake-history";());
+    (hsym `$history) 0:enlist .j.j mismatched;
+    .tst.loadFlakeState[];
+    .tst.app.flakeHistory[`status] musteq `unsupported;
+    must[.tst.app.flakeHistory[`diagnostic] like "*identity algorithm or codec*";
+         "a mixed identity generation must be rejected before history joins"];
+    archives:string key hsym `$wd;
+    archives:archives where archives like "flake.json.identity-mismatch.*.bak";
+    count[archives] musteq 2;
     system "rm -rf -- ",.utl.shellQuote wd;
   };
  };
@@ -247,8 +268,9 @@
     path:wd,"/history.json";
     a:"test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     b:"test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-    initial:`schemaVersion`kind`updatedAt`window`tests!(
-      1j;"resq-flake-history";"2026-08-14T00:00:00Z";20j;
+    initial:`schemaVersion`identityAlgorithm`identityCodec`kind`updatedAt`window`tests!(
+      2j;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];
+      "resq-flake-history";"2026-08-14T00:00:00Z";20j;
       (.tst.quarantineTest.historyEntry[a;0j];
        .tst.quarantineTest.historyEntry[b;0j]));
     (hsym `$path) 0:enlist .j.j initial;

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -27,10 +27,14 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def load_proposals(path: Path) -> list[dict[str, Any]]:
+def load_proposals(path: Path) -> dict[str, Any]:
     document = load_json(path)
     if document.get("schemaVersion") != SCHEMA_VERSION or document.get("kind") != "resq-quarantine-proposals":
-        raise ValueError(f"{path}: expected resQ quarantine proposals v1")
+        raise ValueError(f"{path}: expected resQ quarantine proposals v2; migrate legacy identity state first")
+    if not isinstance(document.get("identityAlgorithm"), str) or not isinstance(
+        document.get("identityCodec"), dict
+    ):
+        raise ValueError(f"{path}: identity algorithm/codec envelope is missing")
     proposals = document.get("proposals")
     if not isinstance(proposals, list):
         raise ValueError(f"{path}: proposals must be an array")
@@ -39,20 +43,24 @@ def load_proposals(path: Path) -> list[dict[str, Any]]:
             raise ValueError(f"{path}: malformed proposal at index {index}")
         if proposal.get("state") != "suspect":
             raise ValueError(f"{path}: proposal {proposal.get('testId')} is not suspect")
-    return proposals
+    return document
 
 
-def load_manifest(path: Path) -> dict[str, Any]:
+def load_manifest(path: Path, algorithm: str, codec: dict[str, Any]) -> dict[str, Any]:
     if not path.exists():
         return {
             "schemaVersion": SCHEMA_VERSION,
+            "identityAlgorithm": algorithm,
+            "identityCodec": codec,
             "kind": "resq-quarantine-manifest",
             "updatedAt": "",
             "entries": [],
         }
     document = load_json(path)
     if document.get("schemaVersion") != SCHEMA_VERSION or document.get("kind") != "resq-quarantine-manifest":
-        raise ValueError(f"{path}: expected resQ quarantine manifest v1")
+        raise ValueError(f"{path}: expected resQ quarantine manifest v2; migrate legacy identity state first")
+    if document.get("identityAlgorithm") != algorithm or document.get("identityCodec") != codec:
+        raise ValueError(f"{path}: manifest identity algorithm/codec differs from the proposals")
     if not isinstance(document.get("entries"), list):
         raise ValueError(f"{path}: entries must be an array")
     return document
@@ -84,13 +92,18 @@ def atomic_write(path: Path, document: dict[str, Any]) -> None:
 
 
 def build_manifest(args: argparse.Namespace) -> dict[str, Any]:
-    proposals = load_proposals(args.proposals)
+    proposal_document = load_proposals(args.proposals)
+    proposals = proposal_document["proposals"]
     selected = set(args.test_id or [proposal["testId"] for proposal in proposals])
     available = {proposal["testId"]: proposal for proposal in proposals}
     missing = sorted(selected - available.keys())
     if missing:
         raise ValueError(f"requested test IDs are absent from proposals: {', '.join(missing)}")
-    manifest = load_manifest(args.manifest)
+    manifest = load_manifest(
+        args.manifest,
+        proposal_document["identityAlgorithm"],
+        proposal_document["identityCodec"],
+    )
     existing = {
         entry.get("testId"): entry
         for entry in manifest["entries"]

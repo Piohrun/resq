@@ -270,6 +270,7 @@ def scale_report(
             "digest": manifest["digest"],
             "digestAlgorithm": manifest["digestAlgorithm"],
             "identityAlgorithm": manifest["identityAlgorithm"],
+            "identityCodec": manifest["identityCodec"],
             "frameworkVersion": manifest["frameworkVersion"],
             "fileCount": len(manifest["files"]),
             "testCount": len(manifest["tests"]),

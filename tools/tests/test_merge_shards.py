@@ -16,6 +16,7 @@ from merge_shards import (  # noqa: E402
     MergeError,
     lifecycle,
     load_report,
+    load_reports,
     merge,
     merge_coverage,
     merge_performance,
@@ -189,6 +190,23 @@ class MergerContractTests(unittest.TestCase):
                 paths = write_documents(Path(directory), documents)
                 with self.assertRaisesRegex(MergeError, expected):
                     merge(paths, Path(directory) / "merged")
+
+    def test_loader_rejects_mixed_identity_generation_before_joining(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            documents = shard_documents()
+            documents[1]["manifest"]["identityAlgorithm"] = "resq-test-case-id-v2"
+            paths = write_documents(root, documents)
+            with self.assertRaisesRegex(MergeError, "mixed identity algorithms"):
+                load_reports(paths)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            documents = shard_documents()
+            documents[1]["manifest"]["identityCodec"]["qRelease"] = "different"
+            paths = write_documents(root, documents)
+            with self.assertRaisesRegex(MergeError, "mixed identity codecs"):
+                load_reports(paths)
 
     def test_inventory_results_and_ownership_mutations_are_rejected(self) -> None:
         documents = shard_documents()
