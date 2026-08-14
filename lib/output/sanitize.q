@@ -99,8 +99,10 @@
 .tst.output.decimalSeconds:{[v]
     raw:$[0h=type v;0N;98h=type v;first v;v];
     if[null raw;:"0.000000000"];
+    / "j"$ already rounds to nearest; adding 0.5 first double-rounded and
+    / pushed an inexact float product (1e9*0.000012) up by one nanosecond.
     nanos:$[-16h=type raw;"j"$raw;
-        type[raw] in -8 -9h;"j"$0.5+1e9*"f"$raw;
+        type[raw] in -8 -9h;"j"$1e9*"f"$raw;
         0j];
     if[nanos<0j;'"duration must be non-negative"];
     whole:nanos div 1000000000j;
@@ -323,6 +325,9 @@
 .tst.identityText:{[input]
     if[10h=type input;:input];
     if[-11h=type input;:string input];
+    / A one-character description reaches embedded callers as a char ATOM;
+    / it is the same text and must produce the same identity as its string.
+    if[-10h=type input;:enlist input];
     '"identity text fields must be strings or symbols"
  };
 

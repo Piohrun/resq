@@ -151,7 +151,13 @@ def table_contract(
     coverage_contexts: list[dict[str, Any]] = []
     coverage_context_metrics: list[dict[str, Any]] = []
     if detail:
-        coverage_runs.append({**detail.get("summary", {}), "runId": run_id})
+        summary_row = detail.get("summary", {})
+        declared_run = summary_row.get("runId")
+        if declared_run is not None and declared_run != run_id:
+            raise ValueError(
+                f"coverage summary runId {declared_run!r} contradicts report run {run_id!r}"
+            )
+        coverage_runs.append({**summary_row, "runId": run_id})
     for file_row in detail.get("files", []):
         path = str(file_row["path"])
         file_key = f"{run_id}/{path}"

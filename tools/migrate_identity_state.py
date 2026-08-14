@@ -122,6 +122,16 @@ def pair_maps(old: dict[str, Any], new: dict[str, Any]) -> tuple[dict[str, str],
         if prior is not None and prior != new_id:
             raise MigrationError(f"old test ID {old_id!r} maps ambiguously")
         mapping[old_id] = new_id
+    # Injectivity: two distinct old IDs collapsing onto one new ID would
+    # produce duplicate-keyed history rows in the migrated state.
+    reverse: dict[str, str] = {}
+    for old_id, new_id in mapping.items():
+        prior_old = reverse.get(new_id)
+        if prior_old is not None and prior_old != old_id:
+            raise MigrationError(
+                f"new ID {new_id!r} collides for old IDs {prior_old!r} and {old_id!r}"
+            )
+        reverse[new_id] = old_id
     return mapping, copy.deepcopy(codec)
 
 

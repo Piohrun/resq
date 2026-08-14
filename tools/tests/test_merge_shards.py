@@ -274,6 +274,25 @@ class MergerContractTests(unittest.TestCase):
         )
         self.assertEqual(4, len(inventory))
 
+    def test_shard_reports_sharing_a_directory_cannot_double_count_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            documents = shard_documents()
+            shared = root / "shared"
+            shared.mkdir()
+            paths: list[Path] = []
+            for index, document in enumerate(documents):
+                path = shared / f"shard-{index}.json"
+                path.write_text(json.dumps(document), encoding="utf-8")
+                paths.append(path)
+            # Both reports resolve the SAME sibling coverage.json; merging it
+            # once per shard would silently double every hit count.
+            (shared / "coverage.json").write_text(
+                json.dumps(report_coverage()), encoding="utf-8"
+            )
+            with self.assertRaisesRegex(MergeError, "share a directory"):
+                merge(paths, root / "merged")
+
     def test_incomplete_member_and_complete_coverage_merge_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

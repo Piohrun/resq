@@ -104,6 +104,18 @@
   };
  };
 
+.tst.desc["holds body arity contract"]{
+ should["name the one-parameter contract instead of a bare type error"]{
+  badExpec:.tst.internals[`fuzzObj];
+  badExpec[`desc]:"two-parameter body";
+  badExpec[`code]:{[a;b]1b};
+  badExpec[`runs]:5;
+  badExpec[`vars]:`x`f!`long`float;
+  mustthrow["*holds body must take exactly one parameter*";
+    (.tst.runners`fuzz;badExpec)];
+  };
+ };
+
 .tst.desc["The Fuzz Generator"]{
  should["return a list of fuzz values of the given type provided a symbol"]{
   res: .tst.pickFuzz[`symbol;10];

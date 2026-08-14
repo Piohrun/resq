@@ -51,6 +51,13 @@ class IngestionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "runId differs"):
             table_contract(report, coverage)
 
+    def test_contradictory_coverage_summary_run_id_is_rejected(self) -> None:
+        report = scale_report(1)
+        coverage = coverage_artifact(report)
+        coverage.setdefault("summary", {})["runId"] = "run_" + "e" * 32
+        with self.assertRaisesRegex(ValueError, "contradicts report run"):
+            table_contract(report, coverage)
+
     def test_table_contract_preserves_stable_run_and_execution_joins(self) -> None:
         report = scale_report(4)
         payload = table_contract(report)

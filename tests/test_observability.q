@@ -8,6 +8,10 @@
     .tst.app.baseDir:oldRoot;
     leftId musteq rightId;
     leftId mustlike "test_*";
+    / A one-character description reaches embedded callers as a char atom and
+    / must hash exactly like its one-character string.
+    .tst.stableTestId["tests/test_x.q";`suite;"x"] musteq
+      .tst.stableTestId["tests/test_x.q";`suite;first "x"];
   };
 
   should["derive geometry-independent typed identity-v3 goldens"]{

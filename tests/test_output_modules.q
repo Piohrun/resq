@@ -252,6 +252,10 @@
             "loading reporters must not replace the shared duration formatter"];
         .tst.output.escapeXml["<&"] musteq "&lt;&amp;";
         .tst.output.decimalSeconds[0D00:00:00.000000001] musteq "0.000000001";
+        / Float-seconds path: inexact products must not round up a nanosecond.
+        .tst.output.decimalSeconds[0.000012] musteq "0.000012000";
+        .tst.output.decimalSeconds[0D00:00:00.000012] musteq "0.000012000";
+        .tst.output.decimalSeconds[1.5] musteq "1.500000000";
     };
 
     should["strict JSON encodes arbitrary non-finite values canonically"]{

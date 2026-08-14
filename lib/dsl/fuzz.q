@@ -124,6 +124,12 @@ pickFuzzSeeded:{[spec;runs;seed;stream]
     runs#spec
  };
 
+/ LEGACY qspec-era sampling surface, kept source-compatible and pinned by
+/ tests. Its typed domains are deliberately unchanged and NARROW (longs in
+/ [0,2^32), floats in [0,1), no nulls/negatives/edges) because historical
+/ suites depend on them. The live holds runner samples through .resq.gen,
+/ whose typed generators carry edge-biased domains; new code must not call
+/ pickFuzz/pickFuzzSeeded/pickListFuzz directly.
 pickFuzz:{[x;runs]
     t: type x;
 
@@ -282,6 +288,14 @@ shrink:{[code;typeCode;val]
  }
 
 runners[`fuzz]:{[expec]
+  / A holds body receives exactly ONE argument: the generated value (a dict
+  / for multi-variable specs). Any other arity previously surfaced as a bare
+  / 'type from deep inside the collector; name the actual contract instead.
+  if[100h=type expec`code;
+    bodyParams:(),(value expec`code) 1;
+    if[not 1=count bodyParams;
+      '"holds body must take exactly one parameter (the generated value; a dictionary for multi-variable vars), got ",
+        string[count bodyParams]," - see docs/PBT.md"]];
   origState: .tst.assertState;
   origSuppress: .tst.suppressAssertionDiff;
   / Quiet per-iteration FAILURE DIFFs; the shrunk repro printed below is the

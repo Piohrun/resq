@@ -30,6 +30,25 @@ class IdentityMigrationTests(unittest.TestCase):
     def write(path: Path, value: dict) -> None:
         path.write_text(json.dumps(value), encoding="utf-8")
 
+    def test_rejects_new_id_collisions(self) -> None:
+        old, new = self.reports()
+        # Two distinct old IDs collapsing to one new ID would produce
+        # duplicate-keyed migrated state; the mapping must be injective.
+        collided = new["manifest"]["tests"][0]["testId"]
+        new["manifest"]["tests"][1]["testId"] = collided
+        new["manifest"]["tests"][1]["executionId"] = collided
+        source = {"schemaVersion": 1, "failedTestIds": ["test_old_0"]}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old_path, new_path = root / "old.json", root / "new.json"
+            state_path, output = root / "state.json", root / "migrated.json"
+            self.write(old_path, old)
+            self.write(new_path, new)
+            self.write(state_path, source)
+            with self.assertRaisesRegex(MigrationError, "collides"):
+                migrate(old_path, new_path, state_path, output)
+            self.assertFalse(output.exists())
+
     def test_migrates_rerun_history_without_modifying_source(self) -> None:
         old, new = self.reports()
         source = {"schemaVersion": 1, "failedTestIds": ["test_old_1"]}

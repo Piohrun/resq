@@ -575,6 +575,11 @@ def merge_coverage(
 ) -> dict[str, Any] | None:
     paths = [path.with_name("coverage.json") for path in report_paths]
     present = [path.is_file() for path in paths]
+    if any(present) and len(set(paths)) != len(paths):
+        raise MergeError(
+            "shard reports share a directory, so their sibling coverage.json "
+            "would be merged more than once; keep one directory per shard"
+        )
     if any(present) and not all(present):
         raise MergeError("coverage.json is present for only part of the shard set")
     if not any(present):

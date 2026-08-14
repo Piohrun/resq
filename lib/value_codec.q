@@ -63,6 +63,9 @@
     digits:15&precision;
     rendered:.Q.f[digits;"f"$raw];
     roundTrip:@[{"F"$x};rendered;{0n}];
+    / Compare in the operand's own width: "F"$ reparses to a float atom, so a
+    / real (-8h) never matched and always carried the [ipc=...] suffix.
+    if[-8h=type raw;roundTrip:"e"$roundTrip];
     if[(-8!roundTrip)~-8!raw;:rendered];
     rendered,"[ipc=",.tst.valueHexBytes[-8!raw],"]"
  };

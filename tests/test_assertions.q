@@ -140,6 +140,16 @@
   };
 };
 
+.tst.desc["full value rendering fidelity"]{
+ should["render round-trippable real and float atoms without the ipc suffix"]{
+  .tst.renderValueFull[1.5e] musteq "1.500000000";
+  .tst.renderValueFull[1.5] musteq "1.500000000000000";
+  .tst.renderValueFull[0.1e] musteq "0.100000001";
+  must[0<count ss[.tst.renderValueFull 0.1+0.2;"ipc="];
+       "a non-round-trippable float must still carry its exact bytes"];
+  };
+};
+
 .tst.desc["failure diff context"]{
  should["derive a suite and test label for streamed diff headers"]{
   label: .tst.diffContextLabel[];
