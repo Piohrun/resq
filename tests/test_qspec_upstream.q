@@ -23,7 +23,13 @@
   .utl.ensureDir wd;
   launcher:.resq.HOME, "/bin/qspec";
   sourcePath:.resq.HOME, "/", source;
-  cmd:"timeout -k 5 120 ", (.utl.shellQuote launcher), " -pass ",
+  seedPlugin:.resq.HOME,"/tests/fixtures/plugins/qspec_compat_seed.q";
+  cmd:"timeout -k 5 120 ", (.utl.shellQuote launcher), " -pass -plugin ",
+      (.utl.shellQuote seedPlugin),
+      " -state-file ",.utl.shellQuote[wd,"/state.json"],
+      " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+      " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+      " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"]," ",
       (.utl.shellQuote sourcePath), " < /dev/null > ",
       (.utl.shellQuote outFile), " 2>&1; echo $?";
   statusLines:@[system; cmd; {[e] enlist "-1"}];

@@ -52,7 +52,8 @@ def verify(q_executable: str, destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
     state_root = destination / "state"
     upstream = run(
-        [str(ROOT / "bin/qspec"), "tests/upstream_qspec"],
+        [str(ROOT / "bin/qspec"), "tests/upstream_qspec", "-plugin",
+         str(ROOT / "tests/fixtures/plugins/qspec_compat_seed.q")],
         destination / "upstream", q_executable, state_root,
     )
     native = run(

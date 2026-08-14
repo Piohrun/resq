@@ -33,6 +33,10 @@ UI, mocking, fuzzing, file fixtures, directory fixtures, and text fixtures.
 `bin/qspec <directory>` also recognizes the pinned upstream `qspec_test_*.q`
 filename convention in addition to resQ's normal defaults. An explicit
 `testFilePatterns` configuration replaces those launcher defaults.
+The unmodified legacy fuzz generator consumes q's process-global random stream,
+so the compatibility harness loads a checked seed fixture before the corpus.
+This makes the evidence replayable without editing upstream source; ordinary
+`qspec` users do not receive an implicit global random seed.
 
 Compatibility is certified against the pinned contract above, not as a claim
 about every historical private qspec helper or output byte. Where one suite
