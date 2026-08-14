@@ -138,7 +138,7 @@ def report() -> dict:
     }
 
 
-class AdapterTests(unittest.TestCase):
+class ValidatorContractTests(unittest.TestCase):
     def test_validator_enforces_bounded_deterministic_run_labels(self) -> None:
         base = report()
         base["run"]["labels"] = {"environment": "test", "service": "orders"}
@@ -261,6 +261,8 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "only active quarantine"):
             validate(bad_quarantine)
 
+
+class NdjsonAdapterTests(unittest.TestCase):
     def test_ndjson_preserves_run_and_stable_test_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -276,6 +278,26 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(["resq.run", "resq.test", "resq.test"], [e["eventType"] for e in events])
             self.assertTrue(all(e["runId"] == f"run_{'a' * 32}" for e in events))
             self.assertEqual(f"test_{'b' * 32}", events[1]["test"]["testId"])
+
+    def test_ndjson_preserves_unicode_and_hostile_text_as_data(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "report.json"
+            output = root / "events.ndjson"
+            document = report()
+            document["tests"][0].update(
+                description="測試 ../ remains data", file="tests/測試 path.q",
+                output="line one\n<script>&line two",
+            )
+            source.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(ROOT / "tools/resq_to_ndjson.py"), str(source), "-o", str(output)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual("測試 ../ remains data", rows[1]["test"]["description"])
+            self.assertEqual("tests/測試 path.q", rows[1]["test"]["file"])
 
     def test_declared_profiles_validate_and_omissions_are_exact(self) -> None:
         base = json.loads(
@@ -316,6 +338,8 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(1, rejected.returncode)
             self.assertIn("converter ceiling", rejected.stderr)
 
+
+class AllureAdapterTests(unittest.TestCase):
     def test_allure_maps_status_history_and_labels(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -382,6 +406,30 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(1, passed["stop"] - passed["start"])
             self.assertTrue((output / "executor.json").is_file())
             self.assertTrue((output / "environment.properties").is_file())
+
+    def test_allure_keeps_hostile_unicode_names_inside_output_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "report.json"
+            output = root / "allure"
+            document = report()
+            document["tests"][0].update(
+                description="../../測試 <name>", file="../hostile/測試.q",
+            )
+            source.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(ROOT / "tools/resq_to_allure.py"), str(source), str(output)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            paths = list(output.iterdir())
+            self.assertTrue(paths)
+            self.assertTrue(all(path.parent == output and path.is_file() for path in paths))
+            results = [
+                json.loads(path.read_text(encoding="utf-8"))
+                for path in paths if path.name.endswith("-result.json")
+            ]
+            self.assertIn("../../測試 <name>", {row["name"] for row in results})
 
 
 if __name__ == "__main__":

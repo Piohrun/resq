@@ -41,11 +41,10 @@
     result[`validationCode] musteq 0j;
     doc:result`doc;
     doc[`summary;`passCount] musteq 1f;
+    lifecycleGolden:.j.k "\n" sv read0 hsym `$ .resq.HOME,
+        "/tests/contracts/lifecycle-v2-golden.json";
     types:{x`type} each doc`events;
-    types musteq (
-        "run.started";"manifest.published";"file.started";"suite.started";
-        "test.started";"attempt.started";"attempt.finished";"test.finished";
-        "suite.finished";"file.finished";"run.finished");
+    types musteq lifecycleGolden`singleTestTypes;
     sequences:"j"${x`sequence} each doc`events;
     sequences musteq 1j+til count sequences;
     must[all {2f=x`schemaVersion} each doc`events;
@@ -59,6 +58,10 @@
     testFinished:first (doc`events) where {"test.finished"~x`type} each doc`events;
     testStarted[`occurredAt] musteq testRow`startedAt;
     testFinished[`occurredAt] musteq testRow`finishedAt;
+    manifestEvent:first (doc`events) where {"manifest.published"~x`type} each doc`events;
+    manifestKeys:asc key manifestEvent`payload;
+    expectedManifestKeys:asc `$lifecycleGolden`manifestPublishedPayloadKeys;
+    manifestKeys musteq expectedManifestKeys;
     doc[`run;`wallDurationSeconds] musteq doc[`run;`durationSeconds];
     doc[`summary;`testDurationSumSeconds] musteq doc[`summary;`durationSeconds];
     doc[`manifest;`schemaVersion] musteq 2f;

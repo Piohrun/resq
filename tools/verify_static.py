@@ -41,10 +41,12 @@ REQUIRED = {
     "tools/coverage_contract.py", "tools/validate_coverage.py",
     "tools/reconcile_coverage.py", "tools/verify_coverage_contract.py",
     "tools/self_coverage_trend.py",
+    "tools/verify_python_contracts.py",
     "docs/RELEASE_CHECKLIST.md",
     "docs/PRODUCTION_AUDIT_1_8.md",
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
     "tests/contracts/xunit.xml",
+    "tests/contracts/lifecycle-v2-golden.json",
 }
 GENERATED = {
     "test-results.xml", "test-results.json", "coverage.lcov",
@@ -87,6 +89,7 @@ def check_package(expected_tag: str = "") -> None:
         "tools/verify_labels_context.py",
         "tools/validate_coverage.py", "tools/reconcile_coverage.py",
         "tools/verify_coverage_contract.py",
+        "tools/verify_python_contracts.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")

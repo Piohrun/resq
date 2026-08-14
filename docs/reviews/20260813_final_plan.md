@@ -60,7 +60,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 6 | Report profiles, payload cleanup, and scale budgets | complete |
 | 7 | Safe labels, VCS/CI context, and ingestion contract | complete |
 | 8 | Coverage schema and adversarial coverage validation | complete |
-| 9 | Licence-free validator, merger, and adapter hardening | pending |
+| 9 | Licence-free validator, merger, and adapter hardening | complete |
 | 10 | qspec migration, documentation, diagnostics, and hygiene | pending |
 | 11 | CI lanes, benchmark/soak evidence, and support runbooks | pending |
 | 12 | Fresh-clone qualification, release evidence, and `v1.8.0` tag | pending |
@@ -265,6 +265,18 @@ Split standard-library Python tests into validator, merger, NDJSON, and Allure s
 Test the validator's new invariants directly. Test both q and Python lifecycle equivalence through shared golden fixtures. Add adapter cases for legacy/event-v2 timing, profiles, coverage, labels, Unicode, hostile paths, and large bounded transcripts.
 
 **Validation:** all tooling tests run without q or third-party Python dependencies; mutation or targeted fault injection proves the negative cases reach the expected checks; public-fork CI runs this lane.
+
+Completed 2026-08-14: dependency-free Python contracts are independently
+addressable as validator, merger, NDJSON, Allure, and supporting suites. Forty-
+nine tests now cover unreadable/malformed/weak artifacts; schema, version,
+revision, digest, labels, and effective-config disagreement; missing, duplicate,
+overlapping, out-of-range, fail-fast-incomplete, file/test/case, and run-level
+shard behavior; result attempts, benchmark/snapshot ownership, aggregate and
+context coverage, stable ordering, Unicode, hostile path-like text, profiles,
+and bounded transcripts. q and Python lifecycle projectors share one checked
+event-v2 golden contract. The live shard matrix and static gate passed, while
+the strict self-suite passed 712 tests (711 pass, 1 skip) and 2,252 assertions.
+The public-fork workflow target is wired in Step 11 with the other named lanes.
 
 ## Step 10 — Close migration, documentation, diagnostics, and hygiene gaps
 

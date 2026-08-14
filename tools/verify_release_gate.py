@@ -231,7 +231,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         audit.run("licence-free contracts", [str(ROOT / "tools/verify_static.py")])
         audit.run(
             "Python contract tests",
-            [sys.executable, "-m", "unittest", "discover", "-s", "tools/tests", "-v"],
+            [str(ROOT / "tools/verify_python_contracts.py")],
         )
         audit.run(
             "CLI terminal contract",

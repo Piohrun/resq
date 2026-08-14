@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "eventSchemaVersion": 2,
+  "singleTestTypes": [
+    "run.started",
+    "manifest.published",
+    "file.started",
+    "suite.started",
+    "test.started",
+    "attempt.started",
+    "attempt.finished",
+    "test.finished",
+    "suite.finished",
+    "file.finished",
+    "run.finished"
+  ],
+  "observedTiming": {
+    "test.started": "startedAt",
+    "attempt.started": "attempt.startedAt",
+    "attempt.finished": "attempt.finishedAt",
+    "test.finished": "finishedAt"
+  },
+  "manifestPublishedPayloadKeys": [
+    "schemaVersion",
+    "kind",
+    "digest",
+    "digestAlgorithm",
+    "identityAlgorithm",
+    "frameworkVersion",
+    "fileCount",
+    "testCount"
+  ]
+}
