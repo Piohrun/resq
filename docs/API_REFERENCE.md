@@ -2035,6 +2035,9 @@ q resq.q cover tests/ --source src/ -cov-statements -cov-branches
 
 # Watch mode
 q resq.q watch src/ tests/
+
+# Watch with a declared coverage inventory (fresh coverage per rerun)
+q resq.q watch tests/ -coverage --source src/
 ```
 
 ---

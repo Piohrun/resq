@@ -69,6 +69,22 @@ Files loaded by other mechanisms (e.g. `\l` inside a helper that is itself loade
 
 Compiled operators and derived functions (e.g. `+/`, `each`) are skipped — they cannot be wrapped.
 
+### Coverage lifecycle and watch mode
+
+Each coverage run owns the wrappers it installs. At finalization resQ disables
+probes, restores owned originals in reverse installation order, and clears the
+session's hit/probe state. `initCoverage` performs the same idempotent stop first,
+so embedded callers may safely repeat init/run/stop cycles.
+
+If a live definition is no longer the wrapper resQ installed, resQ leaves that
+foreign value untouched and fails the coverage lifecycle closed. A failed
+assignment retains only the affected wrapper/original pair so the function
+remains callable and a later `stopCoverage[]` can retry it.
+
+`resq watch` starts a fresh coverage session immediately before every changed-
+file rerun and tears it down in the run finalizer. The idle watcher therefore
+holds no instrumentation wrappers, and hit counts do not leak between cycles.
+
 ### Statement-level coverage (`-cov-statements`, opt-in)
 
 By default there are no line records at all (see below). Pass `-cov-statements`

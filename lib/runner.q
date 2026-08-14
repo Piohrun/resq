@@ -156,7 +156,7 @@
         / initCoverage present but generateLCOV absent, surfacing much later as a
         / vague "LCOV generator not available". Check the module's entry points
         / explicitly and say exactly what is missing.
-        covExports: `initCoverage`instrumentFile`generateLCOV`generateCoverageJSON`generateHTML;
+        covExports: `initCoverage`stopCoverage`instrumentFile`generateLCOV`generateCoverageJSON`generateHTML;
         covMissing: covExports where not covExports in key `.tst;
         if[count covMissing;
             -1 "Coverage module loaded INCOMPLETELY - missing: ",
@@ -1217,6 +1217,16 @@
         @[get;`.tst.app.executionIncompleteReason;""];`incomplete;`completed];
     @[.tst.cleanupAllFixtures; (); {[e] .tst.recordCleanupError[`sessionFixture;e]}];
     @[.tst.restore; (); {[e] .tst.recordCleanupError[`mockRestore;e]}];
+
+    / Coverage wrappers outlive test loading, so they need their own finally
+    / boundary. stopCoverage is idempotent and keeps failed wrapper ownership
+    / callable for a later retry while reporting the run as failed closed.
+    if[`stopCoverage in key `.tst;
+        active:1b~@[get;`.tst.coverageEnabled;0b];
+        owned:0<count @[key;`.tst.covWrappers;{`symbol$()}];
+        if[(1b~@[get;`.tst.app.runCoverage;0b]) or active or owned;
+            @[.tst.stopCoverage;();{[e]
+                .tst.recordCleanupError[`coverageRestore;.tst.toString e]}]]];
 
     .tst.releaseSandboxes[];
     .tst.finishRunMetadata[];

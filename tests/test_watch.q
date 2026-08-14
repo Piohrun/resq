@@ -218,6 +218,40 @@
   `out`reportExists`schemaVersion!(o;reportExists;schemaVersion)
  };
 
+/ Exercise the real long-lived process boundary: three file changes, three
+/ in-process runAll calls, and a fresh coverage init/stop session for each one.
+.tst.testState.watchchk.runCoverageCycles:{[]
+  wd:.utl.tempRoot[],"/resq_watch_cov_",string[.z.i],"_",string `long$.z.p;
+  srcDir:wd,"/src";
+  src:srcDir,"/app.q";
+  tf:wd,"/test_w.q";
+  out:wd,"/out.txt";
+  reportDir:wd,"/report";
+  stateDir:wd,"_state";
+  system "mkdir -p ",.utl.shellQuote[srcDir]," ",.utl.shellQuote stateDir;
+  (hsym `$src) 0:("\\d .watchcov";"add:{[x;y]x+y};";"\\d .");
+  testSource:".tst.loadSource[\"",src,
+    "\"]; .tst.desc[\"watch coverage\"]{ should[\"pass\"]{ .watchcov.add[1;2] musteq 3 } };";
+  (hsym `$tf) 0:enlist testSource;
+  command:"timeout -k 2 14 q ",.utl.shellQuote[.resq.HOME,"/resq.q"],
+    " watch ",.utl.shellQuote[wd]," -coverage --source ",.utl.shellQuote[srcDir],
+    " -json -outDir ",.utl.shellQuote[reportDir],
+    " -state-file ",.utl.shellQuote[stateDir,"/last-run.json"],
+    " -flake-history ",.utl.shellQuote[stateDir,"/flake.json"],
+    " -quarantine-file ",.utl.shellQuote[stateDir,"/quarantine.json"],
+    " -flake-proposal-file ",.utl.shellQuote[stateDir,"/proposals.json"],
+    " < /dev/null > ",.utl.shellQuote[out]," 2>&1 & watcher=$!; ",
+    "sleep 2; echo '/ cycle 1' >> ",.utl.shellQuote[tf],"; ",
+    "sleep 3; echo '/ cycle 2' >> ",.utl.shellQuote[tf],"; ",
+    "sleep 3; echo '/ cycle 3' >> ",.utl.shellQuote[tf],"; ",
+    "wait $watcher; true";
+  @[system;"sh -c ",.utl.shellQuote command;{[e]e}];
+  output:@[read0;hsym `$out;{()}];
+  reportExists:.utl.pathExists reportDir,"/test-results.json";
+  system "rm -rf ",.utl.shellQuote[wd]," ",.utl.shellQuote stateDir;
+  `out`reportExists!(output;reportExists)
+ };
+
 .tst.desc["watch: subprocess stays alive + detects change (#slow, regression)"]{
 
   skipIf[not .tst.testState.watchchk.canQ;
@@ -243,5 +277,27 @@
          "the internal rerun must not error"];
     must[watchResult`reportExists;"watch must honor the selected JSON reporter"];
     watchResult[`schemaVersion] musteq 2j;
+  };
+ };
+
+.tst.desc["watch + coverage repeated lifecycle (#slow)"]{
+  skipIf[(not .tst.testState.watchchk.canQ) or
+         0=count @[system;"which timeout 2>/dev/null";{()}];
+         "three watch reruns restore coverage wrappers between cycles"]{
+    result:.tst.testState.watchchk.runCoverageCycles[];
+    output:result`out;
+    passLines:sum {0<count ss[x;"Tests:      1 total"]} each output;
+    initLines:sum {0<count ss[x;"Coverage tracking initialized."]} each output;
+    must[passLines>=3;
+         "all three changed-file cycles must execute and pass: ","\n" sv output];
+    must[initLines>=3;
+         "each cycle must start a fresh coverage session: ","\n" sv output];
+    must[not any {0<count ss[x;"Error during test run"]} each output;
+         "watch reruns must not report an internal error"];
+    must[not any {0<count ss[x;"Coverage init failed"]} each output;
+         "coverage re-init must not fail"];
+    must[not any {0<count ss[x;"Coverage restoration failed"]} each output;
+         "coverage teardown must restore every owned wrapper"];
+    must[result`reportExists;"the final cycle must publish its JSON report"];
   };
  };

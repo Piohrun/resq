@@ -5,32 +5,41 @@
 / already loaded it) and a real load when coverage.q is pulled in on its own.
 .utl.require .utl.PKGLOADING,"/loader.q"
 
-/ State
-.tst.coverageData: ()!();        / file -> func -> count
-.tst.coverageEnabled: 0b;
-.tst.trackedFiles: ();
-.tst.origFuncs: ()!();           / name -> original function
-.tst.lastCoverageSummary:
-    `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent`branchesFound`branchesHit`branchPercent!(
-        0j;0j;0f;0j;0j;0f;0j;0j;0f);
-.tst.lastCoverageModel: ()!();
-.tst.covWrappers: ()!();         / name -> installed wrapper (live identity)
-.tst.coverageLoadedFiles: `symbol$(); / files observed by the runtime loader
-.tst.loadingStack: ();
-.tst._covMissing: `resqCovMissing;
+/ State. Preserve live ownership on a defensive module reload: resetting these
+/ maps while wrappers are installed is precisely how a wrapper can be captured
+/ as the next session's "original" and recurse forever.
+if[not `coverageData in key `.tst;.tst.coverageData:()!()]; / file -> func -> count
+if[not `coverageEnabled in key `.tst;.tst.coverageEnabled:0b];
+if[not `trackedFiles in key `.tst;.tst.trackedFiles:()];
+if[not `origFuncs in key `.tst;.tst.origFuncs:()!()];       / name -> original
+if[not `lastCoverageSummary in key `.tst;
+    .tst.lastCoverageSummary:
+        `linesFound`linesHit`linePercent`functionsFound`functionsHit`functionPercent`branchesFound`branchesHit`branchPercent!(
+            0j;0j;0f;0j;0j;0f;0j;0j;0f)];
+if[not `lastCoverageModel in key `.tst;.tst.lastCoverageModel:()!()];
+if[not `covWrappers in key `.tst;.tst.covWrappers:()!()]; / name -> owned wrapper
+if[not `coverageInstallOrder in key `.tst;.tst.coverageInstallOrder:`symbol$()];
+if[not `coverageBlockedValues in key `.tst;.tst.coverageBlockedValues:()!()];
+if[not `coverageLifecycleDiagnostics in key `.tst;.tst.coverageLifecycleDiagnostics:()];
+if[not `coverageLifecycleFailed in key `.tst;.tst.coverageLifecycleFailed:0b];
+if[not `coverageInstallFailed in key `.tst;.tst.coverageInstallFailed:0b];
+if[not `coverageInstallErrors in key `.tst;.tst.coverageInstallErrors:()];
+if[not `coverageLoadedFiles in key `.tst;.tst.coverageLoadedFiles:`symbol$()];
+if[not `loadingStack in key `.tst;.tst.loadingStack:()];
+if[not (`$"_covMissing") in key `.tst;.tst._covMissing:`resqCovMissing];
 
 / Optional attribution is deliberately separate from the aggregate maps above.
 / Aggregate probes are updated first; context accounting is trapped and bounded,
 / so enabling it cannot change application execution or a coverage gate.
-.tst.coverageContextRegistry:()!();       / context id -> stable metadata
-.tst.coverageContextMetricMeta:()!();     / entry id -> stable metric metadata
-.tst.coverageContextMetricHits:(`symbol$())!`long$();
-.tst.coverageActiveContext:()!();
-.tst.coverageContextOverflowActivations:0j;
-.tst.coverageContextDroppedHits:0j;
+if[not `coverageContextRegistry in key `.tst;.tst.coverageContextRegistry:()!()];
+if[not `coverageContextMetricMeta in key `.tst;.tst.coverageContextMetricMeta:()!()];
+if[not `coverageContextMetricHits in key `.tst;.tst.coverageContextMetricHits:(`symbol$())!`long$()];
+if[not `coverageActiveContext in key `.tst;.tst.coverageActiveContext:()!()];
+if[not `coverageContextOverflowActivations in key `.tst;.tst.coverageContextOverflowActivations:0j];
+if[not `coverageContextDroppedHits in key `.tst;.tst.coverageContextDroppedHits:0j];
 
 / Functions that must never be wrapped (avoid recursion/self-instrumentation)
-.tst.coverageSkipNames: `$(".tst.initCoverage";".tst.recordExecution";".tst.resolvePath";".tst.wrapFunc";".tst.instrumentFile";".tst.loadSource";".tst.generateLCOV";".tst.generateHTML");
+.tst.coverageSkipNames: `$(".tst.initCoverage";".tst.stopCoverage";".tst.recordExecution";".tst.resolvePath";".tst.wrapFunc";".tst.instrumentFile";".tst.loadSource";".tst.generateLCOV";".tst.generateHTML");
 
 / Helpers
 .tst.resolvePath:{[path]
@@ -62,6 +71,105 @@
 / Trapped assignment, used to put an original definition back when
 / statement instrumentation is abandoned.
 .tst.safeSet:{[sym;val] .[set;(sym;val);{[e] ::}]; };
+
+/ One assignment boundary for installation and restoration. Returning a tagged
+/ outcome lets tests inject failures without relying on q's eager trap fallback
+/ behavior, and lets stopCoverage continue restoring every other function.
+.tst.coverageAssign:{[name;definition]
+    outcome:.[
+        {[n;v] n set v;(1b;"")};
+        (name;definition);
+        {[e](0b;.tst.toString e)}];
+    `ok`error!(first outcome;last outcome)
+ };
+
+.tst.recordCoverageLifecycle:{[phase;name;status;message]
+    row:`phase`name`status`message!(
+        phase;.tst.toString name;status;.tst.toString message);
+    .tst.coverageLifecycleDiagnostics,:enlist row;
+    ::
+ };
+
+.tst.coverageDropOwnership:{[name]
+    if[name in key .tst.origFuncs;.tst.origFuncs _:name];
+    if[name in key .tst.covWrappers;.tst.covWrappers _:name];
+    .tst.coverageInstallOrder:.tst.coverageInstallOrder except enlist name;
+    ::
+ };
+
+/ Clear measurement state only after wrapper ownership has been handled.
+.tst.resetCoverageMeasurements:{[]
+    .tst.trackedFiles::`symbol$();
+    .tst.coverageData::()!();
+    .tst.coverageLoadedFiles::`symbol$();
+    .tst.lastCoverageModel::()!();
+    .tst.loadingStack::();
+    .tst.lineCoverageData::()!();
+    .tst.stmtInstrumented::()!();
+    .tst.stmtProbeLines::()!();
+    .tst.statementCoverageData::(`symbol$())!`long$();
+    .tst.statementSiteInstrumented::()!();
+    .tst.branchCoverageData::(`symbol$())!();
+    .tst.branchInstrumented::()!();
+    .tst.coverageContextRegistry::()!();
+    .tst.coverageContextMetricMeta::()!();
+    .tst.coverageContextMetricHits::(`symbol$())!`long$();
+    .tst.coverageActiveContext::()!();
+    .tst.coverageContextOverflowActivations::0j;
+    .tst.coverageContextDroppedHits::0j;
+    ::
+ };
+
+/ Restore one wrapper only when the live definition is still the wrapper resQ
+/ installed. A foreign replacement is never overwritten or captured as a new
+/ original; it is blocked until a genuine source reload changes it.
+.tst.restoreCoverageOne:{[name]
+    if[not ((name in key .tst.origFuncs) and name in key .tst.covWrappers);
+        msg:"incomplete coverage ownership metadata";
+        .tst.recordCoverageLifecycle[`restore;name;`error;msg];
+        :msg];
+    original:.tst.origFuncs name;
+    wrapper:.tst.covWrappers name;
+    live:.tst.safeValue name;
+    if[(live~wrapper) or live~.tst._covMissing;
+        assigned:.tst.coverageAssign[name;original];
+        if[not 1b~assigned`ok;
+            msg:"assignment failed: ",assigned`error;
+            .tst.recordCoverageLifecycle[`restore;name;`error;msg];
+            :msg];
+        .tst.coverageDropOwnership name;
+        if[name in key .tst.coverageBlockedValues;
+            .tst.coverageBlockedValues _:name];
+        .tst.recordCoverageLifecycle[`restore;name;`restored;""];
+        :""];
+    if[live~original;
+        .tst.coverageDropOwnership name;
+        .tst.recordCoverageLifecycle[`restore;name;`already_restored;""];
+        :""];
+    .tst.coverageBlockedValues[name]:live;
+    .tst.coverageDropOwnership name;
+    msg:"live definition is not the owned wrapper; foreign value left untouched";
+    .tst.recordCoverageLifecycle[`restore;name;`ownership_conflict;msg];
+    msg
+ };
+
+/ Disable probes first, restore in reverse installation order, retain ownership
+/ only for wrappers whose assignment failed (so they remain callable), and then
+/ clear measurement state. Repeated stop calls are safe and retry retained work.
+.tst.stopCoverage:{[]
+    .tst.coverageEnabled::0b;
+    order:reverse .tst.coverageInstallOrder;
+    errors:$[count order;.tst.restoreCoverageOne each order;()];
+    errors:errors where 0<count each errors;
+    .tst.coverageInstallOrder::
+        .tst.coverageInstallOrder where .tst.coverageInstallOrder in key .tst.covWrappers;
+    .tst.resetCoverageMeasurements[];
+    .tst.coverageInstallFailed::0b;
+    .tst.coverageInstallErrors::();
+    .tst.coverageLifecycleFailed::0<count errors;
+    if[count errors;'"Coverage restoration failed: ","; " sv errors];
+    1b
+ };
 
 .tst.ensureCoverageEntry:{[fileSym]
     if[not fileSym in key .tst.coverageData;
@@ -279,6 +387,19 @@
     / Skip coverage internals.
     if[name in .tst.coverageSkipNames; :()];
 
+    live:.tst.safeValue name;
+    if[name in key .tst.coverageBlockedValues;
+        if[live~.tst.coverageBlockedValues name;
+            msg:"foreign/stale wrapper still owns the live definition";
+            .tst.recordCoverageLifecycle[`install;name;`blocked;msg];
+            .tst.coverageInstallFailed::1b;
+            .tst.coverageInstallErrors,:enlist .tst.toString[name],": ",msg;
+            :()];
+        / A source reload replaced the blocked value, so it is safe to consider
+        / the new definition for a fresh session.
+        .tst.coverageBlockedValues _:name;
+    ];
+
     / Already-wrapped guard, RELOAD-AWARE. The old guard skipped on mere name
     / membership in .tst.origFuncs, so after a file reload (which installs a
     / fresh UNWRAPPED definition) re-instrumenting was a no-op: the name was
@@ -287,13 +408,22 @@
     / covWrappers). `~` on lambdas is structural and each wrapper embeds its own
     / name, so wrappers for different names differ - a true identity test.
     /   - live value IS our wrapper  -> already instrumented, skip.
-    /   - name registered but live value differs (reload) -> fall through,
-    /     re-capture the fresh live value as orig below, and re-wrap.
+    /   - live value is the registered original (same-source reload) -> re-wrap.
+    /   - any other live value -> diagnose an ownership conflict and fail closed.
+    orig:live;
     if[name in key .tst.covWrappers;
-        if[(.tst.safeValue name) ~ .tst.covWrappers name; :()];
+        if[live~.tst.covWrappers name; :()];
+        if[not ((name in key .tst.origFuncs) and live~.tst.origFuncs name);
+            msg:"live definition changed while an owned wrapper was registered";
+            .tst.coverageBlockedValues[name]:live;
+            .tst.coverageDropOwnership name;
+            .tst.recordCoverageLifecycle[`install;name;`ownership_conflict;msg];
+            .tst.coverageInstallFailed::1b;
+            .tst.coverageInstallErrors,:enlist .tst.toString[name],": ",msg;
+            :()
+        ];
+        orig:.tst.origFuncs name;
     ];
-
-    orig: .tst.safeValue name;
     if[orig ~ .tst._covMissing; :()];
     
     / Handle potential projections or lists with metadata
@@ -332,7 +462,7 @@
     / Parse the wrapper text; a failure here (exotic arg names, etc.) must leave
     / the original definition untouched, so trap it and bail.
     wrapFn: @[value; wrapperCode; {(::)}];
-    if[wrapFn ~ (::); .tst.origFuncs _: name; :()];
+    if[wrapFn ~ (::);.tst.coverageDropOwnership name;:()];
 
     / Install the wrapper. MUST use the .[set;args;h] (dot-apply) trap form, not
     / @[set;args;h]: `set` is dyadic, and @[f;x;e] applies it MONADICALLY to the
@@ -340,15 +470,20 @@
     / nothing, the deepest cause of the empty-coverage bug). .[set;(name;val);h]
     / applies both args. On failure, drop the half-registered entries so a later
     / re-instrument retries cleanly.
-    ok: .[{[n;w] set[n; w]; 1b}; (name; wrapFn); {[n;e]
-        -1 "Coverage wrap failed for ", string n, ": ", .Q.s1 e;
-        0b
-    }[name]];
-    if[not ok; .tst.origFuncs _: name; :()];
+    assigned:.tst.coverageAssign[name;wrapFn];
+    if[not 1b~assigned`ok;
+        msg:"Coverage wrap failed for ",string[name],": ",assigned`error;
+        -1 msg;
+        .tst.coverageDropOwnership name;
+        .tst.recordCoverageLifecycle[`install;name;`error;msg];
+        .tst.coverageInstallFailed::1b;
+        .tst.coverageInstallErrors,:enlist msg;
+        :()];
 
     / Record the installed wrapper's identity so the reload-aware guard above can
     / tell "still our wrapper" from "reloaded behind our back".
     .tst.covWrappers[name]: wrapFn;
+    .tst.coverageInstallOrder:distinct .tst.coverageInstallOrder,name;
  };
 
 / Instrument a loaded file (analyze and wrap functions)
@@ -497,38 +632,35 @@
 
 / Initialize coverage and instrument already-loaded files
 .tst.initCoverage:{[files]
+    / Never clear ownership before unwinding the preceding session.
+    .tst.stopCoverage[];
+    .tst.coverageLifecycleDiagnostics::();
+    .tst.coverageLifecycleFailed::0b;
+    .tst.coverageInstallFailed::0b;
+    .tst.coverageInstallErrors::();
     raw: $[10h=type files; enlist files;
            -11h=type files; enlist string files;
            11h=type files; string each files;
            0h=type files; {$[10h=type x;x;string x]} each files;
            ()];
     fs: `$distinct .tst.resolvePath each raw;
-    .tst.trackedFiles:: `symbol$();
-    .tst.coverageData:: ()!();
-    .tst.origFuncs:: ()!();
-    .tst.covWrappers:: ()!();
-    .tst.coverageLoadedFiles:: `symbol$();
-    .tst.lastCoverageModel:: ()!();
-    .tst.loadingStack:: ();
-    .tst.lineCoverageData:: ()!();
-    .tst.stmtInstrumented:: ()!();
-    .tst.stmtProbeLines:: ()!();
-    .tst.statementCoverageData:: (`symbol$())!`long$();
-    .tst.statementSiteInstrumented:: ()!();
-    .tst.branchCoverageData:: (`symbol$())!();
-    .tst.branchInstrumented:: ()!();
-    .tst.coverageContextRegistry::()!();
-    .tst.coverageContextMetricMeta::()!();
-    .tst.coverageContextMetricHits::(`symbol$())!`long$();
-    .tst.coverageActiveContext::()!();
-    .tst.coverageContextOverflowActivations::0j;
-    .tst.coverageContextDroppedHits::0j;
+    .tst.resetCoverageMeasurements[];
     .tst.coverageEnabled:: 1b;
 
     .tst.seedCoverageFile each fs;
 
     / Wrap what is already loaded so coverage has a chance to observe calls
     .tst.instrumentLoadedFiles[];
+
+    if[.tst.coverageInstallFailed;
+        installErrors:.tst.coverageInstallErrors;
+        rollback:@[
+            {[fn]fn[];(0b;"")};
+            .tst.stopCoverage;
+            {[e](1b;.tst.toString e)}];
+        msg:"Coverage initialization failed: ","; " sv installErrors;
+        if[first rollback;msg,:"; rollback failed: ",last rollback];
+        'msg];
 
     -1 "Coverage tracking initialized.";
  };
@@ -612,21 +744,21 @@
 / ---------------------------------------------------------------------------
 
 / line -> hit count, per file. Separate from coverageData (function hits).
-.tst.lineCoverageData: ()!();
+if[not `lineCoverageData in key `.tst;.tst.lineCoverageData:()!()];
 / Files whose lines are genuinely MEASURED (not derived), per function name.
-.tst.stmtInstrumented: ()!();
+if[not `stmtInstrumented in key `.tst;.tst.stmtInstrumented:()!()];
 / Lines carrying a probe, per file -- the denominator for measured coverage.
-.tst.stmtProbeLines: ()!();
+if[not `stmtProbeLines in key `.tst;.tst.stmtProbeLines:()!()];
 / Stable statement-site id -> executions. Line totals remain a separate LCOV
 / roll-up because several outer/anonymous statements may share one source line.
-.tst.statementCoverageData: (`symbol$())!`long$();
+if[not `statementCoverageData in key `.tst;.tst.statementCoverageData:(`symbol$())!`long$()];
 / Files -> stable statement-site ids whose enclosing named-function rewrite
 / survived as one unit.
-.tst.statementSiteInstrumented: ()!();
+if[not `statementSiteInstrumented in key `.tst;.tst.statementSiteInstrumented:()!()];
 / Stable branch-site id -> two edge counters (`true` then `false`).
-.tst.branchCoverageData: (`symbol$())!();
+if[not `branchCoverageData in key `.tst;.tst.branchCoverageData:(`symbol$())!()];
 / Files -> stable branch-site ids whose enclosing function rewrite survived.
-.tst.branchInstrumented: ()!();
+if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
 
 .tst.covL:{[f;n]
     d: $[f in key .tst.lineCoverageData; .tst.lineCoverageData f; (`long$())!`long$()];

@@ -437,9 +437,15 @@
         `.tst.origCovEnabled mock .tst.coverageEnabled;
         `.tst.origCovFiles mock .tst.trackedFiles;
         `.tst.origCovOrig mock .tst.origFuncs;
+        `.tst.origCovWrapLive mock .tst.covWrappers;
+        `.tst.origCovOrderLive mock .tst.coverageInstallOrder;
+        `.tst.origCovBlockedLive mock .tst.coverageBlockedValues;
         .tst.coverageData: ()!();
         .tst.trackedFiles: ();
         .tst.origFuncs: ()!();
+        .tst.covWrappers:()!();
+        .tst.coverageInstallOrder:`symbol$();
+        .tst.coverageBlockedValues:()!();
         .tst.coverageEnabled: 1b;
 
         / Scratch source: a \d-namespaced module mixing an explicit-arg fn, an
@@ -462,6 +468,9 @@
         .tst.coverageEnabled: .tst.origCovEnabled;
         .tst.trackedFiles: .tst.origCovFiles;
         .tst.origFuncs: .tst.origCovOrig;
+        .tst.covWrappers:.tst.origCovWrapLive;
+        .tst.coverageInstallOrder:.tst.origCovOrderLive;
+        .tst.coverageBlockedValues:.tst.origCovBlockedLive;
         @[{delete covscratch from `.}; ::; {}];
     };
 
@@ -500,10 +509,12 @@
     `.tst.origCovFiles mock .tst.trackedFiles;
     `.tst.origCovOrig mock .tst.origFuncs;
     `.tst.origCovWrap mock .tst.covWrappers;
+    `.tst.origCovOrder mock .tst.coverageInstallOrder;
     .tst.coverageData: ()!();
     .tst.trackedFiles: ();
     .tst.origFuncs: ()!();
     .tst.covWrappers: ()!();
+    .tst.coverageInstallOrder:`symbol$();
     .tst.coverageEnabled: 1b;
 
     / A simple \d-namespaced source, loaded then instrumented.
@@ -522,6 +533,7 @@
     .tst.trackedFiles: .tst.origCovFiles;
     .tst.origFuncs: .tst.origCovOrig;
     .tst.covWrappers: .tst.origCovWrap;
+    .tst.coverageInstallOrder:.tst.origCovOrder;
     @[{delete relscratch from `.}; ::; {}];
   };
 
@@ -1137,5 +1149,29 @@
         / file this cannot parse is never made worse.
         bad: ("f:{[x]"; "  x + 1");
         (.tst.covFunctionSpan[bad; 1; enlist 1]) musteq (1; 2);
+    };
+ };
+
+.tst.desc["coverage repeated lifecycle"]{
+    should["finish the ownership and rollback probe without recursion"]{
+        root:.utl.tempRoot[],"/resq_cov_lifecycle_",string[.z.i],"_",string `long$.z.p;
+        out:root,"/out.txt";
+        status:root,"/status.txt";
+        fixture:.resq.HOME,"/tests/fixtures/coverage_lifecycle_probe.q";
+        system "mkdir -p ",.utl.shellQuote root;
+        inner:"timeout -k 2 20 ",.utl.shellQuote[.resq.HOME,"/bin/resq"],
+            " test ",.utl.shellQuote[fixture]," -strict -quiet > ",
+            .utl.shellQuote[out]," 2>&1; code=$?; echo $code > ",
+            .utl.shellQuote[status],"; true";
+        @[system;"sh -c ",.utl.shellQuote inner;{[e]e}];
+        statusLines:@[read0;hsym `$status;{()}];
+        output:@[read0;hsym `$out;{()}];
+        exitCode:$[count statusLines;"J"$first statusLines;0Nj];
+        system "rm -rf ",.utl.shellQuote root;
+        must[0=exitCode;
+             "coverage lifecycle child failed/timeout (",string[exitCode],"): ",
+             "\n" sv output];
+        must[not any {0<count ss[x;"stack"]} each output;
+             "the second coverage session must not recurse"];
     };
  };

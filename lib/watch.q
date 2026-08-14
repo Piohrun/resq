@@ -30,6 +30,9 @@
     .tst.app.args: {$[-11h = type x; string x; x]} each files;
 
     -1 ">> Running tests internally...";
+    / Recompose reporters and, when enabled, start a fresh coverage session for
+    / every rerun. The preceding run's finalizer has restored all wrappers.
+    .tst.initReporting[];
     @[.tst.runAll; ::; {-1 "Error during test run: ", x}];
     -1 ">> Done.";
  };
