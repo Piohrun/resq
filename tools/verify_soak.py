@@ -95,13 +95,16 @@ def verify(q_executable: str, budgets_path: Path, output: Path | None) -> dict[s
         raise RuntimeError("soak budget needs at least two measured post-warmup cycles")
     with tempfile.TemporaryDirectory(prefix="resq-soak-") as raw:
         work = Path(raw)
-        fixture = ROOT / "tests/fixtures/sharding/shard_a.q"
+        fixture = ROOT / "tests/fixtures/distributed/coverage_suite.q"
+        coverage_source = ROOT / "tests/fixtures/distributed/coverage_source.q"
         completed = subprocess.run(
             [q_executable, str(ROOT / "resq.q"), "-q", "test", str(fixture),
              "-noquit", "-pass", "-state-file", str(work / "state.json"),
              "-flake-history", str(work / "flake.json"),
              "-quarantine-file", str(work / "quarantine.json"),
-             "-flake-proposal-file", str(work / "proposals.json")],
+             "-flake-proposal-file", str(work / "proposals.json"),
+             "-coverage", "-source", str(coverage_source),
+             "-cov-statements", "-cov-branches", "-cov-contexts"],
             cwd=work, env=os.environ.copy(), input=q_driver(cycles),
             text=True, capture_output=True, check=False, timeout=600,
         )
@@ -154,12 +157,13 @@ def verify(q_executable: str, budgets_path: Path, output: Path | None) -> dict[s
             "cycles": cycles,
             "warmupCycles": warmup,
             "watchCycles": watch_cycles,
-            "fixture": "tests/fixtures/sharding/shard_a.q",
+            "fixture": "tests/fixtures/distributed/coverage_suite.q",
+            "coverageSource": "tests/fixtures/distributed/coverage_source.q",
             "limits": limits,
             "observed": observed,
             "samples": samples,
             "violations": violations,
-            "note": "q symbols and empty namespace names are interned; this gate bounds post-warmup growth and never claims reclamation",
+            "note": "q symbols and empty namespace names are interned; this gate exercises bounded coverage identity/context caches across re-initialization, bounds post-warmup growth, and never claims reclamation",
         }
         if output:
             output.parent.mkdir(parents=True, exist_ok=True)

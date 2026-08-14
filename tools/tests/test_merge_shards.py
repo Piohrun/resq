@@ -25,6 +25,7 @@ from merge_shards import (  # noqa: E402
     validate_inventory,
     validate_results,
     validate_snapshot_ownership,
+    write_lcov,
 )
 from review_corpus import scale_report  # noqa: E402
 from report_profiles import project  # noqa: E402
@@ -356,6 +357,28 @@ class MergerContractTests(unittest.TestCase):
             (paths[1].parent / "coverage.json").write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "coverage artifact"):
                 merge_coverage(paths, root / "malformed")
+
+    def test_lcov_distinguishes_zero_edge_from_unexecuted_block(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            coverage = artifact("test_" + "a" * 32)
+            file_row = coverage["files"][0]
+            executed = file_row["branches"][0]
+            unexecuted = copy.deepcopy(executed)
+            unexecuted.update(line=4, block=1, edgesHit=0)
+            for edge in unexecuted["edges"]:
+                edge.update(hits=0, covered=False)
+            file_row["branches"] = [executed, unexecuted]
+            output = root / "coverage.lcov"
+            write_lcov(coverage, output)
+            lines = output.read_text(encoding="utf-8").splitlines()
+            self.assertIn("SF:src/fixture.q", lines)
+            self.assertIn("BRDA:3,0,0,1", lines)
+            self.assertIn("BRDA:3,0,1,0", lines)
+            self.assertEqual(
+                ["BRDA:4,1,0,-", "BRDA:4,1,1,-"],
+                [line for line in lines if line.startswith("BRDA:4,1,")],
+            )
 
     def test_python_lifecycle_matches_shared_q_golden(self) -> None:
         golden = json.loads(

@@ -28,6 +28,7 @@ SUITES = {
         "tools.tests.test_formatter_boundaries",
         "tools.tests.test_ingestion",
         "tools.tests.test_identity_migration",
+        "tools.tests.test_coverage_performance",
         "tools.tests.test_review_corpus",
         "tools.tests.test_release_gate",
     ],

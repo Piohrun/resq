@@ -141,6 +141,13 @@ feature on or off. Coverage still runs separately from `-isolate`;
 `bin/resq-merge` merges both aggregate records and
 `coverage.json.contextMeasurement` by stable identity rather than arrival order.
 
+The self-hosted performance lane also runs
+`tools/verify_coverage_performance.py`. Its checked baseline preserves the
+pre-fix repeated samples and requires minimum speedups plus calibrated ceilings
+for statement hits, context hits, and context-report assembly. The nightly soak
+repeats statement/branch/context coverage sessions so cache bounds and lifecycle
+cleanup are covered by the same resource-growth evidence as watch/no-exit runs.
+
 ## Reporter artifacts
 
 A single XML reporter writes `test-results.xml`. When multiple formats are

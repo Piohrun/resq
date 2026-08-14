@@ -143,6 +143,30 @@ class CoverageContractTests(unittest.TestCase):
         validate_report_coverage(self.report["coverage"])
         validate_coverage_artifact(self.artifact, self.report)
 
+    def test_source_parse_completeness_is_structured_and_fail_closed(self) -> None:
+        complete = copy.deepcopy(self.artifact)
+        complete["summary"].update(
+            sourceParseComplete=True, sourceParseDiagnostics=[]
+        )
+        validate_coverage_artifact(complete)
+
+        incomplete = copy.deepcopy(self.artifact)
+        incomplete["summary"].update(
+            sourceParseComplete=False,
+            sourceParseDiagnostics=[{
+                "file": "src/fixture.q",
+                "function": ".fixture.f",
+                "phase": "statement_inventory",
+                "message": "source masking failed",
+            }],
+        )
+        validate_coverage_artifact(incomplete)
+
+        invalid = copy.deepcopy(incomplete)
+        invalid["summary"]["sourceParseComplete"] = True
+        with self.assertRaisesRegex(ValueError, "disagrees"):
+            validate_coverage_artifact(invalid)
+
     def test_rejects_percentage_and_aggregate_drift(self) -> None:
         bad = copy.deepcopy(self.artifact)
         bad["summary"]["functionPercent"] = 99.0

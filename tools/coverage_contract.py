@@ -133,6 +133,23 @@ def validate_summary(summary: Any, where: str = "coverage.summary") -> dict[str,
         if reason not in FALLBACKS:
             raise ValueError(f"{where}.fallbackCounts: unknown reason {reason!r}")
         nonnegative_int(count, f"{where}.fallbackCounts.{reason}")
+    if "sourceParseComplete" in value or "sourceParseDiagnostics" in value:
+        complete = boolean(value.get("sourceParseComplete"), f"{where}.sourceParseComplete")
+        diagnostics = value.get("sourceParseDiagnostics")
+        if not isinstance(diagnostics, list):
+            raise ValueError(f"{where}.sourceParseDiagnostics: expected array")
+        required = {"file", "function", "phase", "message"}
+        for index, diagnostic in enumerate(diagnostics):
+            row = require(diagnostic, required, f"{where}.sourceParseDiagnostics[{index}]")
+            for name in required:
+                if not isinstance(row[name], str):
+                    raise ValueError(
+                        f"{where}.sourceParseDiagnostics[{index}].{name}: expected string"
+                    )
+        if complete != (len(diagnostics) == 0):
+            raise ValueError(
+                f"{where}.sourceParseComplete: disagrees with sourceParseDiagnostics"
+            )
     return value
 
 

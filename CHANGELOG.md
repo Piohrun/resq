@@ -18,6 +18,16 @@ All notable changes to the **resQ** project will be documented in this file.
 - Console-dependent q formatters are confined to the console reporter by a
   licence-free static gate. Machine evidence uses full rendering and identity or
   equality paths use framed text or canonical bytes.
+- Coverage hit accounting caches context-independent function/site/edge
+  identities, amends line counters in place, and indexes context metrics once
+  during report assembly. A checked seven-sample baseline and repeated coverage
+  soak enforce the resulting hot-path, cardinality, and lifecycle budgets.
+- Statement parsing preserves `(line,column)` pairs for string-led, escaped, and
+  nested multiline statements. Source-mask failures retain artifacts with
+  structured incompleteness diagnostics and fail coverage closed.
+- LCOV now emits invocation-relative `SF` paths, numeric `0` for an untaken edge
+  in an executed block, and `-` only when the whole branch block was unexecuted;
+  shard-generated LCOV follows the same rule.
 
 ## [1.8.1] - 2026-08-14 - Evidence Integrity Hotfix
 

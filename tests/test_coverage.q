@@ -158,6 +158,14 @@
         `.tst.coverageContextRegistry mock ()!();
         `.tst.coverageContextMetricMeta mock ()!();
         `.tst.coverageContextMetricHits mock (`symbol$())!`long$();
+        `.tst.coverageMetricDefinitions mock ()!();
+        `.tst.coverageFunctionMetricKeys mock ()!();
+        `.tst.coverageStatementMetricKeys mock (`symbol$())!`symbol$();
+        `.tst.coverageBranchTrueMetricKeys mock (`symbol$())!`symbol$();
+        `.tst.coverageBranchFalseMetricKeys mock (`symbol$())!`symbol$();
+        `.tst.coverageContextEntryCache mock ()!();
+        `.tst.coverageParseDiagnostics mock ();
+        `.tst.coverageParseFailed mock 0b;
         `.tst.coverageActiveContext mock ()!();
         `.tst.coverageContextOverflowActivations mock 0j;
         `.tst.coverageContextDroppedHits mock 0j;
@@ -193,6 +201,24 @@
         contextModel[`summary;`unattributedHits] musteq 2j;
         contextIds:{x`contextId} each contextModel`contexts;
         contextIds mustmatch asc ("test_alpha";"unattributed");
+    };
+
+    should["coverage context hot path budget"]{
+        file:`$"src/hot-context.q";
+        .tst.coverageActiveContext:.tst.ensureCoverageContext
+            .tst.coverageContextMeta[
+                "test_hot";"test";"test_hot";0j;"suite";"hot";
+                "tests/hot-context.q"];
+        .tst.recordCoverageContextMetric[
+            `statement;file;`.hot.context;"statement_hot";-1j];
+        firstDefinitionCount:count .tst.coverageMetricDefinitions;
+        firstEntryCount:count .tst.coverageContextMetricHits;
+        .tst.recordCoverageContextMetric[
+            `statement;file;`.hot.context;"statement_hot";-1j];
+        (count .tst.coverageMetricDefinitions) musteq firstDefinitionCount;
+        (count .tst.coverageContextMetricHits) musteq firstEntryCount;
+        first[value .tst.coverageContextMetricHits] musteq 2j;
+        (count .tst.coverageContextEntryCache) musteq 1;
     };
 
     should["share retries by test by default and split them only when requested"]{
@@ -257,6 +283,18 @@
         bounded[`summary;`truncated] musteq 1b;
         must[all `test_a`overflow in key .tst.coverageContextRegistry;
              "overflow must be explicit without exceeding the real-context limit"];
+        must[count[.tst.coverageMetricDefinitions]<=.tst.coverageContextEntryMax;
+             "metric identity cache must share the configured entry bound"];
+        must[count[.tst.coverageContextEntryCache]<=
+                .tst.coverageContextMax+count .tst.coverageContextReserved;
+             "context lookup cache must remain bounded by stored contexts"];
+        .tst.resetCoverageMeasurements[];
+        (count .tst.coverageMetricDefinitions) musteq 0;
+        (count .tst.coverageContextEntryCache) musteq 0;
+        (count .tst.coverageFunctionMetricKeys) musteq 0;
+        (count .tst.coverageStatementMetricKeys) musteq 0;
+        (count .tst.coverageBranchTrueMetricKeys) musteq 0;
+        (count .tst.coverageBranchFalseMetricKeys) musteq 0;
     };
 
     should["merge worker and shard contexts by stable identity independent of arrival order"]{
@@ -598,10 +636,64 @@
         / Must include the LCOV preamble, an SF: header for our file, and the
         / FN/FNDA records for the function we registered.
         first[lines] musteq "TN:resq";
-        must[any lines like "SF:*", srcPath; "SF: line should reference the synth source"];
+        expectedSource:.tst.repoRelativePath srcPath;
+        must[any ("SF:",expectedSource)~/:lines;
+             "SF: line should use the invocation-relative synth source path"];
         must[any lines like "FN:*add"; "FN: line should list the add function"];
         must[any lines like "FNDA:5,*add"; "FNDA: line should record 5 hits for add"];
         must[any lines like "end_of_record"; "record should be terminated"];
+    };
+
+    should["LCOV edge and path semantics"]{
+        suffix:string[.z.i],"_",string `long$.z.p;
+        relative:"tests/.resq_lcov_semantics_",suffix,".q";
+        src:.resq.HOME,"/",relative;
+        sourceLines:(
+            ".lcovsem.taken:{[x] if[x;1];0};";
+            ".lcovsem.never:{[x] if[x;1];0};");
+        (hsym `$src) 0:sourceLines;
+        .tst.registerCleanup[{[path]
+            if[path like .resq.HOME,"/tests/.resq_lcov_semantics_*.q";
+                system "rm -f -- ",.utl.shellQuote path]
+        };enlist src];
+
+        fs:`$src;
+        `.tst.app.baseDir mock .resq.HOME;
+        (.tst.repoRelativePath src) musteq relative;
+        `.tst.coverageLoadedFiles mock enlist fs;
+        `.tst.coverageBranches mock 1b;
+        `.tst.coverageStatements mock 0b;
+        `.tst.branchInstrumented mock ()!();
+        `.tst.branchCoverageData mock (`symbol$())!();
+        `.tst.statementSiteInstrumented mock ()!();
+        `.tst.statementCoverageData mock (`symbol$())!`long$();
+        `.tst.stmtInstrumented mock ()!();
+        `.tst.stmtProbeLines mock ()!();
+        `.tst.lineCoverageData mock ()!();
+        .tst.coverageData:(enlist fs)!enlist
+            (`$(".lcovsem.taken";".lcovsem.never"))!1 0j;
+        firstSite:first .tst.covBranchSitesInFunction[
+            fs;`.lcovsem.taken;sourceLines;1;1];
+        secondSite:first .tst.covBranchSitesInFunction[
+            fs;`.lcovsem.never;sourceLines;2;2];
+        .tst.branchInstrumented[fs]:(firstSite`siteId;secondSite`siteId);
+        firstKey:`$firstSite`siteId;
+        .tst.branchCoverageData[firstKey]:3 0j;
+
+        out:.tst.coverageTestOutput[];
+        .tst.generateLCOV out;
+        lines:read0 hsym `$out;
+        (first lines where lines like "SF:*") musteq "SF:",relative;
+        taken:lines where lines like "BRDA:1,0,*";
+        never:lines where lines like "BRDA:2,1,*";
+        (count taken) musteq 2;
+        must[any taken like "*,3";
+             "the taken edge must retain its positive execution count"];
+        must[any taken like "*,0";
+             "an executed block's untaken edge must be numeric zero"];
+        (count never) musteq 2;
+        must[all never like "*,-";
+             "only a genuinely unexecuted block may use '-' in BRDA"];
     };
 };
 
@@ -796,6 +888,38 @@
 / must find real statement boundaries and must NOT descend into a conditional
 / EXPRESSION, whose branches are values rather than statements.
 .tst.desc["Coverage: statement boundary detection"]{
+    should["coverage string-led statement fallback"]{
+        mk:{[lines] flip (1+til count lines;lines)};
+        lines:("\"alpha\";";
+               "\"escaped \\\"; delimiter\";";
+               "value:1;";
+               "if[value;";
+               "  \"selected\";";
+               "  value+:1];");
+        positions:.tst.covStatementPositions mk lines;
+        must[all 2=count each positions;
+             "every statement position must remain a (line;column) pair"];
+        (.tst.covStatementLines mk lines) musteq 1 2 3 4 5 6j;
+
+        `.tst.coverageParseDiagnostics mock ();
+        `.tst.coverageParseFailed mock 0b;
+        `.tst.static.maskLines mock {[ignored] '"forced mask failure"};
+        sites:.tst.covStatementSitesInFunction[
+            `$"src/forced-mask.q";`.forced.mask;
+            (".forced.mask:{[]";"  \"first\";";"  1";" };");1;4];
+        (count sites) musteq 0;
+        .tst.coverageParseFailed musteq 1b;
+        (count .tst.coverageParseDiagnostics) musteq 1;
+        diagnostic:first .tst.coverageParseDiagnostics;
+        diagnostic[`phase] musteq "statement_inventory";
+        summary:`functionsFound`functionsHit`functionPercent`statementMode`branchMode`sourceParseComplete`sourceParseDiagnostics!(
+            1j;1j;100f;1b;0b;0b;.tst.coverageParseDiagnostics);
+        evaluation:.tst.coverageGateEvaluation summary;
+        must[any {x like "Coverage source parsing was incomplete*"} each
+                evaluation`errors;
+             "a masking failure must fail coverage closed after preserving diagnostics"];
+    };
+
     should["find top-level statements, ignoring nested and quoted semicolons"]{
         mk: {[lines] flip (1 + til count lines; lines)};
         (.tst.covStatementLines mk ("a: 1;"; "a+1"))                musteq 1 2;

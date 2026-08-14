@@ -175,6 +175,10 @@ resq cover tests/ --source src/ -cov-statements -cov-branches
 LCOV receives standard `BRDA`, `BRF`, and `BRH` records. The metric is
 conditional-edge coverage—not path coverage, MC/DC, or proof that every value
 expression was evaluated. `do[...]` is not a boolean branch and is not counted.
+`BRDA` uses `-` only when the condition block was never evaluated. Once either
+edge executes, the untaken edge is emitted as numeric `0`, as required by LCOV
+consumers. `SF` records use invocation-relative paths for files beneath the
+project root; genuinely external sources remain absolute.
 Conditions inside eligible anonymous lambdas are instrumented in the same
 atomic rewrite. They retain the enclosing named function plus a stable
 `lambdaId`, depth, and source location. LCOV emits their `BRDA` records under
@@ -267,6 +271,12 @@ These counts appear in JSON as `coverage.fallbackCounts`; completeness appears
 as `statementFunctionsInstrumented`, `statementFunctionsEligible`, and
 `statementInstrumentationPercent`.
 
+Source masking is a safety boundary for statement, branch, and anonymous-lambda
+inventory. If it throws or returns malformed lines, resQ does not attempt an
+unsafe raw-source rewrite. It still writes the aggregate artifacts, records the
+exact file/function/phase under `summary.sourceParseDiagnostics`, sets
+`summary.sourceParseComplete` to `false`, and fails the coverage decision closed.
+
 Branch completeness is site-based. `branchSitesEligible`,
 `branchSitesInstrumented`, `branchInstrumentationPercent`, and
 `branchInstrumentationComplete` reveal the denominator directly. Eligible
@@ -329,6 +339,14 @@ counting but new pairs are dropped. `contextMeasurement.summary` exposes
 `overflowActivations`, `droppedMetricHits`, and `truncated`; loss is never
 silent. Configuration keys are `covContexts`, `covAttemptContexts`,
 `coverageContextMax`, and `coverageContextEntryMax`.
+
+Metric identities are computed once per function/site/edge and the runtime
+keeps a bounded `(context, metric)` lookup for repeated hits. Both lookup layers
+share the configured entry bound and are cleared on coverage stop/re-init. The
+checked `tools/verify_coverage_performance.py` contract retains seven pre-fix
+samples and enforces self-normalized warm-hit and report-assembly ceilings; the
+nightly soak repeats full statement/branch/context coverage initialization and
+bounds post-warmup memory, symbol, namespace, and handle growth.
 
 `.tst.mergeCoverageContexts` merges coverage JSON `contextMeasurement`
 documents by stable context and metric identity. It validates detail modes and

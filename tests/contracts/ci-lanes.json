@@ -24,7 +24,7 @@
     },
     "performance": {
       "workflow": "ci.yml",
-      "evidence": "fingerprinted workload/environment comparison log",
+      "evidence": "fingerprinted benchmark comparison plus calibrated coverage hot-path samples",
       "retentionDays": 14
     },
     "hostile-release": {

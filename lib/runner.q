@@ -1082,6 +1082,13 @@
         (not 1b~$[`branchInstrumentationComplete in key summary;
             summary`branchInstrumentationComplete;0b]);
     errors:();
+    if[(99h=type summary) and (`sourceParseComplete in key summary) and
+       not 1b~summary`sourceParseComplete;
+        parseDiagnostics:$[`sourceParseDiagnostics in key summary;
+            summary`sourceParseDiagnostics;()];
+        errors,:enlist "Coverage source parsing was incomplete (",
+            string[count parseDiagnostics],
+            " diagnostic(s)); coverage gates fail closed. See coverage.json."];
     if[not functionGate`measurable;
         errors,:enlist "Coverage measured no executable functions."];
     if[(functionGate`measurable) and not functionGate`passed;

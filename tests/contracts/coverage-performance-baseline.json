@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "kind": "resq-coverage-performance-baseline",
+  "profiledCommit": "ad1104b6c652273a1f3c0c2b73d7a4612fa3056a",
+  "profiledAt": "2026-08-14",
+  "qVersion": "4.1",
+  "workload": {
+    "iterations": 5000,
+    "reportContexts": 160,
+    "metricsPerContext": 12,
+    "samplesPerMetric": 7,
+    "lineEntries": 512
+  },
+  "auditReference": {
+    "contextOverheadRatio": 290,
+    "statementOverheadRatio": 86,
+    "note": "The independent audit used application-level loops. The checked-in probe is shorter and self-normalized for stable CI enforcement; both expose the same hot paths."
+  },
+  "preFix": {
+    "samples": {
+      "controlNsPerHit": [288.4214, 283.0626, 290.661, 287.379, 286.048, 287.6608, 291.269],
+      "statementNsPerHit": [1517.077, 1500.491, 1508.918, 1520.859, 1507.771, 1517.241, 1535.764],
+      "contextNsPerHit": [11928.09, 12141.09, 12132.83, 12274.86, 12004.41, 12155.44, 12036.76],
+      "reportNsPerEntry": [108860.2, 108618.1, 110340.3, 110408.2, 109029.7, 109719.0, 106929.3]
+    },
+    "medians": {
+      "controlNsPerHit": 287.6608,
+      "statementNsPerHit": 1517.077,
+      "contextNsPerHit": 12132.83,
+      "reportNsPerEntry": 109029.7,
+      "statementOverheadRatio": 5.273839883640733,
+      "contextOverheadRatio": 42.17755773466527
+    }
+  },
+  "requiredSpeedup": {
+    "statementOverheadRatio": 1.05,
+    "contextOverheadRatio": 1.5,
+    "reportNsPerEntry": 10.0
+  },
+  "budgets": {
+    "maxStatementOverheadRatio": 5.0,
+    "maxContextOverheadRatio": 25.0,
+    "maxReportNsPerEntry": 6000.0
+  }
+}

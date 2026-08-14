@@ -69,7 +69,23 @@
         "statementFunctionsInstrumented": {"type": "integer", "minimum": 0},
         "statementInstrumentationPercent": {"type": "number", "minimum": 0, "maximum": 100},
         "statementInstrumentationComplete": {"type": "boolean"},
-        "fallbackCounts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+        "fallbackCounts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "sourceParseComplete": {"type": "boolean"},
+        "sourceParseDiagnostics": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sourceParseDiagnostic"}
+        }
+      }
+    },
+    "sourceParseDiagnostic": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["file", "function", "phase", "message"],
+      "properties": {
+        "file": {"type": "string"},
+        "function": {"type": "string"},
+        "phase": {"type": "string"},
+        "message": {"type": "string"}
       }
     },
     "hitRecord": {

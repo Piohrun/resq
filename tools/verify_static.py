@@ -44,6 +44,9 @@ REQUIRED = {
     "tools/process_control.py",
     "tools/coverage_contract.py", "tools/validate_coverage.py",
     "tools/reconcile_coverage.py", "tools/verify_coverage_contract.py",
+    "tools/verify_coverage_performance.py",
+    "tools/coverage_performance_probe.q",
+    "tests/contracts/coverage-performance-baseline.json",
     "tools/self_coverage_trend.py",
     "tools/verify_python_contracts.py",
     "tools/verify_formatter_boundaries.py", "tools/migrate_identity_state.py",
@@ -102,6 +105,7 @@ def check_package(expected_tag: str = "") -> None:
         "tools/verify_labels_context.py",
         "tools/validate_coverage.py", "tools/reconcile_coverage.py",
         "tools/verify_coverage_contract.py",
+        "tools/verify_coverage_performance.py",
         "tools/verify_python_contracts.py",
         "tools/verify_formatter_boundaries.py", "tools/migrate_identity_state.py",
         "tools/render_quickstart_coverage.py",
@@ -253,6 +257,26 @@ def check_contracts() -> None:
         raise ValueError("soak budget lacks measured post-warmup cycles")
     if any(not isinstance(value, int) or value < 0 for value in soak["limits"].values()):
         raise ValueError("soak budget limits must be non-negative integers")
+    coverage_performance = json.loads(
+        (ROOT / "tests/contracts/coverage-performance-baseline.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    if (
+        coverage_performance.get("schemaVersion") != 1
+        or coverage_performance.get("kind") != "resq-coverage-performance-baseline"
+    ):
+        raise ValueError("coverage performance baseline identity is invalid")
+    expected_coverage_budgets = {
+        "maxStatementOverheadRatio", "maxContextOverheadRatio", "maxReportNsPerEntry"
+    }
+    if set(coverage_performance.get("budgets", {})) != expected_coverage_budgets:
+        raise ValueError("coverage performance budget set is incomplete")
+    if any(
+        not isinstance(value, (int, float)) or value <= 0
+        for value in coverage_performance["budgets"].values()
+    ):
+        raise ValueError("coverage performance budgets must be positive numbers")
     definitions = schema.get("$defs", {})
     extensible = [schema, *(definitions[name] for name in (
         "run", "summary", "test", "attempt", "case", "diagnostic",

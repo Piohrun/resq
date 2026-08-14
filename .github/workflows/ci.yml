@@ -177,6 +177,8 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/performance
           tools/verify_benchmark_regression.py 2>&1 | tee artifacts/performance/contract.txt
+          tools/verify_coverage_performance.py --q q \
+            2>&1 | tee artifacts/performance/coverage-hot-path.txt
       - name: Upload performance evidence
         if: always()
         uses: actions/upload-artifact@v4

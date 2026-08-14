@@ -560,6 +560,22 @@ def merge_coverage(report_paths: list[Path], destination: Path) -> dict[str, Any
         ("path",), FILE_SPEC,
     )
     merged = recompute_coverage(files, documents[0])
+    parse_diagnostics: list[dict[str, Any]] = []
+    seen_parse_diagnostics: set[str] = set()
+    for document in documents:
+        for diagnostic in document.get("summary", {}).get("sourceParseDiagnostics", []):
+            fingerprint = canonical(diagnostic)
+            if fingerprint not in seen_parse_diagnostics:
+                seen_parse_diagnostics.add(fingerprint)
+                parse_diagnostics.append(copy.deepcopy(diagnostic))
+    if any("sourceParseComplete" in document.get("summary", {}) for document in documents):
+        merged["summary"]["sourceParseComplete"] = all(
+            document.get("summary", {}).get("sourceParseComplete", False)
+            for document in documents
+        )
+        merged["summary"]["sourceParseDiagnostics"] = sorted(
+            parse_diagnostics, key=canonical
+        )
     measurements = [document.get("contextMeasurement", {}) for document in documents]
     if any(measurements):
         merged["contextMeasurement"] = merge_contexts(measurements)
@@ -584,9 +600,12 @@ def write_lcov(coverage: dict[str, Any], path: Path) -> None:
         lines.append(f"LF:{file.get('lineFound', 0)}")
         lines.append(f"LH:{file.get('lineHit', 0)}")
         for branch in file.get("branches", []):
-            for edge in branch.get("edges", []):
+            edges = branch.get("edges", [])
+            block_executed = sum(int(edge.get("hits", 0)) for edge in edges) > 0
+            for edge in edges:
                 hits = edge.get("hits", 0)
-                lines.append(f"BRDA:{branch.get('line', 0)},{branch.get('block', 0)},{edge.get('index', 0)},{hits if hits else '-'}")
+                taken = str(hits) if block_executed else "-"
+                lines.append(f"BRDA:{branch.get('line', 0)},{branch.get('block', 0)},{edge.get('index', 0)},{taken}")
         lines.append(f"BRF:{file.get('branchFound', 0)}")
         lines.append(f"BRH:{file.get('branchHit', 0)}")
         lines.append("end_of_record")

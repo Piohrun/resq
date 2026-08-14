@@ -37,6 +37,17 @@ if[not `coverageContextMetricHits in key `.tst;.tst.coverageContextMetricHits:(`
 if[not `coverageActiveContext in key `.tst;.tst.coverageActiveContext:()!()];
 if[not `coverageContextOverflowActivations in key `.tst;.tst.coverageContextOverflowActivations:0j];
 if[not `coverageContextDroppedHits in key `.tst;.tst.coverageContextDroppedHits:0j];
+/ Context-independent metric identities and context/metric entry lookups are
+/ cached for the lifetime of one coverage session. Probe execution must not
+/ normalize paths or hash identities on every hit.
+if[not `coverageMetricDefinitions in key `.tst;.tst.coverageMetricDefinitions:()!()];
+if[not `coverageFunctionMetricKeys in key `.tst;.tst.coverageFunctionMetricKeys:()!()];
+if[not `coverageStatementMetricKeys in key `.tst;.tst.coverageStatementMetricKeys:(`symbol$())!`symbol$()];
+if[not `coverageBranchTrueMetricKeys in key `.tst;.tst.coverageBranchTrueMetricKeys:(`symbol$())!`symbol$()];
+if[not `coverageBranchFalseMetricKeys in key `.tst;.tst.coverageBranchFalseMetricKeys:(`symbol$())!`symbol$()];
+if[not `coverageContextEntryCache in key `.tst;.tst.coverageContextEntryCache:()!()];
+if[not `coverageParseDiagnostics in key `.tst;.tst.coverageParseDiagnostics:()];
+if[not `coverageParseFailed in key `.tst;.tst.coverageParseFailed:0b];
 
 / Functions that must never be wrapped (avoid recursion/self-instrumentation)
 .tst.coverageSkipNames: `$(".tst.initCoverage";".tst.stopCoverage";".tst.recordExecution";".tst.resolvePath";".tst.wrapFunc";".tst.instrumentFile";".tst.loadSource";".tst.generateLCOV";".tst.generateHTML");
@@ -115,6 +126,14 @@ if[not `coverageContextDroppedHits in key `.tst;.tst.coverageContextDroppedHits:
     .tst.coverageActiveContext::()!();
     .tst.coverageContextOverflowActivations::0j;
     .tst.coverageContextDroppedHits::0j;
+    .tst.coverageMetricDefinitions::()!();
+    .tst.coverageFunctionMetricKeys::()!();
+    .tst.coverageStatementMetricKeys::(`symbol$())!`symbol$();
+    .tst.coverageBranchTrueMetricKeys::(`symbol$())!`symbol$();
+    .tst.coverageBranchFalseMetricKeys::(`symbol$())!`symbol$();
+    .tst.coverageContextEntryCache::()!();
+    .tst.coverageParseDiagnostics::();
+    .tst.coverageParseFailed::0b;
     ::
  };
 
@@ -248,28 +267,130 @@ if[not `coverageContextDroppedHits in key `.tst;.tst.coverageContextDroppedHits:
         $[0=edgeIndex;"true";1=edgeIndex;"false";""])
  };
 
+/. Create one stable, context-independent metric definition. The definition
+/ count is bounded by the context-entry limit: probes beyond it remain present
+/ in aggregate coverage, increment droppedMetricHits, and cannot grow caches.
+.tst.defineCoverageMetric:{[kind;file;functionName;siteId;edgeIndex]
+    path:.tst.repoRelativePath .tst.toString file;
+    identity:(.tst.toString kind),"\n",path,"\n",
+        (.tst.toString functionName),"\n",(.tst.toString siteId),"\n",
+        string["j"$edgeIndex];
+    metricText:"metric_",.tst.stableHashText identity;
+    metricKey:`$metricText;
+    if[metricKey in key .tst.coverageMetricDefinitions;:metricKey];
+    if[count[.tst.coverageMetricDefinitions]>=
+       "j"$@[get;`.tst.coverageContextEntryMax;250000j];:`];
+    .tst.coverageMetricDefinitions[metricKey]:
+        `metricId`kind`file`function`siteId`edgeIndex`edgeLabel!(
+            metricText;.tst.toString kind;path;.tst.toString functionName;
+            .tst.toString siteId;"j"$edgeIndex;
+            $[0=edgeIndex;"true";1=edgeIndex;"false";""]);
+    metricKey
+ };
+
+.tst.ensureCoverageFunctionMetric:{[file;functionName]
+    fileSym:$[10h=abs type file;`$file;file];
+    byFunction:$[fileSym in key .tst.coverageFunctionMetricKeys;
+        first .tst.coverageFunctionMetricKeys fileSym;()!()];
+    if[functionName in key byFunction;:byFunction functionName];
+    metricKey:.tst.defineCoverageMetric[
+        `function;fileSym;functionName;`; -1j];
+    if[not null metricKey;
+        byFunction[functionName]:metricKey;
+        / Box the nested dictionary. Unboxed dictionary assignment promotes the
+        / outer map to a keyed table and later files with different function
+        / names fail schema conformance.
+        .tst.coverageFunctionMetricKeys[fileSym]:enlist byFunction];
+    metricKey
+ };
+
+.tst.ensureCoverageStatementMetric:{[siteId;file]
+    siteText:.tst.toString siteId;
+    siteKey:`$siteText;
+    if[siteKey in key .tst.coverageStatementMetricKeys;
+        :.tst.coverageStatementMetricKeys siteKey];
+    metricKey:.tst.defineCoverageMetric[`statement;file;`;siteText;-1j];
+    if[not null metricKey;.tst.coverageStatementMetricKeys[siteKey]:metricKey];
+    metricKey
+ };
+
+.tst.ensureCoverageBranchMetrics:{[siteId;file;functionName]
+    siteText:.tst.toString siteId;
+    siteKey:`$siteText;
+    if[(siteKey in key .tst.coverageBranchTrueMetricKeys) and
+       siteKey in key .tst.coverageBranchFalseMetricKeys;
+        :`trueMetric`falseMetric!(
+            .tst.coverageBranchTrueMetricKeys siteKey;
+            .tst.coverageBranchFalseMetricKeys siteKey)];
+    metricKeys:.tst.defineCoverageMetric[
+        `branch;file;functionName;siteText;] each 0 1j;
+    if[(2=count metricKeys) and not any null metricKeys;
+        .tst.coverageBranchTrueMetricKeys[siteKey]:first metricKeys;
+        .tst.coverageBranchFalseMetricKeys[siteKey]:last metricKeys];
+    `trueMetric`falseMetric!(first metricKeys;last metricKeys)
+ };
+
+.tst.coverageBranchMetricKey:{[siteId;file;functionName;edgeIndex]
+    metrics:.tst.ensureCoverageBranchMetrics[siteId;file;functionName];
+    index:"j"$edgeIndex;
+    $[0=index;metrics`trueMetric;1=index;metrics`falseMetric;`]
+ };
+
+.tst.coverageMetricKey:{[kind;file;functionName;siteId;edgeIndex]
+    kindText:.tst.toString kind;
+    kindKey:`$kindText;
+    $[kindKey=`function;
+        .tst.ensureCoverageFunctionMetric[file;functionName];
+      kindKey=`statement;
+        .tst.ensureCoverageStatementMetric[siteId;file];
+      kindKey=`branch;
+        .tst.coverageBranchMetricKey[
+            siteId;file;functionName;edgeIndex];
+      `]
+ };
+
+/. The hot path accepts a precomputed metric key. Its nested cache is the
+/ (context, site/edge) join index; only a first-seen pair hashes the private
+/ entry ID and constructs public metadata.
+.tst.recordCoverageContextMetricKey:{[metricKey]
+    if[null metricKey;.tst.coverageContextDroppedHits+:1j;:()];
+    if[not metricKey in key .tst.coverageMetricDefinitions;
+        .tst.coverageContextDroppedHits+:1j;:()];
+    ctx:.tst.coverageCurrentContext[];
+    contextId:.tst.toString ctx`contextId;
+    contextKey:`$contextId;
+    byMetric:$[contextKey in key .tst.coverageContextEntryCache;
+        first .tst.coverageContextEntryCache contextKey;()!()];
+    if[metricKey in key byMetric;
+        cachedEntry:byMetric metricKey;
+        if[cachedEntry in key .tst.coverageContextMetricHits;
+            .tst.coverageContextMetricHits[cachedEntry]+:1j;:()]];
+    if[count[.tst.coverageContextMetricHits]>=
+       "j"$@[get;`.tst.coverageContextEntryMax;250000j];
+        .tst.coverageContextDroppedHits+:1j;:()];
+    definition:.tst.coverageMetricDefinitions metricKey;
+    entryText:"entry_",.tst.stableHashText[
+        contextId,"\n",.tst.toString definition`metricId];
+    entryId:`$entryText;
+    metadata:`contextId`metricId`kind`file`function`siteId`edgeIndex`edgeLabel!(
+        contextId;definition`metricId;definition`kind;definition`file;
+        definition`function;definition`siteId;definition`edgeIndex;
+        definition`edgeLabel);
+    .tst.coverageContextMetricMeta[entryId]:metadata;
+    .tst.coverageContextMetricHits[entryId]:1j;
+    byMetric[metricKey]:entryId;
+    .tst.coverageContextEntryCache[contextKey]:enlist byMetric;
+    ::
+ };
+
 / Add one attributed hit. A unique context/metric pair consumes one bounded
 / entry; once full, existing entries keep counting and only new pairs are
 / dropped. The aggregate hit has already been recorded by every caller.
 .tst.recordCoverageContextMetric:{[kind;file;functionName;siteId;edgeIndex]
     if[not 1b~@[get;`.tst.coverageContexts;0b];:()];
-    ctx:.tst.coverageCurrentContext[];
-    contextId:.tst.toString ctx`contextId;
-    path:.tst.repoRelativePath .tst.toString file;
-    identity:(.tst.toString kind),"\n",path,"\n",
-        (.tst.toString functionName),"\n",(.tst.toString siteId),"\n",
-        string["j"$edgeIndex];
-    metricId:"metric_",.tst.stableHashText identity;
-    entryId:`$"entry_",.tst.stableHashText[contextId,"\n",metricId];
-    if[entryId in key .tst.coverageContextMetricHits;
-        .tst.coverageContextMetricHits[entryId]+:1j;:()];
-    if[count[.tst.coverageContextMetricHits]>=
-       "j"$@[get;`.tst.coverageContextEntryMax;250000j];
-        .tst.coverageContextDroppedHits+:1j;:()];
-    .tst.coverageContextMetricMeta[entryId]:.tst.coverageMetricMeta[
-        contextId;metricId;kind;path;functionName;siteId;edgeIndex];
-    .tst.coverageContextMetricHits[entryId]:1j;
-    ::
+    metricKey:.tst.coverageMetricKey[
+        kind;file;functionName;siteId;edgeIndex];
+    .tst.recordCoverageContextMetricKey metricKey
  };
 
 / Apply include/exclude rules consistently to both statically inventoried files
@@ -440,6 +561,12 @@ if[not `coverageContextDroppedHits in key `.tst;.tst.coverageContextDroppedHits:
     if[args ~ (::); :()];
 
     .tst.origFuncs[name]: orig;
+
+    / Function probes use this lookup after every call. Build the stable metric
+    / identity while installing the wrapper so the execution path only performs
+    / bounded dictionary lookups and increments.
+    if[1b~@[get;`.tst.coverageContexts;0b];
+        .tst.ensureCoverageFunctionMetric[fileSym;name]];
 
     argStr: $[0 < count args; ";" sv string args; ""];
     callArgs: "[", argStr, "]";
@@ -759,9 +886,13 @@ if[not `branchCoverageData in key `.tst;.tst.branchCoverageData:(`symbol$())!()]
 if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
 
 .tst.covL:{[f;n]
-    d: $[f in key .tst.lineCoverageData; .tst.lineCoverageData f; (`long$())!`long$()];
-    d[n]: 1 + $[n in key d; d n; 0];
-    .tst.lineCoverageData[f]: d;
+    if[not f in key .tst.lineCoverageData;
+        .tst.lineCoverageData[f]:(`long$())!`long$()];
+    if[not n in key .tst.lineCoverageData f;
+        .tst.lineCoverageData[f;n]:0j];
+    / Amend the nested counter in place. Copying the whole per-file dictionary
+    / made one statement hit scale with the number of sites in its source file.
+    .tst.lineCoverageData[f;n]+:1j;
  };
 
 .tst.covS:{[siteId;f;n]
@@ -847,6 +978,38 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     i
  };
 
+/. A mask failure means source syntax cannot be inventoried safely. Record one
+/. deduplicated diagnostic, return a tagged outcome, and let callers omit the
+/. unsafe rewrite while the canonical model and aggregate artifacts still form.
+/. The runner later treats sourceParseComplete=false as an unconditional
+/. coverage error, after LCOV/JSON/HTML evidence has been written.
+.tst.recordCoverageParseFailure:{[file;functionName;phase;message]
+    row:`file`function`phase`message!(
+        .tst.repoRelativePath .tst.toString file;
+        .tst.toString functionName;.tst.toString phase;.tst.toString message);
+    duplicate:any {x~y}[row;] each .tst.coverageParseDiagnostics;
+    if[not duplicate;.tst.coverageParseDiagnostics,:enlist row];
+    .tst.coverageParseFailed::1b;
+    ::
+ };
+
+.tst.coverageMaskForParsing:{[file;functionName;phase;srcLines]
+    outcome:@[
+        {[lines](1b;.tst.static.maskLines lines)};
+        srcLines;
+        {[e](0b;.tst.toString e)}];
+    if[not first outcome;
+        message:"source masking failed: ",.tst.toString last outcome;
+        .tst.recordCoverageParseFailure[file;functionName;phase;message];
+        :`ok`lines`error!(0b;();message)];
+    masked:last outcome;
+    if[(not 0h=type masked) or not count[masked]=count srcLines;
+        message:"source masking returned an invalid line structure";
+        .tst.recordCoverageParseFailure[file;functionName;phase;message];
+        :`ok`lines`error!(0b;();message)];
+    `ok`lines`error!(1b;masked;"")
+ };
+
 / Inventory the named outer lambda and every anonymous lambda nested inside it.
 / Private offsets let both statement and branch scanners attribute sites to the
 / innermost lambda without inventing LCOV function names. Anonymous identities
@@ -855,8 +1018,10 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     if[(startLine<1) or (endLine>count srcLines) or endLine<startLine;:()];
     seg:srcLines[(startLine-1)+til 1+endLine-startLine];
     raw:"\n" sv {(),x} each seg;
-    maskedLines:@[.tst.static.maskLines;seg;{seg}];
-    if[not (count maskedLines)=count seg;maskedLines:seg];
+    mask:.tst.coverageMaskForParsing[
+        fileSym;functionName;`lambda_inventory;seg];
+    if[not mask`ok;:()];
+    maskedLines:mask`lines;
     masked:"\n" sv {(),x} each maskedLines;
     if[not (count masked)=count raw;:()];
     relativePath:.tst.repoRelativePath string fileSym;
@@ -931,8 +1096,10 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     if[(startLine<1) or (endLine>count srcLines) or endLine<startLine;:()];
     seg:srcLines[(startLine-1)+til 1+endLine-startLine];
     raw:"\n" sv {(),x} each seg;
-    maskedLines:@[.tst.static.maskLines;seg;{seg}];
-    if[not (count maskedLines)=count seg;maskedLines:seg];
+    mask:.tst.coverageMaskForParsing[
+        fileSym;functionName;`statement_inventory;seg];
+    if[not mask`ok;:()];
+    maskedLines:mask`lines;
     masked:"\n" sv {(),x} each maskedLines;
     if[not (count masked)=count raw;:()];
     spans:.tst.covLambdaSpansInFunction[
@@ -986,8 +1153,10 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     if[(startLine<1) or (endLine>count srcLines) or endLine<startLine;:()];
     seg:srcLines[(startLine-1)+til 1+endLine-startLine];
     raw:"\n" sv {(),x} each seg;
-    maskedLines:@[.tst.static.maskLines;seg;{seg}];
-    if[not (count maskedLines)=count seg;maskedLines:seg];
+    mask:.tst.coverageMaskForParsing[
+        fileSym;functionName;`branch_inventory;seg];
+    if[not mask`ok;:()];
+    maskedLines:mask`lines;
     masked:"\n" sv {(),x} each maskedLines;
     if[not (count masked)=count raw;:()];
     relativePath:.tst.repoRelativePath string fileSym;
@@ -1074,7 +1243,8 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
                 $[esc; esc: 0b; c = "\\"; esc: 1b; c = "\""; inStr: 0b; ::];
               c = "\"";
                 [ inStr: 1b;
-                  if[atStart and 0 = depth; starts,: lineNo; atStart: 0b] ];
+                  if[atStart and depth in stmtDepths;
+                      starts,: enlist (lineNo; j); atStart: 0b] ];
               (c = "/") and ((j = 0) or txt[j-1] in " \t");
                 j: count txt;
               c in "{([";
@@ -1150,6 +1320,15 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     branchIds:$[count eligibleSites;eligibleSites`siteId;()];
     if[(0=count eligibleStatements) and 0=count eligibleSites;:(::)];
 
+    / Site and edge identities are context-independent. Precompute them before
+    / installing probes so repeated execution never normalizes a path or hashes
+    / a stable ID. Legacy direct calls still populate the same caches lazily.
+    if[1b~@[get;`.tst.coverageContexts;0b];
+        {[fs;site].tst.ensureCoverageStatementMetric[site`siteId;fs]}[
+            fileSym;] each eligibleStatements;
+        {[fs;fn;site].tst.ensureCoverageBranchMetrics[
+            site`siteId;fs;fn]}[fileSym;functionName;] each eligibleSites];
+
     / The file symbol is written as `$"..." -- a path contains slashes and a bare
     / backtick literal would not parse. Escape so any path survives embedding.
     pathTxt: string fileSym;
@@ -1157,7 +1336,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     functionTxt:.tst.toString functionName;
     functionTxt:ssr[ssr[functionTxt;"\\";"\\\\"];"\"";"\\\""];
     probeFor:{[p;site]
-        ".tst.covS[\"",(.tst.toString site`siteId),"\";`$\"",p,
+        ".tst.covS[`",(.tst.toString site`siteId),";`$\"",p,
         "\";",string[site`line],"];"
     }[pathTxt;];
     flat:"\n" sv {(),x} each seg;
@@ -1171,7 +1350,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     if[count eligibleSites;
         insertAt,:"j"${x`rewriteStart} each eligibleSites;
         insertText,:{[p;fn;site]
-            ".tst.covC[\"",(.tst.toString site`siteId),"\";`$\"",p,
+            ".tst.covC[`",(.tst.toString site`siteId),";`$\"",p,
                 "\";`$\"",fn,"\";"}[pathTxt;functionTxt;] each eligibleSites;
         insertAt,:"j"${x`rewriteEnd} each eligibleSites;
         / A one-character q literal is a char atom. Double-enlist it so each
@@ -1493,16 +1672,14 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
         fnRows;lineRows;statementSiteRows;branchRows;srcLines)
  };
 
-.tst.coverageContextMetricRowsFrom:{[contextId;metricMetadata;metricHits]
+.tst.coverageContextMetricRowsFrom:{[entryIds;metricMetadata;metricHits]
     rows:();
-    entryIds:key metricMetadata;
     i:0;
     while[i<count entryIds;
         entryId:entryIds i;
         metadata:metricMetadata entryId;
-        if[contextId~.tst.toString metadata`contextId;
-            rows,:enlist metadata,enlist[`hits]!enlist
-                "j"$metricHits entryId];
+        rows,:enlist metadata,enlist[`hits]!enlist
+            "j"$metricHits entryId;
         i+:1];
     if[count rows;
         order:iasc {.tst.toString x`metricId} each rows;
@@ -1514,11 +1691,29 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     rows:();
     ids:key registry;
     if[count ids;ids:ids iasc string each ids];
+    / Index the flat entry map once. The prior implementation scanned every
+    / metric once for every context, making report cost O(contexts*entries).
+    entriesByContext:()!();
+    entryIds:key metricMetadata;
+    i:0;
+    while[i<count entryIds;
+        entryId:entryIds i;
+        metadata:metricMetadata entryId;
+        contextText:.tst.toString metadata`contextId;
+        contextKey:`$contextText;
+        contextEntries:$[contextKey in key entriesByContext;
+            entriesByContext contextKey;`symbol$()];
+        entriesByContext[contextKey]:contextEntries,entryId;
+        i+:1];
     i:0;
     while[i<count ids;
         metadata:registry ids i;
+        contextText:.tst.toString metadata`contextId;
+        contextKey:`$contextText;
+        contextEntries:$[contextKey in key entriesByContext;
+            entriesByContext contextKey;`symbol$()];
         metrics:.tst.coverageContextMetricRowsFrom[
-            .tst.toString metadata`contextId;metricMetadata;metricHits];
+            contextEntries;metricMetadata;metricHits];
         rows,:enlist metadata,enlist[`metrics]!enlist metrics;
         i+:1];
     rows
@@ -1721,8 +1916,10 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
         $[0=branchSitesEligible;0f;100f*branchSitesInstrumented%branchSitesEligible];
         branchMode and 0<branchSitesEligible and branchSitesEligible=branchSitesInstrumented);
     instrumentation:.tst.coverageInstrumentationSummary[];
+    parseSummary:`sourceParseComplete`sourceParseDiagnostics!(
+        not .tst.coverageParseFailed;.tst.coverageParseDiagnostics);
     `summary`files`contextMeasurement!(
-        base,instrumentation;fileRows;.tst.coverageContextModel[])
+        base,instrumentation,parseSummary;fileRows;.tst.coverageContextModel[])
  };
 
 .tst.coveragePublicFile:{[fileRow]
@@ -1751,7 +1948,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     i:0;
     do[count fileRows;
         fileRow:fileRows i;
-        filePath:fileRow`path;
+        filePath:.tst.repoRelativePath fileRow`path;
         funcs:fileRow`functions;
         j:0;
         do[count funcs;
@@ -1838,7 +2035,7 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
     i:0;
     do[count fileRows;
         fileRow:fileRows i;
-        filePath:fileRow`path;
+        filePath:.tst.repoRelativePath fileRow`path;
         txt,:"SF:",filePath,"\n";
         funcs:fileRow`functions;
         j:0;
@@ -1864,11 +2061,13 @@ if[not `branchInstrumented in key `.tst;.tst.branchInstrumented:()!()];
             do[count branches;
                 site:branches j;
                 edges:site`edges;
+                siteHits:sum 0j,"j"${x`hits} each edges;
                 k:0;
                 do[count edges;
                     edge:edges k;
                     txt,:"BRDA:",string[site`line],",",string[site`block],",",
-                        string[edge`index],",",string[edge`hits],"\n";
+                        string[edge`index],",",
+                        $[0j=siteHits;"-";string edge`hits],"\n";
                     k+:1];
                 j+:1];
             txt,:"BRF:",string[fileRow`branchFound],"\n";
