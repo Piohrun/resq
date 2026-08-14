@@ -9,6 +9,13 @@
 / Subprocess-based, because a run cannot assert another run's exit code.
 / (Idiom from test_retry.q.)
 / ============================================================================
+.tst.testState.qcompat.stateFlags:{[wd]
+  " -state-file ",.utl.shellQuote[wd,"/state.json"],
+  " -flake-history ",.utl.shellQuote[wd,"/flake.json"],
+  " -quarantine-file ",.utl.shellQuote[wd,"/quarantine.json"],
+  " -flake-proposal-file ",.utl.shellQuote[wd,"/proposals.json"]
+ };
+
 .tst.testState.qcompat.run:{[fixtureContent; extraFlags]
   wd: .utl.tempRoot[], "/resq_qcompat_", string[.z.i], "_", string `long$.z.p;
   fix: wd, "/test_fixture.q";
@@ -16,7 +23,8 @@
   (hsym `$fix) 0: fixtureContent;
   / Lead with mkdir, NOT cd: q intercepts a leading `system "cd ..."`.
   cmd: "mkdir -p ", wd, " && cd ", wd, " && timeout 60 q ", .resq.HOME, "/resq.q -q test ", fix,
-       " ", extraFlags, " -quiet > out.txt 2>&1; echo $?";
+       " ", extraFlags, .tst.testState.qcompat.stateFlags[wd],
+       " -quiet > out.txt 2>&1; echo $?";
   lines: @[system; cmd; {[e] enlist "-1"}];
   code: "J"$ last lines;
   out: @[read0; hsym `$wd, "/out.txt"; {()}];
@@ -31,7 +39,8 @@
   (hsym `$fix) 0: fixtureContent;
   launcher: .resq.HOME, "/bin/qspec";
   cmd: "timeout 60 ", (.utl.shellQuote launcher), " ", (.utl.shellQuote fix),
-       " ", extraFlags, " > ", (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
+       " ", extraFlags, .tst.testState.qcompat.stateFlags[wd],
+       " > ", (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
   lines: @[system; cmd; {[e] enlist "-1"}];
   code: "J"$ last lines;
   out: @[read0; hsym `$wd, "/out.txt"; {()}];
@@ -59,7 +68,9 @@
     (hsym `$wd,"/resq.json") 0:enlist "{\"testFilePatterns\":[\"custom_*.q\"]}"];
   launcher:.resq.HOME,"/bin/qspec";
   cmd:"cd ",.utl.shellQuote[wd]," && timeout 60 ",.utl.shellQuote[launcher]," ",
-      .utl.shellQuote[suite]," -strict -pass > ",.utl.shellQuote[wd,"/out.txt"],
+      .utl.shellQuote[suite]," -strict -pass",
+      .tst.testState.qcompat.stateFlags[wd],
+      " > ",.utl.shellQuote[wd,"/out.txt"],
       " 2>&1; echo $?";
   lines:@[system;"sh -c ",.utl.shellQuote cmd;{[e]enlist "-1"}];
   code:"J"$last lines;
@@ -143,14 +154,19 @@
          "the qspec surface suite passes in BOTH modes"]{
     surface: .resq.HOME, "/tests/compat";
     { [dir; flags]
+       wd:.utl.tempRoot[],"/resq_qspec_surface_",string[.z.i],"_",string `long$.z.p;
+       .utl.ensureDir wd;
        / Lead with `true`, NOT `cd`: q intercepts a leading `system "cd ..."`
        / to change its OWN working directory and mangles the &&-chained command.
        / Parenthesised: q is right-to-left, so an unparenthesised
        / `.utl.shellQuote .resq.HOME, "/resq.q test "` quotes the whole string
        / including " test " and passes it as a single argument.
        cmd: "true && timeout 120 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
-            " test ", (.utl.shellQuote dir), " ", flags, " -quiet > /dev/null 2>&1; echo $?";
+            " test ", (.utl.shellQuote dir), " ", flags,
+            .tst.testState.qcompat.stateFlags[wd],
+            " -quiet > /dev/null 2>&1; echo $?";
        code: "J"$ last @[system; cmd; {[e] enlist "-1"}];
+       system "rm -rf -- ",.utl.shellQuote wd;
        must[0 = code; "tests/compat must pass with flags '", flags, "', got exit ", string code];
      }[surface;] each ("" ; "-qspec-compat");
   };
