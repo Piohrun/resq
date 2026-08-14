@@ -8,6 +8,7 @@ import json
 import statistics
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -21,16 +22,24 @@ PREFIX = "RESQ_COVERAGE_PERF="
 def run_probe(q_bin: str) -> dict[str, Any]:
     env = dict(__import__("os").environ)
     env["QBIN"] = q_bin
-    completed = subprocess.run(
-        [str(ROOT / "bin" / "resq"), "test", str(PROBE), "-quiet"],
-        cwd=ROOT,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=180,
-        check=False,
-    )
+    with tempfile.TemporaryDirectory(prefix="resq-coverage-performance-") as directory:
+        state = Path(directory)
+        completed = subprocess.run(
+            [
+                str(ROOT / "bin" / "resq"), "test", str(PROBE), "-quiet",
+                "-state-file", str(state / "last-run.json"),
+                "-flake-history", str(state / "flake-history.json"),
+                "-quarantine-file", str(state / "quarantine.json"),
+                "-flake-proposal-file", str(state / "proposals.json"),
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=180,
+            check=False,
+        )
     lines = [line for line in completed.stdout.splitlines() if line.startswith(PREFIX)]
     if completed.returncode or len(lines) != 1:
         raise RuntimeError(
