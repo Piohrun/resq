@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -24,7 +25,7 @@ from review_corpus import coverage_artifact, scale_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PARAMETERS = {"service": "orders", "environment": "test"}
+PARAMETERS = {"service": "orders", "environment": "test", "branch": ""}
 
 
 def benchmark_record(report: dict[str, Any]) -> dict[str, Any]:
@@ -93,6 +94,27 @@ def populated_report() -> dict[str, Any]:
         "type": "ingestion.fixture", "severity": "warning", "phase": "report",
         "message": "fixture diagnostic", "data": {"source": "contract"},
     }]
+    # Flake/quarantine evidence so the debt panels have fixture rows to prove
+    # the whole path, not just an executable statement.
+    flaky_row = report["tests"][1]
+    flaky_row["retried"] = True
+    flaky_row["flaky"] = True
+    flaky_row["attempts"] = 2
+    flaky_row["status"] = "pass"
+    history = flaky_row.get("attemptHistory") or []
+    if history:
+        first = deepcopy(history[0])
+        first.update(attempt=1, status="fail", message="fixture flake", failures=["fixture flake"])
+        final = deepcopy(history[0])
+        final.update(attempt=2, status="pass")
+        flaky_row["attemptHistory"] = [first, final]
+    report["tests"][2]["quarantine"] = {
+        "schemaVersion": 2, "state": "quarantined", "active": True,
+        "nonBlocking": True, "observations": 12, "passes": 7, "failures": 3,
+        "flakes": 2, "owner": "core-team", "reason": "known feed race",
+        "evidence": "flake-history", "issue": "RESQ-101",
+        "createdAt": "2026-08-01T00:00:00Z", "expiresAt": "2026-09-01T00:00:00Z",
+    }
     return report
 
 
@@ -125,8 +147,12 @@ def assert_loaded(connection: Any, dialect: str, payloads: list[dict[str, Any]])
     if set(results) != {query.key for query in QUERIES}:
         raise AssertionError(f"{dialect}: query inventory drift")
     for key in (
-        "pass_fail_rate", "run_duration", "test_history", "benchmark_history",
-        "coverage_trend", "deployment_host", "coverage_context",
+        "latest_run", "pass_rate", "failure_breakdown", "run_duration",
+        "test_volume", "test_history", "slowest_tests", "failing_tests",
+        "benchmark_history", "benchmark_verdicts", "coverage_trend",
+        "coverage_completeness", "coverage_files_latest", "quarantine_debt",
+        "quarantined_tests", "diagnostics_trend", "deployment_host",
+        "deploy_annotations", "coverage_context",
     ):
         if not results[key]:
             raise AssertionError(f"{dialect}: dashboard query {key} returned no fixture rows")
@@ -163,14 +189,32 @@ def verify_sqlite(empty: dict[str, Any], populated: dict[str, Any]) -> None:
         dashboard = json.loads(
             (ROOT / "docs/examples/grafana-resq-overview.json").read_text(encoding="utf-8")
         )
-        for panel in dashboard["panels"]:
-            raw = panel["targets"][0]["rawSql"]
-            executable = raw.replace("${service:sqlstring}", ":service").replace(
-                "${environment:sqlstring}", ":environment"
-            )
-            connection.execute(executable, PARAMETERS).fetchall()
+        for raw in dashboard_raw_sql(dashboard):
+            connection.execute(executable_sql(raw), PARAMETERS).fetchall()
     finally:
         connection.close()
+
+
+def dashboard_raw_sql(dashboard: dict[str, Any]) -> list[str]:
+    statements = [
+        panel["targets"][0]["rawSql"]
+        for panel in dashboard["panels"] if panel["type"] != "row"
+    ]
+    statements += [
+        annotation["target"]["rawSql"]
+        for annotation in dashboard["annotations"]["list"]
+    ]
+    statements += [
+        variable["query"] for variable in dashboard["templating"]["list"]
+    ]
+    return statements
+
+
+def executable_sql(raw: str) -> str:
+    executable = raw
+    for name in ("service", "environment", "branch"):
+        executable = executable.replace("${" + name + ":sqlstring}", ":" + name)
+    return re.sub(r"AND \$__timeFilter\([a-z0-9_.]+\)", "", executable)
 
 
 def verify_postgres(dsn: str, empty: dict[str, Any], populated: dict[str, Any]) -> None:
@@ -252,13 +296,20 @@ def verify_assets() -> None:
     rendered = json.dumps(dashboard)
     if '"expr"' in rendered or "resq_tests_total" in rendered:
         raise AssertionError("Grafana example still references an unshipped Prometheus metric")
-    dashboard_sql = {panel["title"]: panel["targets"][0]["rawSql"] for panel in dashboard["panels"]}
-    expected_sql = {
-        query.title: query_sql(query, "grafana")
-        for query in QUERIES if query.key not in {"services", "environments"}
+    contract_sql = {query_sql(query, "grafana") for query in QUERIES}
+    used_sql = set(dashboard_raw_sql(dashboard))
+    foreign = used_sql - contract_sql
+    if foreign:
+        raise AssertionError(
+            "dashboard carries SQL outside the executable contract: "
+            + " | ".join(sorted(statement[:80] for statement in foreign))
+        )
+    unused = {
+        query.key for query in QUERIES
+        if query_sql(query, "grafana") not in used_sql
     }
-    if dashboard_sql != expected_sql:
-        raise AssertionError("dashboard queries differ from the executable SQL contract")
+    if unused:
+        raise AssertionError(f"contract queries missing from the dashboard: {sorted(unused)}")
 
 
 def verify(postgres_dsn: str | None = None) -> None:

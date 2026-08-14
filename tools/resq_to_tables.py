@@ -67,6 +67,7 @@ def table_contract(
     attempts: list[dict[str, Any]] = []
     for row in report["tests"]:
         identity = execution_id(row)
+        quarantine = row.get("quarantine") or {}
         tests.append(
             {
                 "runId": run_id,
@@ -85,6 +86,13 @@ def table_contract(
                 "file": row.get("file", ""),
                 "line": row.get("line"),
                 "message": row.get("message", ""),
+                # Additive v2 fields: absent (None) when the run carries no
+                # quarantine evidence, so older loaders see NULLs, not lies.
+                "quarantineState": quarantine.get("state"),
+                "quarantineActive": quarantine.get("active"),
+                "quarantineOwner": quarantine.get("owner"),
+                "quarantineReason": quarantine.get("reason"),
+                "quarantineExpiresAt": quarantine.get("expiresAt"),
             }
         )
         for attempt in row.get("attemptHistory", []):

@@ -1,6 +1,6 @@
 {
-  "title": "resQ SQL evidence overview",
-  "description": "Executable SQL panels over the resQ normalized table-v2 ingestion path.",
+  "title": "resQ evidence overview",
+  "description": "One-stop dashboard over the resQ normalized table-v2 ingestion path: pass/fail and duration trends, coverage by labeled basis, flake and quarantine debt, benchmark verdicts, and deployment correlation. Every panel query is executed by tools/verify_ingestion_contract.py.",
   "schemaVersion": 39,
   "tags": [
     "resq",
@@ -27,7 +27,14 @@
           "uid": "${DS_RESQ_SQL}"
         },
         "query": "SELECT DISTINCT service AS __text, service AS __value FROM resq_runs WHERE service <> '' ORDER BY service",
-        "refresh": 1
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
       },
       {
         "name": "environment",
@@ -38,15 +45,72 @@
           "uid": "${DS_RESQ_SQL}"
         },
         "query": "SELECT DISTINCT environment AS __text, environment AS __value FROM resq_runs WHERE environment <> '' AND (${service:sqlstring} = '' OR service = ${service:sqlstring}) ORDER BY environment",
-        "refresh": 1
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "branch",
+        "type": "query",
+        "label": "Branch",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_RESQ_SQL}"
+        },
+        "query": "SELECT DISTINCT vcs_branch AS __text, vcs_branch AS __value FROM resq_runs WHERE vcs_branch <> '' AND (${service:sqlstring} = '' OR service = ${service:sqlstring}) ORDER BY vcs_branch",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Deployments",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_RESQ_SQL}"
+        },
+        "enable": true,
+        "iconColor": "#d95926",
+        "target": {
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT MIN(r.finished_at) AS time,\n       'deploy ' || r.deployment_id || ' (' || r.vcs_branch || ' @ ' ||\n       SUBSTR(r.vcs_sha, 1, 8) || ')' AS text\nFROM resq_runs AS r\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND r.deployment_id <> ''\nGROUP BY r.deployment_id, r.vcs_branch, r.vcs_sha\nORDER BY time"
+        }
       }
     ]
   },
   "panels": [
     {
+      "id": 100,
+      "title": "Overview — latest matching run",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
       "id": 1,
-      "title": "Pass/fail rate",
-      "type": "timeseries",
+      "title": "Pass rate",
+      "type": "stat",
+      "description": "Passed tests as a share of executed tests in the latest run.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_RESQ_SQL}"
@@ -54,22 +118,59 @@
       "targets": [
         {
           "refId": "A",
-          "format": "time_series",
+          "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT r.finished_at AS time, r.service, r.environment,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,\n       r.fail_count + r.error_count AS failures\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at"
+          "rawSql": "SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,\n       r.fail_count + r.error_count AS failures, r.skip_count,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,\n       r.duration_seconds,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,\n       (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring})\nORDER BY r.finished_at DESC LIMIT 1"
         }
       ],
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 4,
+        "w": 4,
         "x": 0,
-        "y": 0
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d03b3b",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 95
+              },
+              {
+                "color": "#0ca30c",
+                "value": 100
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^pass_rate$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
       }
     },
     {
       "id": 2,
-      "title": "Run duration",
-      "type": "timeseries",
+      "title": "Tests",
+      "type": "stat",
+      "description": "Tests executed in the latest run.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_RESQ_SQL}"
@@ -77,22 +178,46 @@
       "targets": [
         {
           "refId": "A",
-          "format": "time_series",
+          "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT r.finished_at AS time, r.service, r.environment, r.duration_seconds\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at"
+          "rawSql": "SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,\n       r.fail_count + r.error_count AS failures, r.skip_count,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,\n       r.duration_seconds,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,\n       (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring})\nORDER BY r.finished_at DESC LIMIT 1"
         }
       ],
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#2a78d6"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^test_count$/"
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
       }
     },
     {
       "id": 3,
-      "title": "Per-test history",
-      "type": "table",
+      "title": "Failures",
+      "type": "stat",
+      "description": "Failed plus errored tests in the latest run.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_RESQ_SQL}"
@@ -102,20 +227,53 @@
           "refId": "A",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT r.finished_at AS time, t.test_id, t.case_id, t.suite, t.description,\n       t.status, t.duration_seconds, t.file_path\nFROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at, t.test_id, t.case_id"
+          "rawSql": "SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,\n       r.fail_count + r.error_count AS failures, r.skip_count,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,\n       r.duration_seconds,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,\n       (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring})\nORDER BY r.finished_at DESC LIMIT 1"
         }
       ],
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0ca30c",
+                "value": null
+              },
+              {
+                "color": "#d03b3b",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^failures$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
       }
     },
     {
       "id": 4,
-      "title": "Benchmark median/classification",
-      "type": "timeseries",
+      "title": "Flaky passes",
+      "type": "stat",
+      "description": "Tests that passed only after a retry in the latest run.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_RESQ_SQL}"
@@ -123,22 +281,171 @@
       "targets": [
         {
           "refId": "A",
-          "format": "time_series",
+          "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT r.finished_at AS time, b.benchmark_id, b.suite, b.description,\n       b.med_time_ms, b.comparison_class\nFROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at, b.benchmark_id"
+          "rawSql": "SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,\n       r.fail_count + r.error_count AS failures, r.skip_count,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,\n       r.duration_seconds,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,\n       (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring})\nORDER BY r.finished_at DESC LIMIT 1"
         }
       ],
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 4,
+        "w": 4,
         "x": 12,
-        "y": 8
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0ca30c",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^flaky_count$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
       }
     },
     {
       "id": 5,
-      "title": "Coverage basis/completeness",
+      "title": "Active quarantines",
+      "type": "stat",
+      "description": "Tests running under an active, unexpired quarantine policy.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,\n       r.fail_count + r.error_count AS failures, r.skip_count,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,\n       r.duration_seconds,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,\n       (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring})\nORDER BY r.finished_at DESC LIMIT 1"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0ca30c",
+                "value": null
+              },
+              {
+                "color": "#ec835a",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^active_quarantines$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Function coverage",
+      "type": "stat",
+      "description": "Gate-basis function coverage of the latest covered run. No implied target: thresholds belong to your gate config.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,\n       r.fail_count + r.error_count AS failures, r.skip_count,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,\n       r.duration_seconds,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,\n       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,\n       (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring})\nORDER BY r.finished_at DESC LIMIT 1"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#2a78d6"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^function_percent$/"
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 101,
+      "title": "Trends",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "panels": []
+    },
+    {
+      "id": 7,
+      "title": "Pass rate",
       "type": "timeseries",
+      "description": "Share of executed tests that passed, per run.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_RESQ_SQL}"
@@ -148,20 +455,67 @@
           "refId": "A",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT r.finished_at AS time, c.function_percent, c.line_percent,\n       c.statement_site_percent, c.statement_site_instrumentation_percent,\n       c.branch_percent, c.branch_instrumentation_percent\nFROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at"
+          "rawSql": "SELECT r.finished_at AS time,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at"
         }
       ],
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pass_rate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     },
     {
-      "id": 6,
-      "title": "Branch/deployment/host correlation",
-      "type": "table",
+      "id": 8,
+      "title": "Failures, errors, flakes, skips",
+      "type": "timeseries",
+      "description": "Failed = assertion mismatch; errored = crashed/timed out; flaky = passed only after retry; skipped = not executed.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_RESQ_SQL}"
@@ -169,22 +523,499 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT r.finished_at AS time, r.service, r.environment, r.deployment_id,\n       r.artifact_digest, r.vcs_sha, r.vcs_branch, r.hostname, r.q_version,\n       r.os, r.ci_provider, r.ci_pipeline_id, r.fail_count, r.error_count\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at DESC"
+          "rawSql": "SELECT r.finished_at AS time, r.fail_count AS failed, r.error_count AS errored,\n       r.skip_count AS skipped,\n       (SELECT COUNT(*) FROM resq_tests AS t\n         WHERE t.run_id = r.run_id AND t.flaky) AS flaky\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at"
         }
       ],
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d03b3b"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#ec835a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "flaky"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#fab219"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "skipped"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     },
     {
-      "id": 7,
-      "title": "Coverage by test context",
+      "id": 9,
+      "title": "Run duration",
+      "type": "timeseries",
+      "description": "Wall-clock duration of each run.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, r.duration_seconds\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration_seconds"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Tests and assertions per run",
+      "type": "timeseries",
+      "description": "Suite growth over time: executed tests and assertions per run.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, r.test_count AS tests, r.assertion_count AS assertions\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tests"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "assertions"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1baf7a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 102,
+      "title": "Coverage",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "title": "Coverage by basis",
+      "type": "timeseries",
+      "description": "Function, line, statement, and branch coverage are different bases and are deliberately separate series; never merge them into one trend. Statement/branch percentages are only trustworthy alongside their instrumentation completeness (next panel).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, c.function_percent, c.line_percent,\n       c.statement_site_percent, c.branch_percent\nFROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "function_percent"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "line_percent"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "statement_site_percent"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1baf7a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "branch_percent"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Instrumentation completeness",
+      "type": "timeseries",
+      "description": "How much of the eligible statement/branch surface was actually instrumented. Dashed to mark it as the qualifier for the same-hued basis series in the previous panel.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time,\n       c.statement_site_instrumentation_percent AS statement_completeness,\n       c.branch_instrumentation_percent AS branch_completeness\nFROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "statement_completeness"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1baf7a"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    6,
+                    4
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "branch_completeness"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    6,
+                    4
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Least-covered files (latest run)",
       "type": "table",
+      "description": "Files with the lowest function coverage in the latest covered run.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_RESQ_SQL}"
@@ -194,14 +1025,646 @@
           "refId": "A",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT r.finished_at AS time, c.context_id, c.test_id, t.status, m.kind,\n       SUM(m.hits) AS hits\nFROM resq_coverage_contexts AS c\nJOIN resq_runs AS r ON r.run_id = c.run_id\nLEFT JOIN resq_tests AS t ON t.run_id = c.run_id AND t.test_id = c.test_id\nJOIN resq_coverage_context_metrics AS m\n  ON m.coverage_context_key = c.coverage_context_key\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring})\nGROUP BY r.finished_at, c.context_id, c.test_id, t.status, m.kind\nORDER BY r.finished_at, c.context_id, m.kind"
+          "rawSql": "SELECT f.file_path, f.function_hit, f.function_found,\n       CASE WHEN f.function_found = 0 THEN 100.0\n            ELSE 100.0 * f.function_hit / f.function_found END AS function_percent,\n       f.line_hit, f.line_found, f.loaded\nFROM resq_coverage_files AS f\nJOIN resq_runs AS r ON r.run_id = f.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND r.finished_at = (\n    SELECT MAX(r2.finished_at) FROM resq_runs AS r2\n    JOIN resq_coverage_runs AS c2 ON c2.run_id = r2.run_id WHERE (${service:sqlstring} = '' OR r2.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r2.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r2.vcs_branch = ${branch:sqlstring}))\nORDER BY function_percent, f.file_path LIMIT 25"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 103,
+      "title": "Tests",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "panels": []
+    },
+    {
+      "id": 14,
+      "title": "Slowest tests (latest run)",
+      "type": "table",
+      "description": "Longest-running tests in the latest matching run.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT t.suite, t.description, t.duration_seconds, t.attempts, t.file_path\nFROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND r.finished_at = (\n    SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE (${service:sqlstring} = '' OR r2.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r2.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r2.vcs_branch = ${branch:sqlstring}))\nORDER BY t.duration_seconds DESC LIMIT 15"
         }
       ],
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Most-failing tests (selected range)",
+      "type": "table",
+      "description": "Tests with failures or flaky passes inside the selected time range, grouped by stable identity.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT t.suite, t.description,\n       SUM(CASE WHEN t.status IN ('fail', 'error') THEN 1 ELSE 0 END) AS failures,\n       SUM(CASE WHEN t.flaky THEN 1 ELSE 0 END) AS flaky_passes,\n       COUNT(*) AS runs, MAX(r.finished_at) AS last_seen\nFROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nGROUP BY t.test_id, t.case_id, t.suite, t.description\nHAVING SUM(CASE WHEN t.status IN ('fail', 'error') THEN 1 ELSE 0 END) > 0\n    OR SUM(CASE WHEN t.flaky THEN 1 ELSE 0 END) > 0\nORDER BY failures DESC, flaky_passes DESC LIMIT 15"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 23,
+      "title": "Per-test history",
+      "type": "table",
+      "description": "Raw per-test drill-down feed: every execution in the selected range with stable IDs, status, and duration. Filterable columns.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, t.test_id, t.case_id, t.suite, t.description,\n       t.status, t.duration_seconds, t.file_path\nFROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at, t.test_id, t.case_id"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 104,
+      "title": "Flake and quarantine debt",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
+      "panels": []
+    },
+    {
+      "id": 16,
+      "title": "Quarantine and retry debt",
+      "type": "timeseries",
+      "description": "Standing debt per run: actively quarantined tests and tests that needed retries.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time,\n       (SELECT COUNT(*) FROM resq_tests AS t\n         WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,\n       (SELECT COUNT(*) FROM resq_tests AS t\n         WHERE t.run_id = r.run_id AND t.retried) AS retried_tests\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 57
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "active_quarantines"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#ec835a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retried_tests"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#fab219"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "Active quarantines (latest run)",
+      "type": "table",
+      "description": "Active quarantines in the latest run with owner, reason, and expiry.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT t.suite, t.description, t.status, t.quarantine_state,\n       t.quarantine_owner, t.quarantine_reason, t.quarantine_expires_at\nFROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND t.quarantine_active AND r.finished_at = (\n    SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE (${service:sqlstring} = '' OR r2.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r2.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r2.vcs_branch = ${branch:sqlstring}))\nORDER BY t.quarantine_expires_at, t.suite, t.description"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 57
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 105,
+      "title": "Benchmarks",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "panels": []
+    },
+    {
+      "id": 18,
+      "title": "Benchmark medians",
+      "type": "timeseries",
+      "description": "Median sample time per benchmark identity. Series colors follow Grafana's theme palette because the series set is dynamic.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, b.suite || ' :: ' || b.description AS metric,\n       b.med_time_ms AS value\nFROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at, b.benchmark_id"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "Benchmark verdicts per run",
+      "type": "timeseries",
+      "description": "Statistical gate verdicts per run (Mann-Whitney + Holm with a practical-effect threshold). Inconclusive usually means an environment or sample-size mismatch, not health.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time,\n       SUM(CASE WHEN b.comparison_class = 'regressed' THEN 1 ELSE 0 END) AS regressed,\n       SUM(CASE WHEN b.comparison_class = 'inconclusive' THEN 1 ELSE 0 END) AS inconclusive,\n       SUM(CASE WHEN b.comparison_class = 'improved' THEN 1 ELSE 0 END) AS improved,\n       SUM(CASE WHEN b.comparison_class = 'stable' THEN 1 ELSE 0 END) AS stable\nFROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nGROUP BY r.finished_at ORDER BY r.finished_at"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 66
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "regressed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d03b3b"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "inconclusive"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#fab219"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "improved"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#0ca30c"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stable"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 106,
+      "title": "Deployment, host, and framework context",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 74
+      },
+      "panels": []
+    },
+    {
+      "id": 20,
+      "title": "Branch/deployment/host correlation",
+      "type": "table",
+      "description": "Run-level correlation record: branch, commit, deployment, artifact digest, host, q build, and CI pipeline. Correlate by artifact digest or deployment id; branch name alone is not sufficient.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, r.service, r.environment, r.deployment_id,\n       r.artifact_digest, r.vcs_sha, r.vcs_branch, r.hostname, r.q_version,\n       r.os, r.ci_provider, r.ci_pipeline_id, r.fail_count, r.error_count\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nORDER BY r.finished_at DESC"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 75
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "Framework diagnostics per run",
+      "type": "timeseries",
+      "description": "Framework hygiene diagnostics per run (pollution, resource leaks, reporter issues).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time,\n       SUM(CASE WHEN d.severity = 'error' THEN 1 ELSE 0 END) AS errors,\n       SUM(CASE WHEN d.severity = 'warning' THEN 1 ELSE 0 END) AS warnings\nFROM resq_diagnostics AS d JOIN resq_runs AS r ON r.run_id = d.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) AND $__timeFilter(r.finished_at)\nGROUP BY r.finished_at ORDER BY r.finished_at"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 83
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "errors"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d03b3b"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warnings"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#fab219"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Coverage by test context",
+      "type": "table",
+      "description": "Opt-in per-test coverage attribution (-cov-contexts): which test contexts produced how many hits, by metric kind.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, c.context_id, c.test_id, t.status, m.kind,\n       SUM(m.hits) AS hits\nFROM resq_coverage_contexts AS c\nJOIN resq_runs AS r ON r.run_id = c.run_id\nLEFT JOIN resq_tests AS t ON t.run_id = c.run_id AND t.test_id = c.test_id\nJOIN resq_coverage_context_metrics AS m\n  ON m.coverage_context_key = c.coverage_context_key\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring})\nGROUP BY r.finished_at, c.context_id, c.test_id, t.status, m.kind\nORDER BY r.finished_at, c.context_id, m.kind"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 83
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
       }
     }
   ],

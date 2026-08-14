@@ -69,6 +69,9 @@ TABLES: tuple[Table, ...] = (
         c("assertsRun", "integer"), c("attempts", "integer"),
         c("retried", "boolean"), c("flaky", "boolean"),
         c("file", sql_name="file_path"), c("line", "integer", True), c("message"),
+        c("quarantineState", nullable=True), c("quarantineActive", "boolean", True),
+        c("quarantineOwner", nullable=True), c("quarantineReason", nullable=True),
+        c("quarantineExpiresAt", "timestamp", True),
     ), ("run_id", "execution_id"), (
         ForeignKey(("run_id",), "runs", ("run_id",)),
     )),
@@ -171,44 +174,162 @@ class Query:
     panel_type: str = "table"
 
 
-FILTER = "(:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment)"
+FILTER = ("(:service = '' OR r.service = :service) "
+          "AND (:environment = '' OR r.environment = :environment) "
+          "AND (:branch = '' OR r.vcs_branch = :branch)")
+FILTER_PARAMETERS = ("service", "environment", "branch")
+# The same predicate for a correlated subquery that scans runs under its own
+# alias (latest-run scoping must respect the active filters).
+FILTER2 = FILTER.replace("r.", "r2.")
 QUERIES: tuple[Query, ...] = (
     Query("services", "Services", "SELECT DISTINCT service AS __text, service AS __value FROM resq_runs WHERE service <> '' ORDER BY service"),
     Query("environments", "Environments", "SELECT DISTINCT environment AS __text, environment AS __value FROM resq_runs WHERE environment <> '' AND (:service = '' OR service = :service) ORDER BY environment"),
-    Query("pass_fail_rate", "Pass/fail rate", f"""
-SELECT r.finished_at AS time, r.service, r.environment,
+    Query("branches", "Branches", "SELECT DISTINCT vcs_branch AS __text, vcs_branch AS __value FROM resq_runs WHERE vcs_branch <> '' AND (:service = '' OR service = :service) ORDER BY vcs_branch"),
+    Query("latest_run", "Latest run headline", f"""
+SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,
+       r.fail_count + r.error_count AS failures, r.skip_count,
        CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,
-       r.fail_count + r.error_count AS failures
-FROM resq_runs AS r WHERE {FILTER} ORDER BY r.finished_at
+       r.duration_seconds,
+       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,
+       (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,
+       (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent
+FROM resq_runs AS r WHERE {FILTER}
+ORDER BY r.finished_at DESC LIMIT 1
+""", "stat"),
+    Query("pass_rate", "Pass rate", f"""
+SELECT r.finished_at AS time,
+       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate
+FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
+""", "timeseries"),
+    Query("failure_breakdown", "Failures, errors, flakes, skips", f"""
+SELECT r.finished_at AS time, r.fail_count AS failed, r.error_count AS errored,
+       r.skip_count AS skipped,
+       (SELECT COUNT(*) FROM resq_tests AS t
+         WHERE t.run_id = r.run_id AND t.flaky) AS flaky
+FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
 """, "timeseries"),
     Query("run_duration", "Run duration", f"""
-SELECT r.finished_at AS time, r.service, r.environment, r.duration_seconds
-FROM resq_runs AS r WHERE {FILTER} ORDER BY r.finished_at
+SELECT r.finished_at AS time, r.duration_seconds
+FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
 """, "timeseries"),
+    Query("test_volume", "Tests and assertions per run", f"""
+SELECT r.finished_at AS time, r.test_count AS tests, r.assertion_count AS assertions
+FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
+""", "timeseries"),
+    Query("coverage_trend", "Coverage by basis", f"""
+SELECT r.finished_at AS time, c.function_percent, c.line_percent,
+       c.statement_site_percent, c.branch_percent
+FROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id
+WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
+""", "timeseries"),
+    Query("coverage_completeness", "Instrumentation completeness", f"""
+SELECT r.finished_at AS time,
+       c.statement_site_instrumentation_percent AS statement_completeness,
+       c.branch_instrumentation_percent AS branch_completeness
+FROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id
+WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
+""", "timeseries"),
+    Query("coverage_files_latest", "Least-covered files (latest run)", f"""
+SELECT f.file_path, f.function_hit, f.function_found,
+       CASE WHEN f.function_found = 0 THEN 100.0
+            ELSE 100.0 * f.function_hit / f.function_found END AS function_percent,
+       f.line_hit, f.line_found, f.loaded
+FROM resq_coverage_files AS f
+JOIN resq_runs AS r ON r.run_id = f.run_id
+WHERE {FILTER} AND r.finished_at = (
+    SELECT MAX(r2.finished_at) FROM resq_runs AS r2
+    JOIN resq_coverage_runs AS c2 ON c2.run_id = r2.run_id WHERE {FILTER2})
+ORDER BY function_percent, f.file_path LIMIT 25
+"""),
+    Query("slowest_tests", "Slowest tests (latest run)", f"""
+SELECT t.suite, t.description, t.duration_seconds, t.attempts, t.file_path
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE {FILTER} AND r.finished_at = (
+    SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE {FILTER2})
+ORDER BY t.duration_seconds DESC LIMIT 15
+"""),
+    Query("failing_tests", "Most-failing tests (selected range)", f"""
+SELECT t.suite, t.description,
+       SUM(CASE WHEN t.status IN ('fail', 'error') THEN 1 ELSE 0 END) AS failures,
+       SUM(CASE WHEN t.flaky THEN 1 ELSE 0 END) AS flaky_passes,
+       COUNT(*) AS runs, MAX(r.finished_at) AS last_seen
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE {FILTER} /*+timefilter:r.finished_at*/
+GROUP BY t.test_id, t.case_id, t.suite, t.description
+HAVING SUM(CASE WHEN t.status IN ('fail', 'error') THEN 1 ELSE 0 END) > 0
+    OR SUM(CASE WHEN t.flaky THEN 1 ELSE 0 END) > 0
+ORDER BY failures DESC, flaky_passes DESC LIMIT 15
+"""),
     Query("test_history", "Per-test history", f"""
 SELECT r.finished_at AS time, t.test_id, t.case_id, t.suite, t.description,
        t.status, t.duration_seconds, t.file_path
 FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
-WHERE {FILTER} ORDER BY r.finished_at, t.test_id, t.case_id
+WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at, t.test_id, t.case_id
 """),
-    Query("benchmark_history", "Benchmark median/classification", f"""
-SELECT r.finished_at AS time, b.benchmark_id, b.suite, b.description,
-       b.med_time_ms, b.comparison_class
-FROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id
-WHERE {FILTER} ORDER BY r.finished_at, b.benchmark_id
+    Query("quarantine_debt", "Quarantine and retry debt", f"""
+SELECT r.finished_at AS time,
+       (SELECT COUNT(*) FROM resq_tests AS t
+         WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,
+       (SELECT COUNT(*) FROM resq_tests AS t
+         WHERE t.run_id = r.run_id AND t.retried) AS retried_tests
+FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
 """, "timeseries"),
-    Query("coverage_trend", "Coverage basis/completeness", f"""
-SELECT r.finished_at AS time, c.function_percent, c.line_percent,
-       c.statement_site_percent, c.statement_site_instrumentation_percent,
-       c.branch_percent, c.branch_instrumentation_percent
-FROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id
-WHERE {FILTER} ORDER BY r.finished_at
+    Query("quarantined_tests", "Active quarantines (latest run)", f"""
+SELECT t.suite, t.description, t.status, t.quarantine_state,
+       t.quarantine_owner, t.quarantine_reason, t.quarantine_expires_at
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE {FILTER} AND t.quarantine_active AND r.finished_at = (
+    SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE {FILTER2})
+ORDER BY t.quarantine_expires_at, t.suite, t.description
+"""),
+    Query("benchmark_history", "Benchmark medians", f"""
+SELECT r.finished_at AS time, b.suite || ' :: ' || b.description AS metric,
+       b.med_time_ms AS value
+FROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id
+WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at, b.benchmark_id
+""", "timeseries"),
+    Query("benchmark_verdicts", "Benchmark verdicts per run", f"""
+SELECT r.finished_at AS time,
+       SUM(CASE WHEN b.comparison_class = 'regressed' THEN 1 ELSE 0 END) AS regressed,
+       SUM(CASE WHEN b.comparison_class = 'inconclusive' THEN 1 ELSE 0 END) AS inconclusive,
+       SUM(CASE WHEN b.comparison_class = 'improved' THEN 1 ELSE 0 END) AS improved,
+       SUM(CASE WHEN b.comparison_class = 'stable' THEN 1 ELSE 0 END) AS stable
+FROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id
+WHERE {FILTER} /*+timefilter:r.finished_at*/
+GROUP BY r.finished_at ORDER BY r.finished_at
+""", "timeseries"),
+    Query("diagnostics_trend", "Framework diagnostics per run", f"""
+SELECT r.finished_at AS time,
+       SUM(CASE WHEN d.severity = 'error' THEN 1 ELSE 0 END) AS errors,
+       SUM(CASE WHEN d.severity = 'warning' THEN 1 ELSE 0 END) AS warnings
+FROM resq_diagnostics AS d JOIN resq_runs AS r ON r.run_id = d.run_id
+WHERE {FILTER} /*+timefilter:r.finished_at*/
+GROUP BY r.finished_at ORDER BY r.finished_at
 """, "timeseries"),
     Query("deployment_host", "Branch/deployment/host correlation", f"""
 SELECT r.finished_at AS time, r.service, r.environment, r.deployment_id,
        r.artifact_digest, r.vcs_sha, r.vcs_branch, r.hostname, r.q_version,
        r.os, r.ci_provider, r.ci_pipeline_id, r.fail_count, r.error_count
-FROM resq_runs AS r WHERE {FILTER} ORDER BY r.finished_at DESC
+FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at DESC
+"""),
+    Query("deploy_annotations", "Deployment annotations", f"""
+SELECT MIN(r.finished_at) AS time,
+       'deploy ' || r.deployment_id || ' (' || r.vcs_branch || ' @ ' ||
+       SUBSTR(r.vcs_sha, 1, 8) || ')' AS text
+FROM resq_runs AS r
+WHERE {FILTER} AND r.deployment_id <> ''
+GROUP BY r.deployment_id, r.vcs_branch, r.vcs_sha
+ORDER BY time
 """),
     Query("coverage_context", "Coverage by test context", f"""
 SELECT r.finished_at AS time, c.context_id, c.test_id, t.status, m.kind,
@@ -342,14 +463,22 @@ def load_payload(connection: Any, dialect: str, payload: dict[str, Any]) -> None
 
 def query_sql(query: Query, dialect: str) -> str:
     sql = query.sql.strip()
+    # The time-scope marker keeps one executable statement per query: Grafana
+    # expands it to its dashboard time range, every other dialect runs the
+    # statement unscoped (tests load bounded fixtures).
+    if dialect == "grafana":
+        sql = re.sub(r"/\*\+timefilter:([a-z0-9_.]+)\*/", r"AND $__timeFilter(\1)", sql)
+    else:
+        sql = re.sub(r"\s*/\*\+timefilter:[a-z0-9_.]+\*/", "", sql)
+    names = "|".join(FILTER_PARAMETERS)
     if dialect == "sqlite":
         return sql
     if dialect == "postgres":
-        return re.sub(r":(service|environment)\b", r"%(\1)s", sql)
+        return re.sub(rf":({names})\b", r"%(\1)s", sql)
     if dialect == "grafana":
-        return re.sub(r":(service|environment)\b", r"${\1:sqlstring}", sql)
+        return re.sub(rf":({names})\b", r"${\1:sqlstring}", sql)
     if dialect == "psql":
-        return re.sub(r":(service|environment)\b", r":'\1'", sql)
+        return re.sub(rf":({names})\b", r":'\1'", sql)
     raise ValueError(f"unsupported query dialect: {dialect}")
 
 

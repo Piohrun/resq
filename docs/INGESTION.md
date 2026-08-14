@@ -93,10 +93,22 @@ Generated PostgreSQL and SQLite references are
 [`examples/resq_ingestion_sqlite.sql`](examples/resq_ingestion_sqlite.sql).
 The [example Grafana dashboard](examples/grafana-resq-overview.json) uses a
 PostgreSQL datasource over those shipped tables—there are no assumed
-Prometheus metrics. Its executable panels cover pass/fail rate, run duration,
-per-test history, benchmark median/classification, coverage bases and
-instrumentation completeness, test-context coverage, and
-branch/deployment/host correlation.
+Prometheus metrics. It is a one-stop overview: latest-run headline stats
+(pass rate, failures, flaky passes, active quarantines, function coverage),
+pass-rate/failure/duration/volume trends, coverage by labeled basis with
+instrumentation completeness and a least-covered-files table, slowest and
+most-failing tests plus the raw per-test history feed, quarantine and retry
+debt with the active-quarantine roster, benchmark medians and statistical
+verdicts, framework diagnostics, test-context coverage, and a
+branch/deployment/host correlation table with deployment annotations.
+`service`, `environment`, and `branch` template variables filter every panel,
+and the dashboard time range scopes trend panels through Grafana's
+`$__timeFilter`. Colors are fixed per entity and validated for
+colorblind-safe separation and contrast on both Grafana themes; status hues
+(green/amber/red) are reserved for states, never series identity. Test rows
+carry nullable `quarantineState`/`quarantineActive`/`quarantineOwner`/
+`quarantineReason`/`quarantineExpiresAt` columns (additive in table
+contract v2) feeding the quarantine panels.
 Deployment correlation uses an immutable artifact digest or commit SHA together
 with supplied environment/service labels; branch name alone is insufficient.
 
