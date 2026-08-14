@@ -30,6 +30,7 @@ REQUIRED = {
     "docs/schema/resq-report-v2.schema.json", "docs/SUPPORT.md",
     "docs/schema/resq-coverage-v2.schema.json",
     "docs/VERSIONING.md", "docs/IDENTITY.md", "tools/validate_report.py",
+    "docs/VERIFICATION.md",
     "docs/EVENTS_AND_PLUGINS.md",
     "tools/verify_hostile_env.py", "tools/verify_external_pilots.py",
     "tools/verify_release_gate.py", "tools/verify_benchmark_regression.py",
@@ -73,6 +74,21 @@ GENERATED = {
     "coverage_report.html", "coverage_state.txt",
 }
 LINK = re.compile(r"!?(?:\[[^]]*\])\(([^)]+)\)")
+DOCUMENTATION_SCOPE_FILES = (
+    "README.md", "docs/ASYNC.md", "docs/API_REFERENCE.md",
+    "docs/TROUBLESHOOTING.md", "docs/PARALLEL.md",
+    "docs/ROADMAP_POST_1_0.md", "docs/VERIFICATION.md",
+    "docs/GETTING_STARTED.md", "docs/README.md",
+)
+CLAIM_FAMILIES = (
+    "Core test semantics", "qspec boundary", "Process isolation",
+    "Execution and sharding", "Identity v3", "Configuration", "Snapshots",
+    "Flake and quarantine state", "Property generation", "Benchmark statistics",
+    "Coverage semantics", "Coverage performance", "Report contracts",
+    "Adapters and tables", "SQL and Grafana", "Watch and process lifecycle",
+    "Installation and distribution", "Scale", "Supply chain and release",
+    "External adoption",
+)
 
 
 def tracked_files() -> set[str]:
@@ -176,8 +192,102 @@ def check_docs() -> int:
     return checked
 
 
+def documentation_scope_sources() -> dict[str, str]:
+    sources = {
+        relative: (ROOT / relative).read_text(encoding="utf-8")
+        for relative in DOCUMENTATION_SCOPE_FILES
+    }
+    historical = {"PRODUCTION_AUDIT_1_8.md", "RELEASE_NOTES_1_8.md"}
+    for markdown in (ROOT / "docs").glob("*.md"):
+        if markdown.name not in historical:
+            sources[str(markdown.relative_to(ROOT))] = markdown.read_text(encoding="utf-8")
+    return sources
+
+
+def check_documentation_scope(documents: dict[str, str] | None = None) -> None:
+    if documents is None:
+        documents = documentation_scope_sources()
+
+    def require(relative: str, markers: tuple[str, ...], contract: str) -> None:
+        text = documents.get(relative, "")
+        normalized = " ".join(text.split())
+        missing = [
+            marker for marker in markers
+            if " ".join(marker.split()) not in normalized
+        ]
+        if missing:
+            raise ValueError(
+                f"{contract} drift in {relative}: missing {', '.join(missing)}"
+            )
+
+    # polling-only async scope
+    require(
+        "docs/ASYNC.md",
+        (
+            "These are polling-only test helpers, not real asynchronous execution support.",
+            "does not dispatch IPC or create a general event loop",
+            "Do not call `await` or `eventually` and expect a future timer or IPC",
+        ),
+        "polling-only async scope",
+    )
+    require(
+        "docs/API_REFERENCE.md",
+        ("This is not an event-loop await.", "it is not general asynchronous execution"),
+        "polling-only API scope",
+    )
+
+    # parallel group and licence scope
+    require(
+        "docs/PARALLEL.md",
+        (
+            "This is a file-level group barrier",
+            "does not run tests inside a file concurrently",
+            "one q runtime/licence allocation",
+        ),
+        "parallel group and licence scope",
+    )
+
+    # ecosystem claims remain scoped
+    require(
+        "docs/ROADMAP_POST_1_0.md",
+        (
+            "## Post-2.0 ecosystem ideas — not implemented",
+            "No IDE/editor integration is shipped.",
+            "No plugin registry, package discovery, or third-party distribution ecosystem is shipped.",
+            "No mutation-testing runner or service is shipped.",
+        ),
+        "ecosystem claims remain scoped",
+    )
+
+    verification = documents.get("docs/VERIFICATION.md", "")
+    require(
+        "docs/VERIFICATION.md",
+        ("# Claim-to-gate index", "This is the claim-to-gate index for every correctness and performance"),
+        "claim-to-gate index",
+    )
+    for family in CLAIM_FAMILIES:
+        rows = [
+            line for line in verification.splitlines()
+            if line.startswith(f"| {family} |")
+        ]
+        if len(rows) != 1 or not re.search(r"\]\(\.\./(?:tests|tools|examples|pilots)/", rows[0]):
+            raise ValueError(
+                f"claim-to-gate index must contain one executable evidence row for {family}"
+            )
+
+    active = "\n".join(documents.values())
+    recommendation = re.compile(
+        r"(?i)(?:--branch\s+v1\.8\.0\b|"
+        r"(?:current|recommended)[^\n]{0,80}\bv?1\.8\.0\b|"
+        r"\bv?1\.8\.0\b[^\n]{0,80}(?:current|recommended))"
+    )
+    if recommendation.search(active):
+        raise ValueError("active documentation recommends superseded v1.8.0")
+
+
 def check_contracts() -> None:
     check_quickstart_coverage()
+    check_documentation_scope()
     for path, expected in expected_ingestion_assets().items():
         if not path.is_file() or path.read_text(encoding="utf-8") != expected:
             raise ValueError(f"generated ingestion asset is stale: {path.relative_to(ROOT)}")
@@ -348,6 +458,15 @@ def check_contracts() -> None:
         ("docs/REPORTING.md", "summary.testDurationSumSeconds"),
         ("docs/REPORTING.md", "-report-profile telemetry"),
         ("docs/REPORTING.md", "-final-diff-limit N"),
+        ("docs/SNAPSHOTS.md", "Text snapshot migration required"),
+        ("docs/IDENTITY.md", "resq-test-case-id-v3"),
+        ("docs/REPORTING.md", "JSON numbers are strict and finite"),
+        ("docs/INGESTION.md", "Table contract v2 separates statement execution"),
+        ("docs/QUARANTINE.md", "unseenCompleteRuns"),
+        ("docs/COVERAGE.md", "contract retains seven pre-fix"),
+        ("docs/PBT.md", "Typed default domains"),
+        ("docs/PERFORMANCE.md", "(n - 1) * p"),
+        ("docs/INGESTION.md", "Grafana dashboard"),
     )
     for relative, marker in required_doc_markers:
         if marker not in (ROOT / relative).read_text(encoding="utf-8"):

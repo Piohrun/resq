@@ -448,6 +448,7 @@ See `docs/` for detailed guides:
 | `docs/SUPPORT.md` | Supported runtime/releases and defect severity |
 | `docs/VERSIONING.md` | Public SemVer and deprecation policy |
 | `docs/IDENTITY.md` | Stable test/case identity contract |
+| `docs/VERIFICATION.md` | Claim-to-gate index for supported correctness and performance behavior |
 | `SECURITY.md` | Vulnerability reporting and execution trust boundary |
 | `docs/FIXTURES.md` | Fixture scopes, lifecycle hooks, dependency injection |
 | `docs/PARALLEL.md` | CI-level parallelism strategy |

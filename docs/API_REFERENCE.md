@@ -1429,7 +1429,12 @@ Reject a deferred with an error.
 .tst.await[id; timeoutMs]
 ```
 
-Wait for a deferred to settle.
+Wait for a deferred to settle by polling inside the current q call.
+
+This is not an event-loop await. Its busy sleep cannot dispatch IPC or ordinary
+timer callbacks, so the deferred must be settled synchronously, before the
+call, or by work that does not require q event-loop progress. See
+[Async and promises](ASYNC.md) for the polling-only support boundary.
 
 **Parameters:**
 | Name | Type | Description |
@@ -1444,7 +1449,8 @@ Wait for a deferred to settle.
 **Example:**
 ```q
 id: .tst.deferred[];
-/ Start async operation that will call .tst.resolve[id; result]
+/ Code under test invokes a synchronous completion callback.
+.tst.resolve[id; "TXN-42"];
 result: .tst.await[id; 5000];
 ```
 
@@ -1457,6 +1463,10 @@ result: .tst.await[id; 5000];
 ```
 
 Poll a condition until it succeeds or times out.
+
+Polling remains inside the current q call and does not dispatch IPC or timer
+callbacks. Use `waitEx[...,1b]` only when explicitly calling `.z.ts[]` between
+polls is sufficient; it is not general asynchronous execution.
 
 **Parameters:**
 | Name | Type | Description |

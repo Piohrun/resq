@@ -157,6 +157,13 @@ in what they give you back, not in how they measure:
 | Time and **memory** statistics | `.tst.benchmark.measureOpts[n; code; opts]` | `` `time`space`heapGrowth `` stats plus raw `samples` and exact `workload` |
 | Percentiles and a distribution | `.tst.bench[func; opts]` | iterations, min/max/avg/std, p50–p99, histogram, raw timings |
 
+All reported percentiles use linear interpolation at zero-based position
+`(n - 1) * p`, with `p` clamped to `0..1`. A singleton therefore returns its
+only sample for every percentile, small samples remain in range, and an empty
+sample vector returns q null. The checked small-n goldens in
+`tests/test_perf.q` define this method; consumers must not substitute nearest-
+rank values while comparing resQ output.
+
 `bench` does not record allocation: the `.Q.w[]` calls needed for it would show
 up in its own timings. Use `measureOpts` when you need memory.
 

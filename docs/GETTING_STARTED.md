@@ -27,6 +27,7 @@ and execution-mode release gate.
 git clone --branch v1.8.1 https://github.com/Piohrun/resq.git ~/.local/share/resq
 ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq
 ln -s ~/.local/share/resq/bin/qspec ~/.local/bin/qspec
+ln -s ~/.local/share/resq/bin/resq-merge ~/.local/bin/resq-merge
 resq --version
 resq --help
 ```

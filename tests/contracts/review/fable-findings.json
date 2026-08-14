@@ -45,8 +45,8 @@
     {"id":"P3-17","severity":"P3","release":"1.8.1","step":4,"status":"closed","baselineProbe":{"path":"lib/watch.q","contains":["(sz; mt)","stat -c '%Y %n'"]},"regression":{"path":"tests/test_watch.q","selector":"watch detects same-size same-second edit"}},
     {"id":"P3-18","severity":"P3","release":"1.8.1","step":4,"status":"closed","baselineProbe":{"path":"lib/isolate.q","contains":["\"-state-file\";.tst.rerunStatePath[]"]},"regression":{"path":"tests/test_isolate.q","selector":"isolation children use private state"}},
     {"id":"P3-19","severity":"P3","release":"1.8.1","step":4,"status":"closed","baselineProbe":{"path":"tools/verify_labels_context.py","absent":["timeout="]},"regression":{"path":"tools/tests/test_release_gate.py","selector":"test_q_verifiers_have_timeouts"}},
-    {"id":"DOC-1","severity":"scope","release":"2.0.0","step":13,"status":"open","baselineProbe":{"path":"docs/ASYNC.md","contains":["eventually"]},"regression":{"path":"tools/verify_static.py","selector":"polling-only async scope"}},
-    {"id":"DOC-2","severity":"scope","release":"2.0.0","step":13,"status":"open","baselineProbe":{"path":"docs/PARALLEL.md","contains":["worker"]},"regression":{"path":"tools/verify_static.py","selector":"parallel group and licence scope"}},
-    {"id":"DOC-3","severity":"scope","release":"2.0.0","step":13,"status":"open","baselineProbe":{"path":"docs/ROADMAP_POST_1_0.md","contains":["plugin"]},"regression":{"path":"tools/verify_static.py","selector":"ecosystem claims remain scoped"}}
+    {"id":"DOC-1","severity":"scope","release":"2.0.0","step":13,"status":"closed","baselineProbe":{"path":"docs/ASYNC.md","contains":["eventually"]},"regression":{"path":"tools/verify_static.py","selector":"polling-only async scope"}},
+    {"id":"DOC-2","severity":"scope","release":"2.0.0","step":13,"status":"closed","baselineProbe":{"path":"docs/PARALLEL.md","contains":["worker"]},"regression":{"path":"tools/verify_static.py","selector":"parallel group and licence scope"}},
+    {"id":"DOC-3","severity":"scope","release":"2.0.0","step":13,"status":"closed","baselineProbe":{"path":"docs/ROADMAP_POST_1_0.md","contains":["plugin"]},"regression":{"path":"tools/verify_static.py","selector":"ecosystem claims remain scoped"}}
   ]
 }

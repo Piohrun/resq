@@ -1,11 +1,21 @@
 # Async and Promises
 
-Helpers for testing code that completes later: callbacks, deferred results, and
-state that becomes true after something else happens.
+Polling-only helpers for testing callbacks, deferred results, and state that is
+already able to change while the test body is running.
 
-q is single-threaded, so none of this introduces concurrency. What these give
-you is a way to *wait for* and *assert on* a result that is produced by a
-callback or a later call, without hand-rolling a polling loop in every test.
+These are polling-only test helpers, not real asynchronous execution support.
+q is single-threaded, and each helper stays inside the current q call. Its
+blocking sleep does not yield to q's event loop, dispatch IPC callbacks, or let
+ordinary timer callbacks run. `waitEx[...,1b]` explicitly calls `.z.ts[]`
+between polls, but that heartbeat is only a direct timer-hook invocation; it
+does not dispatch IPC or create a general event loop.
+
+Use these helpers when the callback is invoked synchronously by code under
+test, another call has already settled the deferred, observable state changes
+without event-loop progress, or a `waitEx` timer heartbeat is deliberately
+sufficient. Do not call `await` or `eventually` and expect a future timer or IPC
+message in the same q process to resolve them—the polling call prevents that
+work from being dispatched.
 
 Everything lives in `.tst` and is loaded by default — no `require` needed.
 
@@ -137,7 +147,8 @@ wording:
 
 ### `waitEx` and heartbeats
 
-If the code under test relies on q's timer, the polling loop can fire it:
+If the code under test relies only on direct `.z.ts` work, the polling loop can
+invoke that hook explicitly:
 
 ```q
 .tst.waitEx[{.feed.ticks > 3}; 2000; 100; 1b];   / 1b => call .z.ts each interval
@@ -206,11 +217,11 @@ in the test or a `before` block, as above.
 ```
 
 `.tst.sleep` does not yield the process — it spins on `.z.p` until the deadline,
-burning a core. That is deliberate: it keeps the timing predictable and avoids
-forking, which matters inside a test runner. But it means the polling helpers
-above also burn CPU while they wait, so prefer short intervals with a realistic
-timeout over long sleeps, and do not use `sleep` as a substitute for waiting on
-an actual condition.
+burning a core. It cannot service q timers or IPC. That is deliberate: it keeps
+the timing predictable and avoids forking, which matters inside a test runner.
+But it means the polling helpers above also burn CPU while they wait, so prefer
+short intervals with a realistic timeout over long sleeps, and do not use
+`sleep` as a substitute for an external event loop.
 
 ---
 

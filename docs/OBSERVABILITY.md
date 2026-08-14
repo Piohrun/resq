@@ -96,3 +96,8 @@ Allure 2 result files without adding dependencies to the q runner.
 The [normalized ingestion contract](INGESTION.md) publishes stable
 run/test/attempt/benchmark/coverage/diagnostic joins, reference SQL, and a
 low-cardinality Grafana example.
+
+That SQL path is the shipped Grafana integration. resQ does not emit native
+Prometheus metrics, host an observability backend, or provide an IDE/plugin
+marketplace; deployments own ingestion, retention, access control, and alert
+policy around the validated artifacts.

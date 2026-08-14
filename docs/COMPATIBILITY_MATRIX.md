@@ -1,12 +1,12 @@
 # Supported runtime and execution matrix
 
-## Runtime support for resQ 1.x
+## Runtime support
 
 | Runtime | Platform | Status |
 |---------|----------|--------|
 | kdb+/q 4.1.x 64-bit | Linux x86-64 | Supported and required in CI |
 | other q 4.x releases | Linux | Best effort; run the matrix with `--allow-unsupported` before adoption |
-| macOS / Windows | any | Not a production support target for 1.0 |
+| macOS / Windows | any | Not a production support target |
 
 The narrow supported line is deliberate: resQ should not promise combinations
 that its release pipeline cannot execute. Platform-neutral code remains where
@@ -28,6 +28,11 @@ Every JSON document is independently validated. The gate compares stable
 metadata. Repeated-process/watch contracts have separate self-tests because
 they deliberately retain one q process rather than producing a comparable
 single invocation.
+
+Identity v3 and text snapshot v2 also record the q serialization codec/build
+envelope. A q upgrade is therefore an explicit compatibility and migration
+event even when the execution verdict matrix is green: persistent state with a
+mismatched envelope is archived or rejected, never silently joined.
 
 ```bash
 tools/verify_execution_matrix.py --q q

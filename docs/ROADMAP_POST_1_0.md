@@ -173,3 +173,29 @@ following checked-in contracts; the final release gate invokes all of them:
 | 1.7 snapshot lifecycle | [snapshot verifier](../tools/verify_snapshot_inventory.py), [snapshot tests](../tests/test_snapshot.q) |
 | 1.8 benchmark analysis | [benchmark verifier](../tools/verify_benchmark_regression.py), [performance tests](../tests/test_perf.q) |
 | Production boundary | [hostile-environment audit](../tools/verify_hostile_env.py), [external pilots](../tools/verify_external_pilots.py), [complete release gate](../tools/verify_release_gate.py) |
+
+## 2.0.0 — Evidence integrity and major-version identity
+
+- [x] Replace console-rendered identity inputs with framed, typed identity v3
+  and reject mixed algorithm/codec evidence before joining it.
+- [x] Publish text snapshot v2, strict finite JSON evidence, normalized tables
+  v2, and executable SQLite/PostgreSQL/Grafana ingestion contracts.
+- [x] Bound coverage hot paths and lifecycle assembly with repeated-sample,
+  soak, 10k required-scale, and recorded 100k qualification gates.
+- [x] Harden isolated process classification, launcher signal cleanup,
+  symlinked installs, and immutable GitHub Actions dependencies.
+- [ ] Complete the clean-clone v2.0.0 release qualification, archive the exact
+  evidence commit, and verify the pushed annotated tag.
+
+## Post-2.0 ecosystem ideas — not implemented
+
+These are roadmap ideas, not resQ capabilities or release commitments:
+
+- No IDE/editor integration is shipped. A future adapter could expose discovery
+  and execution through an editor-neutral test protocol.
+- No plugin registry, package discovery, or third-party distribution ecosystem
+  is shipped. The implemented feature is only the documented trusted,
+  in-process observer/reporter API loaded from explicit files.
+- No mutation-testing runner or service is shipped. Targeted fault-injection
+  tests inside resQ's own verification corpus do not constitute a user-facing
+  mutation-testing product.

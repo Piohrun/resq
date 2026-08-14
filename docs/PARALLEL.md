@@ -29,6 +29,13 @@ ordering, and the same exit code; only wall-clock changes. Durations, generated
 report IDs, and timestamps naturally vary between runs, so complete artifact
 bytes are not expected to be identical.
 
+This is a file-level group barrier: resQ does not run tests inside a file
+concurrently, and it does not begin interpreting a group until every child in
+that group has exited. One slow file therefore holds the whole group at the
+barrier. Each active worker consumes one q process, its workspace and memory,
+and one q runtime/licence allocation; choose the worker count from the smaller
+of the machine-capacity and licence-capacity limits.
+
 Speedup is bounded by the slowest single file, since no file is split. The
 default is 1, so the sequential behaviour everyone already relies on is unchanged
 unless you ask for more. Memory scales with worker count: N concurrent q
@@ -68,7 +75,7 @@ steps:
       resq test tests -strict -isolate -json -junit
       -shard-unit test -shard-index ${{ matrix.shard }} -shard-count 3
       -outDir reports/${{ matrix.shard }}
-  - uses: actions/upload-artifact@v4
+  - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
     with:
       name: test-results-${{ matrix.shard }}
       path: reports/${{ matrix.shard }}/

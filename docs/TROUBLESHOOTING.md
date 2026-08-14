@@ -409,6 +409,13 @@ fixture[`users];  / or
 
 **Causes and Solutions:**
 
+`eventually` and `await` are polling-only. Their blocking sleep does not yield
+to q's event loop, so a timer or IPC callback in the same process cannot make
+the condition true while the helper is waiting. If progress requires event-loop
+dispatch, drive the integration from another process or structure the test so
+the callback runs before polling. `waitEx[...,1b]` can directly invoke `.z.ts[]`
+between polls, but it does not dispatch IPC.
+
 1. **Condition never becomes true:**
 ```q
 / Debug by checking condition manually
@@ -430,14 +437,14 @@ safeCond: {[c] @[c; ::; {0b}]};
 
 ---
 
-### Async test passes locally but fails in CI
+### Polling test passes locally but fails in CI
 
 **Symptom:** Tests pass on developer machine but fail in CI.
 
 **Causes:**
 1. CI machines are slower
-2. Network latency differences
-3. Resource contention
+2. Resource contention
+3. The test incorrectly expects timer or IPC progress during blocking polling
 
 **Solutions:**
 ```q
@@ -445,8 +452,8 @@ safeCond: {[c] @[c; ::; {0b}]};
 timeout: $[`CI in key .z.e; 30000; 5000];
 .tst.eventually[condition; timeout; 100];
 
-/ Or use environment-based config
-.tst.await[id; getenv[`TEST_TIMEOUT] ^ 5000];
+/ If timer-only progress is deliberate, invoke .z.ts between polls
+.tst.waitEx[condition; timeout; 100; 1b];
 ```
 
 ---

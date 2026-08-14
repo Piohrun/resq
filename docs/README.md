@@ -12,19 +12,20 @@
 7. [Lifecycle events and plugins](EVENTS_AND_PLUGINS.md) — Ordered events, manifests, and trusted callbacks
 8. [CI, runner, and release operations](OPERATIONS_RUNBOOK.md) — Evidence lanes, recovery, retention, and handoff
 9. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
+10. [Claim-to-gate index](VERIFICATION.md) — Executable evidence behind supported correctness and performance claims
 
 ### Going deeper
-10. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
-11. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
-12. [Property-based testing](PBT.md) — Generative tests with `holds`
-13. [Coverage](COVERAGE.md) — Instrumenting application coverage and reading LCOV output
-14. [Optional resQ self-coverage](SELF_COVERAGE.md) — Independent, partial framework evidence
-15. [Watch mode](WATCH.md) — File-watch mode
-16. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
-17. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
-18. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
-19. [Parallel execution](PARALLEL.md) — Isolated workers, file/test/case sharding, and strict artifact merging
-20. [Performance](PERFORMANCE.md) — Benchmark assertions, versioned baselines, and regression analysis
+11. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
+12. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
+13. [Property-based testing](PBT.md) — Generative tests with `holds`
+14. [Coverage](COVERAGE.md) — Instrumenting application coverage and reading LCOV output
+15. [Optional resQ self-coverage](SELF_COVERAGE.md) — Independent, partial framework evidence
+16. [Watch mode](WATCH.md) — File-watch mode
+17. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
+18. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
+19. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
+20. [Parallel execution](PARALLEL.md) — Isolated workers, file/test/case sharding, and strict artifact merging
+21. [Performance](PERFORMANCE.md) — Benchmark assertions, versioned baselines, and regression analysis
 
 ### Migration
 - [Async helpers](ASYNC.md) — Deferreds, polling helpers, and callback spies
@@ -36,7 +37,7 @@
 - [Release checklist](RELEASE_CHECKLIST.md) — Executable release gate and human sign-off
 - [resQ 1.8.1 release notes](RELEASE_NOTES_1_8_1.md) — Evidence-integrity hotfixes and snapshot-v2 migration
 - [resQ 1.8.1 production audit](PRODUCTION_AUDIT_1_8_1.md) — Clean-clone certification and supported claim
-- [resQ 1.8.0 production audit](PRODUCTION_AUDIT_1_8.md) — Clean-clone release evidence and supported claim
+- [resQ 1.8.0 production audit](PRODUCTION_AUDIT_1_8.md) — Superseded historical qualification evidence
 - [resQ 1.8.0 release notes](RELEASE_NOTES_1_8.md) — Superseded historical release notes
 - [Hostile-environment audit](HARDENING_AUDIT.md) — Process/filesystem trust-boundary evidence
 - [Support policy](SUPPORT.md) — Supported versions/platforms, support window, and severity
@@ -54,6 +55,7 @@
 | File | Audience | Purpose |
 |------|----------|---------|
 | `GETTING_STARTED.md` | New users | Installation, first test, migration, and production adoption |
+| `VERIFICATION.md` | Users / maintainers | Claim-to-gate map for supported correctness and performance behavior |
 | `API_REFERENCE.md` | Users | Full API — DSL, assertions, CLI, config |
 | `REPORTING.md` | Users / CI consumers | Console, JSON, JUnit, and xUnit contracts |
 | `OBSERVABILITY.md` | Users / platform teams | Stable identities and external observability ingestion |
@@ -81,7 +83,7 @@
 | `RELEASE_CHECKLIST.md` | Maintainers | One-command release evidence and manual sign-off |
 | `RELEASE_NOTES_1_8_1.md` | Users / maintainers | resQ 1.8.1 evidence-integrity fixes and migration guidance |
 | `PRODUCTION_AUDIT_1_8_1.md` | Users / maintainers | resQ 1.8.1 clean-clone production evidence and limits |
-| `PRODUCTION_AUDIT_1_8.md` | Users / maintainers | resQ 1.8.0 clean-clone production evidence and limits |
+| `PRODUCTION_AUDIT_1_8.md` | Users / maintainers | Superseded resQ 1.8.0 qualification evidence and limits |
 | `RELEASE_NOTES_1_8.md` | Users / maintainers | Superseded resQ 1.8.0 release notes |
 | `HARDENING_AUDIT.md` | Users / maintainers | Shell, path, temp, symlink, interrupt, and artifact hardening contract |
 | `SUPPORT.md` | Users | Runtime/release support, issue evidence, and severity policy |

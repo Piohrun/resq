@@ -1,6 +1,6 @@
 # Release checklist
 
-resQ 1.x releases are evidence-driven. A release candidate is acceptable only
+resQ releases are evidence-driven. A release candidate is acceptable only
 when the repository's complete executable gate passes on a supported licensed
 q runner and the issue tracker has no open P0/P1 correctness defect.
 
@@ -22,6 +22,8 @@ normal, isolated, and coverage artifacts. It verifies:
   exact file-handle cleanup, and structured cleanup diagnostics;
 - unique stable IDs, portable paths, retry attempts, parameter cases, and
   reproducible property seeds;
+- identity-algorithm/codec consistency, explicit persistent-state migration,
+  and full-fidelity text snapshot v2 migration behavior;
 - benchmark raw-sample identity, explicit baseline lifecycle, reference-pinned
   statistics, regression/improvement policy, environment safeguards, strict
   shard recomputation, and adapter telemetry;
@@ -37,6 +39,8 @@ normal, isolated, and coverage artifacts. It verifies:
 - agreement among console, result JSON, detailed coverage JSON, LCOV, HTML,
   and state totals for the complete quickstart source manifest, including
   complete function, statement, and conditional-edge denominators; and
+- strict finite JSON, normalized tables-v2 joins, transactional SQL ingestion,
+  and execution of every checked Grafana query over loaded adapter output;
 - an exact-revision install into an empty prefix, including symlinked launchers
   and the bundled quickstart from an unrelated project directory.
 
@@ -51,6 +55,8 @@ self-hosted runner and uploads its evidence.
 Runner recovery, raw-artifact retention, signing/tag ownership, external-pilot
 qualification, and maintainer handoff are defined in the
 [operations runbook](OPERATIONS_RUNBOOK.md).
+The [claim-to-gate index](VERIFICATION.md) maps each published correctness and
+performance claim family to its narrowest executable evidence.
 
 ## Human checks
 
