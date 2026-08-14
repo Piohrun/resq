@@ -176,14 +176,18 @@ pickFuzz:{[x;runs]
       runs # default]                   / Default: repeat
  };
 
+.tst.globalRandomVector:{[default;length]
+  $[0=length;0#enlist default;length?default]
+ };
+
 pickListFuzz:{[x;runs]
   tc: abs type x;
   $[(count x) = 0;
-   { [tc;len] len ? typeFuzzC[tc] }[tc] each runs ? fuzzListMaxLength;
+   { [tc;len] .tst.globalRandomVector[typeFuzzC tc;len] }[tc] each runs ? fuzzListMaxLength;
    (1 = count distinct x) and null first x;
-   { [tc;len] len ? typeFuzzC[tc] }[tc] each runs ? count x;
+   { [tc;len] .tst.globalRandomVector[typeFuzzC tc;len] }[tc] each runs ? count x;
    1 = count distinct x;
-   { [x;len] len ? x }[first x] each runs ? count x;
+   { [x;len] $[0=len;0#enlist x;len?x] }[first x] each runs ? count x;
    runs ? x
    ]
  }
