@@ -914,7 +914,20 @@ def validate(document: Any) -> None:
         raise ValueError("diagnostics: expected array")
     for diagnostic_index, diagnostic in enumerate(diagnostics):
         validate_diagnostic(diagnostic, f"diagnostics[{diagnostic_index}]")
+    # A run can fail through a non-test gate while every test row remains green.
+    # In that case the accompanying error diagnostic is verdict-bearing, not a
+    # contradiction. "All green" means the aggregate run verdict, including
+    # every enabled gate, rather than only the test-row subtotal.
     all_green = summary["failCount"] == 0 and summary["errorCount"] == 0
+    coverage_verdict = document.get("coverage", {})
+    if isinstance(coverage_verdict, dict) and coverage_verdict.get("enabled"):
+        all_green = all_green and coverage_verdict.get("passed") is True
+    snapshot_gate = document.get("snapshotInventory", {}).get("gate", {})
+    if isinstance(snapshot_gate, dict) and snapshot_gate.get("enabled"):
+        all_green = all_green and snapshot_gate.get("passed") is True
+    benchmark_gate = document.get("benchmarkAnalysis", {}).get("gate", {})
+    if isinstance(benchmark_gate, dict) and benchmark_gate.get("enabled"):
+        all_green = all_green and benchmark_gate.get("passed") is True
     unexpected_errors = [
         diagnostic for diagnostic in diagnostics
         if diagnostic["severity"] == "error"

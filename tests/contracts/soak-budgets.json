@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "kind": "resq-soak-budgets",
+  "cycles": 20,
+  "warmupCycles": 2,
+  "limits": {
+    "maxUsedGrowthBytes": 16777216,
+    "maxHeapGrowthBytes": 67108864,
+    "maxSymbolGrowth": 64,
+    "maxSymbolBytesGrowth": 65536,
+    "maxNamespaceGrowth": 1,
+    "maxIpcHandleGrowth": 0,
+    "maxOsHandleGrowth": 0
+  }
+}

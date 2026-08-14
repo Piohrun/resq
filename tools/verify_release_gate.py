@@ -292,6 +292,23 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         audit.run("bounded labels and execution context", [str(ROOT / "tools/verify_labels_context.py")])
         audit.run("normalized ingestion contract", [str(ROOT / "tools/verify_ingestion_contract.py")])
         audit.run("external adoption pilots", [str(ROOT / "tools/verify_external_pilots.py"), "--q", q_executable])
+        audit.run(
+            "pinned qspec compatibility lanes",
+            [str(ROOT / "tools/verify_qspec_compatibility.py"), "--q", q_executable,
+             "--out-dir", str(output / "compatibility")],
+        )
+        audit.run(
+            "repeated-process soak budget",
+            [str(ROOT / "tools/verify_soak.py"), "--q", q_executable,
+             "--output", str(output / "soak-evidence.json")],
+            timeout=900,
+        )
+        audit.run(
+            "10k report and adapter scale budgets",
+            [str(ROOT / "tools/verify_report_scale.py"), "--q", q_executable,
+             "--output", str(output / "report-scale.json")],
+            timeout=900,
+        )
 
         coverage_correctness_dir = output / "coverage-correctness"
         audit.run(
@@ -349,6 +366,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             "isolatedSuite": isolated_report["summary"],
             "coverage": coverage_summary,
             "coverageReconciliation": coverage_reconciliation,
+            "soak": json.loads((output / "soak-evidence.json").read_text(encoding="utf-8")),
             "steps": audit.steps,
         }
         result_path = output / "release-audit.json"

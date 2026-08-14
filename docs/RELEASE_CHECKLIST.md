@@ -28,13 +28,17 @@ normal, isolated, and coverage artifacts. It verifies:
 - full-suite normal/concurrent-isolated verdict parity;
 - the supported execution/repetition/randomization/sharding matrix;
 - hostile path, permission, artifact, signal, and child-reaping behavior;
-- both pinned external adoption pilots; and
+- both pinned external adoption pilots, the pinned qspec compatibility lane,
+  repeated-process resource budgets, and 10k report/adapter scale budgets; and
 - agreement among console, result JSON, detailed coverage JSON, LCOV, HTML,
   and state totals for the complete quickstart source manifest, including
   complete function, statement, and conditional-edge denominators.
 
 The manual/tagged GitHub release workflow runs the same command on the licensed
 self-hosted runner and uploads its evidence.
+Runner recovery, raw-artifact retention, signing/tag ownership, external-pilot
+qualification, and maintainer handoff are defined in the
+[operations runbook](OPERATIONS_RUNBOOK.md).
 
 ## Human checks
 

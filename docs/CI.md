@@ -11,6 +11,14 @@ equivalence:
 tools/verify_execution_matrix.py --q q
 ```
 
+The workflows split licence-free, correctness, coverage, compatibility,
+performance, hostile/release, and nightly soak/scale evidence into separately
+retained lanes. Their checked mapping and retention periods live in
+[`tests/contracts/ci-lanes.json`](../tests/contracts/ci-lanes.json); operational
+recovery and release ownership are in the
+[operations runbook](OPERATIONS_RUNBOOK.md). Public forks execute only the
+licence-free lane until a maintainer moves reviewed code to a trusted branch.
+
 ## Licence-free gate
 
 The `static` CI job runs on GitHub-hosted Linux before the licensed q job. It

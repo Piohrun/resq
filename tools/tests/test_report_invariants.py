@@ -123,6 +123,26 @@ class ReportInvariantTests(unittest.TestCase):
         }]
         validate(document)
 
+    def test_accepts_verdict_error_for_a_failed_non_test_gate(self) -> None:
+        document = self.document()
+        document.pop("manifest", None)
+        document.pop("events", None)
+        inventory = document["snapshotInventory"]
+        inventory.update(enabled=True, complete=True, completenessReasons=[])
+        inventory["gate"] = {
+            "enabled": True,
+            "passed": False,
+            "reasons": ["obsolete-snapshots"],
+        }
+        document["diagnostics"] = [{
+            "type": "snapshot",
+            "severity": "error",
+            "phase": "inventory",
+            "message": "snapshot gate failed",
+            "data": {},
+        }]
+        validate(document)
+
 
 if __name__ == "__main__":
     unittest.main()

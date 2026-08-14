@@ -10,20 +10,21 @@
 5. [External adapters](ADAPTERS.md) — NDJSON and Allure 2 transforms
 6. [Ingestion contract](INGESTION.md) — Normalized joins, SQL, metric cardinality, and Grafana example
 7. [Lifecycle events and plugins](EVENTS_AND_PLUGINS.md) — Ordered events, manifests, and trusted callbacks
-8. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
+8. [CI, runner, and release operations](OPERATIONS_RUNBOOK.md) — Evidence lanes, recovery, retention, and handoff
+9. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
 
 ### Going deeper
-8. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
-9. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
-10. [Property-based testing](PBT.md) — Generative tests with `holds`
-11. [Coverage](COVERAGE.md) — Instrumenting application coverage and reading LCOV output
-12. [Optional resQ self-coverage](SELF_COVERAGE.md) — Independent, partial framework evidence
-13. [Watch mode](WATCH.md) — File-watch mode
-14. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
-15. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
-16. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
-17. [Parallel execution](PARALLEL.md) — Isolated workers, file/test/case sharding, and strict artifact merging
-18. [Performance](PERFORMANCE.md) — Benchmark assertions, versioned baselines, and regression analysis
+10. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
+11. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing
+12. [Property-based testing](PBT.md) — Generative tests with `holds`
+13. [Coverage](COVERAGE.md) — Instrumenting application coverage and reading LCOV output
+14. [Optional resQ self-coverage](SELF_COVERAGE.md) — Independent, partial framework evidence
+15. [Watch mode](WATCH.md) — File-watch mode
+16. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
+17. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
+18. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence
+19. [Parallel execution](PARALLEL.md) — Isolated workers, file/test/case sharding, and strict artifact merging
+20. [Performance](PERFORMANCE.md) — Benchmark assertions, versioned baselines, and regression analysis
 
 ### Migration
 - [Async helpers](ASYNC.md) — Deferreds, polling helpers, and callback spies
@@ -60,6 +61,7 @@
 | `COVERAGE.md` | Users | Coverage instrumentation and reporting |
 | `SELF_COVERAGE.md` | Maintainers | Optional independent resQ framework coverage evidence |
 | `CI.md` | Users | Production CI, coverage gates, reporter artifacts, runner setup |
+| `OPERATIONS_RUNBOOK.md` | Maintainers | CI evidence lanes, licensed-runner recovery, retention, and release handoff |
 | `COMPATIBILITY_MATRIX.md` | Users / maintainers | Supported q runtime and execution-mode parity gate |
 | `EXTERNAL_PILOTS.md` | Users / maintainers | Pinned third-party adoption evidence and its limits |
 | `FIXTURES.md` | Users | Fixture scopes and lifecycle hooks |

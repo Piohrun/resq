@@ -49,7 +49,10 @@ REQUIRED = {
     "tests/contracts/xunit.xml",
     "tests/contracts/lifecycle-v2-golden.json",
     "tests/contracts/quickstart-coverage.json",
+    "tests/contracts/ci-lanes.json", "tests/contracts/soak-budgets.json",
     "tools/render_quickstart_coverage.py",
+    "tools/verify_qspec_compatibility.py", "tools/verify_soak.py",
+    "docs/OPERATIONS_RUNBOOK.md",
 }
 GENERATED = {
     "test-results.xml", "test-results.json", "coverage.lcov",
@@ -94,6 +97,7 @@ def check_package(expected_tag: str = "") -> None:
         "tools/verify_coverage_contract.py",
         "tools/verify_python_contracts.py",
         "tools/render_quickstart_coverage.py",
+        "tools/verify_qspec_compatibility.py", "tools/verify_soak.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
@@ -197,6 +201,38 @@ def check_contracts() -> None:
     )
     if ingestion_schema.get("properties", {}).get("schemaVersion", {}).get("const") != 1:
         raise ValueError("ingestion schema does not describe schemaVersion 1")
+    lanes = json.loads((ROOT / "tests/contracts/ci-lanes.json").read_text(encoding="utf-8"))
+    expected_lanes = {
+        "licence-free", "correctness", "coverage", "compatibility",
+        "performance", "hostile-release", "soak-scale",
+    }
+    if lanes.get("schemaVersion") != 1 or lanes.get("kind") != "resq-ci-lanes":
+        raise ValueError("CI lane contract identity is invalid")
+    if set(lanes.get("lanes", {})) != expected_lanes:
+        raise ValueError("CI lane contract is incomplete")
+    workflow_text = "\n".join(
+        path.read_text(encoding="utf-8") for path in
+        (ROOT / ".github/workflows/ci.yml", ROOT / ".github/workflows/nightly.yml")
+    )
+    for lane, detail in lanes["lanes"].items():
+        if lane not in workflow_text or detail["workflow"] not in {"ci.yml", "nightly.yml"}:
+            raise ValueError(f"CI lane lacks executable workflow target: {lane}")
+        if not isinstance(detail.get("retentionDays"), int) or detail["retentionDays"] < 1:
+            raise ValueError(f"CI lane retention is invalid: {lane}")
+    soak = json.loads((ROOT / "tests/contracts/soak-budgets.json").read_text(encoding="utf-8"))
+    soak_limits = {
+        "maxUsedGrowthBytes", "maxHeapGrowthBytes", "maxSymbolGrowth",
+        "maxSymbolBytesGrowth", "maxNamespaceGrowth", "maxIpcHandleGrowth",
+        "maxOsHandleGrowth",
+    }
+    if soak.get("schemaVersion") != 1 or soak.get("kind") != "resq-soak-budgets":
+        raise ValueError("soak budget contract identity is invalid")
+    if set(soak.get("limits", {})) != soak_limits:
+        raise ValueError("soak budget contract is incomplete")
+    if soak.get("cycles", 0) < soak.get("warmupCycles", 0) + 2:
+        raise ValueError("soak budget lacks measured post-warmup cycles")
+    if any(not isinstance(value, int) or value < 0 for value in soak["limits"].values()):
+        raise ValueError("soak budget limits must be non-negative integers")
     definitions = schema.get("$defs", {})
     extensible = [schema, *(definitions[name] for name in (
         "run", "summary", "test", "attempt", "case", "diagnostic",

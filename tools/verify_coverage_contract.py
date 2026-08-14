@@ -39,9 +39,17 @@ def load(path: Path) -> dict:
     return document
 
 
-def verify(q_executable: str) -> None:
-    with tempfile.TemporaryDirectory(prefix="resq-coverage-contract-") as directory:
-        root = Path(directory)
+def verify(q_executable: str, requested_output: Path | None = None) -> Path:
+    temporary: tempfile.TemporaryDirectory[str] | None = None
+    if requested_output is None:
+        temporary = tempfile.TemporaryDirectory(prefix="resq-coverage-contract-")
+        root = Path(temporary.name)
+    else:
+        root = requested_output.resolve()
+        if root.exists() and any(root.iterdir()):
+            raise RuntimeError(f"coverage contract output must be empty: {root}")
+        root.mkdir(parents=True, exist_ok=True)
+    try:
         correctness_dir = root / "correctness"
         coverage_dir = root / "coverage"
         common_state = [
@@ -85,15 +93,20 @@ def verify(q_executable: str) -> None:
         ]
         if not metrics or any(not metric["file"] for metric in metrics):
             raise RuntimeError("coverage context metrics lack stable file joins")
-    print("coverage contract passed: detailed aggregates, contexts, and 30-test lane parity")
+        print("coverage contract passed: detailed aggregates, contexts, and 30-test lane parity")
+        return root / "coverage-reconciliation.json"
+    finally:
+        if temporary is not None:
+            temporary.cleanup()
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--q", default=os.environ.get("QBIN", "q"), help="q executable")
+    parser.add_argument("--out-dir", type=Path, help="empty directory for retained evidence")
     args = parser.parse_args()
     try:
-        verify(args.q)
+        verify(args.q, args.out_dir)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError, RuntimeError, ValueError) as exc:
         print(f"coverage contract failed: {exc}", file=sys.stderr)
         return 1

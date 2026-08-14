@@ -13,35 +13,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  static:
+  licence-free:
     name: Licence-free contracts
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Shell syntax
+      - name: Package, shell, schema, docs, and Python contracts
         shell: bash
-        run: bash -n bin/resq bin/qspec bin/resq-merge
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/licence-free
+          {
+            bash -n bin/resq bin/qspec bin/resq-merge
+            tools/verify_static.py
+            tools/verify_python_contracts.py
+          } 2>&1 | tee artifacts/licence-free/contracts.txt
+      - name: Upload licence-free evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-licence-free-${{ github.run_id }}
+          path: artifacts/licence-free/
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: Documentation, schema, XML, and package contracts
-        run: tools/verify_static.py
-
-      - name: Python adapter tests
-        run: python3 -m unittest discover -s tools/tests -v
-
-  verify:
-    # kdb+/q requires a license-bound runtime. Attach a Linux x64 runner with
-    # q on PATH and these labels; see docs/CI.md. Do not commit a license.
+  correctness:
+    name: Correctness (normal and isolated)
+    needs: licence-free
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: [self-hosted, linux, x64, kdb]
-    needs: static
     timeout-minutes: 60
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Verify runner prerequisites
+      - name: Verify licensed runner prerequisites
         shell: bash
         run: |
           set -euo pipefail
@@ -51,119 +56,166 @@ jobs:
           command -v python3
           timeout --help | grep -q -- '--kill-after'
           q -q -e 1 </dev/null
-
-      - name: Strict suite
+      - name: Strict normal evidence
         shell: bash
         run: |
-          ./bin/resq test tests -strict -junit -json \
-            -outDir artifacts/normal
-
-      - name: Supported execution matrix
-        shell: bash
-        run: tools/verify_execution_matrix.py --q q
-
-      - name: Distributed shard merge matrix
-        shell: bash
-        run: tools/verify_shard_merge.py --q q
-
-      - name: Property generator and shrink protocol
-        shell: bash
-        run: tools/verify_property_protocol.py --q q
-
-      - name: Flake evidence and quarantine policy
-        shell: bash
-        run: tools/verify_quarantine.py --q q
-
-      - name: Snapshot inventory and recoverable pruning
-        shell: bash
-        run: tools/verify_snapshot_inventory.py --q q
-
-      - name: Benchmark regression baselines and telemetry
-        shell: bash
-        run: tools/verify_benchmark_regression.py
-
-      - name: Hostile environment and interruption audit
-        shell: bash
-        run: tools/verify_hostile_env.py --q q
-
-      - name: External adoption pilots
-        shell: bash
-        run: tools/verify_external_pilots.py --q q
-
-      # -isolateWorkers exercises the concurrent path; its verdicts must match
-      # the sequential "Strict suite" step above.
-      - name: Strict isolated suite
+          set -euo pipefail
+          mkdir -p artifacts/correctness/state
+          ./bin/resq test tests -strict -json -junit -quiet -report-profile full \
+            -outDir artifacts/correctness/normal \
+            -state-file artifacts/correctness/state/normal.json \
+            -flake-history artifacts/correctness/state/flake.json \
+            -quarantine-file artifacts/correctness/state/quarantine.json \
+            -flake-proposal-file artifacts/correctness/state/proposals.json \
+            2>&1 | tee artifacts/correctness/normal-console.txt
+      - name: Strict isolated evidence
         shell: bash
         run: |
-          ./bin/resq test tests -strict -isolate -isolateTimeout 30 \
-            -isolateWorkers 4 \
-            -junit -json -outDir artifacts/isolate
-
-      # Every independent denominator is complete before its threshold can pass.
-      - name: Coverage gate
-        shell: bash
-        run: |
-          ./bin/resq cover examples/quickstart/test -strict \
-            --source examples/quickstart/src -cov-statements -cov-branches \
-            -cov-min 70 -cov-lines-min 80 -cov-completeness-min 100 \
-            -cov-branches-min 50 -cov-branch-completeness-min 100 \
-            -junit -json -outDir artifacts/coverage
-
-      - name: Validate machine-readable artifacts
-        shell: bash
+          set -euo pipefail
+          ./bin/resq test tests -strict -isolate -isolateTimeout 90 \
+            -isolateWorkers 4 -json -junit -quiet -report-profile full \
+            -outDir artifacts/correctness/isolated \
+            -state-file artifacts/correctness/state/isolated.json \
+            -flake-history artifacts/correctness/state/flake.json \
+            -quarantine-file artifacts/correctness/state/quarantine.json \
+            -flake-proposal-file artifacts/correctness/state/proposals.json \
+            2>&1 | tee artifacts/correctness/isolated-console.txt
+      - name: Validate and reconcile correctness evidence
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
-          from xml.etree import ElementTree
+          from tools.validate_report import validate
 
-          root = Path("artifacts")
-          expected = {
-              root / mode / name
-              for mode in ("normal", "isolate", "coverage")
-              for name in ("test-results.junit.xml", "test-results.json")
+          root = Path("artifacts/correctness")
+          reports = {}
+          for name in ("normal", "isolated"):
+              report = json.loads((root / name / "test-results.json").read_text())
+              validate(report)
+              reports[name] = report
+          project = lambda report: {row["testId"]: row["status"] for row in report["tests"]}
+          if project(reports["normal"]) != project(reports["isolated"]):
+              raise SystemExit("normal/isolated stable-ID verdicts differ")
+          receipt = {
+              "schemaVersion": 1,
+              "kind": "resq-correctness-parity",
+              "status": "pass",
+              "normal": reports["normal"]["summary"],
+              "isolated": reports["isolated"]["summary"],
+              "verdictParity": True,
           }
-          missing = sorted(str(path) for path in expected if not path.is_file())
-          if missing:
-              raise SystemExit("missing report artifacts: " + ", ".join(missing))
-
-          for path in root.rglob("*.xml"):
-              ElementTree.parse(path)
-          for path in root.rglob("*.json"):
-              json.loads(path.read_text(encoding="utf-8"))
-
-          for path in root.rglob("test-results.json"):
-              import subprocess
-              subprocess.run(
-                  ["tools/validate_report.py", str(path)], check=True
-              )
-
-          coverage = json.loads(
-              (root / "coverage" / "test-results.json").read_text(encoding="utf-8")
-          )["coverage"]
-          if coverage["basis"] != "functions":
-              raise SystemExit(f"legacy gate must use functions: {coverage!r}")
-          if coverage["functionsFound"] != 20:
-              raise SystemExit(f"quickstart function inventory drifted: {coverage!r}")
-          if coverage["linesFound"] != 59 or coverage["linesHit"] != 48:
-              raise SystemExit(f"quickstart measured-line inventory drifted: {coverage!r}")
-          if coverage["statementSitesFound"] != 72 or coverage["statementSitesHit"] != 51:
-              raise SystemExit(f"quickstart statement-site inventory drifted: {coverage!r}")
-          if coverage["branchesFound"] != 34 or coverage["branchesHit"] != 19:
-              raise SystemExit(f"quickstart branch inventory drifted: {coverage!r}")
-          if coverage["statementInstrumentationPercent"] != 100:
-              raise SystemExit(f"statement instrumentation is incomplete: {coverage!r}")
-          if coverage["branchInstrumentationPercent"] != 100:
-              raise SystemExit(f"branch instrumentation is incomplete: {coverage!r}")
-          if not coverage["passed"] or coverage["functionPercent"] < 70:
-              raise SystemExit(f"coverage gate/report disagreement: {coverage!r}")
+          (root / "parity.json").write_text(json.dumps(receipt, indent=2) + "\n")
           PY
-
-      - name: Upload test and coverage reports
+      - name: Upload correctness evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: resq-ci-${{ github.run_id }}
-          path: artifacts/
-          if-no-files-found: warn
+          name: resq-correctness-${{ github.run_id }}
+          path: artifacts/correctness/
+          if-no-files-found: error
+          retention-days: 14
+
+  coverage:
+    name: Coverage and correctness reconciliation
+    needs: licence-free
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, linux, x64, kdb]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Produce reconciled coverage evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          tools/verify_coverage_contract.py --q q --out-dir artifacts/coverage-evidence \
+            2>&1 | tee artifacts/coverage-console.txt
+      - name: Upload coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-coverage-${{ github.run_id }}
+          path: artifacts/coverage-*
+          if-no-files-found: error
+          retention-days: 14
+
+  compatibility:
+    name: Native and pinned qspec compatibility
+    needs: licence-free
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, linux, x64, kdb]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Produce compatibility evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          tools/verify_qspec_compatibility.py --q q --out-dir artifacts/compatibility-evidence \
+            2>&1 | tee artifacts/compatibility-console.txt
+      - name: Upload compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-compatibility-${{ github.run_id }}
+          path: artifacts/compatibility-*
+          if-no-files-found: error
+          retention-days: 14
+
+  performance:
+    name: Fingerprinted benchmark contract
+    needs: licence-free
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, linux, x64, kdb]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify workload/environment and regression policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance
+          tools/verify_benchmark_regression.py 2>&1 | tee artifacts/performance/contract.txt
+      - name: Upload performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-performance-${{ github.run_id }}
+          path: artifacts/performance/
+          if-no-files-found: error
+          retention-days: 14
+
+  hostile-release:
+    name: Hostile and release-protocol contracts
+    needs: licence-free
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, linux, x64, kdb]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise fail-closed operational boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/hostile-release
+          {
+            tools/verify_cli_terminal.py --q q
+            tools/verify_execution_matrix.py --q q
+            tools/verify_shard_merge.py --q q
+            tools/verify_property_protocol.py --q q
+            tools/verify_quarantine.py --q q
+            tools/verify_snapshot_inventory.py --q q
+            tools/verify_hostile_env.py --q q
+            tools/verify_labels_context.py
+            tools/verify_ingestion_contract.py
+            tools/verify_external_pilots.py --q q
+          } 2>&1 | tee artifacts/hostile-release/contracts.txt
+      - name: Upload hostile/release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-hostile-release-${{ github.run_id }}
+          path: artifacts/hostile-release/
+          if-no-files-found: error
           retention-days: 14

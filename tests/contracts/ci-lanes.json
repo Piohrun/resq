@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "kind": "resq-ci-lanes",
+  "lanes": {
+    "licence-free": {
+      "workflow": "ci.yml",
+      "evidence": "static and Python contract logs",
+      "retentionDays": 14
+    },
+    "correctness": {
+      "workflow": "ci.yml",
+      "evidence": "normal and isolated full JSON/JUnit plus parity receipt",
+      "retentionDays": 14
+    },
+    "coverage": {
+      "workflow": "ci.yml",
+      "evidence": "isolated correctness, non-isolated coverage, and reconciliation JSON",
+      "retentionDays": 14
+    },
+    "compatibility": {
+      "workflow": "ci.yml",
+      "evidence": "pinned upstream and native/compat reports",
+      "retentionDays": 14
+    },
+    "performance": {
+      "workflow": "ci.yml",
+      "evidence": "fingerprinted workload/environment comparison log",
+      "retentionDays": 14
+    },
+    "hostile-release": {
+      "workflow": "ci.yml",
+      "evidence": "hostile, shard, lifecycle, pilot, and process fault logs",
+      "retentionDays": 14
+    },
+    "soak-scale": {
+      "workflow": "nightly.yml",
+      "evidence": "resource trend and 10k report-scale measurements",
+      "retentionDays": 30
+    }
+  }
+}

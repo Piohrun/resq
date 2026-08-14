@@ -62,7 +62,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 8 | Coverage schema and adversarial coverage validation | complete |
 | 9 | Licence-free validator, merger, and adapter hardening | complete |
 | 10 | qspec migration, documentation, diagnostics, and hygiene | complete |
-| 11 | CI lanes, benchmark/soak evidence, and support runbooks | pending |
+| 11 | CI lanes, benchmark/soak evidence, and support runbooks | complete |
 | 12 | Fresh-clone qualification, release evidence, and `v1.8.0` tag | pending |
 
 ## Step 1 — Preserve the review failures as executable evidence
@@ -324,6 +324,24 @@ Run repeated watch/no-quit cycles and track symbol count, namespace count, heap,
 Add support-matrix, external-pilot, raw-artifact retention, licensed-runner recovery, signing/tag ownership, and release handoff runbooks. Record only platforms and pilots actually exercised. The repository gate must make it possible for a second maintainer to reproduce release evidence without undocumented local state.
 
 **Validation:** every CI lane has an executable target or workflow and an archived example result; benchmark mismatches fail closed/inconclusive; soak thresholds come from recorded runs; current support claims match the evidence matrix.
+
+**Completed 2026-08-14:** CI now publishes seven separately retained evidence
+lanes with public-fork-safe licence-free checks and guarded licensed runners.
+The compatibility lane executes the pinned upstream qspec corpus; benchmark
+evidence pins workload and environment fingerprints, preserves raw samples,
+and treats mismatches as inconclusive. A checked soak budget drives twenty
+same-process cycles plus three real watch reloads and records heap, used memory,
+symbols, symbol bytes, namespaces, IPC handles, OS handles, and timers without
+claiming q can reclaim interned symbols. On the recorded q 4.1/Linux run,
+post-warm-up used-memory growth was 3,648 bytes and every other tracked growth
+metric was zero. The operations runbook records retention, runner recovery,
+support/pilot boundaries, signing ownership, and release handoff. All lane
+tools, schemas, workflow parsing, static checks, Python contracts, 10k and
+failure-heavy report budgets, benchmark mismatch/statistical gates, hostile
+paths, two external pilots (5 tests/23 assertions), and snapshot/watch cleanup
+passed. The hostile snapshot lane also found and permanently covered a report
+validator defect: failed coverage, snapshot, or benchmark gates can no longer
+be diagnosed as an all-green report.
 
 ## Step 12 — Qualify and publish the release
 

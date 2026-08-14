@@ -74,3 +74,31 @@ jobs:
           path: artifacts/
           if-no-files-found: warn
           retention-days: 30
+
+  soak-scale:
+    name: Repeated-process soak and 10k report scale
+    runs-on: [self-hosted, linux, x64, kdb]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repeated watch/no-exit resource trends
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/soak-scale
+          tools/verify_soak.py --q q --output artifacts/soak-scale/soak-evidence.json \
+            2>&1 | tee artifacts/soak-scale/soak-console.txt
+      - name: Green and failure-heavy report scale
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/verify_report_scale.py --q q --output artifacts/soak-scale/report-scale.json \
+            2>&1 | tee artifacts/soak-scale/scale-console.txt
+      - name: Upload soak/scale evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resq-nightly-soak-scale-${{ github.run_id }}
+          path: artifacts/soak-scale/
+          if-no-files-found: error
+          retention-days: 30
