@@ -4,6 +4,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.0.0] - 2026-08-14 - Typed Identity & Evidence Integrity
+
+resQ 2.0.0 intentionally changes stable test/case identity from v2's rendered
+parameters to framed canonical typed bytes. It retains the public DSL and CLI,
+but identity-bearing caches and cross-run joins must follow the migration rules
+below rather than mixing 1.x and 2.x evidence.
+
 ### Changed
 
 - Identity v3 length-frames textual fields and hashes parameter values from a
@@ -28,6 +37,16 @@ All notable changes to the **resQ** project will be documented in this file.
 - LCOV now emits invocation-relative `SF` paths, numeric `0` for an untaken edge
   in an executed block, and `-` only when the whole branch block was unexecuted;
   shard-generated LCOV follows the same rule.
+- Typed property generators publish deterministic edge-biased domains,
+  full-width GUID generation, bounded temporal values, filter exhaustion, and
+  replay-stable shrinking. Benchmark p50/p90/p95/p99 values use one documented
+  linear-interpolation method that is defined for singleton and small samples.
+- Lifecycle event assembly indexes rows once per file/suite and the report gate
+  now requires 10k scale while retaining a recorded 100k qualification run.
+- Async/deferred helpers are documented as blocking polling only. Isolated
+  concurrency is file-level process parallelism with group barriers and one q
+  runtime/licence allocation per worker; no in-process test parallelism is
+  claimed.
 
 ### Fixed
 
@@ -48,6 +67,31 @@ All notable changes to the **resQ** project will be documented in this file.
   PostgreSQL-backed Grafana dashboard. The dashboard no longer assumes
   unshipped Prometheus metrics, and CI executes every query after loading both
   sparse and populated evidence.
+- Partial flake runs preserve unrelated history, malformed non-policy caches
+  fail open with diagnostics, same-second watch edits are detected, and
+  isolated children cannot share durable rerun state.
+- Isolated exit 137 is no longer called a timeout without supervisor evidence.
+  The launcher forwards INT/TERM, reaps descendants, cleans private state, and
+  returns conventional 130/143 status; `resq-merge` resolves external symlinks.
+- GitHub Actions are immutable SHA pins, checkout credentials are not persisted,
+  and Dependabot updates are subject to a documented maintainer review policy.
+
+### Migration
+
+- State schema v2 records `identityAlgorithm` and the full identity codec
+  envelope. resQ archives mismatched non-authoritative state; use
+  `tools/migrate_identity_state.py` with complete old/new reports for an
+  unambiguous migration. Quarantine policy remains blocking until reviewed.
+- Text snapshots use snapshot v2. Unversioned text may already be truncated and
+  is never auto-migrated; only explicit update mode can rewrite it. The envelope
+  records the q serialization/build details, so a codec mismatch is an explicit
+  migration event.
+- Normalized ingestion defaults to tables v2, where statement `hits` and branch
+  `edgesHit` are distinct. `--contract-version 1` is the named compatibility
+  projection for a staged warehouse migration.
+- Strict JSON never emits bare NaN or infinities. Numeric measurement fields use
+  `null` plus `numericStatus`; only arbitrary evidence values that require it
+  use the versioned canonical-value envelope.
 
 ## [1.8.1] - 2026-08-14 - Evidence Integrity Hotfix
 

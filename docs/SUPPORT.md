@@ -2,7 +2,7 @@
 
 ## Supported production baseline
 
-resQ 1.x is release-gated on 64-bit kdb+/q 4.1.x running on Linux x86-64.
+resQ 2.x is release-gated on 64-bit kdb+/q 4.1.x running on Linux x86-64.
 Normal, isolated sequential/concurrent, randomized, repeated-process, and native
 sharded modes are part of that support line. The exact executable matrix is in
 [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md).
@@ -10,7 +10,7 @@ sharded modes are part of that support line. The exact executable matrix is in
 Other q 4.x releases on Linux are best-effort: a passing local matrix is useful
 qualification evidence but is not a project support commitment. macOS, Windows,
 32-bit q, and container/runtime combinations not represented by the release
-gate may work but are not production targets for 1.x.
+gate may work but are not production targets for 2.x.
 
 The supported command boundary is `bin/resq` (or the qspec-compatible
 `bin/qspec`). Direct `q resq.q` invocation is supported for interactive,
@@ -57,4 +57,4 @@ exploit in a public issue. Follow [SECURITY.md](../SECURITY.md) for vulnerabilit
   developer/CI regression.
 - **P3:** localized diagnostics, documentation, or convenience defect.
 
-A 1.x release requires no open P0/P1 defect with a supported-baseline reproducer.
+A 2.x release requires no open P0/P1 defect with a supported-baseline reproducer.

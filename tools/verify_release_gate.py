@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the complete, evidence-producing resQ 1.x release gate."""
+"""Run the complete, evidence-producing resQ release gate."""
 
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ from coverage_contract import validate_coverage_artifact  # noqa: E402
 from reconcile_coverage import reconcile_reports  # noqa: E402
 
 
-MIN_SELF_TESTS = 690
-MIN_SELF_ASSERTIONS = 2100
+MIN_SELF_TESTS = 760
+MIN_SELF_ASSERTIONS = 2500
 REQUIRED_CONTRACT_TESTS = {
     "leave .q byte-for-byte equivalent while loading the framework",
     "load application functions using DSL-shaped locals while test DSL stays unqualified",
@@ -144,6 +144,23 @@ def release_version() -> str:
     return match.group(1)
 
 
+def finding_ledger() -> dict[str, Any]:
+    path = ROOT / "tests/contracts/review/fable-findings.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    findings = document.get("findings", [])
+    if document.get("kind") != "resq-fable-review-findings" or not findings:
+        raise RuntimeError("review finding ledger is missing or malformed")
+    open_findings = [finding.get("id", "unknown") for finding in findings
+                     if finding.get("status") != "closed"]
+    if open_findings:
+        raise RuntimeError("release finding ledger remains open: " + ", ".join(open_findings))
+    return {
+        "kind": document["kind"], "baselineCommit": document["baselineCommit"],
+        "reviewDate": document["reviewDate"], "total": len(findings),
+        "closed": len(findings), "open": 0,
+    }
+
+
 def require_version(document: dict[str, Any], expected: str, label: str) -> None:
     observed = {
         document.get("frameworkVersion"),
@@ -243,6 +260,7 @@ def archive_schemas(output: Path) -> list[str]:
         ROOT / "tests/contracts/quickstart-coverage.json",
         ROOT / "tests/contracts/report-scale-budgets.json",
         ROOT / "tests/contracts/soak-budgets.json",
+        ROOT / "tests/contracts/review/fable-findings.json",
     ]
     archived: list[str] = []
     for source in sources:
@@ -497,6 +515,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
     output, temporary = prepare_output(requested_output)
     audit = Audit(q_executable, output)
     expected_version = release_version()
+    ledger = finding_ledger()
     started_at = datetime.now(timezone.utc)
     try:
         audit.run(
@@ -598,6 +617,18 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
              "--output", str(output / "soak-evidence.json")],
             timeout=900,
         )
+        coverage_performance = audit.run(
+            "coverage hot-path performance budget",
+            [str(ROOT / "tools/verify_coverage_performance.py"), "--q", q_executable],
+            timeout=300,
+        )
+        coverage_performance_rows = [
+            line for line in coverage_performance.stdout.splitlines()
+            if line.startswith("{")
+        ]
+        if len(coverage_performance_rows) != 1:
+            raise RuntimeError("coverage performance verifier omitted its JSON result")
+        coverage_performance_summary = json.loads(coverage_performance_rows[0])
         audit.run(
             "10k artifact and 100k lifecycle scale budgets",
             [str(ROOT / "tools/verify_report_scale.py"), "--q", q_executable,
@@ -702,6 +733,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             ),
             "coverage": coverage_summary,
             "coverageReconciliation": coverage_reconciliation,
+            "coveragePerformance": coverage_performance_summary,
             "soak": json.loads((output / "soak-evidence.json").read_text(encoding="utf-8")),
             "reportScale": json.loads(
                 (output / "report-scale.json").read_text(encoding="utf-8")
@@ -709,6 +741,7 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
             "installation": json.loads(
                 (output / "installation-evidence.json").read_text(encoding="utf-8")
             ),
+            "findingLedger": ledger,
             "schemas": schema_paths,
             "archive": {
                 "checksumAlgorithm": "SHA-256",

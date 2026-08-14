@@ -57,9 +57,11 @@
     "preprocessingBudget": {"type": "object"},
     "coverage": {"type": "object"},
     "coverageReconciliation": {"type": "object"},
+    "coveragePerformance": {"type": "object"},
     "soak": {"type": "object"},
     "reportScale": {"type": "object"},
     "installation": {"type": "object"},
+    "findingLedger": {"type": "object"},
     "schemas": {"type": "array", "minItems": 1, "items": {"type": "string"}},
     "archive": {"type": "object"},
     "steps": {

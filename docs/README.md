@@ -35,6 +35,7 @@
 - [Road to resQ 1.0](ROADMAP_1_0.md) — Production-readiness delivery ledger and release gates
 - [Post-1.0 delivery ledger](ROADMAP_POST_1_0.md) — Branch coverage, distributed execution, quality automation, and completion gates
 - [Release checklist](RELEASE_CHECKLIST.md) — Executable release gate and human sign-off
+- [resQ 2.0.0 release notes](RELEASE_NOTES_2_0.md) — Typed identity migration, evidence hardening, and release scope
 - [resQ 1.8.1 release notes](RELEASE_NOTES_1_8_1.md) — Evidence-integrity hotfixes and snapshot-v2 migration
 - [resQ 1.8.1 production audit](PRODUCTION_AUDIT_1_8_1.md) — Clean-clone certification and supported claim
 - [resQ 1.8.0 production audit](PRODUCTION_AUDIT_1_8.md) — Superseded historical qualification evidence
@@ -81,6 +82,7 @@
 | `ROADMAP_1_0.md` | Contributors | Production-readiness delivery ledger and release gates |
 | `ROADMAP_POST_1_0.md` | Contributors | Post-1.0 delivery tasks, dependencies, and release gates |
 | `RELEASE_CHECKLIST.md` | Maintainers | One-command release evidence and manual sign-off |
+| `RELEASE_NOTES_2_0.md` | Users / maintainers | resQ 2.0.0 typed-identity migration and evidence-integrity release notes |
 | `RELEASE_NOTES_1_8_1.md` | Users / maintainers | resQ 1.8.1 evidence-integrity fixes and migration guidance |
 | `PRODUCTION_AUDIT_1_8_1.md` | Users / maintainers | resQ 1.8.1 clean-clone production evidence and limits |
 | `PRODUCTION_AUDIT_1_8.md` | Users / maintainers | Superseded resQ 1.8.0 qualification evidence and limits |

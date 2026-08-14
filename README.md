@@ -53,7 +53,8 @@ assistance.
   - **Mocking/Spies**: Clean function and variable mocking with auto-restoration.
   - **Parametrized Tests**: Run dynamic tables with `.tst.forall`, or declare
     first-class `shouldEach` rows for stable case IDs and distributed execution.
-  - **Async Testing**: Robust wait-for-condition and sleep utilities.
+  - **Polling helpers**: Blocking wait-for-condition, deferred, and sleep
+    utilities with an explicitly documented non-async boundary.
   - **Snapshot Testing**: Binary and text snapshots for complex data structures; text snapshots produce readable `git diff` output.
   - **Snapshot Lifecycle**: Complete/partial inventories, fail-closed CI gates,
     dynamic-name declarations, and recoverable dry-run-first obsolete pruning.
@@ -67,9 +68,10 @@ assistance.
 Clone the repo at a release tag and put the launchers on your `PATH`:
 
 ```bash
-git clone --branch v1.8.1 https://github.com/Piohrun/resq.git ~/.local/share/resq
+git clone --branch v2.0.0 https://github.com/Piohrun/resq.git ~/.local/share/resq
 ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq   # adjust to taste
 ln -s ~/.local/share/resq/bin/qspec ~/.local/bin/qspec # drop-in qspec command
+ln -s ~/.local/share/resq/bin/resq-merge ~/.local/bin/resq-merge
 ```
 
 Pin the tag for CI. `main` moves, and a test framework that changes underneath
