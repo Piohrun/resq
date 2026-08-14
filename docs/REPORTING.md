@@ -85,6 +85,13 @@ bounded child transcript beneath the first failed/error result from that file,
 so the full diff and output written by the test remain visible after the private
 child scratch directory is removed.
 
+For CI systems that show only the tail of a log, `-final-diffs` repeats retained
+structural diffs in the final failure listing. The total repeated body is
+bounded by `-final-diff-limit N` (default 4000 characters); streaming diagnostics
+remain enabled and machine artifacts still retain their independently bounded
+failure fields. Configuration equivalents are `finalDiffs` and
+`finalDiffLimit`.
+
 ## Console output
 
 The text reporter is intended for diagnosis. It includes suite/test status,

@@ -145,6 +145,16 @@
         parsed[`options;`noVcs] musteq 1b;
     };
 
+    should["parse opt-in bounded final diffs"]{
+        parsed:.tst.parseCLI ("test";"--final-diffs";"--final-diff-limit";"256";"suite.q");
+        parsed[`ok] musteq 1b;
+        parsed[`options;`finalDiffs] musteq 1b;
+        parsed[`options;`finalDiffLimit] musteq 256j;
+        parsed[`args] musteq enlist "suite.q";
+        .tst.cliParseFails[("test";"-final-diff-limit";"-1");
+            "Value must be >= 0 for *"] musteq 1b;
+    };
+
     should["validate -isolateWorkers as a positive integer"]{
         ok: .tst.parseCLI ("test"; "-isolateWorkers"; "4"; "suite.q");
         ok[`ok] musteq 1b;

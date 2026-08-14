@@ -5,6 +5,7 @@
 
 / Default configuration
 defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit`quarantineNonBlocking`flakeProposals`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow`snapshotAudit`snapshotGate`benchmarkBaseline`benchmarkGate`benchmarkAcceptEnvironment`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`reportProfile`labels`vcsProbe!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file;0b;0b;".resq/flake-history.json";".resq/quarantine.json";".resq/quarantine-proposals.json";3j;2j;20j;0b;0b;"";0b;0b;5j;5j;5j;`full;()!();1b)
+defaultConfig:defaultConfig,`finalDiffs`finalDiffLimit!(0b;4000);
 
 .tst.LABEL_MAX_COUNT:32j;
 .tst.LABEL_MAX_KEY:64j;
@@ -162,6 +163,10 @@ defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`run
 / @param path (string) Path to config file (default: "resq.json")
 / @return (dict) Configuration dictionary
 loadConfig:{[path]
+    / Discovery can distinguish the built-in pattern set from an intentional
+    / user override.  bin/qspec adds pinned qspec filename conventions only in
+    / the former case; an explicit testFilePatterns value remains authoritative.
+    .tst.configTestFilePatternsExplicit:0b;
     p:$[10h = type path; path; "resq.json"];
     source:@[.tst.readConfigSource;hsym `$p;{[e]
         `state`value!(`error;e)
@@ -185,6 +190,7 @@ loadConfig:{[path]
         -1 "WARNING: Config JSON root must be an object; using defaults";
         cfg:()!()
     ];
+    .tst.configTestFilePatternsExplicit:`testFilePatterns in key cfg;
 
     merged:$[0 < count cfg; .tst.defaultConfig, cfg; .tst.defaultConfig];
 
@@ -216,6 +222,7 @@ loadConfig:{[path]
     if[10h = type merged`shardCount;merged[`shardCount]:"J"$merged`shardCount];
     if[10h=type merged`shardUnit;merged[`shardUnit]:`$lower merged`shardUnit];
     if[10h=type merged`reportProfile;merged[`reportProfile]:`$lower merged`reportProfile];
+    if[10h=type merged`finalDiffLimit;merged[`finalDiffLimit]:"I"$merged`finalDiffLimit];
     coveragePercentKeys:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples;
     {[cfg;k] if[10h=type cfg k;cfg[k]:"I"$cfg k]}[merged;] each coveragePercentKeys;
     if[`testFilePatterns in key merged;
@@ -320,7 +327,7 @@ validateConfig:{[cfg]
     $[(type cfg name) in allowed; (); enlist msg]
   };
 
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`vcsProbe;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`vcsProbe`finalDiffs;
   boolMsgs:("describeOnly must be a boolean";
             "xmlOutput must be a boolean";
             "runPerformance must be a boolean";
@@ -348,10 +355,11 @@ validateConfig:{[cfg]
             "snapshotGate must be a boolean";
             "benchmarkGate must be a boolean";
             "benchmarkAcceptEnvironment must be a boolean";
-            "vcsProbe must be a boolean");
+            "vcsProbe must be a boolean";
+            "finalDiffs must be a boolean");
   warnings,: raze checkType[cfg;;enlist -1h;]'[boolNames; boolMsgs];
 
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`finalDiffLimit;
   intMsgs:("fuzzLimit must be an integer scalar";
            "maxTestTime must be an integer scalar";
            "reportLimit must be an integer scalar";
@@ -374,7 +382,8 @@ validateConfig:{[cfg]
            "flakeWindow must be an integer scalar";
            "benchmarkAlphaPercent must be an integer scalar";
            "benchmarkEffectMin must be an integer scalar";
-           "benchmarkMinSamples must be an integer scalar");
+           "benchmarkMinSamples must be an integer scalar";
+           "finalDiffLimit must be an integer scalar");
   warnings,: raze checkType[cfg;;(-5h;-6h;-7h);]'[intNames; intMsgs];
 
   / Range check: numeric keys must be non-negative. A correctly-typed but
@@ -411,7 +420,8 @@ validateConfig:{[cfg]
              "flakeWindow must be >= flakeEvidenceMin";
              "benchmarkAlphaPercent must be between 1 and 100";
              "benchmarkEffectMin must be between 0 and 100";
-             "benchmarkMinSamples must be >= 2");
+             "benchmarkMinSamples must be >= 2";
+             "finalDiffLimit must be >= 0");
   warnings,: raze checkNonNeg[cfg;;]'[intNames; rangeMsgs];
   if[`coverageMin in key cfg;
     if[(type cfg`coverageMin) in -5 -6 -7h;
@@ -536,7 +546,7 @@ invalidConfigKeys:{[cfg]
   ];
 
   / Boolean-typed keys: must be a single boolean.
-  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`vcsProbe;
+  boolNames:`describeOnly`xmlOutput`runPerformance`passOnly`exit`strict`failFast`failHard`pollutionGuard`qNamespaceExports`expectationLineAnnotations`qspecCompat`covStatements`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`covBranches`covContexts`covAttemptContexts`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`vcsProbe`finalDiffs;
   invalid,: boolNames where {[cfg;n] (n in key cfg) and not -1h = type cfg n}[cfg] each boolNames;
 
   / Integer-typed keys: must be a single integer-like value, not null, AND
@@ -544,7 +554,7 @@ invalidConfigKeys:{[cfg]
   / path; the >= 0 range check rejects insane-but-typed values like fuzzLimit:-5
   / or maxTestTime:-1, which pass the type guard but are nonsensical -> ignored
   / with a warning, default retained (the warn-and-ignore contract).
-  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow;
+  intNames:`fuzzLimit`maxTestTime`reportLimit`reportListLimit`diffLargeTableThreshold`diffHugeTableThreshold`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`flakeEvidenceMin`flakeFailureMin`flakeWindow`finalDiffLimit;
   invalid,: intNames where {[cfg;n]
       if[not n in key cfg; :0b];
       v: cfg n;
@@ -699,6 +709,8 @@ applyConfig:{[cfg]
     if[ok`reportProfile;.tst.app.reportProfile:cfg`reportProfile];
     if[ok`labels;.tst.app.labels:.tst.mergeLabels[.tst.app.labels;cfg`labels]];
     if[ok`vcsProbe;.tst.app.vcsProbe:cfg`vcsProbe];
+    if[ok`finalDiffs;.tst.app.finalDiffs:cfg`finalDiffs];
+    if[ok`finalDiffLimit;.tst.app.finalDiffLimit:"j"$cfg`finalDiffLimit];
     if[ok`quarantineNonBlocking;.tst.app.quarantineNonBlocking:cfg`quarantineNonBlocking];
     if[ok`flakeProposals;.tst.app.flakeProposalsEnabled:cfg`flakeProposals];
     if[ok`snapshotAudit;.tst.app.snapshotAudit:cfg`snapshotAudit];

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "resq-quickstart-coverage",
+  "fixture": "examples/quickstart",
+  "gateBasis": "functions",
+  "counts": {
+    "functionsFound": 20,
+    "functionsHit": 14,
+    "linesFound": 59,
+    "linesHit": 48,
+    "statementSitesFound": 72,
+    "statementSitesHit": 51,
+    "branchesFound": 34,
+    "branchesHit": 19
+  },
+  "completeness": {
+    "statementFunctionsFound": 20,
+    "statementFunctionsInstrumented": 20,
+    "branchSitesFound": 17,
+    "branchSitesInstrumented": 17
+  }
+}

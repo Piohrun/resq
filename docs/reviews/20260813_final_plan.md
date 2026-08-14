@@ -61,7 +61,7 @@ No later step may weaken an earlier invariant to make its checks pass. Temporary
 | 7 | Safe labels, VCS/CI context, and ingestion contract | complete |
 | 8 | Coverage schema and adversarial coverage validation | complete |
 | 9 | Licence-free validator, merger, and adapter hardening | complete |
-| 10 | qspec migration, documentation, diagnostics, and hygiene | pending |
+| 10 | qspec migration, documentation, diagnostics, and hygiene | complete |
 | 11 | CI lanes, benchmark/soak evidence, and support runbooks | pending |
 | 12 | Fresh-clone qualification, release evidence, and `v1.8.0` tag | pending |
 
@@ -290,6 +290,18 @@ The public-fork workflow target is wired in Step 11 with the other named lanes.
 - Move flake/rerun test state into private temporary directories and assert cleanup.
 
 **Validation:** public qspec discovery works; static documentation verification catches altered fixture-derived values; comparison errors and optional final diffs are readable; a default test/coverage run leaves no unexpected repository artifacts.
+
+**Completed 2026-08-14:** `bin/qspec` now discovers the pinned
+`qspec_test_*.q` convention unless `testFilePatterns` was explicitly supplied;
+both paths are exercised through the public launcher. Optional final diffs are
+globally bounded and retain the existing streaming presentation. A checked JSON
+fixture now drives the production-audit quickstart block and the release gate,
+while static verification pins compatibility scope, identity terminology,
+event versions, profiles, and duration semantics. The quickstart label, root
+coverage ignore, and private rerun cleanup were corrected. Licence-free checks,
+the qspec/config/CLI/reporter/rerun focused suites, live quickstart coverage and
+lane reconciliation, default artifact-hygiene checks, and the full strict suite
+passed: 716 tests (715 pass, 1 skip) and 2,263 assertions.
 
 ## Step 11 — Institutionalize reproducible operational evidence
 

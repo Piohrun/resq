@@ -42,6 +42,7 @@ test_dummy*
 qfunc.*.q
 /test_config.json
 coverage_state.txt
+/coverage.json
 coverage_report.html
 *.lcov
 

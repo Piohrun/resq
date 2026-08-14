@@ -99,6 +99,9 @@ not a suite rewrite.
 
 Recommended: use `qspec` for a no-rewrite replacement. Move to `resq test`
 without compatibility only when you want to adopt resQ's stricter comparisons.
+During migration, keep separate compatibility and native CI lanes when a suite
+cannot be valid under both comparison models; do not flip semantics implicitly
+per file inside one run.
 
 ---
 

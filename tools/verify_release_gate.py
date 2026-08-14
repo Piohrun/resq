@@ -161,21 +161,32 @@ def verify_coverage(output: Path, stdout: str) -> dict[str, Any]:
     summary = detail["summary"]
     coverage = report["coverage"]
     lcov = lcov_totals(output / "coverage.lcov")
-    expected = {
-        "functionsFound": 20, "functionsHit": 14,
-        "linesFound": 59, "linesHit": 48,
-        "statementSitesFound": 72, "statementSitesHit": 51,
-        "branchesFound": 34, "branchesHit": 19,
-    }
+    contract = json.loads(
+        (ROOT / "tests/contracts/quickstart-coverage.json").read_text(encoding="utf-8")
+    )
+    expected = contract["counts"]
+    completeness = contract["completeness"]
     for key, value in expected.items():
         if int(summary[key]) != value or int(coverage[key]) != value:
             raise RuntimeError(f"coverage {key} disagrees: {summary!r} / {coverage!r}")
-    if lcov != {"FNF": 20, "FNH": 14, "LF": 59, "LH": 48, "BRF": 34, "BRH": 19}:
+    expected_lcov = {
+        "FNF": expected["functionsFound"], "FNH": expected["functionsHit"],
+        "LF": expected["linesFound"], "LH": expected["linesHit"],
+        "BRF": expected["branchesFound"], "BRH": expected["branchesHit"],
+    }
+    if lcov != expected_lcov:
         raise RuntimeError(f"LCOV totals disagree: {lcov!r}")
     if len(detail["files"]) != 5:
         raise RuntimeError("quickstart source manifest must contain five files")
     html = (output / "coverage.html").read_text(encoding="utf-8")
-    if not all(total in html for total in ("14 / 20", "48 / 59", "51 / 72", "19 / 34", "17 / 17")):
+    html_totals = (
+        f"{expected['functionsHit']} / {expected['functionsFound']}",
+        f"{expected['linesHit']} / {expected['linesFound']}",
+        f"{expected['statementSitesHit']} / {expected['statementSitesFound']}",
+        f"{expected['branchesHit']} / {expected['branchesFound']}",
+        f"{completeness['branchSitesInstrumented']} / {completeness['branchSitesFound']}",
+    )
+    if not all(total in html for total in html_totals):
         raise RuntimeError("HTML does not render canonical coverage totals")
     state_rows = [
         line for line in (output / "coverage_state.txt").read_text(encoding="utf-8").splitlines()
@@ -185,21 +196,23 @@ def verify_coverage(output: Path, stdout: str) -> dict[str, Any]:
         prefix: sum(row.startswith(prefix + " ") for row in state_rows)
         for prefix in ("F", "S", "B", "E")
     }
-    if state_counts != {"F": 20, "S": 72, "B": 17, "E": 34}:
+    expected_state = {
+        "F": expected["functionsFound"], "S": expected["statementSitesFound"],
+        "B": completeness["branchSitesFound"], "E": expected["branchesFound"],
+    }
+    if state_counts != expected_state:
         raise RuntimeError(f"coverage state inventory disagrees: {state_counts!r}")
-    if "Coverage:" not in stdout or "functions (14/20)" not in stdout:
+    console_total = f"functions ({expected['functionsHit']}/{expected['functionsFound']})"
+    if "Coverage:" not in stdout or console_total not in stdout:
         raise RuntimeError("console does not render canonical function coverage")
-    if coverage["basis"] != "functions" or not coverage["passed"]:
+    if coverage["basis"] != contract["gateBasis"] or not coverage["passed"]:
         raise RuntimeError(f"coverage gate basis/verdict disagrees: {coverage!r}")
     if summary["statementInstrumentationPercent"] != 100 or summary["branchInstrumentationPercent"] != 100:
         raise RuntimeError(f"coverage instrumentation is incomplete: {summary!r}")
     if not coverage["branchMode"] or coverage["branchInstrumentationPercent"] != 100:
         raise RuntimeError(f"coverage branch contract disagrees: {coverage!r}")
     return {
-        "functionsFound": 20, "functionsHit": 14,
-        "linesFound": 59, "linesHit": 48,
-        "statementSitesFound": 72, "statementSitesHit": 51,
-        "branchesFound": 34, "branchesHit": 19,
+        **expected,
         "statementInstrumentationPercent": summary["statementInstrumentationPercent"],
         "branchInstrumentationPercent": summary["branchInstrumentationPercent"],
     }

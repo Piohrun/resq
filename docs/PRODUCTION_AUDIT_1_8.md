@@ -11,11 +11,20 @@ kdb+/q 4.1 on the supported Linux x86-64 baseline and produced a validated
 |---|---:|
 | Strict suite | 696 tests; 695 pass, 1 documented skip; 2,155 assertions |
 | Four-worker isolated suite | Identical 696-test inventory, counts, stable IDs, and verdicts |
-| Function coverage | 14 / 20 |
-| Measured lines | 48 / 59 |
-| Statement sites | 51 / 72; 100% instrumentation completeness |
-| Conditional edges | 19 / 34; 100% branch-site instrumentation completeness |
 | Total audit wall time | 245.845 seconds |
+
+### Checked quickstart coverage
+
+<!-- QUICKSTART_COVERAGE_START -->
+| Contract | Evidence |
+|---|---:|
+| Function coverage (gate basis) | 14 / 20 |
+| Measured source lines | 48 / 59 |
+| Statement sites | 51 / 72 |
+| Statement instrumentation completeness | 20 / 20 eligible functions |
+| Conditional edges | 19 / 34 |
+| Branch instrumentation completeness | 17 / 17 eligible sites |
+<!-- QUICKSTART_COVERAGE_END -->
 
 The gate also passed the licence-free contracts, Python schema/adapter tests,
 supported execution matrix, distributed merger matrix, property protocol,

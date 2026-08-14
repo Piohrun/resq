@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
 from report_profiles import project  # noqa: E402
+from render_quickstart_coverage import check_document as check_quickstart_coverage  # noqa: E402
 
 
 REQUIRED = {
@@ -47,6 +48,8 @@ REQUIRED = {
     "tests/contracts/report-v2.json", "tests/contracts/junit.xml",
     "tests/contracts/xunit.xml",
     "tests/contracts/lifecycle-v2-golden.json",
+    "tests/contracts/quickstart-coverage.json",
+    "tools/render_quickstart_coverage.py",
 }
 GENERATED = {
     "test-results.xml", "test-results.json", "coverage.lcov",
@@ -90,6 +93,7 @@ def check_package(expected_tag: str = "") -> None:
         "tools/validate_coverage.py", "tools/reconcile_coverage.py",
         "tools/verify_coverage_contract.py",
         "tools/verify_python_contracts.py",
+        "tools/render_quickstart_coverage.py",
     ):
         if not os.access(ROOT / relative, os.X_OK):
             raise ValueError(f"package entry point is not executable: {relative}")
@@ -152,6 +156,7 @@ def check_docs() -> int:
 
 
 def check_contracts() -> None:
+    check_quickstart_coverage()
     schema = json.loads(
         (ROOT / "docs/schema/resq-report-v2.schema.json").read_text(encoding="utf-8")
     )
@@ -220,6 +225,26 @@ def check_contracts() -> None:
         raise ValueError("checked-in report contract version differs from .resq.VERSION")
     if report.get("manifest", {}).get("frameworkVersion") != version:
         raise ValueError("checked-in manifest contract version differs from .resq.VERSION")
+
+    public_docs = "\n".join(
+        (ROOT / relative).read_text(encoding="utf-8")
+        for relative in ("README.md", "docs/GETTING_STARTED.md", "docs/MIGRATION.md", "docs/QSPEC_COMPATIBILITY.md")
+    ).lower()
+    for overclaim in ("100% compatible", "fully qspec compatible"):
+        if overclaim in public_docs:
+            raise ValueError(f"unsupported compatibility overclaim: {overclaim}")
+    required_doc_markers = (
+        ("docs/QSPEC_COMPATIBILITY.md", "9b846b68a8d808e472ba504d18c325b14b468087"),
+        ("docs/QSPEC_COMPATIBILITY.md", "two explicit lanes"),
+        ("docs/IDENTITY.md", "MD5 is used only as a"),
+        ("docs/EVENTS_AND_PLUGINS.md", "event v1 remains readable for compatibility"),
+        ("docs/REPORTING.md", "summary.testDurationSumSeconds"),
+        ("docs/REPORTING.md", "-report-profile telemetry"),
+        ("docs/REPORTING.md", "-final-diff-limit N"),
+    )
+    for relative, marker in required_doc_markers:
+        if marker not in (ROOT / relative).read_text(encoding="utf-8"):
+            raise ValueError(f"documentation contract marker missing from {relative}: {marker}")
     for name, root_name, row_name in (
         ("junit.xml", "testsuites", "testcase"),
         ("xunit.xml", "assemblies", "test"),

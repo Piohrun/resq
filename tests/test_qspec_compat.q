@@ -21,7 +21,7 @@
   code: "J"$ last lines;
   out: @[read0; hsym `$wd, "/out.txt"; {()}];
   system "rm -rf -- ", .utl.shellQuote wd;
- `code`out!(code; out)
+  `code`out!(code; out)
  };
 
 .tst.testState.qcompat.runLauncher:{[fixtureContent; extraFlags]
@@ -36,7 +36,36 @@
   code: "J"$ last lines;
   out: @[read0; hsym `$wd, "/out.txt"; {()}];
   system "rm -rf -- ", .utl.shellQuote wd;
-  `code`out!(code; out)
+ `code`out!(code; out)
+ };
+
+.tst.testState.qcompat.runLauncherDirectory:{[explicitPatterns]
+  wd: .utl.tempRoot[], "/resq_qspec_discovery_", string[.z.i], "_", string `long$.z.p;
+  suite:wd,"/suite";
+  system "mkdir -p ", .utl.shellQuote suite;
+  qspecFile:suite,"/qspec_test_assertions.q";
+  customFile:suite,"/custom_contract.q";
+  qspecBody:$[explicitPatterns;
+    (".tst.desc[\"excluded qspec file\"]{";
+     " should[\"must not run\"]{ 1 musteq 2 };";
+     " };");
+    (".tst.desc[\"qspec discovery\"]{";
+     " should[\"runs\"]{ 1 musteq 1 };";
+     " };")];
+  (hsym `$qspecFile) 0:qspecBody;
+  (hsym `$customFile) 0:(".tst.desc[\"custom discovery\"]{";
+    " should[\"runs\"]{ 1 musteq 1 };";" };");
+  if[explicitPatterns;
+    (hsym `$wd,"/resq.json") 0:enlist "{\"testFilePatterns\":[\"custom_*.q\"]}"];
+  launcher:.resq.HOME,"/bin/qspec";
+  cmd:"cd ",.utl.shellQuote[wd]," && timeout 60 ",.utl.shellQuote[launcher]," ",
+      .utl.shellQuote[suite]," -strict -pass > ",.utl.shellQuote[wd,"/out.txt"],
+      " 2>&1; echo $?";
+  lines:@[system;"sh -c ",.utl.shellQuote cmd;{[e]enlist "-1"}];
+  code:"J"$last lines;
+  out:@[read0;hsym `$wd,"/out.txt";{()}];
+  system "rm -rf -- ",.utl.shellQuote wd;
+  `code`out!(code;out)
  };
 
 .tst.testState.qcompat.anyLike:{[lines; pat] any lines like ("*", pat, "*") };
@@ -79,6 +108,18 @@
                                                  "-pass -performance -fdl 12"];
     musteq[r`code; 0];
     .tst.testState.qcompat.frameworkChatter[r`out] musteq 0b;
+  };
+
+  skipIf[not .tst.testState.qcompat.canQ;
+         "the qspec launcher discovers pinned qspec filenames in a directory"]{
+    r:.tst.testState.qcompat.runLauncherDirectory 0b;
+    r[`code] musteq 0;
+  };
+
+  skipIf[not .tst.testState.qcompat.canQ;
+         "an explicit testFilePatterns override remains authoritative"]{
+    r:.tst.testState.qcompat.runLauncherDirectory 1b;
+    r[`code] musteq 0;
   };
 
   skipIf[not .tst.testState.qcompat.canQ;

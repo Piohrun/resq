@@ -991,6 +991,13 @@
     / (a list of strings) or the testFilePatterns key in resq.json.
     patterns: @[get; `.resq.config.testFilePatterns; {("test_*.q"; "*_test.q")}];
     if[10h = type patterns; patterns: enlist patterns];
+    / The compatibility launcher targets existing qspec trees, whose pinned
+    / public suites use qspec_test_*.q.  Preserve ordinary resQ defaults and do
+    / not second-guess an explicit resq.json testFilePatterns override.
+    qspecMode:1b~@[get;`.tst.app.qspecCompat;0b];
+    patternsExplicit:1b~@[get;`.tst.configTestFilePatternsExplicit;0b];
+    if[qspecMode and not patternsExplicit;
+        patterns:distinct patterns,enlist "qspec_test_*.q"];
 
     directFiles: ps where {(.utl.isFile x) and x like "*.q"} each ps;
     dirs: ps where .utl.isDir each ps;

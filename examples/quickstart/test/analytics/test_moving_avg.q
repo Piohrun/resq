@@ -4,7 +4,7 @@ system "l ", .example.projectRoot, "/src/analytics/moving_avg.q";
 / Test: Moving Average Analytics
 
 .tst.desc["Moving Average Analytics"]{
-  should["trying to fix it"]{
+  should["calculate moving averages for several windows"]{
   / Parametrized test showcasing .tst.forall
   cases: ([] 
     window: 2 3; 

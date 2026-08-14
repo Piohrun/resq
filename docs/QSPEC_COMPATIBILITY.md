@@ -30,6 +30,15 @@ When invoked through `bin/qspec` (or `resq test -qspec-compat`), resQ supports:
 
 The executable gate runs seven byte-identical upstream public suites: assertions,
 UI, mocking, fuzzing, file fixtures, directory fixtures, and text fixtures.
+`bin/qspec <directory>` also recognizes the pinned upstream `qspec_test_*.q`
+filename convention in addition to resQ's normal defaults. An explicit
+`testFilePatterns` configuration replaces those launcher defaults.
+
+Compatibility is certified against the pinned contract above, not as a claim
+about every historical private qspec helper or output byte. Where one suite
+cannot serve both semantics, CI should keep two explicit lanes: run the legacy
+source through `bin/qspec` for the pinned compatibility contract, and run
+native resQ suites through `bin/resq test` for strict whole-value comparisons.
 
 ## Intentional semantic differences
 
@@ -59,7 +68,7 @@ parsing qspec console text is not supported.
 
 The public boundary is versioned independently from implementation internals.
 A removal or incompatible semantic change to a guaranteed item requires a
-major resQ release. Additive aliases or features do not broaden this qspec
+  major resQ release. Additive aliases or features do not broaden this qspec
 contract automatically. An upstream qspec-baseline change requires updating
 the pinned fixtures, this document, and the executable compatibility tests in
 one commit.

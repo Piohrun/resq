@@ -1896,6 +1896,8 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-shard-count N` | Partition the selected shard unit across `N > 0` shards (default `1`) |
 | `-shard-unit U` | Select `file` (default), `test`, or declarative `case` assignment |
 | `-report-profile P` | JSON evidence profile: `full` (default), `results`, or `telemetry`; sharded/release runs require `full` |
+| `-final-diffs` | Repeat retained structural diffs in the final human failure listing |
+| `-final-diff-limit N` | Total character budget for `-final-diffs` (default 4000) |
 | `-labels JSON` | Overlay a bounded string-to-string `run.labels` object; CLI wins over `RESQ_LABELS_JSON` and config |
 | `-no-vcs` | Disable the single cached Git context probe and record VCS status `disabled` |
 | `-plugin FILES` | Load comma-separated trusted q plugin files before discovery; files register public observers/reporters under `.resq` |
@@ -2158,6 +2160,8 @@ Create `resq.json` in project root:
 | `diffHugeTableThreshold` | `10000` | Add random table-diff sampling above this row count |
 | `testFilePatterns` | `test_*.q`, `*_test.q` | Basename patterns used during directory discovery |
 | `qspecCompat` | `false` | Use qspec comparison semantics for `musteq` / `mustne` |
+| `finalDiffs` | `false` | Repeat structural diffs in the final human failure listing |
+| `finalDiffLimit` | `4000` | Total character budget for final repeated diffs |
 | `covStatements` | `false` | Enable measured statement/line instrumentation |
 | `coverageMin` | `0` | Coverage gate percentage (`0` disables the threshold) |
 | `coverageFunctionMin` | `0` | Independent complete-function threshold |

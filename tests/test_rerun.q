@@ -52,7 +52,10 @@
 \d .
 
 .tst.desc["Stable-ID rerun workflow #slow"]{
-  after{.tst.reruntest.cleanup[]};
+  after{
+    .tst.reruntest.cleanup[];
+    if[.utl.pathExists .tst.reruntest.base;'"rerun test state cleanup failed"];
+  };
 
   skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];
          "persist, prioritize, select and isolate previous failures"]{

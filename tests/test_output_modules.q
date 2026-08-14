@@ -224,6 +224,15 @@
         flStr: "\n    " sv .resq.renderMsg each (),r`failures;
         must[(.resq.renderMsg r`message) ~ flStr; "dup message must be detected so it prints once"];
     };
+
+    should["extract final structural diffs without repeating summaries"]{
+        marker:.tst.diffDetailMarker;
+        message:"Expected 1 to match 2",marker,"Value mismatch: 1 vs 2";
+        .resq.summaryOnly[message] musteq "Expected 1 to match 2";
+        .resq.diffDetail[message] musteq "Value mismatch: 1 vs 2";
+        .resq.firstDiffDetail[message;enlist message] musteq "Value mismatch: 1 vs 2";
+        .resq.diffDetail["plain failure"] musteq "";
+    };
  };
 
 / Nothing pinned the emitted XML, so a reporter could publish structurally

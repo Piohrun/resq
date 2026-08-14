@@ -22,6 +22,36 @@
     .resq.summaryOnly .tst.toString v
  };
 
+/ Extract the machine-retained structural diff from a failure value. Streaming
+/ remains the default diagnostic path; this is used only by the opt-in final
+/ report mode for CI systems that surface the end of a long log.
+.resq.diffDetail:{[v]
+    s:.tst.toString v;
+    marker:@[get;`.tst.diffDetailMarker;{"\n--- diff ---\n"}];
+    at:ss[s;marker];
+    $[count at;(first[at]+count marker)_s;""]
+ };
+
+.resq.firstDiffDetail:{[message;failures]
+    values:(enlist message),(),failures;
+    details:.resq.diffDetail each values;
+    details:details where 0<count each details;
+    $[count details;first details;""]
+ };
+
+.resq.printFinalDiff:{[detail]
+    if[not 1b~@[get;`.tst.app.finalDiffs;0b];:()];
+    remaining:"j"$@[get;`.tst.app.finalDiffRemaining;0j];
+    if[(remaining<=0) or 0=count detail;:()];
+    shown:remaining sublist detail;
+    -1 "  Final diff (bounded):";
+    -1 shown;
+    .tst.app.finalDiffRemaining:remaining-count shown;
+    if[count[shown]<count detail;
+        -1 "  ... [final diff output limit reached]";
+        .tst.app.finalDiffRemaining:0j];
+ };
+
 / Colorize console text using the SAME central gate as diff.q (.tst.useColor,
 / computed once at load from NO_COLOR + .tst.diffColors + TTY auto-detect). When
 / color is off this is a no-op so CI logs / redirected files stay plain.
@@ -131,6 +161,7 @@
  };
 
 .resq.reportText:{[results]
+    .tst.app.finalDiffRemaining:"j"$@[get;`.tst.app.finalDiffLimit;4000j];
     snapshotInventory:$[(99h=type results) and `snapshotInventory in key results;
         results`snapshotInventory;.tst.emptySnapshotInventory 0b];
     benchmarkAnalysis:$[(99h=type results) and `benchmarkAnalysis in key results;
@@ -162,6 +193,7 @@
                 -1 "  Failures: ";
                 { -1 "    ", .resq.renderMsg x } each fl
             ];
+            .resq.printFinalDiff .resq.firstDiffDetail[f`message;fl];
             captured: $[`output in key f; .tst.toString f`output; ""];
             if[count captured;
                 -1 "  Captured child output:";

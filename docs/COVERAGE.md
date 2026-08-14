@@ -385,10 +385,10 @@ resq cover tests/ --source src/ -cov-statements \
 - `-cov-branch-completeness-min N` gates safely instrumented eligible sites.
 
 A line gate fails closed when statement instrumentation is incomplete, even if
-the measured subset exceeds its threshold. This is intentional: the quickstart,
-for example, measures 88.24% of 17 probed statements while only 6 of 20
-functions (30%) contribute statement data. To knowingly gate only that measured
-subset, add `-cov-allow-partial` (configuration:
+the measured subset exceeds its threshold. The checked quickstart contract
+currently measures 48 of 59 source lines and 51 of 72 statement sites, with all
+20 eligible functions instrumented; its line basis is therefore complete. To
+knowingly gate an incomplete measured subset, add `-cov-allow-partial` (configuration:
 `"allowPartialLineCoverage": true`). JSON exposes each decision under
 `coverage.gates.functions`, `.lines`, and `.completeness`, plus the overall
 `coverage.passed` verdict. Branch decisions are `.branches` and
