@@ -1,5 +1,9 @@
 # resQ 1.8.0 release notes
 
+> **Superseded:** `v1.8.0` contains evidence-integrity defects and must not be
+> used for production qualification. Install `v1.8.1` and read the
+> [1.8.1 release notes](RELEASE_NOTES_1_8_1.md).
+
 resQ 1.8.0 makes test loading, machine evidence, and release qualification
 substantially stricter while retaining the documented qspec-compatible public
 surface.

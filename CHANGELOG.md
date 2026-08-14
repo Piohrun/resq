@@ -6,6 +6,51 @@ All notable changes to the **resQ** project will be documented in this file.
 
 _No changes yet._
 
+## [1.8.1] - 2026-08-14 - Evidence Integrity Hotfix
+
+`v1.8.0` is superseded by this release and should not be used for production
+qualification. This patch repairs false-green and evidence-loss paths without
+changing the documented identity-v2 algorithm or other major-version contracts.
+
+### Fixed
+
+- Benchmark regression analysis now computes Mann-Whitney ranks from the sorted
+  samples, applies the tie correction with the intended q evaluation order, and
+  is checked against independent reference statistics for identical, reversed,
+  tied, and unequal distributions.
+- Text snapshots use the versioned full-fidelity snapshot-v2 codec instead of a
+  console-width renderer. Legacy unversioned text snapshots are distrusted and
+  require explicit update mode, preventing previously truncated evidence from
+  being silently blessed. Full diagnostic rendering is likewise independent of
+  console geometry while console output retains an explicit size budget.
+- Whole-valued JSON numbers now reach integer configuration keys, list-valued
+  settings normalize element-by-element, and large execution seeds have an
+  explicit decimal-string spelling instead of being lost to JSON float
+  precision.
+- Repeated coverage initialization now restores prior wrappers and clears stale
+  runtime state, so coverage works across consecutive in-process and watch-mode
+  runs without recursive instrumentation.
+- Flake history is merge-safe under filtered and sharded runs, ages unseen
+  entries only after complete inventories, retains bounded evidence, and uses a
+  single-writer lock around read/merge/atomic publish. Malformed rerun, history,
+  and quarantine caches fail open for execution with structured diagnostics;
+  malformed quarantine policy remains non-authoritative and blocking.
+- NDJSON envelopes retain labels and hostname, XML suite grouping normalizes
+  scalar text, shard snapshot completeness is aggregated rather than inferred,
+  and benchmark lifecycle events use their owning test's finish timestamp.
+- Watch fingerprints detect same-size same-second rewrites, isolated children
+  receive private rerun state, and q-backed verification/self-coverage helpers
+  have bounded process-group cleanup with staged evidence publication.
+
+### Compatibility and migration
+
+- Report schema v2 receives additive evidence fields only; existing conforming
+  consumers remain valid. Stable test/case identity remains the documented v2
+  algorithm.
+- Binary snapshots are unchanged. Text snapshots created before snapshot-v2
+  fail with an actionable migration diagnostic and may be rewritten only with
+  explicit snapshot update mode; review the resulting diff before commit.
+
 ## [1.8.0] - 2026-08-14 - Production Automation & Deep Coverage
 
 ### Added

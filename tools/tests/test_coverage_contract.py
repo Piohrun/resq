@@ -105,7 +105,7 @@ def artifact(test_id: str) -> dict[str, object]:
     ]
     return {
         "schemaVersion": 2, "kind": "resq-coverage", "framework": "resQ",
-        "frameworkVersion": "1.8.0", "summary": summary(),
+        "frameworkVersion": "1.8.1", "summary": summary(),
         "files": [{
             "path": path, "loaded": True, "functionFound": 1, "functionHit": 1,
             "statementFunctionsInstrumented": 1, "lineFound": 1, "lineHit": 1,

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "framework": "resQ",
-  "frameworkVersion": "1.8.0",
+  "frameworkVersion": "1.8.1",
   "run": {
     "id": "run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "startedAt": "2026-08-12T12:00:00.000000000Z",
@@ -12,7 +12,7 @@
     "qVersion": "4.1",
     "qRelease": "2024.01.01",
     "os": "linux",
-    "resqVersion": "1.8.0",
+    "resqVersion": "1.8.1",
     "vcs": {"sha": "deadbeef", "branch": "main", "dirty": false},
     "ci": {"provider": "contract"},
     "config": {},
@@ -141,7 +141,7 @@
     "digest": "manifest_cccccccccccccccccccccccccccccccc",
     "digestAlgorithm": "md5-source-topology-v2",
     "identityAlgorithm": "resq-test-case-id-v2",
-    "frameworkVersion": "1.8.0",
+    "frameworkVersion": "1.8.1",
     "revision": {"sha": "deadbeef", "branch": "main", "dirty": false},
     "shard": {
       "index": 0,

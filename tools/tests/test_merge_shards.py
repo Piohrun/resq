@@ -175,11 +175,11 @@ class MergerContractTests(unittest.TestCase):
             ), "manifest digest"),
             ("config", lambda d: d["run"]["config"].update(strict=False), "effective configuration"),
             ("framework", lambda d: (
-                d.update(frameworkVersion="1.8.1"),
-                d["run"].update(resqVersion="1.8.1"),
-                d["manifest"].update(frameworkVersion="1.8.1"),
-                d["events"][0]["payload"].update(frameworkVersion="1.8.1"),
-                d["events"][1]["payload"].update(frameworkVersion="1.8.1"),
+                d.update(frameworkVersion="1.8.2"),
+                d["run"].update(resqVersion="1.8.2"),
+                d["manifest"].update(frameworkVersion="1.8.2"),
+                d["events"][0]["payload"].update(frameworkVersion="1.8.2"),
+                d["events"][1]["payload"].update(frameworkVersion="1.8.2"),
             ), "framework version"),
         )
         for label, mutate, expected in mutations:
