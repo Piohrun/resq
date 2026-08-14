@@ -17,6 +17,20 @@ jobs:
     name: Licence-free contracts
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: resq
+          POSTGRES_PASSWORD: resq
+          POSTGRES_DB: resq
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U resq -d resq"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - name: Package, shell, schema, docs, and Python contracts
@@ -29,6 +43,15 @@ jobs:
             tools/verify_static.py
             tools/verify_python_contracts.py
           } 2>&1 | tee artifacts/licence-free/contracts.txt
+      - name: Execute PostgreSQL ingestion contract
+        shell: bash
+        env:
+          RESQ_POSTGRES_DSN: postgresql://resq:resq@127.0.0.1:5432/resq
+        run: |
+          set -euo pipefail
+          python3 -m pip install 'psycopg[binary]>=3.1,<4'
+          tools/verify_ingestion_contract.py \
+            2>&1 | tee artifacts/licence-free/postgres-ingestion.txt
       - name: Upload licence-free evidence
         if: always()
         uses: actions/upload-artifact@v4

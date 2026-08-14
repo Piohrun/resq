@@ -1,34 +1,212 @@
 {
-  "title": "resQ test overview",
-  "description": "Example only: low-cardinality dimensions are labels; IDs, paths, revisions, and messages stay fields.",
+  "title": "resQ SQL evidence overview",
+  "description": "Executable SQL panels over the resQ normalized table-v2 ingestion path.",
   "schemaVersion": 39,
-  "tags": ["resq", "testing"],
+  "tags": [
+    "resq",
+    "testing",
+    "sql"
+  ],
+  "__inputs": [
+    {
+      "name": "DS_RESQ_SQL",
+      "label": "resQ PostgreSQL",
+      "type": "datasource",
+      "pluginId": "grafana-postgresql-datasource",
+      "pluginName": "PostgreSQL"
+    }
+  ],
   "templating": {
     "list": [
-      {"name": "service", "type": "query", "label": "Service", "query": "label_values(resq_tests_total, service)"},
-      {"name": "environment", "type": "query", "label": "Environment", "query": "label_values(resq_tests_total, environment)"}
+      {
+        "name": "service",
+        "type": "query",
+        "label": "Service",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_RESQ_SQL}"
+        },
+        "query": "SELECT DISTINCT service AS __text, service AS __value FROM resq_runs WHERE service <> '' ORDER BY service",
+        "refresh": 1
+      },
+      {
+        "name": "environment",
+        "type": "query",
+        "label": "Environment",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_RESQ_SQL}"
+        },
+        "query": "SELECT DISTINCT environment AS __text, environment AS __value FROM resq_runs WHERE environment <> '' AND (${service:sqlstring} = '' OR service = ${service:sqlstring}) ORDER BY environment",
+        "refresh": 1
+      }
     ]
   },
   "panels": [
     {
-      "title": "Failures by service/environment",
+      "id": 1,
+      "title": "Pass/fail rate",
       "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
       "targets": [
         {
-          "expr": "sum by (service, environment, status) (rate(resq_tests_total{service=\"$service\",environment=\"$environment\",status=~\"fail|error\"}[5m]))",
-          "legendFormat": "{{service}} / {{environment}} / {{status}}"
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, r.service, r.environment,\n       CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,\n       r.fail_count + r.error_count AS failures\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at"
         }
-      ]
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
     },
     {
+      "id": 2,
       "title": "Run duration",
       "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, service, environment) (rate(resq_run_duration_seconds_bucket{service=\"$service\",environment=\"$environment\"}[15m])))",
-          "legendFormat": "p95 {{service}} / {{environment}}"
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, r.service, r.environment, r.duration_seconds\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at"
         }
-      ]
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "title": "Per-test history",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, t.test_id, t.case_id, t.suite, t.description,\n       t.status, t.duration_seconds, t.file_path\nFROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at, t.test_id, t.case_id"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "id": 4,
+      "title": "Benchmark median/classification",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, b.benchmark_id, b.suite, b.description,\n       b.med_time_ms, b.comparison_class\nFROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at, b.benchmark_id"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "id": 5,
+      "title": "Coverage basis/completeness",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, c.function_percent, c.line_percent,\n       c.statement_site_percent, c.statement_site_instrumentation_percent,\n       c.branch_percent, c.branch_instrumentation_percent\nFROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      }
+    },
+    {
+      "id": 6,
+      "title": "Branch/deployment/host correlation",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, r.service, r.environment, r.deployment_id,\n       r.artifact_digest, r.vcs_sha, r.vcs_branch, r.hostname, r.q_version,\n       r.os, r.ci_provider, r.ci_pipeline_id, r.fail_count, r.error_count\nFROM resq_runs AS r WHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) ORDER BY r.finished_at DESC"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      }
+    },
+    {
+      "id": 7,
+      "title": "Coverage by test context",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_RESQ_SQL}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.finished_at AS time, c.context_id, c.test_id, t.status, m.kind,\n       SUM(m.hits) AS hits\nFROM resq_coverage_contexts AS c\nJOIN resq_runs AS r ON r.run_id = c.run_id\nLEFT JOIN resq_tests AS t ON t.run_id = c.run_id AND t.test_id = c.test_id\nJOIN resq_coverage_context_metrics AS m\n  ON m.coverage_context_key = c.coverage_context_key\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring})\nGROUP BY r.finished_at, c.context_id, c.test_id, t.status, m.kind\nORDER BY r.finished_at, c.context_id, m.kind"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      }
     }
-  ]
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  }
 }

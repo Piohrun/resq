@@ -43,6 +43,11 @@ All notable changes to the **resQ** project will be documented in this file.
   Allure treats historical offsetless timestamps as UTC, and Python's unittest
   and pytest collectors share the same adapter corpus without accidental helper
   collection.
+- SQL ingestion is now executable end to end: one contract generates PostgreSQL
+  and SQLite DDL, transactional loader mappings, reference queries, and a
+  PostgreSQL-backed Grafana dashboard. The dashboard no longer assumes
+  unshipped Prometheus metrics, and CI executes every query after loading both
+  sparse and populated evidence.
 
 ## [1.8.1] - 2026-08-14 - Evidence Integrity Hotfix
 

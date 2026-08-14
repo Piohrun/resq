@@ -12,9 +12,13 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from resq_to_tables import table_contract  # noqa: E402
 from review_corpus import coverage_artifact, scale_report  # noqa: E402
+from verify_ingestion_contract import verify  # noqa: E402
 
 
 class IngestionTests(unittest.TestCase):
+    def test_reference_sql_and_dashboard_execute(self) -> None:
+        verify()
+
     def test_tables_branch_and_run_join_contract(self) -> None:
         report = scale_report(1)
         run_id = report["run"]["id"]

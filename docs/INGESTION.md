@@ -25,6 +25,7 @@ Its tables and stable joins are:
 | `attempts` | `runId`, `executionId`, `attempt` | `tests` |
 | `benchmarks` | `runId`, `benchmarkId` | `runs`; `testId` may join `tests` |
 | `diagnostics` | `diagnosticKey` | `runs.runId` |
+| `coverageRuns` | `runId` | `runs.runId` |
 | `coverageFiles` | `coverageFileKey` | `runs.runId` |
 | `coverageFunctions` | `coverageFunctionKey` | `coverageFiles` |
 | `coverageSites` | `coverageSiteKey` | `coverageFiles`/`coverageFunctions` |
@@ -38,6 +39,39 @@ its one-based attempt number. Coverage site identity is scoped by run and file,
 so equal site IDs in different files cannot collide.
 Statement-site rows carry `hits`; branch-site rows carry `edgesHit`. These are
 deliberately different measures and must not be aggregated into one column.
+
+## Transactional SQL ingestion
+
+The executable SQL contract lives in `tools/ingestion_contract.py`. It is the
+single source for warehouse table/column mappings, foreign keys, inserts,
+reference queries, and Grafana panel queries. Each SQL row also retains the
+complete normalized object in `raw_payload`, so additive table-v2 fields are
+not discarded before the warehouse schema projects them explicitly.
+
+Run, validate, normalize, and commit one run to SQLite with:
+
+```bash
+bin/resq test tests -strict -json -cov -quiet -outDir artifacts/resq
+python3 tools/resq_ingest.py artifacts/resq/test-results.json \
+  --coverage artifacts/resq/coverage.json \
+  --sqlite artifacts/resq/evidence.sqlite \
+  --tables-out artifacts/resq/resq-tables.json
+```
+
+The PostgreSQL path uses the same validation, normalization, DDL, mappings,
+foreign keys, and one-run transaction:
+
+```bash
+python3 tools/resq_ingest.py artifacts/resq/test-results.json \
+  --coverage artifacts/resq/coverage.json \
+  --postgres-dsn "$RESQ_POSTGRES_DSN" \
+  --tables-out artifacts/resq/resq-tables.json
+```
+
+PostgreSQL loading requires psycopg 3. SQLite uses only the Python standard
+library. The adapters are deliberately stateless: the warehouse owner remains
+responsible for credentials, schema migration approval, retention, partitioning,
+backup, and deletion policy. A rejected child join rolls back the entire run.
 
 ## Labels and cardinality
 
@@ -54,12 +88,23 @@ and CI `provider`. Keep `runId`, `testId`, `caseId`, commit SHA, artifact digest
 deployment ID, paths, suite/description text, and error messages as structured
 fields. They are useful join keys but unsafe metric/log labels.
 
-The reference SQL is
-[`examples/resq_ingestion.sql`](examples/resq_ingestion.sql). The example
-Grafana dashboard is
-[`examples/grafana-resq-overview.json`](examples/grafana-resq-overview.json).
+Generated PostgreSQL and SQLite references are
+[`examples/resq_ingestion.sql`](examples/resq_ingestion.sql) and
+[`examples/resq_ingestion_sqlite.sql`](examples/resq_ingestion_sqlite.sql).
+The [example Grafana dashboard](examples/grafana-resq-overview.json) uses a
+PostgreSQL datasource over those shipped tables—there are no assumed
+Prometheus metrics. Its executable panels cover pass/fail rate, run duration,
+per-test history, benchmark median/classification, coverage bases and
+instrumentation completeness, test-context coverage, and
+branch/deployment/host correlation.
 Deployment correlation uses an immutable artifact digest or commit SHA together
 with supplied environment/service labels; branch name alone is insufficient.
+
+Regenerate checked examples after changing the contract with
+`python3 tools/render_ingestion_assets.py --write`; CI runs the same renderer in
+check mode, loads empty and populated contracts transactionally into SQLite,
+executes every reference/dashboard query, and repeats the lane against the
+documented PostgreSQL dialect.
 
 ## VCS and CI context
 

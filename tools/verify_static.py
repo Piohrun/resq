@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from validate_report import validate  # noqa: E402
 from report_profiles import project  # noqa: E402
 from render_quickstart_coverage import check_document as check_quickstart_coverage  # noqa: E402
+from render_ingestion_assets import expected_assets as expected_ingestion_assets  # noqa: E402
 from verify_formatter_boundaries import check as check_formatter_boundaries  # noqa: E402
 
 
@@ -39,8 +40,10 @@ REQUIRED = {
     "docs/schema/resq-ingestion-tables-v1.schema.json",
     "docs/schema/resq-ingestion-tables-v2.schema.json", "docs/INGESTION.md",
     "docs/schema/resq-release-audit-v1.schema.json",
-    "docs/examples/resq_ingestion.sql", "docs/examples/grafana-resq-overview.json",
-    "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
+    "docs/examples/resq_ingestion.sql", "docs/examples/resq_ingestion_sqlite.sql",
+    "docs/examples/grafana-resq-overview.json",
+    "tools/ingestion_contract.py", "tools/render_ingestion_assets.py",
+    "tools/resq_ingest.py", "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",
     "tools/verify_labels_context.py",
     "tools/process_control.py",
     "tools/coverage_contract.py", "tools/validate_coverage.py",
@@ -175,6 +178,9 @@ def check_docs() -> int:
 
 def check_contracts() -> None:
     check_quickstart_coverage()
+    for path, expected in expected_ingestion_assets().items():
+        if not path.is_file() or path.read_text(encoding="utf-8") != expected:
+            raise ValueError(f"generated ingestion asset is stale: {path.relative_to(ROOT)}")
     schema = json.loads(
         (ROOT / "docs/schema/resq-report-v2.schema.json").read_text(encoding="utf-8")
     )
