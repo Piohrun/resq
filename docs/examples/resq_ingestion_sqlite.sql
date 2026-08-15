@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS resq_tests (
   quarantine_active INTEGER,
   quarantine_owner TEXT,
   quarantine_reason TEXT,
+  quarantine_issue TEXT,
   quarantine_expires_at TEXT,
   raw_payload TEXT NOT NULL,
   PRIMARY KEY (run_id, execution_id),
@@ -221,16 +222,28 @@ SELECT DISTINCT environment AS __text, environment AS __value FROM resq_runs WHE
 -- query:branches — Branches
 SELECT DISTINCT vcs_branch AS __text, vcs_branch AS __value FROM resq_runs WHERE vcs_branch <> '' AND (:service = '' OR service = :service) ORDER BY vcs_branch;
 
--- query:latest_run — Latest run headline
-SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,
-       r.fail_count + r.error_count AS failures, r.skip_count,
+-- query:tests_list — Tests
+SELECT DISTINCT t.suite || ' :: ' || t.description ||
+       CASE WHEN t.case_id <> '' THEN ' [case]' ELSE '' END AS __text,
+       t.execution_id AS __value
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch) ORDER BY __text LIMIT 2000;
+
+-- query:benchmarks_list — Benchmarks
+SELECT DISTINCT b.suite || ' :: ' || b.description AS __text,
+       b.benchmark_id AS __value
+FROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id
+WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch) ORDER BY __text LIMIT 500;
+
+-- query:headline_trend — Latest run headline
+SELECT r.finished_at AS time, r.test_count,
+       r.fail_count + r.error_count AS failures,
        CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,
-       r.duration_seconds,
        (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,
        (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,
        (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent
 FROM resq_runs AS r WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch)
-ORDER BY r.finished_at DESC LIMIT 1;
+ORDER BY r.finished_at;
 
 -- query:pass_rate — Pass rate
 SELECT r.finished_at AS time,
@@ -271,6 +284,34 @@ FROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id
 WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch)
 ORDER BY r.finished_at;
 
+-- query:coverage_drops — Coverage drops vs previous covered run
+WITH history AS (
+    SELECT f.file_path, r.finished_at,
+           CASE WHEN f.function_found = 0 THEN 100.0
+                ELSE 100.0 * f.function_hit / f.function_found END AS function_percent,
+           LAG(CASE WHEN f.function_found = 0 THEN 100.0
+                ELSE 100.0 * f.function_hit / f.function_found END) OVER (
+               PARTITION BY f.file_path ORDER BY r.finished_at) AS previous_percent
+    FROM resq_coverage_files AS f JOIN resq_runs AS r ON r.run_id = f.run_id
+    WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch))
+SELECT h.file_path, h.previous_percent, h.function_percent,
+       h.function_percent - h.previous_percent AS change
+FROM history AS h
+WHERE h.finished_at = (
+    SELECT MAX(r2.finished_at) FROM resq_runs AS r2
+    JOIN resq_coverage_runs AS c2 ON c2.run_id = r2.run_id WHERE (:service = '' OR r2.service = :service) AND (:environment = '' OR r2.environment = :environment) AND (:branch = '' OR r2.vcs_branch = :branch))
+  AND h.previous_percent IS NOT NULL
+  AND h.function_percent < h.previous_percent
+ORDER BY change, h.file_path LIMIT 25;
+
+-- query:daily_duration — Daily run duration (avg/max)
+SELECT MIN(r.finished_at) AS time,
+       AVG(r.duration_seconds) AS avg_seconds,
+       MAX(r.duration_seconds) AS max_seconds
+FROM resq_runs AS r WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch)
+GROUP BY SUBSTR(CAST(r.finished_at AS TEXT), 1, 10)
+ORDER BY time;
+
 -- query:coverage_files_latest — Least-covered files (latest run)
 SELECT f.file_path, f.function_hit, f.function_found,
        CASE WHEN f.function_found = 0 THEN 100.0
@@ -284,7 +325,8 @@ WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.enviro
 ORDER BY function_percent, f.file_path LIMIT 25;
 
 -- query:slowest_tests — Slowest tests (latest run)
-SELECT t.suite, t.description, t.duration_seconds, t.attempts, t.file_path
+SELECT t.suite, t.description, t.duration_seconds, t.attempts, t.file_path,
+       t.execution_id
 FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
 WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch) AND r.finished_at = (
     SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE (:service = '' OR r2.service = :service) AND (:environment = '' OR r2.environment = :environment) AND (:branch = '' OR r2.vcs_branch = :branch))
@@ -294,13 +336,48 @@ ORDER BY t.duration_seconds DESC LIMIT 15;
 SELECT t.suite, t.description,
        SUM(CASE WHEN t.status IN ('fail', 'error') THEN 1 ELSE 0 END) AS failures,
        SUM(CASE WHEN t.flaky THEN 1 ELSE 0 END) AS flaky_passes,
-       COUNT(*) AS runs, MAX(r.finished_at) AS last_seen
+       COUNT(*) AS runs, MAX(r.finished_at) AS last_seen, t.execution_id
 FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
 WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch)
-GROUP BY t.test_id, t.case_id, t.suite, t.description
+GROUP BY t.test_id, t.case_id, t.suite, t.description, t.execution_id
 HAVING SUM(CASE WHEN t.status IN ('fail', 'error') THEN 1 ELSE 0 END) > 0
     OR SUM(CASE WHEN t.flaky THEN 1 ELSE 0 END) > 0
 ORDER BY failures DESC, flaky_passes DESC LIMIT 15;
+
+-- query:newly_failing — Newly failing tests (latest vs previous run)
+WITH history AS (
+    SELECT t.execution_id, t.suite, t.description, t.status, t.file_path,
+           r.finished_at,
+           LAG(t.status) OVER (
+               PARTITION BY t.execution_id ORDER BY r.finished_at) AS previous_status
+    FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+    WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch))
+SELECT h.suite, h.description, h.previous_status, h.status, h.file_path,
+       h.execution_id
+FROM history AS h
+WHERE h.finished_at = (SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE (:service = '' OR r2.service = :service) AND (:environment = '' OR r2.environment = :environment) AND (:branch = '' OR r2.vcs_branch = :branch))
+  AND h.status IN ('fail', 'error') AND h.previous_status = 'pass'
+ORDER BY h.suite, h.description LIMIT 25;
+
+-- query:test_detail_history — Selected test duration history
+SELECT r.finished_at AS time, t.duration_seconds
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch) AND (:test = '' OR t.execution_id = :test)
+ORDER BY r.finished_at;
+
+-- query:test_detail_runs — Selected test executions
+SELECT r.finished_at AS time, t.status, t.duration_seconds, t.attempts,
+       t.flaky, t.message
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch) AND (:test = '' OR t.execution_id = :test)
+ORDER BY r.finished_at DESC LIMIT 50;
+
+-- query:test_detail_attempts — Selected test attempts
+SELECT a.started_at, a.attempt, a.status, a.duration_seconds, a.message
+FROM resq_attempts AS a
+JOIN resq_runs AS r ON r.run_id = a.run_id
+WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch) AND (:test = '' OR a.execution_id = :test)
+ORDER BY a.attempt_key DESC LIMIT 100;
 
 -- query:test_history — Per-test history
 SELECT r.finished_at AS time, t.test_id, t.case_id, t.suite, t.description,
@@ -320,7 +397,8 @@ ORDER BY r.finished_at;
 
 -- query:quarantined_tests — Active quarantines (latest run)
 SELECT t.suite, t.description, t.status, t.quarantine_state,
-       t.quarantine_owner, t.quarantine_reason, t.quarantine_expires_at
+       t.quarantine_owner, t.quarantine_reason, t.quarantine_issue,
+       t.quarantine_expires_at
 FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
 WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch) AND t.quarantine_active AND r.finished_at = (
     SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE (:service = '' OR r2.service = :service) AND (:environment = '' OR r2.environment = :environment) AND (:branch = '' OR r2.vcs_branch = :branch))
@@ -331,6 +409,13 @@ SELECT r.finished_at AS time, b.suite || ' :: ' || b.description AS metric,
        b.med_time_ms AS value
 FROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id
 WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch)
+  AND (:benchmark = '' OR b.benchmark_id = :benchmark)
+  AND (:benchmark <> '' OR b.benchmark_id IN (
+      SELECT b2.benchmark_id FROM resq_benchmarks AS b2
+      JOIN resq_runs AS r2 ON r2.run_id = b2.run_id
+      WHERE (:service = '' OR r2.service = :service) AND (:environment = '' OR r2.environment = :environment) AND (:branch = '' OR r2.vcs_branch = :branch)
+      GROUP BY b2.benchmark_id
+      ORDER BY MAX(b2.med_time_ms) DESC LIMIT 12))
 ORDER BY r.finished_at, b.benchmark_id;
 
 -- query:benchmark_verdicts — Benchmark verdicts per run
@@ -357,6 +442,12 @@ SELECT r.finished_at AS time, r.service, r.environment, r.deployment_id,
        r.os, r.ci_provider, r.ci_pipeline_id, r.fail_count, r.error_count
 FROM resq_runs AS r WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch)
 ORDER BY r.finished_at DESC;
+
+-- query:qversion_annotations — q build annotations
+SELECT MIN(r.finished_at) AS time,
+       'q ' || r.q_version || ' / ' || r.os AS text
+FROM resq_runs AS r WHERE (:service = '' OR r.service = :service) AND (:environment = '' OR r.environment = :environment) AND (:branch = '' OR r.vcs_branch = :branch)
+GROUP BY r.q_version, r.os ORDER BY time;
 
 -- query:deploy_annotations — Deployment annotations
 SELECT MIN(r.finished_at) AS time,

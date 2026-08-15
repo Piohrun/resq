@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 POSTGRES = ROOT / "docs/examples/resq_ingestion.sql"
 SQLITE = ROOT / "docs/examples/resq_ingestion_sqlite.sql"
 DASHBOARD = ROOT / "docs/examples/grafana-resq-overview.json"
+ALERTS = ROOT / "docs/examples/grafana-resq-alerts.yaml"
 
 
 def render_sql(dialect: str) -> str:
@@ -108,12 +109,39 @@ def timeseries_panel(
     }
 
 
-def table_panel(panel_id: int, key: str, grid: dict, *, description: str = "") -> dict:
+DETAIL_LINK = {
+    "title": "Open test detail",
+    "url": "/d/resq-evidence/resq-evidence-overview"
+           "?${__url_time_range}&var-test=${__data.fields.execution_id}",
+}
+
+
+def table_panel(
+    panel_id: int, key: str, grid: dict, *, description: str = "",
+    units: dict[str, str] | None = None, link_fields: tuple[str, ...] = (),
+    field_links: dict[str, dict] | None = None,
+) -> dict:
+    overrides: list[dict] = []
+    for field, unit in (units or {}).items():
+        overrides.append({
+            "matcher": {"id": "byName", "options": field},
+            "properties": [{"id": "unit", "value": unit}],
+        })
+    for field in link_fields:
+        overrides.append({
+            "matcher": {"id": "byName", "options": field},
+            "properties": [{"id": "links", "value": [DETAIL_LINK]}],
+        })
+    for field, link in (field_links or {}).items():
+        overrides.append({
+            "matcher": {"id": "byName", "options": field},
+            "properties": [{"id": "links", "value": [link]}],
+        })
     return {
         "id": panel_id, "title": QUERY_BY_KEY[key].title, "type": "table",
         "description": description, "datasource": DATASOURCE,
         "targets": [target(key, "table")], "gridPos": grid,
-        "fieldConfig": {"defaults": {"custom": {"filterable": True}}, "overrides": []},
+        "fieldConfig": {"defaults": {"custom": {"filterable": True}}, "overrides": overrides},
         "options": {"showHeader": True, "footer": {"show": False}},
     }
 
@@ -123,7 +151,7 @@ def stat_panel(
     thresholds: list[tuple[float | None, str]] | None = None,
     color: str | None = None, description: str = "",
 ) -> dict:
-    defaults: dict = {"unit": unit}
+    defaults: dict = {"unit": unit, "noValue": "0"}
     if thresholds is not None:
         defaults["thresholds"] = {"mode": "absolute", "steps": [
             {"color": step_color, "value": value} for value, step_color in thresholds
@@ -135,11 +163,11 @@ def stat_panel(
     return {
         "id": panel_id, "title": title, "type": "stat",
         "description": description, "datasource": DATASOURCE,
-        "targets": [target("latest_run", "table")], "gridPos": grid,
+        "targets": [target("headline_trend", "time_series")], "gridPos": grid,
         "fieldConfig": {"defaults": defaults, "overrides": []},
         "options": {
             "reduceOptions": {"values": False, "calcs": ["lastNotNull"], "fields": f"/^{field}$/"},
-            "colorMode": color_mode, "graphMode": "none", "textMode": "auto",
+            "colorMode": color_mode, "graphMode": "area", "textMode": "auto",
             "justifyMode": "auto",
         },
     }
@@ -159,105 +187,189 @@ def render_dashboard() -> str:
         "Statement/branch percentages are only trustworthy alongside their "
         "instrumentation completeness (next panel)."
     )
-    panels = [
-        row_panel(100, "Overview — latest matching run", 0),
-        stat_panel(1, "Pass rate", "pass_rate", {"h": 4, "w": 4, "x": 0, "y": 1},
-                   unit="percent",
-                   thresholds=[(None, STATUS["critical"]), (95, STATUS["warning"]), (100, STATUS["good"])],
-                   description="Passed tests as a share of executed tests in the latest run."),
-        stat_panel(2, "Tests", "test_count", {"h": 4, "w": 4, "x": 4, "y": 1},
-                   color=CATEGORY["blue"],
-                   description="Tests executed in the latest run."),
-        stat_panel(3, "Failures", "failures", {"h": 4, "w": 4, "x": 8, "y": 1},
-                   thresholds=[(None, STATUS["good"]), (1, STATUS["critical"])],
-                   description="Failed plus errored tests in the latest run."),
-        stat_panel(4, "Flaky passes", "flaky_count", {"h": 4, "w": 4, "x": 12, "y": 1},
-                   thresholds=[(None, STATUS["good"]), (1, STATUS["warning"])],
-                   description="Tests that passed only after a retry in the latest run."),
-        stat_panel(5, "Active quarantines", "active_quarantines", {"h": 4, "w": 4, "x": 16, "y": 1},
-                   thresholds=[(None, STATUS["good"]), (1, STATUS["serious"])],
-                   description="Tests running under an active, unexpired quarantine policy."),
-        stat_panel(6, "Function coverage", "function_percent", {"h": 4, "w": 4, "x": 20, "y": 1},
-                   unit="percent", color=CATEGORY["blue"],
-                   description="Gate-basis function coverage of the latest covered run. "
-                               "No implied target: thresholds belong to your gate config."),
+    panels: list[dict] = []
+    cursor = {"y": 0, "x": 0, "row_h": 0, "id": 0}
 
-        row_panel(101, "Trends", 5),
-        timeseries_panel(7, "pass_rate", {"h": 8, "w": 12, "x": 0, "y": 6},
-                         unit="percent", maximum=100,
-                         colors={"pass_rate": CATEGORY["blue"]},
-                         description="Share of executed tests that passed, per run."),
-        timeseries_panel(8, "failure_breakdown", {"h": 8, "w": 12, "x": 12, "y": 6},
-                         colors={"failed": STATUS["critical"], "errored": STATUS["serious"],
-                                 "flaky": STATUS["warning"], "skipped": NEUTRAL},
-                         description="Failed = assertion mismatch; errored = crashed/timed out; "
-                                     "flaky = passed only after retry; skipped = not executed."),
-        timeseries_panel(9, "run_duration", {"h": 8, "w": 12, "x": 0, "y": 14},
-                         unit="s", colors={"duration_seconds": CATEGORY["blue"]},
-                         description="Wall-clock duration of each run."),
-        timeseries_panel(10, "test_volume", {"h": 8, "w": 12, "x": 12, "y": 14},
-                         colors={"tests": CATEGORY["blue"], "assertions": CATEGORY["aqua"]},
-                         description="Suite growth over time: executed tests and assertions per run."),
+    def next_id() -> int:
+        cursor["id"] += 1
+        return cursor["id"]
 
-        row_panel(102, "Coverage", 22),
-        timeseries_panel(11, "coverage_trend", {"h": 8, "w": 12, "x": 0, "y": 23},
-                         unit="percent", maximum=100, colors=BASIS_COLOR,
-                         description=basis_note),
-        timeseries_panel(12, "coverage_completeness", {"h": 8, "w": 12, "x": 12, "y": 23},
-                         unit="percent", maximum=100,
-                         colors={"statement_completeness": CATEGORY["aqua"],
-                                 "branch_completeness": CATEGORY["orange"]},
-                         dashed=("statement_completeness", "branch_completeness"),
-                         description="How much of the eligible statement/branch surface was actually "
-                                     "instrumented. Dashed to mark it as the qualifier for the "
-                                     "same-hued basis series in the previous panel."),
-        table_panel(13, "coverage_files_latest", {"h": 8, "w": 24, "x": 0, "y": 31},
-                    description="Files with the lowest function coverage in the latest covered run."),
+    def section(title: str) -> None:
+        if cursor["x"]:
+            cursor["y"] += cursor["row_h"]
+            cursor["x"] = 0
+            cursor["row_h"] = 0
+        panels.append(row_panel(next_id(), title, cursor["y"]))
+        cursor["y"] += 1
 
-        row_panel(103, "Tests", 39),
-        table_panel(14, "slowest_tests", {"h": 8, "w": 12, "x": 0, "y": 40},
-                    description="Longest-running tests in the latest matching run."),
-        table_panel(15, "failing_tests", {"h": 8, "w": 12, "x": 12, "y": 40},
-                    description="Tests with failures or flaky passes inside the selected time range, "
-                                "grouped by stable identity."),
-        table_panel(23, "test_history", {"h": 8, "w": 24, "x": 0, "y": 48},
-                    description="Raw per-test drill-down feed: every execution in the selected "
-                                "range with stable IDs, status, and duration. Filterable columns."),
+    def place(width: int, height: int, build) -> None:
+        if cursor["x"] + width > 24:
+            cursor["y"] += cursor["row_h"]
+            cursor["x"] = 0
+            cursor["row_h"] = 0
+        grid = {"h": height, "w": width, "x": cursor["x"], "y": cursor["y"]}
+        panels.append(build(next_id(), grid))
+        cursor["x"] += width
+        cursor["row_h"] = max(cursor["row_h"], height)
 
-        row_panel(104, "Flake and quarantine debt", 56),
-        timeseries_panel(16, "quarantine_debt", {"h": 8, "w": 12, "x": 0, "y": 57},
-                         colors={"active_quarantines": STATUS["serious"],
-                                 "retried_tests": STATUS["warning"]},
-                         description="Standing debt per run: actively quarantined tests and tests "
-                                     "that needed retries."),
-        table_panel(17, "quarantined_tests", {"h": 8, "w": 12, "x": 12, "y": 57},
-                    description="Active quarantines in the latest run with owner, reason, and expiry."),
+    duration_units = {"duration_seconds": "s", "avg_seconds": "s", "max_seconds": "s"}
+    percent_units = {
+        "function_percent": "percent", "previous_percent": "percent",
+        "change": "percent",
+    }
 
-        row_panel(105, "Benchmarks", 65),
-        timeseries_panel(18, "benchmark_history", {"h": 8, "w": 12, "x": 0, "y": 66},
-                         unit="ms", colors=None,
-                         description="Median sample time per benchmark identity. Series colors follow "
-                                     "Grafana's theme palette because the series set is dynamic."),
-        timeseries_panel(19, "benchmark_verdicts", {"h": 8, "w": 12, "x": 12, "y": 66},
-                         colors={"regressed": STATUS["critical"], "inconclusive": STATUS["warning"],
-                                 "improved": STATUS["good"], "stable": CATEGORY["blue"]},
-                         description="Statistical gate verdicts per run (Mann-Whitney + Holm with a "
-                                     "practical-effect threshold). Inconclusive usually means an "
-                                     "environment or sample-size mismatch, not health."),
+    section("Overview — latest matching run")
+    place(4, 4, lambda i, g: stat_panel(
+        i, "Pass rate", "pass_rate", g, unit="percent",
+        thresholds=[(None, STATUS["critical"]), (95, STATUS["warning"]), (100, STATUS["good"])],
+        description="Passed tests as a share of executed tests in the latest run, "
+                    "with the range trend behind the number."))
+    place(4, 4, lambda i, g: stat_panel(
+        i, "Tests", "test_count", g, color=CATEGORY["blue"],
+        description="Tests executed in the latest run."))
+    place(4, 4, lambda i, g: stat_panel(
+        i, "Failures", "failures", g,
+        thresholds=[(None, STATUS["good"]), (1, STATUS["critical"])],
+        description="Failed plus errored tests in the latest run."))
+    place(4, 4, lambda i, g: stat_panel(
+        i, "Flaky passes", "flaky_count", g,
+        thresholds=[(None, STATUS["good"]), (1, STATUS["warning"])],
+        description="Tests that passed only after a retry in the latest run."))
+    place(4, 4, lambda i, g: stat_panel(
+        i, "Active quarantines", "active_quarantines", g,
+        thresholds=[(None, STATUS["good"]), (1, STATUS["serious"])],
+        description="Tests running under an active, unexpired quarantine policy."))
+    place(4, 4, lambda i, g: stat_panel(
+        i, "Function coverage", "function_percent", g, unit="percent",
+        color=CATEGORY["blue"],
+        description="Gate-basis function coverage of the latest covered run. "
+                    "No implied target: thresholds belong to your gate config."))
 
-        row_panel(106, "Deployment, host, and framework context", 74),
-        table_panel(20, "deployment_host", {"h": 8, "w": 24, "x": 0, "y": 75},
-                    description="Run-level correlation record: branch, commit, deployment, artifact "
-                                "digest, host, q build, and CI pipeline. Correlate by artifact "
-                                "digest or deployment id; branch name alone is not sufficient."),
-        timeseries_panel(21, "diagnostics_trend", {"h": 8, "w": 12, "x": 0, "y": 83},
-                         colors={"errors": STATUS["critical"], "warnings": STATUS["warning"]},
-                         description="Framework hygiene diagnostics per run (pollution, resource "
-                                     "leaks, reporter issues)."),
-        table_panel(22, "coverage_context", {"h": 8, "w": 12, "x": 12, "y": 83},
-                    description="Opt-in per-test coverage attribution (-cov-contexts): which test "
-                                "contexts produced how many hits, by metric kind."),
-    ]
+    section("Trends")
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "pass_rate", g, unit="percent", maximum=100,
+        colors={"pass_rate": CATEGORY["blue"]},
+        description="Share of executed tests that passed, per run."))
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "failure_breakdown", g,
+        colors={"failed": STATUS["critical"], "errored": STATUS["serious"],
+                "flaky": STATUS["warning"], "skipped": NEUTRAL},
+        description="Failed = assertion mismatch; errored = crashed/timed out; "
+                    "flaky = passed only after retry; skipped = not executed."))
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "run_duration", g, unit="s",
+        colors={"duration_seconds": CATEGORY["blue"]},
+        description="Wall-clock duration of each run."))
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "test_volume", g,
+        colors={"tests": CATEGORY["blue"], "assertions": CATEGORY["aqua"]},
+        description="Suite growth over time: executed tests and assertions per run."))
+    place(24, 6, lambda i, g: timeseries_panel(
+        i, "daily_duration", g, unit="s",
+        colors={"avg_seconds": CATEGORY["blue"], "max_seconds": CATEGORY["orange"]},
+        description="Day-bucketed run duration for long ranges where per-run "
+                    "points become unreadable."))
+
+    section("Coverage")
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "coverage_trend", g, unit="percent", maximum=100, colors=BASIS_COLOR,
+        description=basis_note))
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "coverage_completeness", g, unit="percent", maximum=100,
+        colors={"statement_completeness": CATEGORY["aqua"],
+                "branch_completeness": CATEGORY["orange"]},
+        dashed=("statement_completeness", "branch_completeness"),
+        description="How much of the eligible statement/branch surface was actually "
+                    "instrumented. Dashed to mark it as the qualifier for the "
+                    "same-hued basis series in the previous panel."))
+    place(12, 8, lambda i, g: table_panel(
+        i, "coverage_files_latest", g, units=percent_units,
+        description="Files with the lowest function coverage in the latest covered run."))
+    place(12, 8, lambda i, g: table_panel(
+        i, "coverage_drops", g, units=percent_units,
+        description="Files whose function coverage fell versus the previous covered "
+                    "run — what the latest change uncovered."))
+
+    section("Tests")
+    place(12, 8, lambda i, g: table_panel(
+        i, "slowest_tests", g, units=duration_units, link_fields=("description",),
+        description="Longest-running tests in the latest matching run. Click a "
+                    "description to open the test-detail row for it."))
+    place(12, 8, lambda i, g: table_panel(
+        i, "failing_tests", g, link_fields=("description",),
+        description="Tests with failures or flaky passes inside the selected time "
+                    "range, grouped by stable identity. Click through for detail."))
+    place(12, 8, lambda i, g: table_panel(
+        i, "newly_failing", g, link_fields=("description",),
+        description="Failed or errored in the latest run after passing the run "
+                    "before — the triage list for the most recent change."))
+    place(12, 8, lambda i, g: table_panel(
+        i, "test_history", g, units=duration_units,
+        description="Raw per-test drill-down feed: every execution in the selected "
+                    "range with stable IDs, status, and duration. Filterable columns."))
+
+    section("Test detail — select a test with the Test variable or a table link")
+    place(12, 7, lambda i, g: timeseries_panel(
+        i, "test_detail_history", g, unit="s",
+        colors={"duration_seconds": CATEGORY["blue"]},
+        description="Duration history of the selected test. With no selection this "
+                    "overlays every test and is intentionally noisy."))
+    place(12, 7, lambda i, g: table_panel(
+        i, "test_detail_runs", g, units=duration_units,
+        description="Recent executions of the selected test with status, retries, "
+                    "and the failure message."))
+    place(24, 6, lambda i, g: table_panel(
+        i, "test_detail_attempts", g, units=duration_units,
+        description="Per-attempt outcomes for the selected test, newest first."))
+
+    section("Flake and quarantine debt")
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "quarantine_debt", g,
+        colors={"active_quarantines": STATUS["serious"],
+                "retried_tests": STATUS["warning"]},
+        description="Standing debt per run: actively quarantined tests and tests "
+                    "that needed retries."))
+    place(12, 8, lambda i, g: table_panel(
+        i, "quarantined_tests", g,
+        field_links={"quarantine_issue": {
+            "title": "Open tracker issue",
+            "url": "${issue_tracker}${__value.text}", "targetBlank": True,
+        }},
+        description="Active quarantines in the latest run with owner, reason, "
+                    "issue, and expiry (sorted by expiry). Set the issue-tracker "
+                    "URL variable to make issue IDs clickable."))
+
+    section("Benchmarks")
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "benchmark_history", g, unit="ms", colors=None,
+        description="Median sample time per benchmark identity: the selected "
+                    "benchmark, or the 12 slowest when the variable is All. "
+                    "Series colors follow Grafana's theme palette because the "
+                    "series set is dynamic."))
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "benchmark_verdicts", g,
+        colors={"regressed": STATUS["critical"], "inconclusive": STATUS["warning"],
+                "improved": STATUS["good"], "stable": CATEGORY["blue"]},
+        description="Statistical gate verdicts per run (Mann-Whitney + Holm with a "
+                    "practical-effect threshold). Inconclusive usually means an "
+                    "environment or sample-size mismatch, not health."))
+
+    section("Deployment, host, and framework context")
+    place(24, 8, lambda i, g: table_panel(
+        i, "deployment_host", g,
+        description="Run-level correlation record: branch, commit, deployment, "
+                    "artifact digest, host, q build, and CI pipeline. Correlate by "
+                    "artifact digest or deployment id; branch name alone is not "
+                    "sufficient."))
+    place(12, 8, lambda i, g: timeseries_panel(
+        i, "diagnostics_trend", g,
+        colors={"errors": STATUS["critical"], "warnings": STATUS["warning"]},
+        description="Framework hygiene diagnostics per run (pollution, resource "
+                    "leaks, reporter issues)."))
+    place(12, 8, lambda i, g: table_panel(
+        i, "coverage_context", g,
+        description="Opt-in per-test coverage attribution (-cov-contexts): which "
+                    "test contexts produced how many hits, by metric kind."))
 
     def variable(name: str, label: str, key: str) -> dict:
         return {
@@ -268,11 +380,13 @@ def render_dashboard() -> str:
         }
 
     dashboard = {
+        "uid": "resq-evidence",
         "title": "resQ evidence overview",
         "description": "One-stop dashboard over the resQ normalized table-v2 ingestion path: "
                        "pass/fail and duration trends, coverage by labeled basis, flake and "
-                       "quarantine debt, benchmark verdicts, and deployment correlation. Every "
-                       "panel query is executed by tools/verify_ingestion_contract.py.",
+                       "quarantine debt, benchmark verdicts, per-test drill-down, and "
+                       "deployment correlation. Every panel query is executed by "
+                       "tools/verify_ingestion_contract.py.",
         "schemaVersion": 39,
         "tags": ["resq", "testing", "sql"],
         "__inputs": [{
@@ -283,17 +397,126 @@ def render_dashboard() -> str:
             variable("service", "Service", "services"),
             variable("environment", "Environment", "environments"),
             variable("branch", "Branch", "branches"),
+            variable("test", "Test detail", "tests_list"),
+            variable("benchmark", "Benchmark", "benchmarks_list"),
+            {
+                "name": "issue_tracker", "type": "textbox", "label": "Issue tracker URL",
+                "query": "", "current": {"text": "", "value": ""},
+                "description": "Base URL prepended to quarantine issue IDs, e.g. "
+                               "https://example.org/browse/",
+            },
         ]},
-        "annotations": {"list": [{
-            "name": "Deployments", "datasource": DATASOURCE, "enable": True,
-            "iconColor": CATEGORY["orange"],
-            "target": {"format": "table", "rawQuery": True,
-                       "rawSql": query_sql(QUERY_BY_KEY["deploy_annotations"], "grafana")},
-        }]},
+        "annotations": {"list": [
+            {
+                "name": "Deployments", "datasource": DATASOURCE, "enable": True,
+                "iconColor": CATEGORY["orange"],
+                "target": {"format": "table", "rawQuery": True,
+                           "rawSql": query_sql(QUERY_BY_KEY["deploy_annotations"], "grafana")},
+            },
+            {
+                "name": "q builds", "datasource": DATASOURCE, "enable": True,
+                "iconColor": CATEGORY["gold"],
+                "target": {"format": "table", "rawQuery": True,
+                           "rawSql": query_sql(QUERY_BY_KEY["qversion_annotations"], "grafana")},
+            },
+        ]},
         "panels": panels,
         "time": {"from": "now-30d", "to": "now"},
     }
     return json.dumps(dashboard, ensure_ascii=False, indent=2) + "\n"
+
+
+def render_alerts() -> str:
+    """Example Grafana alert-rule provisioning generated from the contract.
+
+    Documented example, not a gated execution path: Grafana evaluates these
+    server-side, so the gate proves only that the embedded SQL is the
+    executable contract SQL (variable-free alert dialect). Thresholds are
+    starting points; tune them to your gate policy. The datasource uid
+    resq-sql must point at the loaded ingestion schema.
+    """
+    def sql_block(key: str) -> str:
+        statement = query_sql(QUERY_BY_KEY[key], "alert")
+        return "\n".join(" " * 16 + line for line in statement.splitlines())
+
+    return f"""# Generated by tools/render_ingestion_assets.py; do not edit by hand.
+# Example Grafana alert provisioning over the resQ ingestion schema.
+# Requires a PostgreSQL datasource with uid resq-sql. Thresholds are
+# deliberately conservative starting points, not policy.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: resq-evidence
+    folder: resQ
+    interval: 5m
+    rules:
+      - uid: resq-pass-rate
+        title: resQ pass rate below 95 percent
+        condition: threshold
+        for: 0m
+        annotations:
+          summary: Latest matching run passed fewer than 95% of executed tests.
+        data:
+          - refId: pass_rate
+            relativeTimeRange: {{from: 604800, to: 0}}
+            datasourceUid: resq-sql
+            model:
+              format: time_series
+              rawSql: |
+{sql_block("pass_rate")}
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: pass_rate
+              reducer: last
+              conditions:
+                - evaluator: {{type: lt, params: [95]}}
+      - uid: resq-benchmark-regressed
+        title: resQ benchmark regression detected
+        condition: threshold
+        for: 0m
+        annotations:
+          summary: The statistical benchmark gate classified at least one benchmark as regressed.
+        data:
+          - refId: verdicts
+            relativeTimeRange: {{from: 604800, to: 0}}
+            datasourceUid: resq-sql
+            model:
+              format: time_series
+              rawSql: |
+{sql_block("benchmark_verdicts")}
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: verdicts
+              reducer: last
+              conditions:
+                - evaluator: {{type: gt, params: [0]}}
+      - uid: resq-quarantine-debt
+        title: resQ active quarantine debt
+        condition: threshold
+        for: 0m
+        annotations:
+          summary: At least one test is running under an active quarantine.
+        data:
+          - refId: debt
+            relativeTimeRange: {{from: 604800, to: 0}}
+            datasourceUid: resq-sql
+            model:
+              format: time_series
+              rawSql: |
+{sql_block("quarantine_debt")}
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: debt
+              reducer: last
+              conditions:
+                - evaluator: {{type: gt, params: [0]}}
+"""
 
 
 def expected_assets() -> dict[Path, str]:
@@ -301,6 +524,7 @@ def expected_assets() -> dict[Path, str]:
         POSTGRES: render_sql("postgres"),
         SQLITE: render_sql("sqlite"),
         DASHBOARD: render_dashboard(),
+        ALERTS: render_alerts(),
     }
 
 

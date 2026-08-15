@@ -103,12 +103,27 @@ verdicts, framework diagnostics, test-context coverage, and a
 branch/deployment/host correlation table with deployment annotations.
 `service`, `environment`, and `branch` template variables filter every panel,
 and the dashboard time range scopes trend panels through Grafana's
-`$__timeFilter`. Colors are fixed per entity and validated for
-colorblind-safe separation and contrast on both Grafana themes; status hues
-(green/amber/red) are reserved for states, never series identity. Test rows
-carry nullable `quarantineState`/`quarantineActive`/`quarantineOwner`/
-`quarantineReason`/`quarantineExpiresAt` columns (additive in table
-contract v2) feeding the quarantine panels.
+`$__timeFilter`. A `test` variable drives a test-detail drill-down row
+(duration history, executions, per-attempt outcomes) reachable by clicking
+any test in the slowest/most-failing/newly-failing tables; a `benchmark`
+variable focuses the median panel, which otherwise shows the twelve slowest
+identities; an `issue_tracker` URL variable makes quarantine issue IDs
+clickable. "Newly failing" and "coverage drops" panels compare the latest run
+against the previous one by stable identity, and a day-bucketed duration
+panel keeps long ranges readable. Deployment and q-build changes are overlaid
+as annotations on every trend panel. Colors are fixed per entity and
+validated for colorblind-safe separation and contrast on both Grafana themes;
+status hues (green/amber/red) are reserved for states, never series identity.
+Test rows carry nullable `quarantineState`/`quarantineActive`/
+`quarantineOwner`/`quarantineReason`/`quarantineIssue`/`quarantineExpiresAt`
+columns (additive in table contract v2) feeding the quarantine panels.
+
+[`examples/grafana-resq-alerts.yaml`](examples/grafana-resq-alerts.yaml) is a
+generated example of Grafana alert-rule provisioning over the same contract
+SQL (pass rate below target, any regressed benchmark, standing quarantine
+debt). It is a documented starting point rather than a gated execution path:
+Grafana evaluates the rules server-side, so the repository proves only that
+the embedded SQL is the executable contract SQL; thresholds are yours to set.
 Deployment correlation uses an immutable artifact digest or commit SHA together
 with supplied environment/service labels; branch name alone is insufficient.
 

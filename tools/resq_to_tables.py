@@ -92,6 +92,7 @@ def table_contract(
                 "quarantineActive": quarantine.get("active"),
                 "quarantineOwner": quarantine.get("owner"),
                 "quarantineReason": quarantine.get("reason"),
+                "quarantineIssue": quarantine.get("issue"),
                 "quarantineExpiresAt": quarantine.get("expiresAt"),
             }
         )

@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from ingestion_contract import (
-    QUERIES, TABLES, execute_ddl, execute_queries, load_payload, query_sql,
+    FILTER_PARAMETERS, QUERIES, TABLES, execute_ddl, execute_queries,
+    load_payload, query_sql,
 )
 from render_ingestion_assets import expected_assets
 from resq_to_tables import table_contract
@@ -25,7 +26,7 @@ from review_corpus import coverage_artifact, scale_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PARAMETERS = {"service": "orders", "environment": "test", "branch": ""}
+PARAMETERS = {"service": "orders", "environment": "test", "branch": "", "test": "", "benchmark": ""}
 
 
 def benchmark_record(report: dict[str, Any]) -> dict[str, Any]:
@@ -147,7 +148,9 @@ def assert_loaded(connection: Any, dialect: str, payloads: list[dict[str, Any]])
     if set(results) != {query.key for query in QUERIES}:
         raise AssertionError(f"{dialect}: query inventory drift")
     for key in (
-        "latest_run", "pass_rate", "failure_breakdown", "run_duration",
+        "headline_trend", "tests_list", "benchmarks_list", "daily_duration",
+        "test_detail_history", "test_detail_runs", "test_detail_attempts",
+        "pass_rate", "failure_breakdown", "run_duration",
         "test_volume", "test_history", "slowest_tests", "failing_tests",
         "benchmark_history", "benchmark_verdicts", "coverage_trend",
         "coverage_completeness", "coverage_files_latest", "quarantine_debt",
@@ -206,13 +209,14 @@ def dashboard_raw_sql(dashboard: dict[str, Any]) -> list[str]:
     ]
     statements += [
         variable["query"] for variable in dashboard["templating"]["list"]
+        if variable.get("type") == "query"
     ]
     return statements
 
 
 def executable_sql(raw: str) -> str:
     executable = raw
-    for name in ("service", "environment", "branch"):
+    for name in FILTER_PARAMETERS:
         executable = executable.replace("${" + name + ":sqlstring}", ":" + name)
     return re.sub(r"AND \$__timeFilter\([a-z0-9_.]+\)", "", executable)
 

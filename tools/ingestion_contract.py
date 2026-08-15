@@ -71,7 +71,7 @@ TABLES: tuple[Table, ...] = (
         c("file", sql_name="file_path"), c("line", "integer", True), c("message"),
         c("quarantineState", nullable=True), c("quarantineActive", "boolean", True),
         c("quarantineOwner", nullable=True), c("quarantineReason", nullable=True),
-        c("quarantineExpiresAt", "timestamp", True),
+        c("quarantineIssue", nullable=True), c("quarantineExpiresAt", "timestamp", True),
     ), ("run_id", "execution_id"), (
         ForeignKey(("run_id",), "runs", ("run_id",)),
     )),
@@ -177,7 +177,7 @@ class Query:
 FILTER = ("(:service = '' OR r.service = :service) "
           "AND (:environment = '' OR r.environment = :environment) "
           "AND (:branch = '' OR r.vcs_branch = :branch)")
-FILTER_PARAMETERS = ("service", "environment", "branch")
+FILTER_PARAMETERS = ("service", "environment", "branch", "test", "benchmark")
 # The same predicate for a correlated subquery that scans runs under its own
 # alias (latest-run scoping must respect the active filters).
 FILTER2 = FILTER.replace("r.", "r2.")
@@ -185,16 +185,28 @@ QUERIES: tuple[Query, ...] = (
     Query("services", "Services", "SELECT DISTINCT service AS __text, service AS __value FROM resq_runs WHERE service <> '' ORDER BY service"),
     Query("environments", "Environments", "SELECT DISTINCT environment AS __text, environment AS __value FROM resq_runs WHERE environment <> '' AND (:service = '' OR service = :service) ORDER BY environment"),
     Query("branches", "Branches", "SELECT DISTINCT vcs_branch AS __text, vcs_branch AS __value FROM resq_runs WHERE vcs_branch <> '' AND (:service = '' OR service = :service) ORDER BY vcs_branch"),
-    Query("latest_run", "Latest run headline", f"""
-SELECT r.run_id, r.finished_at, r.test_count, r.pass_count,
-       r.fail_count + r.error_count AS failures, r.skip_count,
+    Query("tests_list", "Tests", f"""
+SELECT DISTINCT t.suite || ' :: ' || t.description ||
+       CASE WHEN t.case_id <> '' THEN ' [case]' ELSE '' END AS __text,
+       t.execution_id AS __value
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE {FILTER} ORDER BY __text LIMIT 2000
+"""),
+    Query("benchmarks_list", "Benchmarks", f"""
+SELECT DISTINCT b.suite || ' :: ' || b.description AS __text,
+       b.benchmark_id AS __value
+FROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id
+WHERE {FILTER} ORDER BY __text LIMIT 500
+"""),
+    Query("headline_trend", "Latest run headline", f"""
+SELECT r.finished_at AS time, r.test_count,
+       r.fail_count + r.error_count AS failures,
        CASE WHEN r.test_count = 0 THEN 100.0 ELSE 100.0 * r.pass_count / r.test_count END AS pass_rate,
-       r.duration_seconds,
        (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.flaky) AS flaky_count,
        (SELECT COUNT(*) FROM resq_tests AS t WHERE t.run_id = r.run_id AND t.quarantine_active) AS active_quarantines,
        (SELECT c.function_percent FROM resq_coverage_runs AS c WHERE c.run_id = r.run_id) AS function_percent
-FROM resq_runs AS r WHERE {FILTER}
-ORDER BY r.finished_at DESC LIMIT 1
+FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
 """, "stat"),
     Query("pass_rate", "Pass rate", f"""
 SELECT r.finished_at AS time,
@@ -235,6 +247,34 @@ FROM resq_coverage_runs AS c JOIN resq_runs AS r ON r.run_id = c.run_id
 WHERE {FILTER} /*+timefilter:r.finished_at*/
 ORDER BY r.finished_at
 """, "timeseries"),
+    Query("coverage_drops", "Coverage drops vs previous covered run", f"""
+WITH history AS (
+    SELECT f.file_path, r.finished_at,
+           CASE WHEN f.function_found = 0 THEN 100.0
+                ELSE 100.0 * f.function_hit / f.function_found END AS function_percent,
+           LAG(CASE WHEN f.function_found = 0 THEN 100.0
+                ELSE 100.0 * f.function_hit / f.function_found END) OVER (
+               PARTITION BY f.file_path ORDER BY r.finished_at) AS previous_percent
+    FROM resq_coverage_files AS f JOIN resq_runs AS r ON r.run_id = f.run_id
+    WHERE {FILTER})
+SELECT h.file_path, h.previous_percent, h.function_percent,
+       h.function_percent - h.previous_percent AS change
+FROM history AS h
+WHERE h.finished_at = (
+    SELECT MAX(r2.finished_at) FROM resq_runs AS r2
+    JOIN resq_coverage_runs AS c2 ON c2.run_id = r2.run_id WHERE {FILTER2})
+  AND h.previous_percent IS NOT NULL
+  AND h.function_percent < h.previous_percent
+ORDER BY change, h.file_path LIMIT 25
+"""),
+    Query("daily_duration", "Daily run duration (avg/max)", f"""
+SELECT MIN(r.finished_at) AS time,
+       AVG(r.duration_seconds) AS avg_seconds,
+       MAX(r.duration_seconds) AS max_seconds
+FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
+GROUP BY SUBSTR(CAST(r.finished_at AS TEXT), 1, 10)
+ORDER BY time
+""", "timeseries"),
     Query("coverage_files_latest", "Least-covered files (latest run)", f"""
 SELECT f.file_path, f.function_hit, f.function_found,
        CASE WHEN f.function_found = 0 THEN 100.0
@@ -248,7 +288,8 @@ WHERE {FILTER} AND r.finished_at = (
 ORDER BY function_percent, f.file_path LIMIT 25
 """),
     Query("slowest_tests", "Slowest tests (latest run)", f"""
-SELECT t.suite, t.description, t.duration_seconds, t.attempts, t.file_path
+SELECT t.suite, t.description, t.duration_seconds, t.attempts, t.file_path,
+       t.execution_id
 FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
 WHERE {FILTER} AND r.finished_at = (
     SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE {FILTER2})
@@ -258,13 +299,48 @@ ORDER BY t.duration_seconds DESC LIMIT 15
 SELECT t.suite, t.description,
        SUM(CASE WHEN t.status IN ('fail', 'error') THEN 1 ELSE 0 END) AS failures,
        SUM(CASE WHEN t.flaky THEN 1 ELSE 0 END) AS flaky_passes,
-       COUNT(*) AS runs, MAX(r.finished_at) AS last_seen
+       COUNT(*) AS runs, MAX(r.finished_at) AS last_seen, t.execution_id
 FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
 WHERE {FILTER} /*+timefilter:r.finished_at*/
-GROUP BY t.test_id, t.case_id, t.suite, t.description
+GROUP BY t.test_id, t.case_id, t.suite, t.description, t.execution_id
 HAVING SUM(CASE WHEN t.status IN ('fail', 'error') THEN 1 ELSE 0 END) > 0
     OR SUM(CASE WHEN t.flaky THEN 1 ELSE 0 END) > 0
 ORDER BY failures DESC, flaky_passes DESC LIMIT 15
+"""),
+    Query("newly_failing", "Newly failing tests (latest vs previous run)", f"""
+WITH history AS (
+    SELECT t.execution_id, t.suite, t.description, t.status, t.file_path,
+           r.finished_at,
+           LAG(t.status) OVER (
+               PARTITION BY t.execution_id ORDER BY r.finished_at) AS previous_status
+    FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+    WHERE {FILTER})
+SELECT h.suite, h.description, h.previous_status, h.status, h.file_path,
+       h.execution_id
+FROM history AS h
+WHERE h.finished_at = (SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE {FILTER2})
+  AND h.status IN ('fail', 'error') AND h.previous_status = 'pass'
+ORDER BY h.suite, h.description LIMIT 25
+"""),
+    Query("test_detail_history", "Selected test duration history", f"""
+SELECT r.finished_at AS time, t.duration_seconds
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE {FILTER} AND (:test = '' OR t.execution_id = :test) /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at
+""", "timeseries"),
+    Query("test_detail_runs", "Selected test executions", f"""
+SELECT r.finished_at AS time, t.status, t.duration_seconds, t.attempts,
+       t.flaky, t.message
+FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
+WHERE {FILTER} AND (:test = '' OR t.execution_id = :test) /*+timefilter:r.finished_at*/
+ORDER BY r.finished_at DESC LIMIT 50
+"""),
+    Query("test_detail_attempts", "Selected test attempts", f"""
+SELECT a.started_at, a.attempt, a.status, a.duration_seconds, a.message
+FROM resq_attempts AS a
+JOIN resq_runs AS r ON r.run_id = a.run_id
+WHERE {FILTER} AND (:test = '' OR a.execution_id = :test)
+ORDER BY a.attempt_key DESC LIMIT 100
 """),
     Query("test_history", "Per-test history", f"""
 SELECT r.finished_at AS time, t.test_id, t.case_id, t.suite, t.description,
@@ -284,7 +360,8 @@ ORDER BY r.finished_at
 """, "timeseries"),
     Query("quarantined_tests", "Active quarantines (latest run)", f"""
 SELECT t.suite, t.description, t.status, t.quarantine_state,
-       t.quarantine_owner, t.quarantine_reason, t.quarantine_expires_at
+       t.quarantine_owner, t.quarantine_reason, t.quarantine_issue,
+       t.quarantine_expires_at
 FROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id
 WHERE {FILTER} AND t.quarantine_active AND r.finished_at = (
     SELECT MAX(r2.finished_at) FROM resq_runs AS r2 WHERE {FILTER2})
@@ -295,6 +372,13 @@ SELECT r.finished_at AS time, b.suite || ' :: ' || b.description AS metric,
        b.med_time_ms AS value
 FROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id
 WHERE {FILTER} /*+timefilter:r.finished_at*/
+  AND (:benchmark = '' OR b.benchmark_id = :benchmark)
+  AND (:benchmark <> '' OR b.benchmark_id IN (
+      SELECT b2.benchmark_id FROM resq_benchmarks AS b2
+      JOIN resq_runs AS r2 ON r2.run_id = b2.run_id
+      WHERE {FILTER2}
+      GROUP BY b2.benchmark_id
+      ORDER BY MAX(b2.med_time_ms) DESC LIMIT 12))
 ORDER BY r.finished_at, b.benchmark_id
 """, "timeseries"),
     Query("benchmark_verdicts", "Benchmark verdicts per run", f"""
@@ -321,6 +405,12 @@ SELECT r.finished_at AS time, r.service, r.environment, r.deployment_id,
        r.os, r.ci_provider, r.ci_pipeline_id, r.fail_count, r.error_count
 FROM resq_runs AS r WHERE {FILTER} /*+timefilter:r.finished_at*/
 ORDER BY r.finished_at DESC
+"""),
+    Query("qversion_annotations", "q build annotations", f"""
+SELECT MIN(r.finished_at) AS time,
+       'q ' || r.q_version || ' / ' || r.os AS text
+FROM resq_runs AS r WHERE {FILTER}
+GROUP BY r.q_version, r.os ORDER BY time
 """),
     Query("deploy_annotations", "Deployment annotations", f"""
 SELECT MIN(r.finished_at) AS time,
@@ -466,7 +556,7 @@ def query_sql(query: Query, dialect: str) -> str:
     # The time-scope marker keeps one executable statement per query: Grafana
     # expands it to its dashboard time range, every other dialect runs the
     # statement unscoped (tests load bounded fixtures).
-    if dialect == "grafana":
+    if dialect in ("grafana", "alert"):
         sql = re.sub(r"/\*\+timefilter:([a-z0-9_.]+)\*/", r"AND $__timeFilter(\1)", sql)
     else:
         sql = re.sub(r"\s*/\*\+timefilter:[a-z0-9_.]+\*/", "", sql)
@@ -477,6 +567,9 @@ def query_sql(query: Query, dialect: str) -> str:
         return re.sub(rf":({names})\b", r"%(\1)s", sql)
     if dialect == "grafana":
         return re.sub(rf":({names})\b", r"${\1:sqlstring}", sql)
+    if dialect == "alert":
+        # Alert rules evaluate without dashboard variables: unfiltered scope.
+        return re.sub(rf":({names})\b", "''", sql)
     if dialect == "psql":
         return re.sub(rf":({names})\b", r":'\1'", sql)
     raise ValueError(f"unsupported query dialect: {dialect}")

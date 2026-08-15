@@ -71,6 +71,7 @@
         "quarantineActive": {"type": ["boolean", "null"]},
         "quarantineOwner": {"type": ["string", "null"]},
         "quarantineReason": {"type": ["string", "null"]},
+        "quarantineIssue": {"type": ["string", "null"]},
         "quarantineExpiresAt": {"type": ["string", "null"]}
       },
       "additionalProperties": true
