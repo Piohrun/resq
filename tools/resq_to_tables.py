@@ -93,7 +93,9 @@ def table_contract(
                 "quarantineOwner": quarantine.get("owner"),
                 "quarantineReason": quarantine.get("reason"),
                 "quarantineIssue": quarantine.get("issue"),
-                "quarantineExpiresAt": quarantine.get("expiresAt"),
+                # Healthy tests carry the full state object with an EMPTY
+                # expiry; TIMESTAMPTZ columns need NULL, not "".
+                "quarantineExpiresAt": quarantine.get("expiresAt") or None,
             }
         )
         for attempt in row.get("attemptHistory", []):

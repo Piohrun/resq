@@ -116,6 +116,15 @@ def populated_report() -> dict[str, Any]:
         "evidence": "flake-history", "issue": "RESQ-101",
         "createdAt": "2026-08-01T00:00:00Z", "expiresAt": "2026-09-01T00:00:00Z",
     }
+    # A HEALTHY tracked test carries the full state object with empty policy
+    # fields — the shape every real flake-tracked run emits. Its empty expiry
+    # must load as NULL, which only the PostgreSQL lane can prove.
+    report["tests"][0]["quarantine"] = {
+        "schemaVersion": 2, "state": "healthy", "active": False,
+        "nonBlocking": False, "observations": 12, "passes": 12, "failures": 0,
+        "flakes": 0, "owner": "", "reason": "", "evidence": "flake-history",
+        "issue": "", "createdAt": "", "expiresAt": "",
+    }
     return report
 
 
