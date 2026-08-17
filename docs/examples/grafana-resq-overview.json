@@ -27,10 +27,16 @@
           "type": "grafana-postgresql-datasource",
           "uid": "${DS_RESQ_SQL}"
         },
-        "query": "SELECT DISTINCT service AS __text, service AS __value FROM resq_runs WHERE service <> '' ORDER BY service",
+        "query": {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT DISTINCT service AS __text, service AS __value FROM resq_runs WHERE service <> '' ORDER BY service"
+        },
         "refresh": 1,
         "includeAll": true,
-        "allValue": "",
+        "allValue": "''",
         "multi": false,
         "current": {
           "text": "All",
@@ -45,10 +51,16 @@
           "type": "grafana-postgresql-datasource",
           "uid": "${DS_RESQ_SQL}"
         },
-        "query": "SELECT DISTINCT environment AS __text, environment AS __value FROM resq_runs WHERE environment <> '' AND (${service:sqlstring} = '' OR service = ${service:sqlstring}) ORDER BY environment",
+        "query": {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT DISTINCT environment AS __text, environment AS __value FROM resq_runs WHERE environment <> '' AND (${service:sqlstring} = '' OR service = ${service:sqlstring}) ORDER BY environment"
+        },
         "refresh": 1,
         "includeAll": true,
-        "allValue": "",
+        "allValue": "''",
         "multi": false,
         "current": {
           "text": "All",
@@ -63,10 +75,16 @@
           "type": "grafana-postgresql-datasource",
           "uid": "${DS_RESQ_SQL}"
         },
-        "query": "SELECT DISTINCT vcs_branch AS __text, vcs_branch AS __value FROM resq_runs WHERE vcs_branch <> '' AND (${service:sqlstring} = '' OR service = ${service:sqlstring}) ORDER BY vcs_branch",
+        "query": {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT DISTINCT vcs_branch AS __text, vcs_branch AS __value FROM resq_runs WHERE vcs_branch <> '' AND (${service:sqlstring} = '' OR service = ${service:sqlstring}) ORDER BY vcs_branch"
+        },
         "refresh": 1,
         "includeAll": true,
-        "allValue": "",
+        "allValue": "''",
         "multi": false,
         "current": {
           "text": "All",
@@ -81,10 +99,16 @@
           "type": "grafana-postgresql-datasource",
           "uid": "${DS_RESQ_SQL}"
         },
-        "query": "SELECT DISTINCT t.suite || ' :: ' || t.description ||\n       CASE WHEN t.case_id <> '' THEN ' [case]' ELSE '' END AS __text,\n       t.execution_id AS __value\nFROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) ORDER BY __text LIMIT 2000",
+        "query": {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT DISTINCT t.suite || ' :: ' || t.description ||\n       CASE WHEN t.case_id <> '' THEN ' [case]' ELSE '' END AS __text,\n       t.execution_id AS __value\nFROM resq_tests AS t JOIN resq_runs AS r ON r.run_id = t.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) ORDER BY __text LIMIT 2000"
+        },
         "refresh": 1,
         "includeAll": true,
-        "allValue": "",
+        "allValue": "''",
         "multi": false,
         "current": {
           "text": "All",
@@ -99,10 +123,16 @@
           "type": "grafana-postgresql-datasource",
           "uid": "${DS_RESQ_SQL}"
         },
-        "query": "SELECT DISTINCT b.suite || ' :: ' || b.description AS __text,\n       b.benchmark_id AS __value\nFROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) ORDER BY __text LIMIT 500",
+        "query": {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT DISTINCT b.suite || ' :: ' || b.description AS __text,\n       b.benchmark_id AS __value\nFROM resq_benchmarks AS b JOIN resq_runs AS r ON r.run_id = b.run_id\nWHERE (${service:sqlstring} = '' OR r.service = ${service:sqlstring}) AND (${environment:sqlstring} = '' OR r.environment = ${environment:sqlstring}) AND (${branch:sqlstring} = '' OR r.vcs_branch = ${branch:sqlstring}) ORDER BY __text LIMIT 500"
+        },
         "refresh": 1,
         "includeAll": true,
-        "allValue": "",
+        "allValue": "''",
         "multi": false,
         "current": {
           "text": "All",

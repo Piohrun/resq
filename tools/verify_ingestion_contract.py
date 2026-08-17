@@ -217,7 +217,7 @@ def dashboard_raw_sql(dashboard: dict[str, Any]) -> list[str]:
         for annotation in dashboard["annotations"]["list"]
     ]
     statements += [
-        variable["query"] for variable in dashboard["templating"]["list"]
+        variable["query"]["rawSql"] for variable in dashboard["templating"]["list"]
         if variable.get("type") == "query"
     ]
     return statements
@@ -309,6 +309,28 @@ def verify_assets() -> None:
     rendered = json.dumps(dashboard)
     if '"expr"' in rendered or "resq_tests_total" in rendered:
         raise AssertionError("Grafana example still references an unshipped Prometheus metric")
+    # Frontend-only contract: these three shapes cannot fail any SQL lane but
+    # each silently blanks the dashboard in a browser (found against a live
+    # Grafana 13): a target without editorMode "code" is treated as an empty
+    # builder query; a string-typed variable query yields a fieldless frame;
+    # a falsy or unquoted allValue breaks every chained interpolation.
+    for panel in dashboard["panels"]:
+        if panel["type"] == "row":
+            continue
+        if panel["targets"][0].get("editorMode") != "code":
+            raise AssertionError(f"panel {panel['title']!r}: target must set editorMode code")
+    for annotation in dashboard["annotations"]["list"]:
+        if annotation["target"].get("editorMode") != "code":
+            raise AssertionError(f"annotation {annotation['name']!r}: target must set editorMode code")
+    for variable in dashboard["templating"]["list"]:
+        if variable.get("type") != "query":
+            continue
+        if not isinstance(variable.get("query"), dict):
+            raise AssertionError(f"variable {variable['name']!r}: query must be a SQL target object")
+        if variable.get("includeAll") and variable.get("allValue") != "''":
+            raise AssertionError(
+                f"variable {variable['name']!r}: allValue must be the verbatim SQL literal \'\'"
+            )
     contract_sql = {query_sql(query, "grafana") for query in QUERIES}
     used_sql = set(dashboard_raw_sql(dashboard))
     foreign = used_sql - contract_sql

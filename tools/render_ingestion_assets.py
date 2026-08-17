@@ -374,10 +374,20 @@ def render_dashboard() -> str:
                     "test contexts produced how many hits, by metric kind."))
 
     def variable(name: str, label: str, key: str) -> dict:
+        # The query must be the SQL target object: the Scenes frontend feeds a
+        # plain string to the datasource as an empty query, which returns a
+        # fieldless frame and fails the variable ("at least one field
+        # expected"), blocking every dependent panel.
         return {
             "name": name, "type": "query", "label": label, "datasource": DATASOURCE,
-            "query": query_sql(QUERY_BY_KEY[key], "grafana"), "refresh": 1,
-            "includeAll": True, "allValue": "", "multi": False,
+            "query": {
+                "refId": "A", "format": "table", "rawQuery": True,
+                "editorMode": "code",
+                "rawSql": query_sql(QUERY_BY_KEY[key], "grafana"),
+            },
+            # allValue is inserted into SQL VERBATIM (unquoted) by Grafana, so the
+            # all-sentinel is the SQL empty-string literal itself.
+            "refresh": 1, "includeAll": True, "allValue": "''", "multi": False,
             "current": {"text": "All", "value": "$__all"},
         }
 

@@ -174,6 +174,9 @@ class Query:
     panel_type: str = "table"
 
 
+# '' means unfiltered. Grafana's "All" reaches these predicates as the same
+# empty-string literal: the dashboard variables set a custom allValue of ''
+# (two quote characters), which the frontend inserts into SQL verbatim.
 FILTER = ("(:service = '' OR r.service = :service) "
           "AND (:environment = '' OR r.environment = :environment) "
           "AND (:branch = '' OR r.vcs_branch = :branch)")
