@@ -58,8 +58,10 @@ DATASOURCE = {"type": "grafana-postgresql-datasource", "uid": "${DS_RESQ_SQL}"}
 
 
 def target(key: str, fmt: str) -> dict:
+    # editorMode "code" is load-bearing: without it the SQL frontend treats
+    # the target as an empty visual-builder query and never sends rawSql.
     return {
-        "refId": "A", "format": fmt, "rawQuery": True,
+        "refId": "A", "format": fmt, "rawQuery": True, "editorMode": "code",
         "rawSql": query_sql(QUERY_BY_KEY[key], "grafana"),
     }
 
@@ -410,13 +412,13 @@ def render_dashboard() -> str:
             {
                 "name": "Deployments", "datasource": DATASOURCE, "enable": True,
                 "iconColor": CATEGORY["orange"],
-                "target": {"format": "table", "rawQuery": True,
+                "target": {"format": "table", "rawQuery": True, "editorMode": "code",
                            "rawSql": query_sql(QUERY_BY_KEY["deploy_annotations"], "grafana")},
             },
             {
                 "name": "q builds", "datasource": DATASOURCE, "enable": True,
                 "iconColor": CATEGORY["gold"],
-                "target": {"format": "table", "rawQuery": True,
+                "target": {"format": "table", "rawQuery": True, "editorMode": "code",
                            "rawSql": query_sql(QUERY_BY_KEY["qversion_annotations"], "grafana")},
             },
         ]},
