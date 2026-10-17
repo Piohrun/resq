@@ -198,7 +198,9 @@ following checked-in contracts; the final release gate invokes all of them:
 - [x] Gate releases on a testcase-level differential against pinned upstream
   qspec suites.
 - [x] Bring loading of a 3,000-test suite from 30-34 s to about 6.6 s.
-- [ ] Complete the clean-clone v2.1.0 release qualification.
+- [x] Complete the clean-clone v2.1.0 release qualification and archive the
+  exact candidate evidence; the certification commit is requalified before the
+  annotated tag is pushed.
 
 ## Post-2.0 ecosystem ideas — not implemented
 
