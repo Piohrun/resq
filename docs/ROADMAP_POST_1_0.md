@@ -188,6 +188,18 @@ following checked-in contracts; the final release gate invokes all of them:
   exact candidate evidence. The certification commit is itself requalified
   before the pushed annotated tag is accepted by its remote peeled target.
 
+## 2.1.0 — qspec drop-in for script-driven suites
+
+- [x] Run real third-party qspec suites through upstream qspec and `bin/qspec`
+  and fix every drop-in breaker found: discovery, JUnit on stdout, qutil
+  ownership of `.utl`, `--name=value` options, adverb-carrying assertions,
+  root-namespace helpers, the per-`desc` size limit, and `.tst` collisions.
+- [x] Keep qspec's JUnit testcase names on `bin/qspec` so CI history survives.
+- [x] Gate releases on a testcase-level differential against pinned upstream
+  qspec suites.
+- [x] Bring loading of a 3,000-test suite from 30-34 s to about 6.6 s.
+- [ ] Complete the clean-clone v2.1.0 release qualification.
+
 ## Post-2.0 ecosystem ideas — not implemented
 
 These are roadmap ideas, not resQ capabilities or release commitments:

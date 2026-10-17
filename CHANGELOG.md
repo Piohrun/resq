@@ -6,6 +6,70 @@ All notable changes to the **resQ** project will be documented in this file.
 
 No unreleased changes.
 
+## [2.1.0] - 2026-10-17 - qspec Drop-in & Work Adoption
+
+resQ 2.1.0 makes `bin/qspec` a drop-in for qspec suites run from CI scripts,
+found by running real third-party qspec suites through upstream qspec and
+resQ side by side. It keeps the 2.x DSL, report-v2 contract and identity v3.
+
+### Added
+
+- `tools/verify_qspec_differential.py` runs three vendored, pinned qspec
+  suites (nugend/qspec, nugend/qutil, asatirahul/cryptoq) through unmodified
+  upstream qspec and through `bin/qspec`, and requires identical JUnit
+  testcase names and verdicts apart from five listed private-API tests. The
+  release gate and the licensed CI lane run it.
+- `-junit-names resq|qspec`. `qspec` writes qspec's testcase names (no
+  `classname`, `should ...` / `it holds that ...` / `performs ...`) so CI test
+  history continues across a switch.
+- `-qspec-discovery` loads every `.q` file under a directory, as qspec does.
+- `--name=value` spellings for value options (`--only=pricing*`, `--fdl=5`),
+  as qutil's option parser accepts.
+- `.tst.testFilePath`, qspec's helper for data files next to a test.
+- A Grafana evidence dashboard over tables v2 with drill-down, delta and
+  alert panels, and example alert provisioning.
+
+### Changed
+
+- `bin/qspec` passes `-qspec-discovery` and `-junit-names qspec`, and with
+  `--junit`/`--xunit` and no `-outDir` it prints the XML report on stdout and
+  the console on stderr, so `qspec --junit tests > results.xml` works.
+- On the qspec path, test files load into the root namespace as in qspec, so
+  helper files reach later files; spec-free helper files are counted, not
+  flagged. With qutil present, `bin/qspec` preloads `qutil/opts.q` as qspec's
+  `spec.q` does.
+- resQ loads its own modules through `.resq.require` and leaves qutil's
+  `.utl.require`, `.utl.PKGLOADING` and `.utl.DEBUG` alone when qutil is
+  loaded first; package names go to qutil's loader.
+- `.resq/` carries its own `.gitignore` (everything except
+  `quarantine.json`), so a first run leaves `git status` clean.
+- Failure messages render tables, dictionaries and general lists as q
+  literals; durations print as `0.4 ms` / `37 ms` / `4.21 s`; a passing suite
+  prints one line.
+- q 4.0 (KX build 2023.08.11) is verified, though not release-gated.
+
+### Fixed
+
+- Infix assertions written with `\:`, `/:` or `':` (`x mustin\: y`) lost the
+  adverb and failed the whole file with a blank q error.
+- A `desc` with more than about 78 `should` blocks failed to load (q's lambda
+  constant limit); the line number now travels inside the description, so a
+  desc holds about 118 like qspec.
+- A test helper that redefines one of resQ's `.tst` internals now gets the
+  framework definition restored and fails its file by name, instead of
+  breaking the runner with an unrelated error.
+- `removeDirVars` signalled `'length` when the saved variables differed from
+  the current ones.
+- Self-suite isolation: `test_config.q` reset `-strict`, `-qspec-compat` and
+  other run settings for every later file; two other files leaked compat
+  mode and an expectation-list type.
+
+### Performance
+
+- A 3,000-test suite loads and runs in about 6.6 s instead of 30-34 s: the
+  loader's per-character rewriting loops became native index scans, and
+  flake-history lookups are no longer quadratic.
+
 ## [2.0.1] - 2026-08-15 - Diagnostic Identity & Gate Hardening
 
 ### Fixed
