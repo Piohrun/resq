@@ -44,6 +44,9 @@
 \d .
 
 .tst.desc["Replayable execution ordering #slow"]{
+  / These compare identities with resQ's whole-value mustne, which
+  / -qspec-compat replaces with qspec's element-wise one; pin the native one.
+  before{ `.tst.app.qspecCompat mock 0b };
   after{.tst.ordertest.cleanup[]};
 
   skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];

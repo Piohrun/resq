@@ -330,6 +330,9 @@
 .tst.testState.repeatRun.canQ: 0 < count @[system; "command -v q 2>/dev/null"; {()}];
 
 .tst.desc["runAll repeated-process lifecycle #slow"]{
+    / These compare identities with resQ's whole-value mustne, which
+    / -qspec-compat replaces with qspec's element-wise one; pin the native one.
+    before{ `.tst.app.qspecCompat mock 0b };
     skipIf[not .tst.testState.repeatRun.canQ;
            "the same namespace-based qspec suite passes twice in one q process"]{
         wd: .utl.tempRoot[], "/resq_repeat_", string[.z.i], "_", string `long$.z.p;

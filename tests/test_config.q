@@ -1,7 +1,20 @@
 .tst.desc["Configuration File Support"]{
+ / applyConfig writes run-wide settings (.tst.app.strict, .tst.app.qspecCompat
+ / and more). Without a restore, a -strict or -qspec-compat self-suite run lost
+ / those settings for every file after this one. The names come from
+ / applyConfig's own source so a new setting is covered automatically.
+ before{
+  src: last value .tst.applyConfig;
+  names: key[`.tst.app] where {[src;n] 0 < count src ss ".tst.app.",string[n],":"}[src] each key `.tst.app;
+  .tst.testState.configSaved: names!get each ` sv/: `.tst.app,/:names;
+  .tst.testState.configCovStatements: @[get; `.tst.coverageStatements; 0b];
+  };
  after{
   @[hdel; hsym `$":test_config.json"; {}];
   @[hdel; hsym `$":test_config_directory.json"; {}];
+  saved: .tst.testState.configSaved;
+  {[n;v] (` sv `.tst.app,n) set v}'[key saved; value saved];
+  .tst.coverageStatements: .tst.testState.configCovStatements;
   };
 
  should["load default config when file does not exist"]{

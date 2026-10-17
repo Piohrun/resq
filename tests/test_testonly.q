@@ -175,11 +175,15 @@
 / skipped, so its name never changes).
 / ---------------------------------------------------------------------------
 .tst.desc["skipIf keeps a stable test identity"]{
+  / Mocked so each test gets the list back with its original type. Taking
+  / n0 # of it left an empty TABLE with skip columns behind, and a later
+  / file appending a holds[] expectation to it signalled 'type.
+  before{ `.tst.expecList mock .tst.expecList };
+
   should["register the plain reason when it skips"]{
     n0: count .tst.expecList;
     skipIf[1b; "gated test name"]{ 1 musteq 1 };
     added: last .tst.expecList;
-    .tst.expecList: n0 # .tst.expecList;   / do not leak into the real run
     (added`desc) musteq "gated test name";
     (added`result) musteq `skip;
   };
@@ -188,7 +192,6 @@
     n0: count .tst.expecList;
     skipIf[0b; "gated test name"]{ 1 musteq 1 };
     added: last .tst.expecList;
-    .tst.expecList: n0 # .tst.expecList;
     (added`desc) musteq "gated test name";
   };
 
@@ -198,7 +201,6 @@
     pending["explicitly pending"];
     addedSkip: .tst.expecList n0;
     addedPending: .tst.expecList n0 + 1;
-    .tst.expecList: n0 # .tst.expecList;
     (addedSkip`desc) musteq "SKIP: explicitly skipped";
     (addedPending`desc) musteq "PENDING: explicitly pending";
   };

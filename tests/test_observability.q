@@ -1,4 +1,7 @@
 .tst.desc["Observability contract v2"]{
+  / These compare identities with resQ's whole-value mustne, which
+  / -qspec-compat replaces with qspec's element-wise one; pin the native one.
+  before{ `.tst.app.qspecCompat mock 0b };
   should["derive stable test identities from repository-relative paths"]{
     oldRoot:.tst.app.baseDir;
     .tst.app.baseDir:"/checkout/a";

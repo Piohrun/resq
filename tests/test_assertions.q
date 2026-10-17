@@ -325,7 +325,10 @@
  };
 
 .tst.desc["qspec compatibility mode"]{
- after{ .tst.app.qspecCompat: 0b };
+ / Mocked, not reset: a run invoked with -qspec-compat must get its own
+ / setting back. Resetting it to 0b here switched compat mode off for every
+ / later file in that run.
+ before{ `.tst.app.qspecCompat mock 0b };
 
  should["fail qspec-style comparisons by default, with a migration hint"]{
   probe: {[f] old: .tst.assertState.failures; f[];
