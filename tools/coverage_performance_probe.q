@@ -1,7 +1,7 @@
 / Executable micro-profile for coverage accounting. This file is loaded only by
 / tools/verify_coverage_performance.py; keeping the timed work in q avoids
 / measuring process/IPC overhead while the Python wrapper owns policy/evidence.
-.utl.require .utl.PKGLOADING,"/coverage.q";
+.resq.require .resq.PKGLOADING,"/coverage.q";
 
 .tst.coveragePerfCounter:0j;
 .tst.coveragePerfControl:{[ignored]

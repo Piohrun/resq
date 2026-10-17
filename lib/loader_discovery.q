@@ -2,8 +2,8 @@
 / ============================================================================
 
 / Dependencies
-.utl.require .utl.PKGLOADING,"/static_analysis.q"
-.utl.require .utl.PKGLOADING,"/coverage.q"
+.resq.require .resq.PKGLOADING,"/static_analysis.q"
+.resq.require .resq.PKGLOADING,"/coverage.q"
 
 / Experimental loader hijacking is OFF by default. autoHijack/hijack rewrite
 / user functions via string-built code (value), so they must be opted into

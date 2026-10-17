@@ -22,7 +22,8 @@ system "cd ", .resq.startCwd;
 / the trailing "/." produced by the documented `q resq.q ...` invocation.
 .resq.HOME: .utl.normalizePath .resq.HOME;
 .utl.resqHomeAtBoot: .resq.HOME;
-.utl.PKGLOADING: .resq.HOME, "/lib";
+.resq.PKGLOADING: .resq.HOME, "/lib";
+if[not .resq.hasQutil; .utl.PKGLOADING: .resq.PKGLOADING];
 
 / A q `exit 0` cannot be cancelled or have its status changed from .z.exit.
 / The supported launchers therefore supervise test-mode completion through a
@@ -69,19 +70,19 @@ system "cd ", .resq.startCwd;
 .z.exit:{[code] .resq.onProcessExit code};
 
 / Load Libraries
-.utl.require .resq.HOME,"/lib/init.q"
-.utl.require .resq.HOME,"/lib/config.q"
+.resq.require .resq.HOME,"/lib/init.q"
+.resq.require .resq.HOME,"/lib/config.q"
 
 / Load Features
-.utl.require .resq.HOME,"/lib/parametrize.q"
-.utl.require .resq.HOME,"/lib/async.q"
-.utl.require .resq.HOME,"/lib/bench.q"
+.resq.require .resq.HOME,"/lib/parametrize.q"
+.resq.require .resq.HOME,"/lib/async.q"
+.resq.require .resq.HOME,"/lib/bench.q"
 
 / Load CLI/Runner
-.utl.require .resq.HOME,"/lib/cli.q"
-.utl.require .resq.HOME,"/lib/runner.q"
+.resq.require .resq.HOME,"/lib/cli.q"
+.resq.require .resq.HOME,"/lib/runner.q"
 / The adapter is inert unless its explicit external-provider environment is set.
-.utl.require .resq.HOME,"/lib/self_coverage.q"
+.resq.require .resq.HOME,"/lib/self_coverage.q"
 
 / Configuration
 config: .tst.loadConfig[::];
@@ -117,6 +118,12 @@ if[not .resq.cli`ok;
     exit .resq.EXIT.FAIL];
 
 .tst.initCLI .resq.cli;
+/ qspec's app/spec.q loads qutil's option parser before any test file, so
+/ qspec-era code can call .utl.addOpt without requiring it. bin/qspec keeps
+/ that when qutil is installed.
+if[.resq.hasQutil and 1b~@[get;`.tst.app.qspecDiscovery;0b];
+    @[.resq.qutilRequire; "qutil/opts.q";
+      {[e] -2 "resQ WARNING: could not preload qutil/opts.q as qspec does: ",.tst.toString e}]];
 .resq.loadPluginFiles[];
 .resq.mode: .resq.cli`mode;
 .tst.app.args: .resq.cli`args;

@@ -157,7 +157,7 @@
         .tst.coverageLoading: 1b;
         home: @[get; `.resq.HOME; {"."}];
         if[not `initCoverage in key `.tst;
-            .utl.require home,"/lib/coverage.q";
+            .resq.require home,"/lib/coverage.q";
         ];
         .tst.coverageLoading: 0b;
 

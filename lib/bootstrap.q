@@ -1,11 +1,23 @@
 / lib/bootstrap.q - Clean & Robust Loader
 if[not `utl in key `; .utl: enlist[`]!enlist (::)];
 if[not `loaded in key `.utl; .utl.loaded: enlist ""];
+
+/ qspec requires qutil, so a qspec shop's q.q usually loads qutil's bootstrap
+/ before resQ starts. qutil owns .utl.require (packages on QPATH, signalling
+/ on failure), .utl.PKGLOADING, .utl.FILELOADING and .utl.DEBUG. Overwriting
+/ them broke `.utl.require "mypkg"` in migrated suites, so resQ keeps its own
+/ loader state under .resq and only fills the .utl names qutil did not define.
+.resq.bootKeys: @[key; `.resq; {`symbol$()}];
+if[(not `qutilRequire in .resq.bootKeys) and `requireVH in key `.utl;
+    .resq.qutilRequire: .utl.require];
+.resq.hasQutil: `qutilRequire in @[key; `.resq; {`symbol$()}];
+
 / Anchor at the install root when resq.q has set it; falls back to "lib"
 / for direct invocations from inside the repo.
 .utl.resqHomeAtBoot: @[get; `.resq.HOME; {""}];
-.utl.PKGLOADING: $[count .utl.resqHomeAtBoot; .utl.resqHomeAtBoot,"/lib"; "lib"];
-.utl.DEBUG: 0b;
+.resq.PKGLOADING: $[count .utl.resqHomeAtBoot; .utl.resqHomeAtBoot,"/lib"; "lib"];
+if[not .resq.hasQutil; .utl.PKGLOADING: .resq.PKGLOADING];
+if[not `DEBUG in key `.utl; .utl.DEBUG: 0b];
 
 / OS Detection Utilities
 .utl.OS: $[(string .z.o) like "l*"; `linux; (string .z.o) like "m*"; `macos; `windows];
@@ -13,7 +25,7 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
 .utl.isMac: .utl.OS = `macos;
 .utl.isWindows: .utl.OS = `windows;
 
-.utl.require: {[path]
+.resq.require: {[path]
   / Convert to string
   p: $[10h=abs type path; path; string path];
   
@@ -45,7 +57,11 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
     / "Coverage LCOV generator not available", and cost a long bisect to find.
     quiet: (p like "*coverage.q") and not .utl.pathExists p;
     if[not quiet;
-        -1 "WARNING: Failed to load ", p, " (", e, ")"];
+        -1 "WARNING: Failed to load ", p, " (", e, ")";
+        if[(not "/" in p) and not p like "*.q";
+            -1 "  '", p, "' looks like a qutil package name. qspec ran with qutil, whose ",
+               ".utl.require finds packages on QPATH; load qutil's bootstrap (q.q or ",
+               "QINIT) before resQ and resQ will hand package names to it."]];
     0b
   }[p]];
   
@@ -77,6 +93,14 @@ if[not `loaded in key `.utl; .utl.loaded: enlist ""];
     ];
   ];
  };
+
+/ With qutil present, an existing path still loads through resQ (coverage and
+/ watch-mode dependency tracking); anything else is a qutil package name.
+.resq.requireOrQutil:{[path]
+  p: $[10h=abs type path; path; string path];
+  $[.utl.pathExists p; .resq.require path; .resq.qutilRequire path]
+ };
+.utl.require: $[.resq.hasQutil; .resq.requireOrQutil; .resq.require];
 
 / ============================================================================
 / Path Utilities

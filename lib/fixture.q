@@ -20,7 +20,11 @@ ensureFixtureRegistry:{[]
     .tst.fixtures:: (((),`)!(),(::)) , ((),`) _ reg;
  }
 
-currentDirFixture: ` 
+/ qspec's public helper for data kept next to a test file:
+/ .tst.testFilePath `configs`normal -> `:/abs/test/dir/configs/normal
+testFilePath:{[parts] ` sv (` vs .utl.pathToHsym .tst.tstPath)[0],parts};
+
+currentDirFixture: `
 savedDir: `directory`vars`context`tables!("";(`,())!(),(::);`.;`symbol$())
 
 fixtureAs:{[fixtureName;name]
@@ -211,7 +215,15 @@ saveDir:{
   system "d ", string origCtx;
  }
 
-removeDirVars:{v:reverse x^.tst.findDirVars[]; if[0<count v; {value "delete ",string[x]," from `."} each v]}
+/ Explicit vars win; ` or (::) means "whatever is loaded now" (as in qspec).
+/ The old x^findDirVars[] signalled 'length whenever an explicit list and the
+/ current vars differed in length, which happens once the saved tables have
+/ been deleted from root context. Null names are dropped: "delete  from `."
+/ would clear the whole root namespace.
+removeDirVars:{
+  v:reverse $[(x~(::)) or x~`;.tst.findDirVars[];(),x];
+  v:v where not null v;
+  if[0<count v; {value "delete ",string[x]," from `."} each v]}
 
 / A saved in-memory table does not imply the process cwd is a q database. Reload
 / only when at least one captured table has a corresponding on-disk directory;

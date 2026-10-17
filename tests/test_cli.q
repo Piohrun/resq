@@ -283,6 +283,21 @@
         short[`options; `fuzzLimit] musteq 11;
     };
 
+    should["accept qutil's --name=value spelling for value options"]{
+        / qspec scripts pass options through qutil, e.g. --only=pricing*
+        r: .tst.parseCLI ("tests"; "--only=pricing*,risk*"; "--fdl=5"; "-exclude=slow*");
+        r[`ok] musteq 1b;
+        r[`args] mustmatch enlist "tests";
+        r[`options; `only] musteq "pricing*,risk*";
+        r[`options; `fuzzLimit] musteq 5;
+        r[`options; `exclude] musteq "slow*";
+        (.tst.parseCLI ("tests"; "--outDir=a=b"))[`options; `outDir] musteq "a=b";
+        .tst.cliParseFails[("test"; "--only="); "Empty value for --only"] musteq 1b;
+        .tst.cliParseFails[("test"; "--junit=1"); "Unknown option: --junit=1"] musteq 1b;
+        .tst.cliParseFails[("test"; "--bogus=1"); "Unknown option: --bogus=1"] musteq 1b;
+        (.tst.parseCLI ("test"; "--"; "-x=1.q"))[`args] mustmatch enlist (system "cd"), "/-x=1.q";
+    };
+
     should["treat every token after -- as positional, including dash-prefixed paths"]{
         r: .tst.parseCLI ("test"; "-quiet"; "--"; "-suite.q"; "--not-an-option");
         r[`ok] musteq 1b;

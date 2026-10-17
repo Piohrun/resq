@@ -469,10 +469,12 @@
                         not .tst.dslNameShadowed[shadowed;`$name;at]];
                 if[valid;
                     after:at+width;
-                    adverb:"";
-                    if[(after<count masked) and "'"=masked after;
-                        adverb:"'";
-                        after+:1];
+                    / An adjacent adverb travels with the name: qspec suites
+                    / write `xs musteq' ys` and `x mustin\: y` (each-left).
+                    next2:2 sublist after _ masked;
+                    adverb:$[any ("\\:";"/:";"':")~\:next2; next2;
+                        "'"~first next2; enlist "'"; ""];
+                    after+:count adverb;
                     while[(after<count masked) and masked[after] in " \t\n";
                         after+:1];
                     / A qualified helper can also be an ordinary RHS value.
@@ -798,7 +800,26 @@
     .tst.app.discoveredFiles: tests;
     .tst.app.loadedFiles: ();
     .tst.app.emptyFiles: ();
-    if[0 = count tests; -1 "WARNING: No test files found"; :()];
+    if[0 = count tests;
+        -1 "WARNING: No test files found";
+        unmatched: @[get; `.tst.app.unmatchedQFiles; {()}];
+        if[count unmatched;
+            -1 "  ", string[count unmatched], " .q file(s) did not match the test file patterns ",
+                (", " sv @[get; `.tst.app.testFilePatternsUsed; {()}]), ", e.g. ",
+                .utl.pathToString first unmatched;
+            -1 "  Rename them, pass them explicitly, set testFilePatterns in resq.json,";
+            -1 "  or run them through bin/qspec, which loads every .q file like qspec does."];
+        :()];
+
+    / qspec suites often keep helpers in .tst (qspec's own .tst is small).
+    / resQ's is not: a helper named like an internal (.tst.toString,
+    / .tst.config, ...) silently broke the runner with an unrelated error.
+    / On the qspec path, snapshot the framework's functions and check after
+    / every file. Native suites may monkeypatch internals deliberately.
+    qspecPath: any 1b~/:@[get;;0b] each `.tst.app.qspecCompat`.tst.app.qspecDiscovery;
+    fwNames: $[qspecPath; {` sv' x,'key[x] except `} `.tst; `symbol$()];
+    fwNames: fwNames where {(type @[get;x;{::}]) within 100 104h} each fwNames;
+    .tst.frameworkFunctionSnapshot: fwNames!get each fwNames;
 
     {[x]
         / Normalize path
@@ -825,15 +846,20 @@
         cleanP: absPath;
         cleanP[where not cleanP in .Q.a,.Q.A,.Q.n]: first "_";
         hashStr: 8 # raze string md5 absPath;
-        nsName: `$".sandbox_S", cleanP, "_", hashStr;
+        / qspec loads every file into the root namespace, so a helper file in
+        / the test tree (tests/00_helpers.q: mkTrade:{...}) defines names the
+        / other files use. bin/qspec keeps that instead of a per-file sandbox.
+        rootLoad: 1b~@[get;`.tst.app.qspecDiscovery;0b];
+        nsName: $[rootLoad; `.; `$".sandbox_S", cleanP, "_", hashStr];
         / Register the sandbox so end-of-run cleanup can delete exactly what this
         / run created. finalCleanup used to remove EVERY root namespace matching
         / `sandbox_*`, which is fine in a dedicated test process but destroys an
         / unrelated user namespace of that name under -noquit, watch mode, or
         / embedded use. Store the bare root name (no leading dot) to match the
         / form `key `.` returns.
-        .tst.app.sandboxNamespaces: distinct .tst.app.sandboxNamespaces,
-            `$1 _ string nsName;
+        if[not rootLoad;
+            .tst.app.sandboxNamespaces: distinct .tst.app.sandboxNamespaces,
+                `$1 _ string nsName];
 
         loadCtx: .tst.captureRuntimeContext[];
 
@@ -858,11 +884,12 @@
         preCount: count .tst.app.allSpecs;
 
         / Ensure namespace exists and switch to it
-        nsInit: string[nsName],".init:0;";
-        @[value; nsInit; {[p;e]
-            -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
-            `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
-        }[p]];
+        if[not rootLoad;
+            nsInit: string[nsName],".init:0;";
+            @[value; nsInit; {[p;e]
+                -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
+                `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
+            }[p]]];
 
         @[system; "d ", string nsName; {[p;e]
             -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
@@ -889,6 +916,8 @@
                {[err] (1b; err)}];
         if[1b ~ first res;
             e: .tst.dslLoadErrorHint[last res;content];
+            / q signals some malformed expressions with a blank error name.
+            if[all e in " "; e: "q signalled an unnamed error"];
             lineNo: @[.tst.localizeSyntaxError; content; {0N}];
             if[not null lineNo;
                 stmtsForMsg: @[.tst.groupStatements; content; {()}];
@@ -911,12 +940,15 @@
         / Restore root namespace
         @[system; "d ."; {}];
 
-        / Warn if no tests loaded
+        .tst.restoreFrameworkOverrides[p;content];
+
+        / Warn if no tests loaded. On the qspec path a spec-free file is a
+        / helper (qspec loads every .q file), so it is only counted.
         if[(count .tst.app.allSpecs) = preCount;
             msg: "File ", p, " loaded but added no tests.";
-            -1 "WARNING: ", msg;
             .tst.app.emptyFiles,: enlist p;
-            if[.tst.app.strict;
+            if[not rootLoad; -1 "WARNING: ", msg];
+            if[.tst.app.strict and not rootLoad;
                 `.tst.app.loadErrors upsert `file`error`type!(`$p; msg; `emptyFile);
             ];
         ];
@@ -925,6 +957,43 @@
         .tst.restoreRuntimeContext loadCtx;
         
     } each tests;
+ };
+
+/ Restore framework functions a test file redefined and fail the file with a
+/ message that names the helper to rename. Only names the file assigns in its
+/ own source count: the framework legitimately swaps some of its functions
+/ while a file loads (coverage) and stores user hooks in function slots.
+.tst.restoreFrameworkOverrides:{[p;content]
+    snapshot: @[get; `.tst.frameworkFunctionSnapshot; {()!()}];
+    if[0 = count snapshot; :()];
+    names: key snapshot;
+    changed: names where not snapshot[names] ~' @[get;;{::}] each names;
+    if[0 = count changed; :()];
+    changed: changed inter .tst.sourceAssignedTstNames content;
+    if[0 = count changed; :()];
+    {[snapshot;name] name set snapshot name}[snapshot] each changed;
+    shown: ", " sv string changed;
+    msg: "redefines resQ internal ", shown, " (resQ's .tst namespace is larger than ",
+        "qspec's). The framework definition was restored; rename the helper, e.g. ",
+        ".myTests.", last "." vs string first changed;
+    -1 "ERROR: ", p, " ", msg;
+    `.tst.app.loadErrors upsert `file`error`type!(`$p; msg; `frameworkOverride);
+ };
+
+/ `.tst.<name>` targets of `:`/`::` assignments in code (not strings or
+/ comments), as fully qualified symbols.
+.tst.sourceAssignedTstNames:{[content]
+    code: "\n" sv .tst.maskQLine each (),/:content;
+    starts: "j"$code ss ".tst.";
+    starts: starts where {[code;at] (at = 0) or not code[at - 1] in .Q.an,"."}[code] each starts;
+    identChars: .Q.an;
+    names: {[code;identChars;at]
+        from: at + 5;
+        width: (from _ code) ? first (from _ code) except identChars;
+        rest: ltrim (from + width) _ code;
+        $[(width > 0) and ":" = first rest; `$".tst.", width # from _ code; `]
+      }[code;identChars] each starts;
+    distinct names except `
  };
 
 / Canonical file selection boundary. Sharding extends this function later; all
@@ -975,6 +1044,11 @@
     patternsExplicit:1b~@[get;`.tst.configTestFilePatternsExplicit;0b];
     if[qspecMode and not patternsExplicit;
         patterns:distinct patterns,enlist "qspec_test_*.q"];
+    / qspec's loader takes every *.q file under a directory. bin/qspec asks for
+    / the same so an existing tree (tests/pricing.q, tests/specs/fx.q) is found
+    / without renaming; an explicit resq.json testFilePatterns still wins.
+    if[(1b~@[get;`.tst.app.qspecDiscovery;0b]) and not patternsExplicit;
+        patterns:enlist "*.q"];
 
     directFiles: ps where {(.utl.isFile x) and x like "*.q"} each ps;
     dirs: ps where .utl.isDir each ps;
@@ -1002,6 +1076,10 @@
         any base like/: pats
     }[patterns;];
     files: distinct directFiles, discovered where isNamedTest each discovered;
+    / Remembered so "No test files found" can say why, which is the first
+    / thing a qspec tree with unprefixed file names hits.
+    .tst.app.unmatchedQFiles: discovered where not isNamedTest each discovered;
+    .tst.app.testFilePatternsUsed: patterns;
 
     / Return convention-matching discovered tests plus explicit files.
     files

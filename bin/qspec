@@ -12,7 +12,36 @@ done
 DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 RESQ_HOME="$(dirname "$DIR")"
 
+# qspec's --junit/--xunit print the XML report on stdout, so CI scripts capture
+# it with `qspec --junit tests > results.xml`. resQ writes report files into
+# -outDir instead. Unless the caller chose an -outDir, keep qspec's contract:
+# resQ's console output goes to stderr and the XML report to stdout.
+xml_report=""
+has_outdir=0
+for arg in "$@"; do
+  case "$arg" in
+    -junit|--junit|-xml|--xml|-xunit|--xunit) xml_report=1 ;;
+    -outDir|--outDir|-outDir=*|--outDir=*) has_outdir=1 ;;
+  esac
+done
+
 # Keep the caller's CWD so relative test and fixture paths retain qspec's
 # behavior. Delegate to the supervised launcher so `exit 0` cannot fake a
-# successful qspec-compatible run.
-exec "$RESQ_HOME/bin/resq" test "$@" -qspec-compat
+# successful qspec-compatible run. -qspec-discovery loads every .q file under
+# a directory, as qspec's own loader does.
+if [ -z "$xml_report" ] || [ "$has_outdir" = 1 ]; then
+  exec "$RESQ_HOME/bin/resq" test "$@" -qspec-compat -qspec-discovery
+fi
+
+report_dir="$(mktemp -d "${TMPDIR:-/tmp}/resq-qspec.XXXXXX")" || exit 1
+trap 'rm -rf -- "$report_dir"' EXIT
+"$RESQ_HOME/bin/resq" test "$@" -qspec-compat -qspec-discovery \
+  -outDir "$report_dir" 1>&2
+status=$?
+for name in test-results.xml test-results.junit.xml test-results.xunit.xml; do
+  if [ -f "$report_dir/$name" ]; then
+    cat -- "$report_dir/$name"
+    break
+  fi
+done
+exit "$status"

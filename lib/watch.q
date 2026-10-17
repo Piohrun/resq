@@ -2,7 +2,7 @@
 / ============================================================================
 
 / Dependencies
-.utl.require .utl.PKGLOADING,"/static_analysis.q"
+.resq.require .resq.PKGLOADING,"/static_analysis.q"
 
 / Configuration
 .tst.watch.watchDirs: enlist "."

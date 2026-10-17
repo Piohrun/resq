@@ -173,6 +173,19 @@
         / left operand would introduce a false failure.
         x + 1 musteq 1;
     };
+
+    should["keep an adverb attached to an infix assertion"]{
+        / qspec suites (qutil's own) write each, each-left and each-right
+        / assertions infix. Dropping the adverb left `.tst.dsl.mustin[x;] \: y`,
+        / which q rejects with a blank error and the whole file failed to load.
+        1 2 musteq' 1 2;
+        (1 2;3 4) mustin\: 1 2 3 4;
+        1 mustlt/: 2 3;
+        key[`a`b!1 2] mustin\: `a`b`c;
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;"x mustin\\: y"] musteq ".tst.dsl.mustin\\:[x;] y";
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;"x musteq/:y"] musteq ".tst.dsl.musteq/:[x;] y";
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;"x musteq' y"] musteq ".tst.dsl.musteq'[x;] y";
+    };
 };
 
 ::

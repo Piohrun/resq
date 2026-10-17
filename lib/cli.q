@@ -11,9 +11,9 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`noVcs`finalDiffs`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles`shardUnit`flakeHistoryFile`quarantineFile`flakeProposalFile`benchmarkBaseline`flakeEvidenceMin`flakeFailureMin`flakeWindow`reportProfile`labels`finalDiffLimit;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");("quarantine-non-blocking";"quarantineNonBlocking");("flake-proposals";"flakeProposals");("snapshot-audit";"snapshotAudit");("snapshot-gate";"snapshotGate");("benchmark-gate";"benchmarkGate");("benchmark-accept-environment";"benchmarkAcceptEnvironment");("no-vcs";"noVcs");("final-diffs";"finalDiffs");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");("benchmark-alpha";"benchmarkAlphaPercent");("benchmark-effect-min";"benchmarkEffectMin");("benchmark-min-samples";"benchmarkMinSamples");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins");("shard-unit";"shardUnit");("flake-history";"flakeHistoryFile");("quarantine-file";"quarantineFile");("flake-proposal-file";"flakeProposalFile");("benchmark-baseline";"benchmarkBaseline");("flake-evidence-min";"flakeEvidenceMin");("flake-failure-min";"flakeFailureMin");("flake-window";"flakeWindow");("report-profile";"reportProfile");("labels";"label-json");("final-diff-limit";"finalDiffLimit"));
-.tst.cli.specKinds:(39 # `flag), 39 # `value;
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`qspecDiscovery`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`noVcs`finalDiffs`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles`shardUnit`flakeHistoryFile`quarantineFile`flakeProposalFile`benchmarkBaseline`flakeEvidenceMin`flakeFailureMin`flakeWindow`reportProfile`labels`finalDiffLimit;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("qspec-discovery";"qspecDiscovery");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");("quarantine-non-blocking";"quarantineNonBlocking");("flake-proposals";"flakeProposals");("snapshot-audit";"snapshotAudit");("snapshot-gate";"snapshotGate");("benchmark-gate";"benchmarkGate");("benchmark-accept-environment";"benchmarkAcceptEnvironment");("no-vcs";"noVcs");("final-diffs";"finalDiffs");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");("benchmark-alpha";"benchmarkAlphaPercent");("benchmark-effect-min";"benchmarkEffectMin");("benchmark-min-samples";"benchmarkMinSamples");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins");("shard-unit";"shardUnit");("flake-history";"flakeHistoryFile");("quarantine-file";"quarantineFile");("flake-proposal-file";"flakeProposalFile");("benchmark-baseline";"benchmarkBaseline");("flake-evidence-min";"flakeEvidenceMin");("flake-failure-min";"flakeFailureMin");("flake-window";"flakeWindow");("report-profile";"reportProfile");("labels";"label-json");("final-diff-limit";"finalDiffLimit"));
+.tst.cli.specKinds:(40 # `flag), 39 # `value;
 .tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`flakeEvidenceMin`flakeFailureMin`flakeWindow`finalDiffLimit;
 .tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`benchmarkAlphaPercent`benchmarkEffectMin;
 
@@ -72,13 +72,25 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     values valuePositions ? chosenPosition
  };
 
+/ qutil's option parser, which qspec scripts are written against, also accepts
+/ --name=value. Split that spelling for a known value option; any other token
+/ containing "=" is left for the unknown-option check.
+.tst.cli.splitInlineValue:{[token]
+    if[not .tst.cli.startsDash token; :enlist token];
+    eq: token ? "=";
+    if[eq >= count token; :enlist token];
+    name: eq # token;
+    if[not `value ~ .tst.cli.optionKinds .tst.cli.optionTokens ? name; :enlist token];
+    (name; (eq + 1) _ token)
+ };
+
 / Parse command-line tokens once into normalized options, mode, and positionals.
 / This is a bounded CLI state analysis: option/value positions are derived
 / vectorially, so values can never leak into positional dispatch.
 .tst.parseCLI:{[args]
     separatorPositions: where {"--" ~ x} each args;
     separator: $[count separatorPositions; first separatorPositions; count args];
-    preTokens: separator # args;
+    preTokens: raze .tst.cli.splitInlineValue each separator # args;
     postTokens: $[separator < count args; (separator + 1) _ args; ()];
     / q's native `\l -name.q` treats the leading dash as syntax. Preserve the
     / user's relative path semantics while making the downstream load safe.
@@ -373,6 +385,10 @@ initCLI:{[parsed]
     / Restore qspec's musteq (`=`) and mustne (`<>`) semantics so an unported
     / qspec suite runs unchanged. See docs/MIGRATION.md.
     if[options`qspecCompat; .tst.app.qspecCompat: 1b];
+    / qspec's loader takes every *.q file under a directory argument; resQ's
+    / default takes test_*.q and *_test.q. bin/qspec passes this so an
+    / existing qspec tree is found without renaming its files.
+    if[options`qspecDiscovery; .tst.app.qspecDiscovery: 1b];
     / Statement-level coverage rewrites function bodies at load time, so it is
     / opt-in: see docs/COVERAGE.md for what it costs and what it buys.
     if[options`covStatements; .tst.coverageStatements: 1b];

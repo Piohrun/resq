@@ -73,8 +73,17 @@ def verify(q_executable: str, destination: Path) -> Path:
     upstream_summary = upstream["summary"]
     if upstream_summary["testCount"] != 33 or upstream_summary["assertionCount"] != 2080:
         raise RuntimeError(f"pinned upstream inventory drifted: {upstream_summary!r}")
-    if verdict(native) != verdict(compatible):
+    native_verdicts = verdict(native)
+    compatible_verdicts = verdict(compatible)
+    if any(compatible_verdicts.get(identity) != status
+           for identity, status in native_verdicts.items()):
         raise RuntimeError("native and compatibility public-surface verdicts differ")
+    # bin/qspec loads every .q file under a directory, as qspec does, so it may
+    # find suites resQ's test_*.q/*_test.q convention skips. Those must pass.
+    discovered = {identity: status for identity, status in compatible_verdicts.items()
+                  if identity not in native_verdicts}
+    if any(status != "pass" for status in discovered.values()):
+        raise RuntimeError(f"qspec-discovered suites did not pass: {discovered!r}")
     result = {
         "schemaVersion": 1,
         "kind": "resq-qspec-compatibility-evidence",
@@ -84,6 +93,7 @@ def verify(q_executable: str, destination: Path) -> Path:
         "native": native["summary"],
         "compatible": compatible["summary"],
         "verdictParity": True,
+        "qspecDiscoveredTests": len(discovered),
     }
     receipt = destination / "compatibility-evidence.json"
     receipt.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

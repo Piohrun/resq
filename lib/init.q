@@ -22,7 +22,7 @@ if[0=count .utl.initSourceDir;.utl.initSourceDir:"/"];
 / Otherwise use the directory containing this init file, including when q was
 / launched from outside the checkout with an absolute script path.
 .utl.resqHomeAtBoot: @[get; `.resq.HOME; {""}];
-.utl.PKGLOADING: $[count .utl.resqHomeAtBoot;
+.resq.PKGLOADING: $[count .utl.resqHomeAtBoot;
     .utl.resqHomeAtBoot,"/lib";
     .utl.initSourceDir];
 .utl.DEBUG: 0b;
@@ -47,34 +47,34 @@ if[not `config in key `.resq; .resq.config.tmp:1];
 if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: ":."];
 
 / Project Libraries
-.utl.require .utl.PKGLOADING,"/mock.q"
-.utl.require .utl.PKGLOADING,"/benchmark.q"
-.utl.require .utl.PKGLOADING,"/promise.q"
-.utl.require .utl.PKGLOADING,"/fixture.q"
-.utl.require .utl.PKGLOADING,"/value_codec.q"
-.utl.require .utl.PKGLOADING,"/diff.q"
-.utl.require .utl.PKGLOADING,"/snapshot.q"
-.utl.require .utl.PKGLOADING,"/snapshot_txt.q"
-.utl.require .utl.PKGLOADING,"/dsl/internals.q"
-.utl.require .utl.PKGLOADING,"/output/sanitize.q"
-.utl.require .utl.PKGLOADING,"/benchmark_regression.q"
-.utl.require .utl.PKGLOADING,"/snapshot_inventory.q"
-.utl.require .utl.PKGLOADING,"/events.q"
-.utl.require .utl.PKGLOADING,"/output/text.q"
-.utl.require .utl.PKGLOADING,"/dsl/assertions.q"
-.utl.require .utl.PKGLOADING,"/deps.q"
-.utl.require .utl.PKGLOADING,"/diff_assertions.q"
-.utl.require .utl.PKGLOADING,"/watch.q"
-.utl.require .utl.PKGLOADING,"/dsl/ui.q"
-.utl.require .utl.PKGLOADING,"/dsl/spec.q"
-.utl.require .utl.PKGLOADING,"/dsl/expec.q"
-.utl.require .utl.PKGLOADING,"/dsl/fuzz.q"
-.utl.require .utl.PKGLOADING,"/dsl/generators.q"
-.utl.require .utl.PKGLOADING,"/quarantine.q"
-.utl.require .utl.PKGLOADING,"/rerun.q"
-.utl.require .utl.PKGLOADING,"/loader.q"
-.utl.require .utl.PKGLOADING,"/test_finder.q"
-.utl.require .utl.PKGLOADING,"/isolate.q"
+.resq.require .resq.PKGLOADING,"/mock.q"
+.resq.require .resq.PKGLOADING,"/benchmark.q"
+.resq.require .resq.PKGLOADING,"/promise.q"
+.resq.require .resq.PKGLOADING,"/fixture.q"
+.resq.require .resq.PKGLOADING,"/value_codec.q"
+.resq.require .resq.PKGLOADING,"/diff.q"
+.resq.require .resq.PKGLOADING,"/snapshot.q"
+.resq.require .resq.PKGLOADING,"/snapshot_txt.q"
+.resq.require .resq.PKGLOADING,"/dsl/internals.q"
+.resq.require .resq.PKGLOADING,"/output/sanitize.q"
+.resq.require .resq.PKGLOADING,"/benchmark_regression.q"
+.resq.require .resq.PKGLOADING,"/snapshot_inventory.q"
+.resq.require .resq.PKGLOADING,"/events.q"
+.resq.require .resq.PKGLOADING,"/output/text.q"
+.resq.require .resq.PKGLOADING,"/dsl/assertions.q"
+.resq.require .resq.PKGLOADING,"/deps.q"
+.resq.require .resq.PKGLOADING,"/diff_assertions.q"
+.resq.require .resq.PKGLOADING,"/watch.q"
+.resq.require .resq.PKGLOADING,"/dsl/ui.q"
+.resq.require .resq.PKGLOADING,"/dsl/spec.q"
+.resq.require .resq.PKGLOADING,"/dsl/expec.q"
+.resq.require .resq.PKGLOADING,"/dsl/fuzz.q"
+.resq.require .resq.PKGLOADING,"/dsl/generators.q"
+.resq.require .resq.PKGLOADING,"/quarantine.q"
+.resq.require .resq.PKGLOADING,"/rerun.q"
+.resq.require .resq.PKGLOADING,"/loader.q"
+.resq.require .resq.PKGLOADING,"/test_finder.q"
+.resq.require .resq.PKGLOADING,"/isolate.q"
 
 / Alias .resq expansion functions to .tst for backward compatibility with example tests
 if[`resq in key `;
@@ -197,7 +197,7 @@ if[`uiExports in key `.tst; .tst.registerDslExports .tst.uiExports];
 (` sv `.,`registerCleanup) set .tst.registerCleanup;
 (` sv `.,`registerSpecCleanup) set .tst.registerSpecCleanup;
 
-.tst.PKGNAME: .utl.PKGLOADING
+.tst.PKGNAME: .resq.PKGLOADING
 
 .tst.loadOutputModule:{[module]
   requestedModule:$[10h = type module; lower `$module; -11h = type module; lower module; 11h = type module; lower module; `text];
@@ -209,7 +209,7 @@ if[`uiExports in key `.tst; .tst.registerDslExports .tst.uiExports];
   outputModule:$[requestedModule ~ `console; `text; requestedModule ~ `xml; `junit; requestedModule];
 
   modulePath: .tst.PKGNAME, "/output/", (string outputModule), ".q";
-  .utl.require[modulePath];
+  .resq.require[modulePath];
   outputLoaded: any modulePath ~/: .utl.loaded;
   if[not outputLoaded; -1 "WARNING: Output module not available: ", string outputModule];
   if[not outputLoaded; :0b];

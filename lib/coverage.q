@@ -1,9 +1,9 @@
 / coverage.q - runtime coverage instrumentation and LCOV/HTML reporting (load-safe)
-.utl.require .utl.PKGLOADING,"/static_analysis.q"
+.resq.require .resq.PKGLOADING,"/static_analysis.q"
 / For .tst.bracketDelta, used to find where a function definition closes.
 / .utl.require is idempotent, so this is a no-op in a normal run (init.q has
 / already loaded it) and a real load when coverage.q is pulled in on its own.
-.utl.require .utl.PKGLOADING,"/loader.q"
+.resq.require .resq.PKGLOADING,"/loader.q"
 
 / State. Preserve live ownership on a defensive module reload: resetting these
 / maps while wrappers are installed is precisely how a wrapper can be captured

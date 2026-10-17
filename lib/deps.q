@@ -5,7 +5,7 @@ depGraph: ()!();
 dependencies: ()!();
 
 /. Keep parse/scan helpers local and dependency-free by loading static analysis utilities here.
-.utl.require .utl.PKGLOADING,"/static_analysis.q"
+.resq.require .resq.PKGLOADING,"/static_analysis.q"
 
 / ---------------------------------------------------------------------------
 / Load-directive parsing
@@ -198,13 +198,18 @@ parseDependencyRecords:{[filepath]
     quoteText: $[count quotePieces; -1 _ raze quotePieces; `boolean$()];
     if[count[quoteText] <> count rawText; :.tst.emptyDepRecords[]];
 
-    token: ".utl.require";
-    positions: codeText ss token;
+    / resQ's own modules load through .resq.require (qutil keeps .utl.require
+    / when present), so both spellings are dependency edges.
+    found: raze {[codeText;token] {[t;p] (p;t)}[token] each "j"$codeText ss token}[codeText]
+        each (".utl.require";".resq.require");
+    found: $[count found; found iasc found[;0]; ()];
+    positions: $[count found; "j"$found[;0]; `long$()];
     contextDepths: .tst.depDepthsAt[codeText; positions];
 
     positionIndex: 0;
     while[positionIndex < count positions;
         start: positions positionIndex;
+        token: found[positionIndex;1];
         if[.tst.depTokenAt[codeText; start; token];
             tokenEnd: start + count token;
             / The statement ends at the next require, the next ";" or EOF.
