@@ -6,6 +6,49 @@ All notable changes to the **resQ** project will be documented in this file.
 
 No unreleased changes.
 
+## [2.2.0] - 2026-10-17 - Faster Runs & qspec xunit
+
+resQ 2.2.0 halves runner overhead and makes `bin/qspec --xunit` produce
+qspec's own report file. It keeps the 2.x DSL, report-v2 contract and
+identity v3.
+
+### Added
+
+- `-xunit-format xunit2|qspec`. `qspec` writes qspec's own `--xunit` file (a
+  bare `<test-suite>` root, `<test-suite>` per suite, `<test-case name label
+  errors failures skip tests>` per test); `xunit2` keeps xUnit.net v2.
+- The upstream qspec differential also compares `--xunit` runs: 7 runs, 194
+  testcases.
+
+### Changed
+
+- `bin/qspec` passes `-xunit-format qspec` unless the caller chooses a
+  format, so `--xunit` output matches qspec's. On cryptoq it is
+  byte-identical to upstream qspec's file.
+- The licensed q CI jobs run only when the repository variable
+  `RESQ_KDB_RUNNER` is `true`; without a registered runner they show as
+  skipped instead of queueing until GitHub cancels them.
+
+### Fixed
+
+- `bin/qspec --junit` (XML on stdout) deleted any other report requested in
+  the same run, such as `-json`; those now land in the working directory. The
+  console names stdout instead of a deleted scratch file.
+
+### Performance
+
+- A 3,000-test suite runs in about 3 s instead of about 7 s, and a 30-test
+  file in about 0.37 s instead of 0.5 s. Reading the working directory costs
+  about 1 ms in q and happened for every test; resQ now reuses the directory
+  it just restored. The run model is no longer built twice when no plugin is
+  registered, the loader skips assertion names absent from a line, file
+  sharding reuses the execution inventory, and flake history is validated
+  column-wise.
+
+### Documentation
+
+- MIGRATION.md lists the three deliberate exit-code differences from qspec.
+
 ## [2.1.0] - 2026-10-17 - qspec Drop-in & Work Adoption
 
 resQ 2.1.0 makes `bin/qspec` a drop-in for qspec suites run from CI scripts,

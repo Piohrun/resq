@@ -202,6 +202,14 @@ following checked-in contracts; the final release gate invokes all of them:
   exact candidate evidence; the certification commit is requalified before the
   annotated tag is pushed.
 
+## 2.2.0 — Runner overhead and qspec's xunit file
+
+- [x] Halve per-test and per-run overhead without changing working-directory
+  behaviour, pinned by a subprocess contract test.
+- [x] Write qspec's own `--xunit` file from `bin/qspec` and compare it with
+  upstream qspec in the release differential.
+- [ ] Complete the clean-clone v2.2.0 release qualification.
+
 ## Post-2.0 ecosystem ideas — not implemented
 
 These are roadmap ideas, not resQ capabilities or release commitments:
