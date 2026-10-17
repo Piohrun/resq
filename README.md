@@ -89,7 +89,8 @@ test or loaded application is forced to a failing status. You can set
 but q does not let `.z.exit` change an already-requested exit code, so direct
 invocation cannot provide that status guard.
 
-The supported production baseline is kdb+/q 4.1.x on Linux x86-64. The launchers require
+The supported production baseline is kdb+/q 4.1.x on Linux x86-64; q 4.0 is
+verified too (see [the compatibility matrix](docs/COMPATIBILITY_MATRIX.md)). The launchers require
 Bash plus `mktemp`, `chmod`, `rm`, and `rmdir` for their completion guard;
 process isolation has additional command-line dependencies. See
 [Getting Started](docs/GETTING_STARTED.md) for the supported path and a

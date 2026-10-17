@@ -19,6 +19,7 @@ When invoked through `bin/qspec` (or `resq test -qspec-compat`), resQ supports:
 - `mock` with automatic restoration;
 - `fixture` and `fixtureAs` for file, text, splayed, and directory fixtures;
 - `holds` and opt-in `perf` blocks;
+- `.tst.testFilePath` for data kept next to a test file;
 - qspec's 14 public assertions with the same names and arities: `must`,
   `musteq`, `mustne`, `mustmatch`, `mustnmatch`, `mustlt`, `mustgt`,
   `mustlike`, `mustin`, `mustnin`, `mustwithin`, `mustdelta`, `mustthrow`, and
@@ -26,13 +27,20 @@ When invoked through `bin/qspec` (or `resq test -qspec-compat`), resQ supports:
 - runner options `-desc` / `-describe`, `-xunit`, `-junit`, `-perf` /
   `-performance`, `-exclude`, `-only`, `-pass`, `-noquit`,
   `-fuzz-display-limt` / `-fdl`, `-ff` / `-fail-fast`, and
-  `-fh` / `-fail-hard`.
+  `-fh` / `-fail-hard`, with one or two dashes and qutil's `--name=value`
+  form for value options.
 
 The executable gate runs seven byte-identical upstream public suites: assertions,
 UI, mocking, fuzzing, file fixtures, directory fixtures, and text fixtures.
-`bin/qspec <directory>` also recognizes the pinned upstream `qspec_test_*.q`
-filename convention in addition to resQ's normal defaults. An explicit
-`testFilePatterns` configuration replaces those launcher defaults.
+`bin/qspec <directory>` loads every `.q` file under the directory, as qspec's
+loader does (`-qspec-discovery`); `resq test -qspec-compat` keeps resQ's
+`test_*.q` / `*_test.q` defaults plus the pinned `qspec_test_*.q` convention.
+An explicit `testFilePatterns` configuration replaces both. With `-junit` or
+`-xunit` and no `-outDir`, `bin/qspec` prints the XML report on stdout and the
+console on stderr, matching qspec's `--junit > results.xml` usage. When qutil
+is loaded before resQ, qutil keeps `.utl.require` for package names and its
+`.utl` loader state, and `bin/qspec` preloads `qutil/opts.q` as qspec's
+`spec.q` does.
 The unmodified legacy fuzz generator consumes q's process-global random stream,
 so the compatibility harness loads a checked seed fixture before the corpus.
 This makes the evidence replayable without editing upstream source; ordinary

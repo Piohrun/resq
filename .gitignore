@@ -32,6 +32,7 @@ gmon.out
 missingTests/
 plans/
 /output/
+/artifacts/
 test-results.xml
 test-results.json
 # .tst.tempFile writes scratch into the CWD; cover every suffix a test may ask
@@ -59,3 +60,4 @@ test-results.xml
 test-results.json
 test-results/
 .resq/
+docs/reviews/

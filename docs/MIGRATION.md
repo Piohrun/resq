@@ -34,6 +34,7 @@ The following qspec constructs work in resQ without changes:
 | `mock` | `mock` | Same test-facing form; automatic restoration retained |
 | `fixture` / `fixtureAs` | `fixture` / `fixtureAs` | File, text, splayed, and directory fixtures |
 | `holds` | `holds` | Extended — see below |
+| `.tst.testFilePath` | `.tst.testFilePath` | Path next to the running test file |
 | `perf` | `perf` | Opt-in with `-perf` / `-performance`, as in qspec |
 
 ---
@@ -69,12 +70,51 @@ the old command:
 qspec tests/
 ```
 
+If a build script runs qspec's entry point with q, change the command and keep
+the arguments:
+
+```bash
+# before
+q /opt/qspec/app/spec.q --junit --only=pricing* tests > results.xml
+# after
+/opt/resq/bin/qspec --junit --only=pricing* tests > results.xml
+```
+
+q's own options in that line (`-s 4`, `-w 8000`, `-q`) can stay anywhere in
+it: q takes them before resQ reads its arguments.
+
 The launcher is symlink-safe, keeps the caller's working directory, invokes
 resQ's test mode, and enables `-qspec-compat`. It also accepts qspec's legacy
 runner spellings: `-desc`/`-describe`, `-xunit`, `-junit`,
 `-perf`/`-performance`, `-exclude`, `-only`, `-pass`, `-noquit`,
 `-fuzz-display-limt`/`-fdl`, `-ff`/`-fail-fast`, and
-`-fh`/`-fail-hard`.
+`-fh`/`-fail-hard`, with one or two dashes, and qutil's `--name=value` form for
+options that take a value (`--only=pricing*`, `--fdl=5`).
+
+It also keeps three qspec runner behaviours that existing trees and CI scripts
+depend on:
+
+- **Every `.q` file under a directory is a test file**, as in qspec's loader
+  (`-qspec-discovery`). `resq test` keeps its `test_*.q` / `*_test.q`
+  convention; an explicit `testFilePatterns` in `resq.json` overrides both.
+- **`--junit` / `--xunit` print the XML report on stdout**, so
+  `qspec --junit tests > results.xml` keeps working. resQ's console output goes
+  to stderr in that mode. Pass `-outDir DIR` to get report files instead.
+- **qutil keeps working.** qspec requires qutil, usually loaded from `q.q`. When
+  qutil is loaded before resQ, resQ leaves `.utl.PKGLOADING`, `.utl.FILELOADING`
+  and `.utl.DEBUG` alone and hands `.utl.require "somePackage"` to qutil's
+  QPATH loader; existing file paths still load through resQ so coverage and
+  watch mode see them. Like qspec's `spec.q`, `bin/qspec` preloads qutil's
+  `opts.q`, so code that calls `.utl.addOpt` without requiring it still works.
+
+Test files that define their own helpers in `.tst` keep working unless a
+helper reuses the name of a resQ internal (resQ's `.tst` is much larger than
+qspec's). That file then fails with a load error naming the helper to rename,
+and the framework definition is restored for the rest of the run.
+
+A `desc` block is one q lambda, and q limits a lambda to roughly 237 constants.
+resQ's line annotations fit within qspec's budget: a `desc` holds about 118
+`should` blocks under both. Past that, split the block or group with `alt{}`.
 
 When invoking resQ directly, enable the same comparison compatibility explicitly:
 

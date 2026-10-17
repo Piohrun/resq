@@ -6,7 +6,8 @@ not need to be rewritten first.
 
 ## 1. Check the runtime
 
-The supported production baseline is kdb+/q 4.1.x on Linux x86-64. Put `q` on `PATH` and
+The supported production baseline is kdb+/q 4.1.x on Linux x86-64; q 4.0 is
+verified too (see the [compatibility matrix](COMPATIBILITY_MATRIX.md)). Put `q` on `PATH` and
 make its licence available through your normal KX setup (`QHOME` or `QLIC`).
 
 ```bash

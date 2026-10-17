@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -61,6 +62,12 @@ class ReleaseGateContractTests(unittest.TestCase):
                 )
         self.assertGreater(checkout_count, 0)
 
+    # The licence-free CI lane runs this module on hosted runners without q.
+    # Executing README q examples belongs to the licensed lanes.
+    @unittest.skipUnless(
+        shutil.which(os.environ.get("QBIN", "q")),
+        "q is not installed; README q examples run in the licensed lanes",
+    )
     def test_readme_examples_execute(self) -> None:
         q_count, shell_count = verify_readme_examples(os.environ.get("QBIN", "q"))
         self.assertGreater(q_count, 0)

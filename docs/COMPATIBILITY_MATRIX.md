@@ -5,6 +5,7 @@
 | Runtime | Platform | Status |
 |---------|----------|--------|
 | kdb+/q 4.1.x 64-bit | Linux x86-64 | Supported and required in CI |
+| kdb+/q 4.0 64-bit | Linux x86-64 | Verified, not release-gated: on KX build 2023.08.11 (2026-10-16) the self-suite passed normal, isolated and `-qspec-compat`, as did the execution matrix, shard merge, qspec contract and CLI terminal gates |
 | other q 4.x releases | Linux | Best effort; run the matrix with `--allow-unsupported` before adoption |
 | macOS / Windows | any | Not a production support target |
 
