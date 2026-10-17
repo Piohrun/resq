@@ -457,11 +457,31 @@
     sortRows bounded
  };
 
+/ resQ's default state directory is <project>/.resq. Flake history, last-run
+/ selection and quarantine proposals are run-to-run caches, so the directory
+/ ignores itself in git the way .pytest_cache does: a first run in a checkout
+/ leaves `git status` clean. quarantine.json is the reviewed manifest and stays
+/ visible so it can be committed. Only a directory named .resq gets the file,
+/ and an existing .gitignore there is never replaced.
+.tst.STATE_DIR_GITIGNORE:(
+    "# Written by resQ: run-to-run caches stay out of version control.";
+    "# quarantine.json is the reviewed quarantine manifest; commit it.";
+    enlist "*";
+    "!quarantine.json");
+.tst.ensureStateDir:{[dir]
+    .utl.ensureDir dir;
+    if[not ".resq"~last "/" vs .utl.normalizePath dir;:dir];
+    ignore:dir,"/.gitignore";
+    if[.utl.pathExists ignore;:dir];
+    @[{(hsym `$x) 0: .tst.STATE_DIR_GITIGNORE};ignore;{[e]}];
+    dir
+ };
+
 .tst.atomicWriteJson:{[path;doc;kind]
     slash:where path="/";
     dir:$[count slash;(last slash)#path;"."];
     if[0=count dir;dir:"/"];
-    .utl.ensureDir dir;
+    .tst.ensureStateDir dir;
     tmp:path,".tmp.",string .z.i;
     written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[args;err]0b}];
     if[not written;
@@ -505,7 +525,7 @@
     slash:where path="/";
     dir:$[count slash;(last slash)#path;"."];
     if[0=count dir;dir:"/"];
-    .utl.ensureDir dir;
+    .tst.ensureStateDir dir;
     lock:path,".lock";
     quoted:.utl.shellQuote lock;
     cmd:"lock=",quoted,"; i=0; while ! mkdir \"$lock\" 2>/dev/null; do ",

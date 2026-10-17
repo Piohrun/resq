@@ -24,7 +24,9 @@ is omitted from individual JSON rows/events and from JUnit/xUnit property
 groups. Absence is therefore the compact representation of “not enough
 evidence yet,” not a policy decision.
 
-History defaults to `.resq/flake-history.json`. Each write re-reads and merges
+History defaults to `.resq/flake-history.json`. The `.resq/` directory carries
+its own `.gitignore`, so history and rerun caches never show up in `git status`
+while `.resq/quarantine.json` stays visible for review. Each write re-reads and merges
 the latest file by stable execution ID under a bounded single-writer lock, then
 atomically replaces it. Each execution retains at most `flakeWindow`
 observations and the file retains at most 100,000 executions in deterministic

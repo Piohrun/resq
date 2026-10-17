@@ -1981,8 +1981,10 @@ describe-only runs leave prior history intact. `-last-failed` and
 `-failed-first` use the report's stable `testId`; missing, empty, corrupt, or
 unsupported history falls back to the complete current selection and emits a
 typed rerun diagnostic; identity-mismatched state is preserved beside the
-cache for explicit migration. The default `.resq/` cache directory should remain
-uncommitted. Multi-shard runs suffix this cache per shard to avoid concurrent
+cache for explicit migration. The default `.resq/` cache directory stays out of
+version control on its own: resQ writes a `.resq/.gitignore` that ignores
+everything except the reviewed `quarantine.json` (an existing `.gitignore` there
+is kept). Multi-shard runs suffix this cache per shard to avoid concurrent
 writers.
 
 Flake history and quarantine policy use the same stable identity but remain

@@ -327,4 +327,24 @@
     count[(.tst.flakeFindById[final`tests;b])`observations] musteq 3;
   };
  };
+
+.tst.desc["state directory stays out of version control"]{
+  should["write a self-ignoring .gitignore into a .resq directory, once"]{
+    / A first run in a checkout used to leave .resq/ untracked in git status.
+    base:.utl.tempRoot[],"/resq_statedir_",string[.z.i],"_",string `long$.z.p;
+    dir:base,"/.resq";
+    .tst.ensureStateDir dir;
+    ignore:hsym `$dir,"/.gitignore";
+    lines:read0 ignore;
+    (enlist "*") mustin lines;
+    "!quarantine.json" mustin lines;
+    ignore 0: enlist "custom";
+    .tst.ensureStateDir dir;
+    (read0 ignore) musteq enlist "custom";
+    other:base,"/reports";
+    .tst.ensureStateDir other;
+    (key hsym `$other) musteq `symbol$();
+    system "rm -rf ",.utl.shellQuote base;
+  };
+ };
 ::

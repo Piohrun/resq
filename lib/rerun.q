@@ -200,7 +200,7 @@
     slash:where path="/";
     dir:$[count slash;(last slash)#path;"."];
     if[0=count dir;dir:"/"];
-    .utl.ensureDir dir;
+    .tst.ensureStateDir dir;
     rows:.tst.resultRows .resq.state.results;
     eligible:rows where {[row] (row`kind) in `test`fuzz`perf} each rows;
     / Collection/framework-only runs must not erase useful prior history.
