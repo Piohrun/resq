@@ -200,11 +200,13 @@
     slash:where path="/";
     dir:$[count slash;(last slash)#path;"."];
     if[0=count dir;dir:"/"];
-    .tst.ensureStateDir dir;
     rows:.tst.resultRows .resq.state.results;
     eligible:rows where {[row] (row`kind) in `test`fuzz`perf} each rows;
-    / Collection/framework-only runs must not erase useful prior history.
+    / Collection/framework-only runs must not erase useful prior history, and
+    / must not create the state directory either: a run whose only file failed
+    / to load used to leave an empty .resq/ behind in the caller's directory.
     if[0=count eligible;:1b];
+    .tst.ensureStateDir dir;
     / Re-check immediately before publication: another process or operator may
     / have replaced the path after init. Never overwrite a different identity
     / generation merely because this run already loaded its selection state.

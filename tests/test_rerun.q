@@ -109,6 +109,22 @@
   };
 
   skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];
+         "a run with nothing to record leaves no state directory behind"]{
+    / The rerun cache used to create .resq/ before deciding there was nothing
+    / to save, so a run whose only file failed to load left an empty .resq/
+    / in the caller's directory.
+    wd:.tst.reruntest.base,"/load_failure";
+    .utl.ensureDir wd;
+    (hsym `$wd,"/test_broken.q") 0: enlist ".tst.desc[\"x\"]{ should[\"y\"]{ 1 musteq 1 };";
+    qexe:first @[system;"command -v q 2>/dev/null";{enlist (getenv[`QHOME]),"/l64/q"}];
+    cmd:"cd ",.utl.shellQuote[wd]," && timeout -k 5 30 ",.utl.shellQuote[qexe]," ",
+        .utl.shellQuote[.resq.HOME,"/resq.q"]," test test_broken.q -quiet < /dev/null > out.txt 2>&1; echo $?";
+    code:"J"$last @[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "-1"}];
+    code musteq 4;
+    (.utl.pathExists wd,"/.resq") musteq 0b;
+  };
+
+  skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];
          "corrupt state falls back to the complete suite"]{
     .tst.reruntest.corrupt[];
     fallback:.tst.reruntest.run["-last-failed";1b;0b];

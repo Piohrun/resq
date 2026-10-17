@@ -42,7 +42,8 @@ resQ side by side. It keeps the 2.x DSL, report-v2 contract and identity v3.
   `.utl.require`, `.utl.PKGLOADING` and `.utl.DEBUG` alone when qutil is
   loaded first; package names go to qutil's loader.
 - `.resq/` carries its own `.gitignore` (everything except
-  `quarantine.json`), so a first run leaves `git status` clean.
+  `quarantine.json`), so a first run leaves `git status` clean, and a run
+  with nothing to record no longer creates an empty `.resq/`.
 - Failure messages render tables, dictionaries and general lists as q
   literals; durations print as `0.4 ms` / `37 ms` / `4.21 s`; a passing suite
   prints one line.
