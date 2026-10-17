@@ -140,6 +140,19 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
       `error]
  };
 
+/ Reading the working directory costs about a millisecond in q (`system "cd"`
+/ with no argument goes through a shell) and every test captured it, which
+/ made it most of resQ's per-test overhead. Changing directory is cheap, and
+/ right after a restore the directory is known, so the next capture reuses it.
+/ Any capture consumes the remembered value: whatever runs before the next
+/ restore (a test body, hooks, cleanups, a nested expectation) is read fresh.
+.tst.cwdAfterRestore:"";
+.tst.currentCwd:{[]
+    cwd:.tst.cwdAfterRestore;
+    .tst.cwdAfterRestore:"";
+    $[count cwd; cwd; system "cd"]
+ };
+
 / Capture mutable process-level state affected while loading and running tests.
 / returns: dictionary suitable for .tst.restoreRuntimeContext
 .tst.captureRuntimeContext:{[]
@@ -150,7 +163,7 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
         @[get; `.tst.currentNs; `];
         `FILELOADING in key `.utl;
         @[get; `.utl.FILELOADING; {::}];
-        system "cd")
+        .tst.currentCwd[])
  };
 
 / Restore state captured by .tst.captureRuntimeContext.
@@ -169,7 +182,9 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
 
     if[`cwd in key ctx;
         cwd: .tst.toString ctx`cwd;
-        if[0 < count cwd; @[system; "cd ", cwd; {}]];
+        .tst.cwdAfterRestore: "";
+        if[0 < count cwd;
+            .tst.cwdAfterRestore: $[@[{system "cd ", x; 1b}; cwd; {0b}]; cwd; ""]];
     ];
 
     if[`namespace in key ctx;

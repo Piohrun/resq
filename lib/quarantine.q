@@ -117,6 +117,24 @@
         .tst.validJsonLong[obs`attempts;1j] and -1h=type obs`flaky
  };
 
+/ .j.k decodes an array of uniform objects as a table. When its columns have
+/ the plain decoded types, check them column-wise: history is validated on
+/ every run and holds up to flakeWindow observations for every known test.
+/ Anything else takes the per-row path, which defines the semantics.
+.tst.validObservationRows:{[obs]
+    if[98h=type obs;
+        c:cols obs;
+        if[all `runId`occurredAt`status`attempts`flaky in c;
+            texts:obs`runId`occurredAt`status;
+            attempts:obs`attempts;
+            if[(all 0h=type each texts) and (1h=type obs`flaky) and (type attempts) within 5 9h;
+                if[not all 10h=raze type each/: texts;:0b];
+                if[not all (obs`status) in ("pass";"fail";"error";"skip";"pending");:0b];
+                converted:"j"$attempts;
+                :all (not null converted) and (("f"$converted)="f"$attempts) and converted>=1j]]];
+    all .tst.validObservation each .tst.jsonObjectRows obs
+ };
+
 .tst.validHistoryEntry:{[entry]
     if[not 99h=type entry;:0b];
     if[not all `testId`observations in key entry;:0b];
@@ -125,8 +143,7 @@
     if[not .tst.validJsonObjectRows entry`observations;:0b];
     if[`unseenCompleteRuns in key entry;
         if[not .tst.validJsonLong[entry`unseenCompleteRuns;0j];:0b]];
-    observations:.tst.jsonObjectRows entry`observations;
-    all .tst.validObservation each observations
+    .tst.validObservationRows entry`observations
  };
 
 .tst.validQuarantineEntry:{[entry]

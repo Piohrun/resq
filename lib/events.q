@@ -428,6 +428,8 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
     / registry nor the complete merged run, and duplicate callbacks would make
     / concurrent output nondeterministic.
     if[1b~@[get;`.tst.app.isolateChild;0b];:()];
+    / Nothing to dispatch: skip building the run model twice for no one.
+    if[0=count[.resq.plugins.observers]+count .resq.plugins.reporters;:()];
     preliminary:.tst.canonicalRunModel .resq.state.results;
     events:preliminary`events;
     observers:.resq.plugins.observers;

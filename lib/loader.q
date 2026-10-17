@@ -435,6 +435,9 @@
 / (`musteq[a;b]`) are handled by the ordinary qualifier and are not rewritten.
 .tst.rightmostInfixAssertion:{[masked;shadowed;limit]
     names: string key[.tst.asserts],`mock;
+    / A name that is not a substring of the line cannot match in either form;
+    / drop those before the interpreted per-name loop below.
+    names: names where 0 < count each masked ss/: names;
     names: names iasc neg count each names;
     / Search only actual token occurrences. The old implementation walked every
     / character and tested every assertion name at each position. Since this
@@ -693,21 +696,12 @@
 / In q, "/" opens a comment at column 1 or after whitespace; operator/adverb uses
 / such as x%y and +/ remain code. Block comments are removed before evaluation.
 .tst.bracketDelta:{[ln]
-    ln: .utl.pathToString ln;
-    inStr: 0b; delta: 0; i: 0; n: count ln;
-    while[i < n;
-        c: ln i;
-        $[inStr;
-            $[c = "\\"; i +: 1;                   / skip escaped char in string
-              c = "\""; inStr: 0b; ::];
-          c = "\"";    inStr: 1b;
-          (c = "/") and ((i = 0) or ln[i - 1] in " \t"); i: n;
-          c in "{(["; delta +: 1;
-          c in "})]"; delta -: 1;
-          ::];
-        i +: 1;
-    ];
-    delta
+    ln: (),.utl.pathToString ln;
+    if[0 = count ln; :0];
+    / Brackets count only in code: the shared lexer marks strings (with their
+    / escapes) and a trailing comment, as the old per-character walk did.
+    code: 0 = first .tst.qLexStates ln;
+    "j"$(sum code and ln in "{([") - sum code and ln in "})]"
  };
 
 / Group raw source lines into top-level statements. A new top-level statement

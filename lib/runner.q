@@ -416,8 +416,11 @@
         .tst.recordCleanupError[`specFinalizer; "resource restore failed: ", .tst.toString e]}];
     / Spec-scope cleanups run after handles and global state are restored, so a
     / registered probe/file delete observes the clean post-suite environment.
+    hadSpecCleanups: 0 < count @[get; `.tst.specCleanupTasks; {()}];
     @[.tst.runSpecCleanupTasks; (); {[e]
         .tst.recordCleanupError[`specFinalizer; "spec cleanup dispatch failed: ", .tst.toString e]}];
+    / Spec cleanups are user code that ran after the restore above.
+    if[hadSpecCleanups; .tst.cwdAfterRestore: ""];
     ::
  };
 
@@ -442,6 +445,9 @@
     if[.tst.halt; :spec];
 
     / Run suite-level beforeAll hook (once per spec, before any expectation).
+    / The hook is user code and may change directory: forget the directory
+    / runSpec remembered for the first expectation.
+    if[`beforeAll in key spec; .tst.cwdAfterRestore: ""];
     beforeAllResult: $[`beforeAll in key spec; .tst.runHook spec`beforeAll; `ok];
 
     if[not beforeAllResult ~ `ok;
@@ -515,6 +521,10 @@
 / exception for runDiscoveredSpecs to turn into a canonical error row.
 .tst.runSpec:{[spec]
     runCtx: .tst.captureRuntimeContext[];
+    / Only framework code runs before the first expectation's capture (unless
+    / a beforeAll hook does; runSpecBody forgets this then), so the directory
+    / just read stays valid for it.
+    .tst.cwdAfterRestore: .tst.toString runCtx`cwd;
     specTitle: $[`title in key spec; spec`title; `];
     pollutionGuard: $[`pollutionGuard in key `.tst.app; .tst.app.pollutionGuard; 1b];
     namespaces: $[pollutionGuard; key `; `symbol$()];
@@ -790,7 +800,9 @@
     if[not unit~`file;
         specs:.tst.shardOneSpec[unit;index;shardCount;] each specs;
         specs:specs where 0<count each .tst.rerunExpectations each specs];
-    selectedInventory:.tst.executionInventoryForSpecs specs;
+    / File sharding leaves every spec's expectations unchanged, so the
+    / selected inventory is the one already built.
+    selectedInventory:$[unit~`file;inventory;.tst.executionInventoryForSpecs specs];
     .tst.app.selectedExecutionIds:.tst.toString each
         {x`executionId} each .tst.eventRows selectedInventory;
     .tst.app.emptyShard:(0<count shardKeys) and 0=count selectedKeys;
