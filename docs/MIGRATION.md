@@ -100,6 +100,10 @@ depend on:
 - **`--junit` / `--xunit` print the XML report on stdout**, so
   `qspec --junit tests > results.xml` keeps working. resQ's console output goes
   to stderr in that mode. Pass `-outDir DIR` to get report files instead.
+- **JUnit testcases keep qspec's names** (`<testcase name="should price a
+  bond">`, no `classname`), so a CI server's test history carries on across the
+  switch. `bin/qspec` defaults to `-junit-names qspec`; pass `-junit-names resq`
+  for resQ's suite-title `classname` and bare descriptions.
 - **qutil keeps working.** qspec requires qutil, usually loaded from `q.q`. When
   qutil is loaded before resQ, resQ leaves `.utl.PKGLOADING`, `.utl.FILELOADING`
   and `.utl.DEBUG` alone and hands `.utl.require "somePackage"` to qutil's
@@ -153,7 +157,8 @@ run unchanged while resQ produces a different presentation:
 
 - the console includes resQ summaries, run-audit information, richer assertion
   diagnostics, and optional visual diffs;
-- JUnit and xUnit are resQ's schemas, with suite titles and source locations;
+- JUnit and xUnit are resQ's schemas, with suite titles and source locations
+  (`bin/qspec` keeps qspec's JUnit testcase names; see above);
 - JSON is a resQ-native, versioned schema with assertion counts, timings, source
   metadata, and optional coverage/performance sections;
 - `-pass` retains qspec's silent-run behavior and returns the test status.

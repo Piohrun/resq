@@ -61,6 +61,7 @@ if[not `shardIndex in key `.tst.app; .tst.app.shardIndex: 0j];
 if[not `shardCount in key `.tst.app; .tst.app.shardCount: 1j];
 if[not `shardUnit in key `.tst.app; .tst.app.shardUnit: `file];
 if[not `reportProfile in key `.tst.app; .tst.app.reportProfile: `full];
+if[not `junitNames in key `.tst.app; .tst.app.junitNames: `resq];
 if[not `labels in key `.tst.app; .tst.app.labels: ()!()];
 if[not `vcsProbe in key `.tst.app; .tst.app.vcsProbe: 1b];
 if[not `emptyShard in key `.tst.app; .tst.app.emptyShard: 0b];

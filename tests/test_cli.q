@@ -298,6 +298,12 @@
         (.tst.parseCLI ("test"; "--"; "-x=1.q"))[`args] mustmatch enlist (system "cd"), "/-x=1.q";
     };
 
+    should["accept -junit-names resq or qspec only"]{
+        (.tst.parseCLI ("test"; "tests"; "-junit-names"; "qspec"))[`options; `junitNames] musteq "qspec";
+        (.tst.parseCLI ("test"; "tests"; "--junit-names=RESQ"))[`ok] musteq 1b;
+        .tst.cliParseFails[("test"; "-junit-names"; "xml"); "junit-names must be one of: resq, qspec"] musteq 1b;
+    };
+
     should["treat every token after -- as positional, including dash-prefixed paths"]{
         r: .tst.parseCLI ("test"; "-quiet"; "--"; "-suite.q"; "--not-an-option");
         r[`ok] musteq 1b;

@@ -236,7 +236,10 @@ schema-v2 artifact with `run.shard.index=-1` and merge provenance. See
 ## JUnit XML
 
 JUnit output uses suite titles for `<testsuite name>` and testcase `classname`,
-so identity remains useful across checkout directories. Suites carry the run
+so identity remains useful across checkout directories. `-junit-names qspec`
+(the `bin/qspec` default) instead writes qspec's testcase names: no `classname`,
+and the declaration verb in `name` (`should ...`, `it holds that ...`,
+`performs ...`), which keeps CI test history continuous for a migrated suite. Suites carry the run
 timestamp/hostname and the root contains resQ/q/run-ID properties. Testcases
 include portable `file`/`line`, `resq-test-id`, retry count, and flaky marker.
 Failures, runtime errors, skips, and pending tests map to their corresponding

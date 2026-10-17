@@ -83,6 +83,9 @@
     r[`code] musteq 0;
     must[(first r`out) like "<?xml*"; "stdout must be the XML report, got: ", first r`out];
     must[any (r[`out] like "*<testcase*") and r[`out] like "*price*"; "the report must contain the test"];
+    / qspec's testcase naming, so CI test history continues across the switch.
+    must[any r[`out] like "*<testcase name=\"should price\"*"; "testcases must carry qspec's names"];
+    must[not any r[`out] like "*classname=*"; "qspec writes no classname"];
     must[not any r[`out] like "*SUMMARY*"; "console output must not pollute the XML"];
     must[any r[`err] like "*SUMMARY*"; "console output moves to stderr"];
   };

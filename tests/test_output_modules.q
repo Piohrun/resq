@@ -388,6 +388,34 @@
              "the sandbox namespace must not reach the xUnit grouping key"];
     };
 
+    / bin/qspec defaults to qspec's testcase names so a CI server's test
+    / history (keyed on classname + name) continues across the switch.
+    should["write qspec's testcase names under -junit-names qspec"]{
+        rows: flip `suite`description`status`message`time`failures`assertsRun`file`line`kind!(
+            (`SHA;`SHA;`SHA;`FILE_LOAD_ERROR); ("Generate SHA256";"hash any input";"hash quickly";"tests/x.q");
+            `pass`pass`pass`error; ("";"";"";"boom"); 4#0Nn; (();();();enlist "boom"); 1 1 1 0i;
+            4#enlist "tests/sha.q"; 5 9 12 0Ni; `test`fuzz`perf`load);
+        `.tst.app.junitNames mock `qspec;
+        prevTop: @[get; `.tst.output.top; {::}];
+        prevReport: .resq.report;
+        .tst.loadOutputModule["junit"]; qspecXml: .tst.output.top rows;
+        `.tst.app.junitNames mock `resq;
+        resqXml: .tst.output.top rows;
+        .tst.output.top: prevTop; .resq.report: prevReport;
+
+        must[0 < count ss[qspecXml;"<testcase name=\"should Generate SHA256\""];
+             "a should block is named the way qspec names it"];
+        must[0 < count ss[qspecXml;"<testcase name=\"it holds that hash any input\""];
+             "a holds block is named the way qspec names it"];
+        must[0 < count ss[qspecXml;"<testcase name=\"performs hash quickly\""];
+             "a perf block is named the way qspec names it"];
+        must[0 < count ss[qspecXml;"<testcase name=\"tests/x.q\""];
+             "a load error keeps its plain name"];
+        must[0 = count ss[qspecXml;"classname="]; "qspec writes no classname"];
+        must[0 < count ss[resqXml;"classname=\"SHA\" name=\"Generate SHA256\""];
+             "the default keeps resQ's names"];
+    };
+
     should["XML groups string suites"]{
         raw:(
             `suite`description`status`assertsRun!("Order validation";"from string";`pass;1i);

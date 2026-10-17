@@ -37,7 +37,9 @@ loader does (`-qspec-discovery`); `resq test -qspec-compat` keeps resQ's
 `test_*.q` / `*_test.q` defaults plus the pinned `qspec_test_*.q` convention.
 An explicit `testFilePatterns` configuration replaces both. With `-junit` or
 `-xunit` and no `-outDir`, `bin/qspec` prints the XML report on stdout and the
-console on stderr, matching qspec's `--junit > results.xml` usage. When qutil
+console on stderr, matching qspec's `--junit > results.xml` usage. JUnit
+testcases from `bin/qspec` carry qspec's names (`should ...`, `it holds that
+...`, `performs ...`, no `classname`) unless `-junit-names resq` is passed. When qutil
 is loaded before resQ, qutil keeps `.utl.require` for package names and its
 `.utl` loader state, and `bin/qspec` preloads `qutil/opts.q` as qspec's
 `spec.q` does.
