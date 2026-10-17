@@ -63,10 +63,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # The q jobs below need a self-hosted runner labelled kdb with a q licence.
+  # They run only when the repository variable RESQ_KDB_RUNNER is 'true', so a
+  # repository without that runner shows them as skipped instead of leaving
+  # them queued until GitHub cancels them. See docs/CI.md.
   correctness:
     name: Correctness (normal and isolated)
     needs: licence-free
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ vars.RESQ_KDB_RUNNER == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 60
     steps:
@@ -138,7 +142,7 @@ jobs:
   coverage:
     name: Coverage and correctness reconciliation
     needs: licence-free
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ vars.RESQ_KDB_RUNNER == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 20
     steps:
@@ -164,7 +168,7 @@ jobs:
   compatibility:
     name: Native and pinned qspec compatibility
     needs: licence-free
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ vars.RESQ_KDB_RUNNER == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 15
     steps:
@@ -190,7 +194,7 @@ jobs:
   performance:
     name: Fingerprinted benchmark contract
     needs: licence-free
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ vars.RESQ_KDB_RUNNER == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 20
     steps:
@@ -217,7 +221,7 @@ jobs:
   hostile-release:
     name: Hostile and release-protocol contracts
     needs: licence-free
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ vars.RESQ_KDB_RUNNER == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 40
     steps:

@@ -23,6 +23,7 @@ concurrency:
 
 jobs:
   differential:
+    if: ${{ vars.RESQ_KDB_RUNNER == 'true' }}
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 60
     env:
@@ -79,6 +80,7 @@ jobs:
 
   soak-scale:
     name: Repeated-process soak, 10k artifacts, and 100k lifecycle scale
+    if: ${{ vars.RESQ_KDB_RUNNER == 'true' }}
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 45
     steps:

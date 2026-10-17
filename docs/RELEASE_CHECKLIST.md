@@ -52,7 +52,9 @@ artifact conforms to
 [`resq-release-audit-v1.schema.json`](schema/resq-release-audit-v1.schema.json).
 
 The manual/tagged GitHub release workflow runs the same command on the licensed
-self-hosted runner and uploads its evidence.
+self-hosted runner and uploads its evidence once that runner is enabled (see
+[CI runner requirements](CI.md#runner-requirements)); until then the gate is run
+locally and its evidence committed as above.
 Runner recovery, raw-artifact retention, signing/tag ownership, external-pilot
 qualification, and maintainer handoff are defined in the
 [operations runbook](OPERATIONS_RUNBOOK.md).

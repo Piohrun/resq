@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   release-gate:
+    if: ${{ vars.RESQ_KDB_RUNNER == 'true' }}
     runs-on: [self-hosted, linux, x64, kdb]
     timeout-minutes: 90
 

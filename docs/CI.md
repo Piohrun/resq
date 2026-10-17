@@ -217,6 +217,16 @@ Linux x64 runner labeled `kdb`. The runner needs:
 - GNU `timeout` with `--kill-after` plus `sh` for process isolation;
 - Python 3 for independent JSON/XML artifact validation.
 
+The q jobs in `ci.yml`, `nightly.yml` and `release.yml` run only when the
+repository variable `RESQ_KDB_RUNNER` is `true`. Register the runner first,
+then set the variable (Settings → Secrets and variables → Actions → Variables,
+or `gh variable set RESQ_KDB_RUNNER --body true`). Without it those jobs show
+as skipped and only the licence-free job runs; GitHub would otherwise keep
+them queued for a runner that does not exist and cancel them a day later.
+Until the variable is set, release evidence comes from running
+`tools/verify_release_gate.py` locally, as described in the
+[release checklist](RELEASE_CHECKLIST.md).
+
 The core in-process test command requires only q. The bundled launchers require
 the marker tools above so premature `exit 0` fails closed. Process-isolation
 dependencies are checked before child execution and an unavailable tool fails
