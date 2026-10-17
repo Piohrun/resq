@@ -34,6 +34,7 @@ SUITES = {
         "tools.tests.test_report_scale",
         "tools.tests.test_release_gate",
         "tools.tests.test_documentation_scope",
+        "tools.tests.test_qspec_differential",
     ],
 }
 

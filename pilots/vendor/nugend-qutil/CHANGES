@@ -1,0 +1,77 @@
+VERSION 3.2.1 -- 2017.03.14
+* Fixed bug where options which were prefixes of other options would cause the longer options to be ignored
+
+VERSION 3.2.0 -- 2016.01.04
+* Added support for parsing timestamp, timespan, and GUID
+* Added support for package substructure to file loading facility
+** Use by setting .utl.PKGSTRUCTURE to any symbol. Package loader will now expect your code to have the following layout (.e.g. if PKGSTRUCTURE is `lib) :
+   /path/to/QPATH:
+     pkg1:
+       config
+       binaries
+       lib:
+         init.q
+         foo.q
+** Added .utl.pkg function to simplify previous .utl.require .utl.PKGLOADING,"/foo.q" pattern
+*** From inside package being loaded, use like: .utl.pkg "foo.q"
+*** Will automatically add a trailing slash to package names as needed.
+*** Only use when you do not want to load a file directly, i.e.: .utl.load "package/blah.q"
+
+VERSION 3.1.1 -- 2012.08.02
+* Fix for loading the wrong package with a prefix
+
+VERSION 3.1.0 -- 2012.08.01
+* Added environment variable lookup
+* Fix to config file parsing that caused a parse error when loading empty sections
+
+VERSION 3.0.1 -- 2012.02.11
+* Fixed a number of long standing bugs:
+** Dashes in command line parameters aren't parsing correctly (https://github.com/DannoHung/qutil/issues/5)
+** Binary Option Flag is not working with multiple flag values (https://github.com/DannoHung/qutil/issues/2)
+** Bug with libraries containing dashes in the name (https://github.com/DannoHung/qutil/issues/1)
+
+VERSION 3.0.0 -- 2010.01.13
+* NONCOMPATIBLE - Simplified how optional positional arguments are specified.
+** It is no longer possible to use an empty list to specify that arguments are optional, only an argument number of 0 suggests an optional argument
+
+VERSION 2.0.5 -- 2009.12.24
+* Fixed bug where files could load recursively
+
+VERSION 2.0.4 -- 2009.12.20
+* Fixed bug where single value optional positional arguments would not be parsed properly
+* Fixed bug with Windows path separators in q.q code
+* Lists can be specified as default values
+* Made option parser capable of handling single value optional positional arguments (only one value is processed instead of whole list)
+
+VERSION 2.0.3 -- 2009.11.06
+* Added a boolean DEBUG flag
+* Made option parser disregard option errors if DEBUG flag is true
+
+VERSION 2.0.2 -- 2009.09.17
+* Fixed bug where wrong error was being thrown when processing improperly formatted option files
+* Fixed bug where leading and trailing tab spaces would appear in option keys
+
+VERSION 2.0.1 -- 2009.09.10
+* Added support for optional positional arguments (enlist 0) eg start a command with a list of directories or leave it empty and begin processing the current directory
+
+VERSION 2.0 -- 2009.09.09
+* Significantly enhanced functionality of option parser.  Breaks backwards compatibility
+** New .utl.addDefOpt allows a default value to be specified for an option
+** New .utl.addArg allows positional arguments to be specified
+** NONCOMPATIBLE - Options and arguments must now be finalized by calling .utl.parseArgs with an optional string value
+*** Any command line arguments that are not handled will cause an error to be raised.
+*** If the command line fails, a detailed description of the command line and available options will be printed
+* Fixed bug with config file parser where empty lines would cause the parser to fail an error to be raised.  Empty lines (blank or only white-space) are now ignored
+
+VERSION 1.1 -- 2009.07.24
+* Made loader capable of handling nested packages more robustly
+* Made loader capable of detecting conflicting required package versions
+
+VERSION 1.0 -- 2009.07.22
+* NONCOMPATIBLE - Changed package-name/version number separator from '.' to '-'
+* Fixed bug where some version numbers would be incorrectly seen as larger (ie: 1.11 was greater than 2.0)
+* Added init.q file to qutil library, does *not* load bootstrap.q
+* Added config_parse code to parse INI style files (should be able to parse same files as Python's ConfigParser module)
+
+VERSION 0.1 -- 2009.05.25
+* Initial Version

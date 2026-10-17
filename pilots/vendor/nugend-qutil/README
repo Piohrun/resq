@@ -1,0 +1,70 @@
+== ABOUT ==
+
+qutil provides several different common utility
+functionalities for use with Q programs.  These currently include:
+
+* an option parsing facility as an alternative to .Q.opt
+* a file loading facility based on a pathlist and supporting
+  version numbers
+
+== INSTALLATION == 
+
+Unzip qutil to whichever location you desire.
+
+If you plan on using the file loading facility you must add
+the code in q.q to your Q installation's q.q
+
+You can customize the environment variable used for the library
+search path by changing the argument passed to that function
+(it defaults to $QPATH). The environment variable can also
+refer to multiple paths by separating them with colons.
+
+Next, place or link the file qutil/lib/bootstrap.q into the path
+specified by the environment variable used in q.q
+
+As an example, if you have used the enviornment variable
+QPATH and set QPATH to /home/user/qpath, with the qutil
+project residing in /home/user/qpackages, you would want to
+have a directory layout for /home/user/qpath alont these
+lines:
+
+/home/user/qpath/bootstrap.q -> /home/user/qpackages/qutil/lib/bootstrap.q
+/home/user/qpath/qutil -> /home/user/qpackages/qutil/lib
+
+You should also move or symlink qutil/lib into this path so
+that it can be references by the code loading utility
+functions.
+
+Doing all this will cause the file qutil/lib/bootstrap.q to
+be loaded and will expose the file loading functions. The
+qutil library will also be exposed to the .utl.require and
+.utl.load functions (such as .utl.load "qutil").
+
+== TUTORIAL ==
+
+Please see the project wiki on github for instructions on usage:
+http://github.com/nugend/qutil/wiki
+
+== LICENSE ==
+
+This code is licensed under an MIT license.  See LICENSE for
+the full text.
+
+== MISC ==
+
+While you are under no obligation to do so, if you have
+changes to the code that you feel would be useful to others,
+please contribute them back.  If you have suggestions,
+please make them.  If you have found a bug, please report
+it.
+
+To run the tests in test_require, explicitly pass the test
+files to the qspec runner.  This is because executable q
+files were needed to properly test the code loading capacities
+and the qspec runner tries to inadvertently load these files.
+
+== CONTACT ==
+
+Daniel Nugent 
+nugend@gmail.com
+http://github.com/nugend/qutil

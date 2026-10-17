@@ -612,6 +612,11 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
              "--out-dir", str(output / "compatibility")],
         )
         audit.run(
+            "upstream qspec differential",
+            [str(ROOT / "tools/verify_qspec_differential.py"), "--q", q_executable,
+             "--out-dir", str(output / "qspec-differential")],
+        )
+        audit.run(
             "repeated-process soak budget",
             [str(ROOT / "tools/verify_soak.py"), "--q", q_executable,
              "--output", str(output / "soak-evidence.json")],

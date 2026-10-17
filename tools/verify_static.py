@@ -33,6 +33,7 @@ REQUIRED = {
     "docs/VERIFICATION.md",
     "docs/EVENTS_AND_PLUGINS.md",
     "tools/verify_hostile_env.py", "tools/verify_external_pilots.py",
+    "tools/verify_qspec_differential.py", "pilots/qspec-differential.json",
     "tools/verify_release_gate.py", "tools/verify_benchmark_regression.py",
     "tools/update_benchmark_baseline.py",
     "tools/report_profiles.py", "tools/verify_report_scale.py",
@@ -122,7 +123,8 @@ def check_package(expected_tag: str = "") -> None:
     for relative in (
         "bin/resq", "bin/qspec", "tools/validate_report.py",
         "tools/verify_static.py", "tools/verify_hostile_env.py",
-        "tools/verify_external_pilots.py", "tools/verify_release_gate.py",
+        "tools/verify_external_pilots.py", "tools/verify_qspec_differential.py",
+        "tools/verify_release_gate.py",
         "tools/verify_benchmark_regression.py", "tools/update_benchmark_baseline.py",
         "tools/verify_report_scale.py",
         "tools/resq_to_tables.py", "tools/verify_ingestion_contract.py",

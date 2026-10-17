@@ -35,6 +35,7 @@ normal, isolated, and coverage artifacts. It verifies:
 - the supported execution/repetition/randomization/sharding matrix;
 - hostile path, permission, artifact, signal, and child-reaping behavior;
 - both pinned external adoption pilots, the pinned qspec compatibility lane,
+  the upstream qspec differential,
   repeated-process resource budgets, and 10k report/adapter scale budgets; and
 - agreement among console, result JSON, detailed coverage JSON, LCOV, HTML,
   and state totals for the complete quickstart source manifest, including

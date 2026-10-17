@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "harness": {
+    "qspec": "nugend-qspec",
+    "qutil": "nugend-qutil"
+  },
+  "projects": [
+    {
+      "name": "nugend-qspec",
+      "repository": "https://github.com/nugend/qspec",
+      "commit": "9b846b68a8d808e472ba504d18c325b14b468087",
+      "license": "MIT",
+      "root": "pilots/vendor/nugend-qspec",
+      "files": {
+        ".plan": "972ff0e0fa64ec1922f811a94e09ba53abfc10d940a6f5bf773faa7a6823c64a",
+        "CHANGES": "d56557705920e6befa13e7452722efb02ced00c16b0f7487f6ac5a8b22f7b845",
+        "LICENSE": "5511bc42542ad859b1c7211ee6e7c7d1ed89e0ab78e6fd0696fe611190509c1d",
+        "README": "647fa4bbcc036943d5a35596354c9125c221cbfdc56807b2a0497f67e2bfcf7c",
+        "app/spec.q": "ed4122b7a2abc3a7aa36a4eae2df49a5093a2d7bbd49647b9c5b2d061f65ab93",
+        "lib/fixture.q": "75459a95ebb565ec1e306173501f02a0db95502b12c776c41ffce887032ad263",
+        "lib/init.q": "7c2b78290bed00a995f7a13a57fcd2d5d536b4562ae848d19e6f15cb8c5373a4",
+        "lib/loader.q": "37682d5f3c5eb86e8652135169e8ef0a84ed57047c88ed2361a1c465ca5e0561",
+        "lib/mock.q": "3b7868cf94d0b4350157a66b68ff3750017cfb15c37c497c1ffa91cab6e03d69",
+        "lib/output/junit.q": "a332929b7ffd89ba5ed791fb82617b22369ca7ca78f57158ca865f3c2a248b22",
+        "lib/output/text.q": "fcd4377f99454d3c1d58532650a4be60bedeb1f5714268f05cfa09672c2f197e",
+        "lib/output/xml.q": "9010ed570127c9db5535acc0b00129544f4c7f8d0931f4d46430ece4a377e07e",
+        "lib/output/xunit.q": "867b832fcc64a3373ab2ab3bf3e77aec20c06f6a5c1643de36365bd9c946a88b",
+        "lib/tests/assertions.q": "adfee3bcec42736e0e978382582717d7e68ecf50e28742da63d1fbe339724855",
+        "lib/tests/expec.q": "bf137e828b86fde746166d11f4a3ef1c704b85f7957b12f6e31dafbc1b21ca83",
+        "lib/tests/fuzz.q": "92bb7f6c8d93529911a791abed4d4402a3ea280b2f920ae0ada5e323167081de",
+        "lib/tests/internals.q": "3c025bc54e8da5c9718d04ec0cf5cd7e31f73cfe55e76aae1e14584f024cd421",
+        "lib/tests/spec.q": "1337442881d74ab868d563c6edb3c050069420083643a93af47b163a3047fca3",
+        "lib/tests/ui.q": "2fb78a3631712bb0076f9f9d4de6ecbb4115498c3adb963f5b46ce653b8fbd92",
+        "test/fixture_tests/fixtures/a_fixture/2009.01.01/sometable/.d": "2054d5a854566db8a29d701e4d6aaad31963958b3f0dd2bac43c1be140518c30",
+        "test/fixture_tests/fixtures/a_fixture/2009.01.01/sometable/a": "ae693e6338aff445f1522379e67f3745472ffaf5588b5a6df92be2624093d391",
+        "test/fixture_tests/fixtures/all_types.csv": "e86243bbeb33965842d871fdab7cc19a57ba84bb40e0812cbc262996fb589d92",
+        "test/fixture_tests/fixtures/emptyDir/.empty": "025d528dd9bd0100abff1eee9124c73627c58d869cef2832f780f49479a6f438",
+        "test/fixture_tests/fixtures/fixtureCarets.csv": "e714eeedcf15b2d224e4d80e0edff67347f614483debc1b8d9e158f4a85644b7",
+        "test/fixture_tests/fixtures/fixtureCommas.csv": "f9a166916a947c31efa3db2b60303d513f3a1bd649dbde4bc950ef478b367f55",
+        "test/fixture_tests/fixtures/fixturePipes.psv": "564955bad0ace44d1902a10bb46e9c86a5c26d541a19d91eefc3b88fdc5da01e",
+        "test/fixture_tests/fixtures/myFixture": "6173bd5b82c7908f9168f40abc140c97276a3e63b215df7dfbbfcfc162a04f6a",
+        "test/fixture_tests/fixtures/no_part_fixture/aTable/.d": "dfb1d3d6cddfce494c037e5a5543253667495986cfe69748fe2d3e0f1098ef41",
+        "test/fixture_tests/fixtures/no_part_fixture/aTable/a": "9910ff654388c92914c9cd5224be589e5a835037d1a51bfb6f94a7f330480d90",
+        "test/fixture_tests/fixtures/no_part_fixture/aTable/b": "3ab3c083cf20c7d35843c4bd667c4c36638f2539eb6f64d48839b425271a7f08",
+        "test/fixture_tests/fixtures/not_a_fixture/2009.01.01/mytable/.d": "2054d5a854566db8a29d701e4d6aaad31963958b3f0dd2bac43c1be140518c30",
+        "test/fixture_tests/fixtures/not_a_fixture/2009.01.01/mytable/a": "ae693e6338aff445f1522379e67f3745472ffaf5588b5a6df92be2624093d391",
+        "test/fixture_tests/fixtures/other_fixture/2009.01.01/othertable/.d": "2054d5a854566db8a29d701e4d6aaad31963958b3f0dd2bac43c1be140518c30",
+        "test/fixture_tests/fixtures/other_fixture/2009.01.01/othertable/a": "ae693e6338aff445f1522379e67f3745472ffaf5588b5a6df92be2624093d391",
+        "test/fixture_tests/fixtures/splayFixture/.d": "dfb1d3d6cddfce494c037e5a5543253667495986cfe69748fe2d3e0f1098ef41",
+        "test/fixture_tests/fixtures/splayFixture/a": "1b7beb622b86384eb07e5d61b77c4f0e73e369fbbd79c2c6afffc3121ce62860",
+        "test/fixture_tests/fixtures/splayFixture/b": "d878de65bef852a26cc6afdabef48b821a65192d573c3adfab9ac32df1582b59",
+        "test/fixture_tests/test_directory_fixture.q": "f3bc8415d66e3c767fd4403a86fa480c7d1ee2c1580845d79a18064c3ea55959",
+        "test/fixture_tests/test_file_fixture.q": "afd015d8590842dc9a14f1e8a26259b9a8eae4b3d319021196b5f9ac8c84b0a0",
+        "test/fixture_tests/test_text_fixture.q": "1cc72c84193833b4d2ddf5a2396cab2539187de07ce9db9b20c4efb2416613db",
+        "test/nestedFiles/bar/g.q": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test/nestedFiles/baz/f.q": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test/nestedFiles/foo/one/a.q": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test/nestedFiles/foo/one/b.q": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test/nestedFiles/foo/one/one/c.q": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test/nestedFiles/foo/one/one/d.q": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test/nestedFiles/foo/two/d.q": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test/nestedFiles/foo/two/e.k": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test/test_assertions.q": "4e435ed2990b2011cc2a3bd75c2a3b854936528b6d3c4fcfaa9c9c6993233974",
+        "test/test_expec_runner.q": "2d6a024d12c92ff39435959c03951135da9ea9e23c9be7bafc50f409abdcfc7a",
+        "test/test_fileloading.q": "9c564d7459a0e5997bd100e46863c91154a2ed1b83d4b8e63af2c9d9b43d3e91",
+        "test/test_fuzz.q": "7c470de4ad6ec16b735844a77bb2078adaeb551304676ec5b27b5c23c4cd75f7",
+        "test/test_mock.q": "d8c3a94daeb6f0baf22274361ee5227ffb8ccb47db84dbf367aa43dd6ba489c2",
+        "test/test_spec_runner.q": "a9b8522e9bed10107d3b81f36a7da6d6da15a801bcdd941d75bab1393fd025e4",
+        "test/test_ui.q": "96e1240bcbd53211442be30c02ed138b8331250ad30f7e3b6816970d1b6aa712"
+      }
+    },
+    {
+      "name": "nugend-qutil",
+      "repository": "https://github.com/nugend/qutil",
+      "commit": "2bce9deb5585f7166052bfb81012b8d897fedeeb",
+      "license": "MIT",
+      "root": "pilots/vendor/nugend-qutil",
+      "files": {
+        "CHANGES": "18da39f2348a94093cedc71848d819a9b7cdc384ba0537fd28a6018108f4a437",
+        "LICENSE": "721b22d309a64a9d7dc3b465b3521d86a826f371de9164e6c8df3206e5166e2c",
+        "README": "05b1c16ec9d79454b29bbfd79140d77fb899f3733d18bb173ac78c8f9fa7268b",
+        "lib/bootstrap.q": "d184cc37578dbb5186cd9d4bf0fb5bae0d2d84e20252ded48425251ed4f979ec",
+        "lib/config_parse.q": "aa668a95fd4e4c109331cc18c462a86c9b708616e77344191b360d51b9f5cf39",
+        "lib/init.q": "a3f7e6d8b78e9ffb03eaaf32367081e3adbefd51f582e3dab74e7dbc0245784a",
+        "lib/opts.q": "ddb4b6852ccf82b046d50750ca93b9659b893f20a061c38d038b3d1f8b552f4b",
+        "q_q.sample": "417a485ac49fb8962807b9675f997abe68850c9c270d5aea818069ac2edc0d39",
+        "test/configs/colonSeparators": "c19e3a12ab5a5e1cfd28ad9822962b27996974dfab68588c75f54b298f59fa84",
+        "test/configs/default": "213494cd99c57fdb034df9bec83a7c77a64583b5a063f5a42b02ead2f65e83cf",
+        "test/configs/emptyKey": "344047945ba7667b8f6bd4ef704b08a3fd39ba305cc83e40c6a0f42a7662937e",
+        "test/configs/emptySection": "042124588a8bcd9be8d9d0ffd21198f098c1a814a4ac92ccb4a632de7dd6c421",
+        "test/configs/equalsSeparators": "181f153767eeddfcfdcab369b4d6412479fd7cbf8bc50945151c824bfae0314b",
+        "test/configs/leadingWhitespace": "57dff5365151000b8adac062841bae988f93f9cdd787ece8cf44f934a980075d",
+        "test/configs/longHeader": "c50bba16d5a040e27b9f821562506da5a0b8b73a754b6fcb64022425eed565b7",
+        "test/configs/multiValue": "82675d2356b0a45d22d6a5c16cc09516bbba5e3eab3d0e8e78216945e5d37586",
+        "test/configs/multipleSections": "87a122fd5f86bf6681026cc02518975b5b81267e6715a140c55ec1c8481a3dfc",
+        "test/configs/nameSubstitution": "2a19c47ef9c07aebad4640274e99c31ea655e250975cab717e57962a30b7de06",
+        "test/configs/noSections": "344e7e315cc4bb5f54fc76ae8bdf2e7c5cc89030e8d81387b2d80040038de3b3",
+        "test/configs/normal": "1da2220623976cc9a9d2cc74efec6ff1a8a1ea197eb294bfec62f69a3657be3d",
+        "test/configs/semicolonComment": "9d3d58fb4f04c4b89fc6480a102313e0b7228ed6ad1c10493eee7b797df1f965",
+        "test/configs/sharpComment": "1df2ad2cbace4653557906ff3c5f977c6cc0830d43d632f0715742fdb046c94f",
+        "test/configs/tabsInKeys": "3f93b394fd1bf6d8e55343fd1fa6cf946d065e5e05de4235e295c3e675bd64fe",
+        "test/configs/whitespace": "1a4ac215a6801d809873062700156397c605641e17aa0f3b1098ca396f939e12",
+        "test/test_config_parser.q": "4bd2c5eb1f41bc2c1ed0d9d8c04d5f2803968c02b7166b2e6c0395e9ec0acd40",
+        "test/test_option_parser.q": "d1ad1ec7c3263db610e7e02dcd798ae99562cea723acfb87868df7d2e47a8160",
+        "test_require/testLoaderFiles/alphaprefixedpackage/init.q": "6b1eac688c4a6a484a53e93c610ec98ba5a0c835584eebd73413e4848a495b53",
+        "test_require/testLoaderFiles/alphaprefixedv-pkg-4.0/init.q": "6b1eac688c4a6a484a53e93c610ec98ba5a0c835584eebd73413e4848a495b53",
+        "test_require/testLoaderFiles/nested/init.q": "aad2500b8644c335d344ca643528e4819d20a974823ad99d95e6d80eaf9d7f76",
+        "test_require/testLoaderFiles/nested/nested1/init.q": "e7a1e854c9f0ab2112b6ed2c173379f912135edfe5154572aa6becf5f59dc3df",
+        "test_require/testLoaderFiles/nested/nested1/nested2/foo.q": "62df75cf132da5c2d99f22b75fafc223846d4cf016f2fc6b11098a6fb72b3f59",
+        "test_require/testLoaderFiles/nested/nested1/nested2/init.q": "ba67d13d4b3004ca53708cc90cad72789b3e31546b6a096b8360ab8399baac2f",
+        "test_require/testLoaderFiles/package/init.q": "9e228795d6691c70b7acad3e7b149caafac78580bd36c245c649d1e9aa721746",
+        "test_require/testLoaderFiles/package/verify_pkg_load.q": "9e228795d6691c70b7acad3e7b149caafac78580bd36c245c649d1e9aa721746",
+        "test_require/testLoaderFiles/recursive/init.q": "bec322cf28163518de96a34590534466ff28e1cca44aabf2b51126095b100dbd",
+        "test_require/testLoaderFiles/structured/lib/init.q": "9e228795d6691c70b7acad3e7b149caafac78580bd36c245c649d1e9aa721746",
+        "test_require/testLoaderFiles/structured_nested/lib/init.q": "d8e28b1e0e9686171a9ad870e7093220048df41bd3e6ce6ec3b1f2183852b47b",
+        "test_require/testLoaderFiles/structured_nested/lib/nested1/init.q": "367c50eba7bd728426fe0acea75ed1a889d52a6235ba55bb67de9a6098d934fc",
+        "test_require/testLoaderFiles/structured_nested/lib/nested1/nested2/foo.q": "62df75cf132da5c2d99f22b75fafc223846d4cf016f2fc6b11098a6fb72b3f59",
+        "test_require/testLoaderFiles/structured_nested/lib/nested1/nested2/init.q": "35a88cbae69b6bb2f2a403effacff0e21ca3cd3e1b3492e6f89de62f4904f91e",
+        "test_require/testLoaderFiles/v-pkg/init.q": "5975d9171358cc2ce07c8dfa96ff5f98f13b2cf62223dc6183eca0e351771caf",
+        "test_require/testLoaderFiles/v-pkg-0.1.2/init.q": "4df220c87dcc4d07807feab9cfdca702deea05377d001afdcab7c4538aacd229",
+        "test_require/testLoaderFiles/v-pkg-1.2.1/init.q": "0a2cec918435b98acfe0d17f1546641d03a7e11d1ec5868cf257fcb3a1addb1d",
+        "test_require/testLoaderFiles/verify_load_file_path.q": "9e228795d6691c70b7acad3e7b149caafac78580bd36c245c649d1e9aa721746",
+        "test_require/testLoaderFiles/verify_no_dup_require.q": "09f8b60197d91af113c0d14a9e7b6a2c117f2bece134ecd16c529fe2f5ab8d77",
+        "test_require/testLoaderFiles/verify_pkgloading.q": "c52bf354ba279c4540c1f3e0b941b42958d337451a2fba4e751bf3112396b0d6",
+        "test_require/test_require.q": "89d8bc7e2d6e7b3c99142c0bb9573224170d3e11d76dd857b3a28c02aad20ea0"
+      }
+    },
+    {
+      "name": "cryptoq",
+      "repository": "https://github.com/asatirahul/cryptoq",
+      "commit": "ffc72c1cdc487595df82de5a7969100bf0c4ade7",
+      "license": "MIT",
+      "root": "pilots/vendor/cryptoq",
+      "files": {
+        "LICENSE": "5b6e7fc55b7071fd6a26eff2d63a55efce97d131a315ad2e0544fc9e6cf12960",
+        "README.md": "59d5c5798bff34a08801c12ad309259af4f9cd3c1cd76615bfe3f45640028a24",
+        "src/cryptoq.q": "b158f3a0ab5b4fa99635aa5b42d0d5a2f51ec3bb6d2d940fdb3f506a15a737ee",
+        "src/cryptoq_binary.q": "e37def4b015905862d11529662d791d03c324bbcfc2a1d6590f5bb34b01a96b0",
+        "test/cryptoq.q": "b4261de6e192193ec16719510a359dd554965578abb9c14d1fb0dd2bef1089b9",
+        "test/cryptoq_binary.q": "5377a6e9ed8bec22307db46b17480837b851ca8dcf59c26f9d74786844eba338"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "name": "cryptoq",
+      "project": "cryptoq",
+      "args": [
+        "--junit",
+        "test/"
+      ],
+      "expectedDifferences": []
+    },
+    {
+      "name": "cryptoq-only",
+      "project": "cryptoq",
+      "args": [
+        "--junit",
+        "--only=SHA,HMAC",
+        "test/"
+      ],
+      "expectedDifferences": []
+    },
+    {
+      "name": "cryptoq-exclude",
+      "project": "cryptoq",
+      "args": [
+        "--junit",
+        "--exclude=SHA",
+        "test/"
+      ],
+      "expectedDifferences": []
+    },
+    {
+      "name": "qutil",
+      "project": "nugend-qutil",
+      "args": [
+        "--junit",
+        "test/"
+      ],
+      "expectedDifferences": []
+    },
+    {
+      "name": "qspec",
+      "project": "nugend-qspec",
+      "args": [
+        "--junit",
+        "test/"
+      ],
+      "expectedDifferences": [
+        {
+          "test": "Halting execution of specifications :: should not restore the context and filepath to what they previously were",
+          "upstream": "pass",
+          "resq": "fail",
+          "reason": "qspec's own runner-internals test of its private halt/restage state machine (.tst.runExpec / halt); outside the compatibility boundary (docs/QSPEC_COMPATIBILITY.md)."
+        },
+        {
+          "test": "Running an Expectation :: should restage an expectation if the test run is to immediately halt",
+          "upstream": "pass",
+          "resq": "fail",
+          "reason": "qspec's own runner-internals test of its private halt/restage state machine (.tst.runExpec / halt); outside the compatibility boundary (docs/QSPEC_COMPATIBILITY.md)."
+        },
+        {
+          "test": "Test Loading :: should find all test files in a list of paths",
+          "upstream": "pass",
+          "resq": "error",
+          "reason": "qspec's own loader-internals test: it calls qspec's private file finders and expects their exact return shapes (path strings); resQ's loader is different. Private runner APIs are outside the compatibility boundary (docs/QSPEC_COMPATIBILITY.md)."
+        },
+        {
+          "test": "Test Loading :: should recursively find all files matching an extension in a path",
+          "upstream": "pass",
+          "resq": "fail",
+          "reason": "qspec's own loader-internals test: it calls qspec's private file finders and expects their exact return shapes (path strings); resQ's loader is different. Private runner APIs are outside the compatibility boundary (docs/QSPEC_COMPATIBILITY.md)."
+        },
+        {
+          "test": "Test Loading :: should return a q file given a q file",
+          "upstream": "pass",
+          "resq": "fail",
+          "reason": "qspec's own loader-internals test: it calls qspec's private file finders and expects their exact return shapes (path strings); resQ's loader is different. Private runner APIs are outside the compatibility boundary (docs/QSPEC_COMPATIBILITY.md)."
+        }
+      ]
+    }
+  ]
+}

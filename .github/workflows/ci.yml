@@ -240,6 +240,7 @@ jobs:
             tools/verify_labels_context.py
             tools/verify_ingestion_contract.py
             tools/verify_external_pilots.py --q q
+            tools/verify_qspec_differential.py --q q
           } 2>&1 | tee artifacts/hostile-release/contracts.txt
       - name: Upload hostile/release evidence
         if: always()

@@ -84,7 +84,8 @@ it with the runner logs.
 ## External pilots and support claims
 
 `tools/verify_external_pilots.py` exercises only the two pinned repositories
-described in [EXTERNAL_PILOTS.md](EXTERNAL_PILOTS.md). Record a new pilot only
+described in [EXTERNAL_PILOTS.md](EXTERNAL_PILOTS.md), and
+`tools/verify_qspec_differential.py` only the three pinned qspec suites there. Record a new pilot only
 when its immutable revision, command, result, and retained artifact are present.
 A passing best-effort platform or one local pilot does not edit
 [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md); support changes require a

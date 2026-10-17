@@ -1,0 +1,53 @@
+VERSION 1.3.4 -- 2023.01.30
+* variables containing dots in names, like foo.bar can now be mocked
+
+VERSION 1.3.3 -- 2016.09.21
+* --only and --exclude flags now take comma separated lists of filters rather than space separated
+
+VERSION 1.3.2 -- 2016.05.16
+* Escape invalid XML characters to entities in attribute and tag bodies
+
+VERSION 1.3.1 -- 2016.03.10
+* expectations in alt blocks should now execute
+
+VERSION 1.3.0 -- 2016.01.07
+* Fixed issue where before/after had to appear before expectations (removes unspecified behavior, could cause compatibility)
+
+VERSION 1.2.2 -- 2016.01.04
+* Added fuzzers for timestamp, timespan, and guid
+
+VERSION 1.2.1 -- 2015.12.22
+* mustnotthrow and mustthrow can now accept like compatible string patterns
+
+VERSION 1.2 -- 2013.02.25
+* Added new command line parameter --junit which outputs JUnit formatted XML Reports 
+* Added new command line parameter --xunit which outputs XUnit formatted XML Reports. Experimental untested report format.
+
+VERSION 1.1 -- 2011.04.26
+* Added new command line parameter --fail-fast that halts execution of further tests as soon as an error or failure is detected
+* Added new command line parameter --fail-hard that halts execution of further tests as soon as an error or failure occurs and drops into a Q session with the context of the failure
+
+VERSION 1.0.1 -- 2009.12.24
+* Fixed bug with fuzz test output where an error occurring part of the way into a fuzz run would cause the display of the tests results to fail
+* Error handling assertions (mustthrow and mustnotthrow) can now execute lists where the first argument is a function or function name and the remaining elements are arguments
+
+VERSION 1.0.0 -- 2009.09.09
+* NONCOMPATIBLE - Updated QSpec to use v2 series of Qutil
+* NONCOMPATIBLE - spec.q now expects that the libraries for the qspec and qutil packages will be linked or installed such that the qspec and qutil folders point to the lib directories of the release packages.  (This allows users to create site specific paths for libraries and applications).
+
+VERSION 0.2.0 -- 2009.07.20
+* Fixed test failure display bug
+* Added .tst.testFilePath function for finding files in the same path as the test file
+
+VERSION 0.1.2 -- 2009.05.31
+* Fixed bug where splayed table would not load as fixture
+* Fixed assertion output messages for mustlt and mustgt
+* Changed loadDesc callback to descLoaded
+* Changed test runner option name for display limit
+
+VERSION 0.1.1 -- 2009.05.27
+* Fixed bug with mustwithin assertion
+* Fixed bug with command line display
+
+VERSION 0.1 -- 2009.05.25
+* Initial Version
