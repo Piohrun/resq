@@ -58,7 +58,8 @@
       outFile: outDirStr, "/", fileName;
       .utl.ensureDir outDirStr;
       hsym[`$outFile] 0: enlist xmlReport;
-      -1 "XML Report written to ", outFile;
+      -1 $[count getenv`RESQ_XML_REPORT_STDOUT; "XML Report written to stdout";
+          "XML Report written to ", outFile];
       if[first buildOutcome;
         '"XML reporter failed: ", last buildOutcome];
      };

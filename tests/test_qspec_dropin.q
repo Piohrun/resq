@@ -88,6 +88,21 @@
     must[not any r[`out] like "*classname=*"; "qspec writes no classname"];
     must[not any r[`out] like "*SUMMARY*"; "console output must not pollute the XML"];
     must[any r[`err] like "*SUMMARY*"; "console output moves to stderr"];
+    must[any r[`err] like "XML Report written to stdout"; "the console names stdout as the report destination"];
+    must[not any r[`err] like "*resq-qspec.*"; "the console must not name the deleted scratch report"];
+  };
+
+  skipIf[not .tst.testState.dropin.canQ;
+         "qspec --junit keeps other requested reports in the working directory"]{
+    / The XML goes to stdout through a scratch -outDir; a -json report asked for
+    / alongside it used to be deleted with that scratch directory.
+    launcher: .utl.shellQuote .resq.HOME, "/bin/qspec";
+    r: .tst.testState.dropin.run[(enlist "tests/pricing.q")!enlist .tst.testState.dropin.passingSpec;
+      {[l;wd] "( timeout 60 ", l, " --junit -json tests", .tst.testState.dropin.stateFlags[wd],
+        "; s=$?; [ -f test-results.json ] && echo JSON-KEPT >&2; exit $s )"}[launcher]];
+    r[`code] musteq 0;
+    must[(first r`out) like "<?xml*"; "stdout must still be the XML report"];
+    must[any r[`err] ~\: "JSON-KEPT"; "test-results.json must be left in the working directory"];
   };
 
   skipIf[not .tst.testState.dropin.canQ;

@@ -40,13 +40,21 @@ fi
 
 report_dir="$(mktemp -d "${TMPDIR:-/tmp}/resq-qspec.XXXXXX")" || exit 1
 trap 'rm -rf -- "$report_dir"' EXIT
-"$RESQ_HOME/bin/resq" test "$@" -qspec-compat -qspec-discovery "${junit_names[@]}" \
-  -outDir "$report_dir" 1>&2
+# Tells the runner to say "written to stdout" rather than name the scratch file.
+RESQ_XML_REPORT_STDOUT=1 "$RESQ_HOME/bin/resq" test "$@" -qspec-compat -qspec-discovery \
+  "${junit_names[@]}" -outDir "$report_dir" 1>&2
 status=$?
-for name in test-results.xml test-results.junit.xml test-results.xunit.xml; do
+xml_files=(test-results.xml test-results.junit.xml test-results.xunit.xml)
+for name in "${xml_files[@]}"; do
   if [ -f "$report_dir/$name" ]; then
     cat -- "$report_dir/$name"
     break
   fi
 done
+# Any other report the caller asked for (-json, coverage) goes where it would
+# without --junit: the working directory.
+for name in "${xml_files[@]}"; do rm -f -- "$report_dir/$name"; done
+if [ -n "$(ls -A -- "$report_dir")" ]; then
+  cp -R -- "$report_dir"/. ./ || status=1
+fi
 exit "$status"
