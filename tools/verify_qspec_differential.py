@@ -4,7 +4,8 @@
 The self-suite checks resQ against resQ's own reading of qspec. This check
 runs the real thing: unmodified upstream qspec (nugend/qspec on nugend/qutil)
 and bin/qspec execute the same vendored third-party suites the way a CI script
-calls them (`--junit <dir> > results.xml`). Every testcase must appear in both
+calls them (`--junit <dir> > results.xml`, and `--xunit`, whose file is
+qspec's own format). Every testcase must appear in both
 reports under the same suite and name with the same verdict, except for the
 differences the manifest lists with a reason. A listed difference that no
 longer occurs also fails, so the manifest cannot go stale.
@@ -72,8 +73,12 @@ def verify_vendor(project: dict[str, Any]) -> Path:
 
 
 def extract_xml(stdout: str) -> str:
-    """The report starts at the XML declaration or root; qutil may print first."""
-    starts = [index for index in (stdout.find("<?xml"), stdout.find("<testsuites")) if index >= 0]
+    """The report starts at the XML declaration or root; qutil may print first.
+
+    qspec's --xunit report has no declaration and a bare <test-suite> root.
+    """
+    markers = ("<?xml", "<testsuites", "<test-suite")
+    starts = [index for index in (stdout.find(marker) for marker in markers) if index >= 0]
     if not starts:
         raise RuntimeError("no JUnit XML on stdout")
     return stdout[min(starts):]
@@ -89,19 +94,43 @@ def case_status(case: ElementTree.Element) -> str:
     return "pass"
 
 
+def qspec_xunit_status(case: ElementTree.Element) -> str:
+    """qspec's --xunit test-case carries counts, not child elements."""
+    if int(case.get("errors", "0") or 0):
+        return "error"
+    if int(case.get("failures", "0") or 0):
+        return "fail"
+    if int(case.get("skip", "0") or 0):
+        return "skip"
+    return "pass"
+
+
 def verdicts(xml_text: str) -> dict[str, str]:
-    """Map "suite :: testcase name" to its verdict; repeats get a #n suffix."""
+    """Map "suite :: testcase name" to its verdict; repeats get a #n suffix.
+
+    JUnit reports key on the testcase name; qspec's --xunit format keys on the
+    test-case label ("should ..."), which is what qspec shows for a case.
+    """
     root = ElementTree.fromstring(xml_text)
+    if root.tag == "test-suite":
+        cases = [
+            (suite.get("name", ""), case.get("label", ""), qspec_xunit_status(case))
+            for suite in root.findall("test-suite") for case in suite.findall("test-case")
+        ]
+    else:
+        cases = [
+            (suite.get("name", ""), case.get("name", ""), case_status(case))
+            for suite in root.iter("testsuite") for case in suite.findall("testcase")
+        ]
     result: dict[str, str] = {}
-    for suite in root.iter("testsuite"):
-        for case in suite.findall("testcase"):
-            key = f"{suite.get('name', '')} :: {case.get('name', '')}"
-            occurrence = 1
-            unique = key
-            while unique in result:
-                occurrence += 1
-                unique = f"{key} #{occurrence}"
-            result[unique] = case_status(case)
+    for suite_name, case_name, status in cases:
+        key = f"{suite_name} :: {case_name}"
+        occurrence = 1
+        unique = key
+        while unique in result:
+            occurrence += 1
+            unique = f"{key} #{occurrence}"
+        result[unique] = status
     return result
 
 

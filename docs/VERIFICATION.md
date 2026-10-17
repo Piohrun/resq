@@ -33,7 +33,7 @@ regression.
 | Scale | Required 10k green/failure-heavy reports and adapters stay within checked time/memory budgets; the recorded 100k run qualifies lifecycle/report growth but is not a per-commit minimum. | [scale verifier](../tools/verify_report_scale.py), [scale contract tests](../tools/tests/test_report_scale.py) |
 | Supply chain and release | Workflow actions are immutable SHA pins, checkout credentials are not persisted, evidence is checksummed, and tags must resolve to the audited commit. | [release policy tests](../tools/tests/test_release_gate.py), [release gate](../tools/verify_release_gate.py) |
 | External adoption | Two pinned MIT q codebases pass their declared normal/isolate inventories; no broader ecosystem compatibility is inferred. | [external-pilot verifier](../tools/verify_external_pilots.py), [pilot manifest](../pilots/manifest.json) |
-| Upstream qspec parity | Three pinned MIT qspec suites run through unmodified upstream qspec and `bin/qspec` produce the same JUnit testcase names and verdicts, apart from five listed private-API tests. | [qspec differential verifier](../tools/verify_qspec_differential.py), [differential manifest](../pilots/qspec-differential.json) |
+| Upstream qspec parity | Three pinned MIT qspec suites run through unmodified upstream qspec and `bin/qspec` produce the same JUnit and qspec-xunit testcase names and verdicts, apart from five listed private-API tests. | [qspec differential verifier](../tools/verify_qspec_differential.py), [differential manifest](../pilots/qspec-differential.json) |
 
 Historical audits record only their named version and commit. Roadmap entries
 label unimplemented ecosystem ideas explicitly; targeted internal fault

@@ -108,6 +108,7 @@
 / .utl.require is idempotent, so junit-then-xunit in one process would
 / otherwise leave .tst.output.top pointing at whichever loaded first.
 .tst.output.xunitTop:{[results]
+    if[`qspec~@[get;`.tst.app.xunitFormat;`xunit2]; :.tst.output.xunitQspecTop results];
     rows: .tst.output.normalizeRows results;
     runInfo:()!();
     if[99h=type results;if[`run in key results;runInfo:results`run]];
@@ -173,6 +174,61 @@
 
     rootOpen,"\n",assemblyOpen,"\n",collectionBlocks,
         "\n  </assembly>\n</assemblies>"
+ };
+
+/ qspec's --xunit report (nugend/qspec lib/output/xunit.q): a bare <test-suite>
+/ root, one <test-suite> per spec and one <test-case> per expectation, with
+/ qspec's attribute names. It is not the xUnit.net v2 schema above, so a CI
+/ step written against qspec's file needs this shape. -xunit-format qspec
+/ (bin/qspec's default) selects it; joins and trailing newlines follow
+/ qspec's `` ` sv `` construction.
+.tst.output.xunitQspecNode:{[name;attrs;body]
+    pairs:{[k;v] string[k],"=\"",.tst.output.escapeXml[v],"\""}'[key attrs;value attrs];
+    open:"<",name,$[count attrs;" "," " sv pairs;""];
+    $[count body; ` sv (open,">";body;"</",name,">"); open,"/>"]
+ };
+
+.tst.output.xunitQspecCase:{[rec]
+    status:.tst.normalizeResultStatus $[`status in key rec;rec`status;`pass];
+    description:.tst.toString rec`description;
+    failures:$[`failures in key rec;(),rec`failures;()];
+    failures:$[10h=type failures;enlist failures;.tst.toString each failures];
+    asserts:"j"$$[`assertsRun in key rec;rec`assertsRun;0];
+    attrs:`name`label`errors`failures`skip`tests!(
+        description;.tst.output.qspecCaseName[rec;description];
+        $[status~`error;"1";"0"];
+        string count failures;
+        $[status in `skip`pending;"1";"0"];
+        string asserts);
+    if[not (status~`error) or 0<count failures;:.tst.output.xunitQspecNode["test-case";attrs;""]];
+    message:$[`message in key rec;.tst.renderReportMessage rec`message;""];
+    text:$[status~`error;"Error: '",message,"\n";""];
+    text,:raze "Failure: ",/:failures,\:"\n";
+    text,:string[asserts],$[1=asserts;" assertion was";" assertions were"]," run.\n";
+    .tst.output.xunitQspecNode["test-case";attrs;
+        .tst.output.xunitQspecNode["sysout";()!();.tst.output.escapeXml text]]
+ };
+
+.tst.output.xunitQspecTop:{[results]
+    t:.tst.resultTable results;
+    if[not 98h=type t; :.tst.output.xunitQspecNode["test-suite";()!();""]];
+    specNodes:{[t;s]
+        rows:t where (t`suite)=s;
+        statuses:.tst.normalizeResultStatus each rows`status;
+        kinds:$[`kind in cols rows;`$.tst.toString each rows`kind;(count rows)#`test];
+        failureCounts:{count $[10h=type x;enlist x;x]} each rows`failures;
+        errors:sum statuses=`error;
+        attrs:(`name`reports`skips`tests`errors`failures,`$("test-cases";"errors-detail";"failures-detail"))!(
+            .tst.toString s;"1";string sum statuses in `skip`pending;
+            string "j"$sum rows`assertsRun;string errors;
+            string sum (statuses=`fail) and kinds=`test;
+            string count rows;string errors;string sum failureCounts);
+        cases:.tst.output.xunitQspecCase each .tst.resultRows rows;
+        .tst.output.xunitQspecNode["test-suite";attrs;-1 _ ` sv cases]
+      }[t] each distinct t`suite;
+    out:.tst.output.xunitQspecNode["test-suite";()!();raze specNodes];
+    / The report writer adds the final newline.
+    $["\n"=last out; -1 _ out; out]
  };
 
 .tst.output.top: .tst.output.xunitTop;

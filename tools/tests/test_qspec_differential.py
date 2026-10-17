@@ -41,6 +41,34 @@ class ReportParsingTests(unittest.TestCase):
         })
 
 
+QSPEC_XUNIT = """<test-suite>
+<test-suite name="SHA" reports="1" skips="0" tests="3" errors="0" failures="1" test-cases="3">
+<test-case name="hash" label="should hash" errors="0" failures="0" skip="0" tests="1"/>
+<test-case name="bad" label="should bad" errors="0" failures="2" skip="0" tests="1">
+<sysout>
+Failure: x
+</sysout>
+</test-case>
+<test-case name="boom" label="it holds that boom" errors="1" failures="0" skip="0" tests="0"/>
+<test-case name="later" label="should later" errors="0" failures="0" skip="1" tests="0"/>
+</test-suite>
+</test-suite>
+"""
+
+
+class QspecXunitTests(unittest.TestCase):
+    def test_bare_test_suite_root_is_found(self) -> None:
+        self.assertTrue(differential.extract_xml("noise\n" + QSPEC_XUNIT).startswith("<test-suite>"))
+
+    def test_qspec_xunit_verdicts_key_on_label(self) -> None:
+        self.assertEqual(differential.verdicts(QSPEC_XUNIT), {
+            "SHA :: should hash": "pass",
+            "SHA :: should bad": "fail",
+            "SHA :: it holds that boom": "error",
+            "SHA :: should later": "skip",
+        })
+
+
 class ComparisonTests(unittest.TestCase):
     upstream = {"S :: should a": "pass", "S :: should b": "pass", "S :: should c": "fail"}
 

@@ -1917,6 +1917,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-shard-count N` | Partition the selected shard unit across `N > 0` shards (default `1`) |
 | `-shard-unit U` | Select `file` (default), `test`, or declarative `case` assignment |
 | `-junit-names resq\|qspec` | JUnit testcase names: suite-title `classname` with the bare description (`resq`, default), or qspec's `should ...` names without `classname` (`qspec`, the `bin/qspec` default) |
+| `-xunit-format xunit2\|qspec` | `-xunit` schema: xUnit.net v2 (`xunit2`, default), or qspec's own `<test-suite>`/`<test-case>` file (`qspec`, the `bin/qspec` default) |
 | `-report-profile P` | JSON evidence profile: `full` (default), `results`, or `telemetry`; sharded/release runs require `full` |
 | `-final-diffs` | Repeat retained structural diffs in the final human failure listing |
 | `-final-diff-limit N` | Total character budget for `-final-diffs` (default 4000) |

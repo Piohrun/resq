@@ -91,7 +91,7 @@ runner spellings: `-desc`/`-describe`, `-xunit`, `-junit`,
 `-fh`/`-fail-hard`, with one or two dashes, and qutil's `--name=value` form for
 options that take a value (`--only=pricing*`, `--fdl=5`).
 
-It also keeps three qspec runner behaviours that existing trees and CI scripts
+It also keeps these qspec runner behaviours that existing trees and CI scripts
 depend on:
 
 - **Every `.q` file under a directory is a test file**, as in qspec's loader
@@ -104,6 +104,10 @@ depend on:
   bond">`, no `classname`), so a CI server's test history carries on across the
   switch. `bin/qspec` defaults to `-junit-names qspec`; pass `-junit-names resq`
   for resQ's suite-title `classname` and bare descriptions.
+- **`--xunit` writes qspec's xunit file**, the `<test-suite>`/`<test-case>`
+  format qspec produces rather than xUnit.net v2, so a CI step that parses it
+  keeps working (`-xunit-format qspec`, the `bin/qspec` default; pass
+  `-xunit-format xunit2` for xUnit.net v2).
 - **qutil keeps working.** qspec requires qutil, usually loaded from `q.q`. When
   qutil is loaded before resQ, resQ leaves `.utl.PKGLOADING`, `.utl.FILELOADING`
   and `.utl.DEBUG` alone and hands `.utl.require "somePackage"` to qutil's
@@ -115,6 +119,19 @@ Test files that define their own helpers in `.tst` keep working unless a
 helper reuses the name of a resQ internal (resQ's `.tst` is much larger than
 qspec's). That file then fails with a load error naming the helper to rename,
 and the framework definition is restored for the rest of the run.
+
+Exit codes match qspec's for passing and failing suites (0 and 1). Three cases
+that qspec reports as green or as a generic failure deliberately differ,
+because each would otherwise hide a broken CI step:
+
+| Situation | qspec | `bin/qspec` |
+|---|---|---|
+| `--only`/`--exclude` leaves no test to run | 0 | 1 |
+| No test files under the given paths | 0 | 3 |
+| A test file fails to load | 1 | 4 |
+
+A script that checks for a non-zero exit needs no change; one that compares
+the status with exactly `1` should test for non-zero instead.
 
 A `desc` block is one q lambda, and q limits a lambda to roughly 237 constants.
 resQ's line annotations fit within qspec's budget: a `desc` holds about 118
@@ -157,8 +174,9 @@ run unchanged while resQ produces a different presentation:
 
 - the console includes resQ summaries, run-audit information, richer assertion
   diagnostics, and optional visual diffs;
-- JUnit and xUnit are resQ's schemas, with suite titles and source locations
-  (`bin/qspec` keeps qspec's JUnit testcase names; see above);
+- `resq test` writes resQ's JUnit and xUnit schemas, with suite titles and
+  source locations (`bin/qspec` keeps qspec's JUnit testcase names and its
+  `--xunit` file format; see above);
 - JSON is a resQ-native, versioned schema with assertion counts, timings, source
   metadata, and optional coverage/performance sections;
 - `-pass` retains qspec's silent-run behavior and returns the test status.

@@ -513,6 +513,16 @@
 
 .tst.oneResultTable:{[row] flip enlist each .tst.completeResultRow row};
 
+/ qspec's name for a test case: the declaration verb plus the description
+/ ("should add two numbers"). Used by -junit-names qspec, where CI servers key
+/ test history on it, and by -xunit-format qspec's label attribute.
+.tst.output.qspecCaseName:{[rec;description]
+    kind: $[`kind in key rec; `$.tst.toString rec`kind; `test];
+    verb: $[kind ~ `fuzz; "it holds that"; kind ~ `perf; "performs";
+        kind ~ `test; "should"; ""];
+    $[count verb; verb," ",description; description]
+ };
+
 .tst.isResultRow:{[x]
     if[not 99h = type x; :0b];
     all `suite`description`status in key x

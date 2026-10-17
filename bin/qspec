@@ -19,14 +19,18 @@ RESQ_HOME="$(dirname "$DIR")"
 xml_report=""
 has_outdir=0
 # CI servers key JUnit history on classname + name. Keep qspec's testcase
-# names ("should ...", no classname) unless the caller picked a style.
+# names ("should ...", no classname) and qspec's own --xunit file format
+# unless the caller picked one.
 junit_names=(-junit-names qspec)
+xunit_format=(-xunit-format qspec)
 for arg in "$@"; do
   case "$arg" in
     -junit|--junit|-xml|--xml|-xunit|--xunit) xml_report=1 ;;
     -outDir|--outDir|-outDir=*|--outDir=*) has_outdir=1 ;;
     -junit-names|--junit-names|-junitNames|--junitNames|\
     -junit-names=*|--junit-names=*|-junitNames=*|--junitNames=*) junit_names=() ;;
+    -xunit-format|--xunit-format|-xunitFormat|--xunitFormat|\
+    -xunit-format=*|--xunit-format=*|-xunitFormat=*|--xunitFormat=*) xunit_format=() ;;
   esac
 done
 
@@ -35,14 +39,14 @@ done
 # successful qspec-compatible run. -qspec-discovery loads every .q file under
 # a directory, as qspec's own loader does.
 if [ -z "$xml_report" ] || [ "$has_outdir" = 1 ]; then
-  exec "$RESQ_HOME/bin/resq" test "$@" -qspec-compat -qspec-discovery "${junit_names[@]}"
+  exec "$RESQ_HOME/bin/resq" test "$@" -qspec-compat -qspec-discovery "${junit_names[@]}" "${xunit_format[@]}"
 fi
 
 report_dir="$(mktemp -d "${TMPDIR:-/tmp}/resq-qspec.XXXXXX")" || exit 1
 trap 'rm -rf -- "$report_dir"' EXIT
 # Tells the runner to say "written to stdout" rather than name the scratch file.
 RESQ_XML_REPORT_STDOUT=1 "$RESQ_HOME/bin/resq" test "$@" -qspec-compat -qspec-discovery \
-  "${junit_names[@]}" -outDir "$report_dir" 1>&2
+  "${junit_names[@]}" "${xunit_format[@]}" -outDir "$report_dir" 1>&2
 status=$?
 xml_files=(test-results.xml test-results.junit.xml test-results.xunit.xml)
 for name in "${xml_files[@]}"; do

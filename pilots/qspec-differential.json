@@ -172,10 +172,28 @@
       "expectedDifferences": []
     },
     {
+      "name": "cryptoq-xunit",
+      "project": "cryptoq",
+      "args": [
+        "--xunit",
+        "test/"
+      ],
+      "expectedDifferences": []
+    },
+    {
       "name": "qutil",
       "project": "nugend-qutil",
       "args": [
         "--junit",
+        "test/"
+      ],
+      "expectedDifferences": []
+    },
+    {
+      "name": "qutil-xunit",
+      "project": "nugend-qutil",
+      "args": [
+        "--xunit",
         "test/"
       ],
       "expectedDifferences": []

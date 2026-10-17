@@ -45,14 +45,14 @@ with qutil loaded from q's startup file as a qutil install does).
 
 | Project | Pinned commit | Runs |
 | --- | --- | --- |
-| [cryptoq](https://github.com/asatirahul/cryptoq) | `ffc72c1cdc487595df82de5a7969100bf0c4ade7` | whole suite, `--only=SHA,HMAC`, `--exclude=SHA` |
-| [qutil](https://github.com/nugend/qutil) | `2bce9deb5585f7166052bfb81012b8d897fedeeb` | its own test suite, which includes failures upstream too |
+| [cryptoq](https://github.com/asatirahul/cryptoq) | `ffc72c1cdc487595df82de5a7969100bf0c4ade7` | whole suite, `--only=SHA,HMAC`, `--exclude=SHA`, `--xunit` |
+| [qutil](https://github.com/nugend/qutil) | `2bce9deb5585f7166052bfb81012b8d897fedeeb` | its own test suite (`--junit` and `--xunit`), which includes failures upstream too |
 | [qspec](https://github.com/nugend/qspec) | `9b846b68a8d808e472ba504d18c325b14b468087` | its own test suite |
 
 All three are MIT-licensed and vendored unmodified under `pilots/vendor/`;
 [`pilots/qspec-differential.json`](../pilots/qspec-differential.json) pins every
-file's hash. Every testcase must appear in both JUnit reports under the same
-suite and name with the same verdict. The manifest lists the five permitted
+file's hash. Every testcase must appear in both reports (JUnit, or qspec's
+`--xunit` file) under the same suite and name with the same verdict. The manifest lists the five permitted
 differences with reasons: qspec's own tests of its private loader and halt
 machinery, which are outside the [compatibility boundary](QSPEC_COMPATIBILITY.md).
 A listed difference that stops occurring also fails the check.

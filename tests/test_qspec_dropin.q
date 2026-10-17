@@ -93,6 +93,16 @@
   };
 
   skipIf[not .tst.testState.dropin.canQ;
+         "qspec --xunit prints qspec's own xunit file on stdout"]{
+    launcher: .utl.shellQuote .resq.HOME, "/bin/qspec";
+    r: .tst.testState.dropin.run[(enlist "tests/pricing.q")!enlist .tst.testState.dropin.passingSpec;
+      {[l;wd] "timeout 60 ", l, " --xunit tests", .tst.testState.dropin.stateFlags wd}[launcher]];
+    r[`code] musteq 0;
+    (first r`out) musteq "<test-suite>";
+    must[any r[`out] like "*<test-case name=\"price\" label=\"should price\"*"; "test-cases carry qspec's name and label"];
+  };
+
+  skipIf[not .tst.testState.dropin.canQ;
          "qspec --junit keeps other requested reports in the working directory"]{
     / The XML goes to stdout through a scratch -outDir; a -json report asked for
     / alongside it used to be deleted with that scratch directory.

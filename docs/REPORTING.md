@@ -268,6 +268,14 @@ from `resQ.Error`. Property telemetry uses standard per-test `<traits>` with the
 same values as JUnit's property block. Captured isolated-child output is written
 in the test's `<output>` element.
 
+`-xunit-format qspec` (the `bin/qspec` default) writes qspec's own `--xunit`
+file instead, which is not xUnit v2: a bare `<test-suite>` root, one
+`<test-suite>` per suite with qspec's `reports`/`skips`/`tests`/`errors`/
+`failures`/`test-cases`/`errors-detail`/`failures-detail` attributes, and one
+`<test-case name="..." label="should ...">` per test whose `errors`, `failures`,
+`skip` and `tests` attributes carry its counts, with failure and error text in
+`<sysout>`. On the pinned qspec suites it matches upstream qspec's file.
+
 The assembly ID and timestamps come from the canonical run metadata. Test UUIDs
 derive from `testId`, so they remain stable across checkout directories. A run
 ID identifies one execution and must not be used as a test identity.

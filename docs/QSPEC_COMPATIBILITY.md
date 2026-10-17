@@ -39,7 +39,9 @@ An explicit `testFilePatterns` configuration replaces both. With `-junit` or
 `-xunit` and no `-outDir`, `bin/qspec` prints the XML report on stdout and the
 console on stderr, matching qspec's `--junit > results.xml` usage. JUnit
 testcases from `bin/qspec` carry qspec's names (`should ...`, `it holds that
-...`, `performs ...`, no `classname`) unless `-junit-names resq` is passed. When qutil
+...`, `performs ...`, no `classname`) unless `-junit-names resq` is passed, and
+`--xunit` writes qspec's own `<test-suite>`/`<test-case>` file unless
+`-xunit-format xunit2` is passed. When qutil
 is loaded before resQ, qutil keeps `.utl.require` for package names and its
 `.utl` loader state, and `bin/qspec` preloads `qutil/opts.q` as qspec's
 `spec.q` does.

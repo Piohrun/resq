@@ -46,17 +46,6 @@
     $[count body;"<properties>",body,"</properties>";""]
  };
 
-/ -junit-names qspec reproduces qspec's testcase naming: no classname and the
-/ declaration verb in the name (<testcase name="should add two numbers">).
-/ CI servers key test history on classname + name, so this keeps a suite's
-/ history continuous when a qspec run is switched to resQ.
-.tst.output.qspecCaseName:{[rec;description]
-    kind: $[`kind in key rec; `$.tst.toString rec`kind; `test];
-    verb: $[kind ~ `fuzz; "it holds that"; kind ~ `perf; "performs";
-        kind ~ `test; "should"; ""];
-    $[count verb; verb," ",description; description]
- };
-
 .tst.output.buildJUnitCase:{[rec]
     recStatus: .tst.normalizeResultStatus $[`status in key rec; rec`status; `pass];
     / classname fallback chain: suite name -> namespace -> "resq". The suite name

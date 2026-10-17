@@ -416,6 +416,38 @@
              "the default keeps resQ's names"];
     };
 
+    / bin/qspec defaults to qspec's own --xunit file (test-suite/test-case with
+    / qspec's attribute names), not the xUnit.net v2 schema.
+    should["write qspec's --xunit format under -xunit-format qspec"]{
+        rows: flip `suite`description`status`message`time`failures`assertsRun`file`line`kind!(
+            `SHA`SHA`SHA`SHA`HMAC; ("ok";"bad";"boom";"later";"fuzzed");
+            `pass`fail`error`skip`fail; ("";"";"kaboom";"not yet";"");
+            5#0Nn; (();("one";"two");enlist "kaboom";();enlist "f"); 2 1 0 0 3i;
+            5#enlist "tests/sha.q"; 1 2 3 4 5i; `test`test`test`test`fuzz);
+        `.tst.app.xunitFormat mock `qspec;
+        prevTop: @[get; `.tst.output.top; {::}];
+        prevReport: .resq.report;
+        .tst.loadOutputModule["xunit"]; xml: .tst.output.top rows;
+        empty: .tst.output.top 0#rows;
+        .tst.output.top: prevTop; .resq.report: prevReport;
+
+        must[xml like "<test-suite>\n<test-suite name=\"SHA\"*"; "root and first spec as qspec writes them"];
+        must[0 < count ss[xml;"<test-suite name=\"SHA\" reports=\"1\" skips=\"1\" tests=\"3\" errors=\"1\" failures=\"1\" test-cases=\"4\" errors-detail=\"1\" failures-detail=\"3\">"];
+             "spec attributes carry qspec's counts"];
+        must[0 < count ss[xml;"<test-case name=\"ok\" label=\"should ok\" errors=\"0\" failures=\"0\" skip=\"0\" tests=\"2\"/>"];
+             "a passing case is an empty test-case"];
+        must[0 < count ss[xml;"label=\"should bad\" errors=\"0\" failures=\"2\""]; "failures count the failure messages"];
+        must[0 < count ss[xml;"Failure: two"]; "failure messages go in sysout"];
+        must[0 < count ss[xml;"label=\"should boom\" errors=\"1\""]; "an error sets errors"];
+        must[0 < count ss[xml;"Error: &apos;kaboom"]; "the error text goes in sysout, escaped"];
+        must[0 < count ss[xml;"label=\"should later\" errors=\"0\" failures=\"0\" skip=\"1\""]; "a skip sets skip"];
+        must[0 < count ss[xml;"<test-suite name=\"HMAC\" reports=\"1\" skips=\"0\" tests=\"3\" errors=\"0\" failures=\"0\""];
+             "qspec counts only should failures in the spec failures attribute"];
+        must[0 < count ss[xml;"label=\"it holds that fuzzed\""]; "a holds block is labelled as qspec labels it"];
+        must[not xml like "<?xml*"; "qspec's file has no XML declaration"];
+        empty musteq "<test-suite/>";
+    };
+
     should["XML groups string suites"]{
         raw:(
             `suite`description`status`assertsRun!("Order validation";"from string";`pass;1i);
