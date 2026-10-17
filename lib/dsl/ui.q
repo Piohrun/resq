@@ -242,8 +242,8 @@ testOnly:{[des;code]
   usage: $[verb in key .tst.dslArityUsage;
             .tst.dslArityUsage verb;
             string[verb], "[...]" ];
-  "DSL arity error: ", string[verb], " declaration at line ",
-    string[row`line], " was not fully applied; expected ", usage
+  at: $[null row`line; " declaration"; " declaration at line ", string row`line];
+  "DSL arity error: ", string[verb], at, " was not fully applied; expected ", usage
  };
 
 / Line-aware wrappers inserted by loader.q. The shared dispatcher restores the
@@ -272,13 +272,30 @@ testOnlyAt:{[lineNo;des;code] .tst.callExpectationAt[lineNo;.tst.testOnly;(des;c
 / Unary entry points are deliberately applied before any user-supplied
 / arguments. Each returns a projection carrying its declaration id, so only the
 / exact source declaration that reaches full arity can complete the audit row.
+/ The loader passes 0N and prefixes a literal description with
+/ "\001<line>\001" (see .tst.lineTaggedVerbs in loader.q). Returns the
+/ effective line and the description the user wrote.
+.tst.untagDescription:{[lineNo;des]
+  if[not null lineNo; :(lineNo;des)];
+  if[not 10h = type des; :(lineNo;des)];
+  if[not "\001" = first des; :(lineNo;des)];
+  close: 1 + (1 _ des) ? "\001";
+  if[close >= count des; :(lineNo;des)];
+  ("I"$ 1 _ close # des; (close + 1) _ des)
+ };
 shouldEntry:{[lineNo]
   id: .tst.beginDslDeclaration[lineNo;`should];
-  {[id;lineNo;des;code] .tst.finishDslDeclaration id; .tst.shouldAt[lineNo;des;code]}[id;lineNo;;]
+  {[id;lineNo;des;code]
+    .tst.finishDslDeclaration id;
+    tagged: .tst.untagDescription[lineNo;des];
+    .tst.shouldAt[tagged 0;tagged 1;code]}[id;lineNo;;]
  };
 itEntry:{[lineNo]
   id: .tst.beginDslDeclaration[lineNo;`it];
-  {[id;lineNo;des;code] .tst.finishDslDeclaration id; .tst.itAt[lineNo;des;code]}[id;lineNo;;]
+  {[id;lineNo;des;code]
+    .tst.finishDslDeclaration id;
+    tagged: .tst.untagDescription[lineNo;des];
+    .tst.itAt[tagged 0;tagged 1;code]}[id;lineNo;;]
  };
 shouldEachEntry:{[lineNo]
   id:.tst.beginDslDeclaration[lineNo;`shouldEach];

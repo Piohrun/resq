@@ -105,15 +105,32 @@
     source:"should[\"retry[3] and testOnly[ stay literal\"]{ 1 musteq 1 };";
     rewritten:.tst.annotateExpectationLine[10;source];
     rewritten musteq
-      ".tst.shouldEntry[10][\"retry[3] and testOnly[ stay literal\"]{ 1 musteq 1 };";
+      ".tst.shouldEntry[0N][\"\\00110\\001retry[3] and testOnly[ stay literal\"]{ 1 musteq 1 };";
   };
 
   should["preserve every constructor token inside one literal"]{
     literal:"should[ it[ shouldEach[ holds[ perf[ skip[ pending[ skipIf[ retry[ testOnly[";
     source:"should[\"",literal,"\"]{1};";
     rewritten:.tst.annotateExpectationLine[12;source];
-    expected:".tst.shouldEntry[12][\"",literal,"\"]{1};";
+    expected:".tst.shouldEntry[0N][\"\\00112\\001",literal,"\"]{1};";
     rewritten musteq expected;
+  };
+
+  should["carry should/it lines inside the literal, not as a per-test constant"]{
+    / q caps a lambda at ~237 constants. A distinct line integer per Entry
+    / call made a desc stop loading near 78 tests; qspec's ceiling is ~118.
+    tagged:.tst.annotateExpectationLine[7; "  it[\"x\"]{1}"];
+    tagged musteq "  .tst.itEntry[0N][\"\\0017\\001x\"]{1}";
+    computed:.tst.annotateExpectationLine[8; "  should[name]{1}"];
+    computed musteq "  .tst.shouldEntry[8][name]{1}";
+    .tst.untagDescription[0N;"\00142\001named test"] musteq (42i;"named test");
+    .tst.untagDescription[5i;"plain"] musteq (5i;"plain");
+    .tst.untagDescription[0N;"\001 not a tag"] musteq (0N;"\001 not a tag");
+    body:enlist ".tst.desc[\"large\"]{";
+    body,:{[i] "  should[\"t",string[i],"\"]{ 1 musteq 1 };"} each til 115;
+    body,:enlist " };";
+    statement:"\n" sv .tst.preprocessScript body;
+    @[{parse x; 1b}; statement; {x}] musteq 1b;
   };
 
   should["annotation rewrites both constructors on one physical line"]{

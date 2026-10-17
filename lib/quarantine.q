@@ -194,11 +194,31 @@
     `history`manifest!(history;manifest)
  };
 
+/ Lookups run once per executed test against the same history and manifest
+/ rows, so a linear scan per lookup made classification and persistence
+/ quadratic in suite size. Keep id indexes for the few most recent id columns.
+/ The cache key is the raw testId list, not the rows: history rows carry
+/ nested observation tables, and an equal-but-rebuilt history would make every
+/ lookup a deep compare. Comparing two equal id columns is a flat string match.
+.tst.flakeIdIndexes:();
+.tst.flakeIdIndex:{[rows]
+    raw:$[98h=type rows;rows`testId;{x`testId} each rows];
+    i:0;
+    while[i<count .tst.flakeIdIndexes;
+        slot:.tst.flakeIdIndexes i;
+        if[raw~first slot;
+            if[i>0;.tst.flakeIdIndexes:enlist[slot],.tst.flakeIdIndexes _ i];
+            :last slot];
+        i+:1];
+    ids:`$.tst.toString each raw;
+    .tst.flakeIdIndexes:4 sublist enlist[(raw;ids)],.tst.flakeIdIndexes;
+    ids
+ };
+
 .tst.flakeFindById:{[rows;testId]
     if[0=count rows;:()!()];
-    ids:.tst.toString each {x`testId} each rows;
-    at:where ids~\:.tst.toString testId;
-    $[count at;rows first at;()!()]
+    at:(.tst.flakeIdIndex rows)?`$.tst.toString testId;
+    $[at<count rows;rows at;()!()]
  };
 
 .tst.flakeHistoryEntry:{[testId]
@@ -393,22 +413,24 @@
     historyState:@[get;`.tst.app.flakeHistory;{.tst.emptyFlakeHistory `missing}];
     entries:$[`ok~(historyState`status);historyState`tests;()];
     eligible:rows where .tst.flakeEligibleRow each rows;
-    ids:distinct .tst.flakeExecutionId each eligible;
+    rowIds:.tst.flakeExecutionId each eligible;
+    ids:distinct rowIds;
+    / Group once; re-deriving every row's id per test was quadratic.
+    positions:group `$rowIds;
     window:"j"$@[get;`.tst.app.flakeWindow;20j];
-    updated:{[historyEntries;allRows;limit;id]
+    updated:{[historyEntries;allRows;positions;limit;id]
         priorEntry:.tst.flakeFindById[historyEntries;id];
         obs:$[not 99h=type priorEntry;();
             not `observations in key priorEntry;();
             .tst.jsonObjectRows priorEntry`observations];
-        rowIds:.tst.flakeExecutionId each allRows;
-        current:allRows where rowIds~\:id;
+        current:allRows positions `$id;
         ci:0;
         while[ci<count current;
             obs:.tst.appendObservation[obs;.tst.observationFromRow current ci];
             ci+:1];
         if[count[obs]>limit;obs:(neg limit)#obs];
         `testId`observations`unseenCompleteRuns!(id;obs;0j)
-      }[entries;eligible;window;] each ids;
+      }[entries;eligible;positions;window;] each ids;
     priorIds:$[count entries;{.tst.toString x`testId} each entries;()];
     unseenIds:priorIds except ids;
     complete:.tst.flakeCompleteInventoryRun eligible;

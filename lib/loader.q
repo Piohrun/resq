@@ -69,70 +69,59 @@
 / locations, so this lightweight load-time annotation is the only reliable way
 / to give CI reporters the declaration line. Strings/comments and ordinary q
 / expressions are untouched.
+/ A desc body is one q lambda and q caps a lambda at ~237 distinct constants.
+/ qspec spends two per declaration (description and body). A distinct line
+/ number per Entry call made that three, so a desc stopped loading near 78
+/ tests instead of qspec's ~118. For the high-volume constructors whose first
+/ argument is a string literal, the line rides inside that literal as a
+/ "\001<line>\001" prefix (stripped by the Entry wrapper) and the Entry
+/ argument is the shared constant 0N. Other constructors keep the integer.
+.tst.lineTaggedVerbs:("should";"it");
+
+/ Constructor offsets come from native `ss` over the raw line, then keep only
+/ offsets the lexer places in code before the first comment (scanning stops at
+/ a comment, so later text is never annotated). The previous per-character
+/ walk tested every verb at every offset. Verbs are identifiers followed by
+/ "[", so two matches can never overlap and at most one verb fits an offset.
 .tst.annotateExpectationLineWith:{[lineNo;line;shadowed]
     verbs: ("should";"it";"shouldEach";"holds";"perf";"skip";"pending";"skipIf";"retry";"testOnly");
     txt: (),line;
+    if[0 = count txt; :""];
+    lex: .tst.qLexStates txt;
+    commentAt: first (where (0 = lex 0) and 2 = lex 1), count txt;
+    code: (0 = lex 0) and (til count txt) < commentAt;
+    found: raze {[txt;code;shadowed;verb]
+        / "[[]" is a literal "[" in ss pattern syntax.
+        ps: "j"$txt ss verb,"[[]";
+        ps: ps where code ps;
+        qualified: {[txt;at] (5 <= at) and ".tst." ~ 5 # (at - 5) _ txt}[txt] each ps;
+        boundary: qualified or {[txt;at] (at = 0) or not txt[at - 1] in .Q.a,.Q.A,.Q.n,"_."}[txt] each ps;
+        keep: boundary and not {[ctx;name;at] .tst.dslNameShadowed[ctx;name;at]}[shadowed;`$verb] each ps;
+        {[verb;at;q] (at;verb;q)}[verb]'[ps where keep; qualified where keep]
+      }[txt;code;shadowed] each verbs;
+    if[0 = count found; :txt];
+    found: found iasc found[;0];
     out: "";
-    inString: 0b;
-    escaped: 0b;
-    i: 0;
-    while[i < count txt;
-        / Every iteration performs exactly one scanner action. Constructors and
-        / quotes advance `i`; without this guard the later blocks observed the
-        / new position in the same iteration and inverted string polarity.
-        consumed: 0b;
-        c: txt i;
-        if[inString;
-            out,: c;
-            $[escaped; escaped: 0b;
-              c = "\\"; escaped: 1b;
-              c = "\""; inString: 0b;
-              ::];
-            i+: 1;
-            consumed: 1b;
-        ];
-        if[(i < count txt) and (not consumed) and not inString;
-            c: txt i;
-            if[c = "\""; inString: 1b; out,: c; i+: 1; consumed: 1b];
-        ];
-        if[(i < count txt) and (not consumed) and not inString;
-            c: txt i;
-            / An inline comment ends scanning; preserve its text verbatim.
-            if[(c = "/") and ((i = 0) or txt[i - 1] in " \t");
-                out,: i _ txt;
-                i: count txt;
-                consumed: 1b;
-            ];
-        ];
-        if[(i < count txt) and (not consumed) and not inString;
-            qualified: (5 <= i) and ".tst." ~ 5 # (i - 5) _ txt;
-            boundary: qualified or (i = 0) or not txt[i - 1] in .Q.a,.Q.A,.Q.n,"_.";
-            candidates: where {[source;at;verb]
-                prefix: verb,"[";
-                prefix ~ (count prefix) # at _ source
-              }[txt;i;] each verbs;
-            candidates: candidates where {[ctx;at;name]
-                not .tst.dslNameShadowed[ctx;name;at]
-              }[shadowed;i;] each `$verbs candidates;
-            if[boundary and count candidates;
-                verb: verbs first candidates;
-                / Enter through a unary guard before consuming the constructor
-                / arguments. If the source supplies too few arguments q returns
-                / a projection and silently discards it at the end of desc[];
-                / the entry/finish pair lets desc detect that lost declaration.
-                / For an explicit .tst.holds[...] call, `.tst.` is already in
-                / out; preserve it and replace only the constructor name.
-                out,: $[qualified; verb; ".tst.",verb],"Entry[",string[lineNo],"][";
-                i+: 1 + count verb;
-                consumed: 1b;
-            ];
-        ];
-        if[(i < count txt) and not consumed;
-            out,: txt i;
-            i+: 1;
-        ];
-    ];
-    out
+    at: 0;
+    k: 0;
+    while[k < count found;
+        hit: found k;
+        verb: hit 1;
+        out,: ((hit 0) - at) # at _ txt;
+        / Enter through a unary guard before consuming the constructor
+        / arguments. If the source supplies too few arguments q returns a
+        / projection and silently discards it at the end of desc[]; the
+        / entry/finish pair lets desc detect that lost declaration. For an
+        / explicit .tst.holds[...] call, `.tst.` is already in the output;
+        / preserve it and replace only the constructor name.
+        after: (hit 0) + 1 + count verb;
+        tagged: (verb in .tst.lineTaggedVerbs) and (after < count txt) and "\"" = txt after;
+        out,: $[hit 2; verb; ".tst.",verb],$[tagged;
+            "Entry[0N][\"\\001",string[lineNo],"\\001";
+            "Entry[",string[lineNo],"]["];
+        at: after + tagged;
+        k+: 1];
+    out, at _ txt
  };
 
 .tst.annotateExpectationLine:{[lineNo;line]
@@ -142,39 +131,29 @@
 / Mask strings and inline comments while preserving character offsets. This is
 / intentionally lexical, not a q parser: it only protects the qualification
 / pass from treating prose/symbol literals as executable identifiers.
+/ .
+/ The lexer is a four-state machine run by q's native index scan, because the
+/ loader masks every line several times and a per-character q loop dominated
+/ suite load time. States: 0 code, 1 string, 2 string after a backslash,
+/ 3 line comment. Character classes: 0 quote, 1 backslash, 2 comment slash
+/ (a "/" at offset 0 or after a space or tab), 3 newline, 4 anything else.
+/ Quotes, code and the newline that ends a comment keep their character;
+/ string contents and comments become spaces.
+.tst.maskTransitions:(1 0 3 0 0;0 2 1 1 1;1 1 1 1 1;3 3 3 0 3);
+.tst.maskKeeps:(11011b;10000b;00000b;00010b);
+/ Returns (state before each character; character class) for a non-empty line.
+.tst.qLexStates:{[txt]
+    cls: "\"\\/\n" ? txt;
+    slashOk: 1b, (-1 _ txt) in " \t";
+    cls[where (cls = 2) and not slashOk]: 4;
+    (0, -1 _ .tst.maskTransitions\[0; cls]; cls)
+ };
 .tst.maskQLine:{[line]
     txt: (),line;
-    masked: count[txt] # " ";
-    inString: 0b;
-    escaped: 0b;
-    i: 0;
-    while[i < count txt;
-        c: txt i;
-        if[inString;
-            $[escaped; escaped: 0b;
-              c = "\\"; escaped: 1b;
-              c = "\""; [masked[i]: c; inString: 0b];
-              ::];
-            i+: 1;
-        ];
-        if[(i < count txt) and not inString;
-            c: txt i;
-            if[c = "\""; masked[i]: c; inString: 1b; i+: 1];
-        ];
-        if[(i < count txt) and not inString;
-            c: txt i;
-            if[(c = "/") and ((i = 0) or txt[i - 1] in " \t");
-                / A joined continuation statement can contain later physical
-                / lines. Blank only this comment, then resume at its newline.
-                while[(i < count txt) and "\n" <> txt i; i+: 1];
-            ];
-        ];
-        if[(i < count txt) and not inString;
-            masked[i]: txt i;
-            i+: 1;
-        ];
-    ];
-    masked
+    if[0 = count txt; :""];
+    lex: .tst.qLexStates txt;
+    keep: (raze .tst.maskKeeps) (5 * lex 0) + lex 1;
+    ?[keep; txt; count[txt] # " "]
  };
 
 .tst.bareTokenAt:{[txt;at;name]
@@ -427,7 +406,7 @@
     bounds: .tst.dslExpressionBounds[masked;at];
     exprStart: first bounds;
     markers: ("xexp";"binr";"wavg";"wsum");
-    available: markers where not {[source;word] any .tst.bareTokenAt[source;;word] each til count source}[masked;] each markers;
+    available: markers where not {[source;word] any .tst.bareTokenAt[source;;word] each "j"$source ss word}[masked;] each markers;
     if[0 = count available; :0N];
     markerName: first available;
     markerText: markerName,adverb;
@@ -443,10 +422,13 @@
     target: last located;
     leftText: .tst.rstrip at # txt;
     leftEnd: count leftText;
-    starts: exprStart + til leftEnd - exprStart;
-    candidates: {[source;finish;start] (finish - start) # start _ source}[txt;leftEnd;] each starts;
-    matches: where .tst.dslParsedAs[;target] each candidates;
-    $[count matches; starts first matches; 0N]
+    / Widest candidate first; the first that reproduces the subtree wins, so
+    / stop there instead of parsing every suffix of the expression.
+    start: exprStart;
+    while[start < leftEnd;
+        if[.tst.dslParsedAs[(leftEnd - start) # start _ txt;target]; :start];
+        start+: 1];
+    0N
  };
 
 / Find the rightmost unqualified infix assertion before `limit`. Prefix calls
@@ -550,31 +532,26 @@
 
 / Qualify only bare, executable DSL tokens. Symbols, strings, comments,
 / already-qualified names, and file-declared shadows are left byte-for-byte.
+/ Candidate offsets come from native `ss`. The previous walk tested every DSL
+/ name at every character (~350k bareTokenAt calls for an ordinary 30-test
+/ desc), which made loading dominate suite time. DSL names are plain
+/ identifiers, so two bare matches can never overlap and at most one name is
+/ bare at any offset: qualifying each surviving offset is the same rewrite.
 .tst.qualifyDslLine:{[shadowed;line]
     txt: (),line;
+    if[0 = count txt; :""];
     masked: .tst.maskQLine txt;
     names: string key .tst.dslExports;
-    names: names iasc neg count each names;
-    out: "";
-    i: 0;
-    while[i < count txt;
-        candidates: where {[source;at;name]
-            .tst.bareTokenAt[source;at;name]
-        }[masked;i;] each names;
-        candidates: candidates where {[ctx;at;name]
-            not .tst.dslNameShadowed[ctx;name;at]
-          }[shadowed;i;] each `$names candidates;
-        if[count candidates;
-            name: names first candidates;
-            out,: ".tst.dsl.", name;
-            i+: count name;
-        ];
-        if[(i < count txt) and 0 = count candidates;
-            out,: txt i;
-            i+: 1;
-        ];
-    ];
-    out
+    hits: raze {[masked;shadowed;name]
+        ps: "j"$masked ss name;
+        ps where {[masked;shadowed;name;at]
+            .tst.bareTokenAt[masked;at;name] and
+                not .tst.dslNameShadowed[shadowed;`$name;at]
+          }[masked;shadowed;name] each ps
+      }[masked;shadowed] each names;
+    if[0 = count hits; :txt];
+    pieces: (0,asc distinct hits) cut txt;
+    raze enlist[first pieces], ".tst.dsl.",/: 1 _ pieces
  };
 
 .tst.preprocessOrdinaryLine:{[lineNo;shadowed;line]
