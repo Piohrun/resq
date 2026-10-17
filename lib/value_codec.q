@@ -101,6 +101,35 @@
     .tst.renderAtomFull raw
  };
 
+/ Failure messages are read by people (console, JUnit failure text). Tables,
+/ keyed tables, dictionaries and general lists render as q literals there.
+/ renderValueFull stays the canonical form for toString and identities.
+.tst.renderValueHuman:{[raw]
+    valueType:type raw;
+    columns:{[table]
+        "; " sv {[name;column] string[name],":",.tst.renderValueHuman column}'[cols table;value flip table]};
+    if[98h=valueType;:"([] ",columns[raw],")"];
+    if[99h=valueType;
+        if[(98h=type key raw) and 98h=type value raw;
+            :"([",columns[key raw],"] ",columns[value raw],")"];
+        :.tst.renderValueHuman[key raw],"!",.tst.renderValueHuman value raw];
+    if[(valueType within 0 20h) and 1=count raw;
+        :"enlist ",.tst.renderValueHuman first raw];
+    if[0h=valueType;
+        :"(",("; " sv .tst.renderValueHuman each raw),")"];
+    .tst.renderValueFull raw
+ };
+
+.tst.renderValueHumanBounded:{[raw;maximum]
+    full:@[.tst.renderValueHuman;raw;{[raw;e] .tst.renderValueFull raw}[raw]];
+    limit:0|"j"$maximum;
+    if[count[full]<=limit;:full];
+    digest:.tst.canonicalValueDigest .tst.canonicalValueBytes raw;
+    marker:"... [truncated ",string[count full]," chars; md5=",digest,"]";
+    if[limit<=count marker;:limit#marker];
+    ((limit-count marker)#full),marker
+ };
+
 .tst.renderValueBounded:{[raw;maximum]
     full:.tst.renderValueFull raw;
     limit:0|"j"$maximum;

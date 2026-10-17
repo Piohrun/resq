@@ -174,8 +174,12 @@
         sRes: res where (res`suite) = s;
         sStatus: .tst.normalizeResultStatus each sRes`status;
         fails: sRes where sStatus in `fail`error;
-        / In quiet mode, only show suites that have failures.
+        / In quiet mode, only show suites that have failures. A passing suite
+        / is one line: a large green run used to print three per suite.
         if[quiet and 0 = count fails; :()];
+        if[0 = count fails;
+            -1 string[s],": ",string[count sRes]," passed";
+            :()];
         -1 "\n",string[s],"::";
         { [f]
             -1 "- ",string[f`description],": [",string[f`status],"]";
@@ -227,8 +231,7 @@
         erroredStr, " error, ",
         string[skipped], " skipped)";
     -1 "Assertions: ", string[totalAsserts], " total";
-    duration: $[null totalTime; "0"; string `second$totalTime];
-    -1 "Duration:   ", duration, "s";
+    -1 "Duration:   ", .tst.fmtDuration totalTime;
     -1 "======================================================================";
 
     statusNorm: .tst.normalizeResultStatus each results`status;
@@ -317,8 +320,20 @@
         / q's take (#) WRAPS when fewer rows exist, repeating entries on small
         / suites; `5 sublist` caps without wrapping.
         slow: 5 sublist xdesc[ `time; 0!select last time by suite, description from results ];
-        { [r] -1 "  ", .Q.s1[r`time], " - ", string[r`suite], ": ", string[r`description] } each slow;
+        { [r] -1 "  ", (10$.tst.fmtDuration r`time), string[r`suite], ": ", string[r`description] } each slow;
     ];
+ };
+
+/ Human-scale elapsed time: "0.4 ms", "37 ms", "4.21 s", "2m 03s". The old
+/ summary printed whole seconds ("00:00:00s"), so most suites showed zero.
+.tst.fmtDuration:{[ts]
+    if[null ts; :"n/a"];
+    ms: (`float$`timespan$ts) % 1e6;
+    $[ms < 10; .Q.f[1; ms], " ms";
+      ms < 1000; string[`long$ms], " ms";
+      ms < 60000; .Q.f[2; ms % 1000], " s";
+      [secs: `long$ms % 1000;
+       string[secs div 60], "m ", (-2#"0",string secs mod 60), "s"]]
  };
 
 / Sub-millisecond benchmarks are common, so a plain `string` of a float prints

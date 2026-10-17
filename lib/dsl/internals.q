@@ -79,10 +79,10 @@ if[not `fuzzLimit in key `.tst.output; .tst.output.fuzzLimit: 10];
 if[not `reportLimit in key `.tst.output; .tst.output.reportLimit: 50000];
 if[not `reportListLimit in key `.tst.output; .tst.output.reportListLimit: 1000];
 
-/ Truncation utility for safely outputting large values
-/ Prevents memory exhaustion from very large test outputs
+/ Truncation utility for safely outputting large values in assertion
+/ messages. Prevents memory exhaustion from very large test outputs.
 .tst.truncate:{[val;maxLen]
-    .tst.renderValueBounded[val;maxLen]
+    .tst.renderValueHumanBounded[val;maxLen]
  };
 
 / Ensure the .resq namespaces exist before the keyed defaults below probe them.

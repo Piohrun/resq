@@ -13,7 +13,8 @@ runners:()!()
 .tst.stackTrace:{[]
     / Build context string from current test context
     ctx: "";
-    fileCtx: .tst.toString .tst.currentContext`file;
+    / tstPath is a file handle; print a path, not ":/abs/path".
+    fileCtx: .utl.pathToString .tst.toString .tst.currentContext`file;
     suiteCtx: .tst.toString .tst.currentContext`suite;
     testCtx: .tst.toString .tst.currentContext`test;
     if[0 < count fileCtx; ctx,: "File: ", fileCtx, "\n"];

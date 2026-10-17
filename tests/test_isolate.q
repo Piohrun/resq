@@ -328,9 +328,11 @@
     first_: .tst.isotest.run[args];
     second: .tst.isotest.run[args];
     musteq[first_`code; second`code];
-    / Durations are absent from -quiet failure output, so the transcripts must
-    / match exactly. They did not while the child's mktemp scratch name leaked.
-    musteq[first_`out; second`out];
+    / Apart from the summary's Duration line (docs/PARALLEL.md: durations vary
+    / between runs), the transcripts must match exactly. They did not while
+    / the child's mktemp scratch name leaked.
+    stable: {x where not x like "Duration:*"};
+    musteq[stable first_`out; stable second`out];
   };
 
   skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "exit-zero child cannot fake green"]{

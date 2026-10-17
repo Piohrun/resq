@@ -70,7 +70,7 @@ asserts:()!()
 / to test: million-element vectors and large tables should be cheap when green.
 .tst.assertValueText:{[val]
   limit: $[`reportLimit in key `.tst.output; .tst.output.reportLimit; 50000];
-  .tst.renderValueBounded[val;`long$limit % 2]
+  .tst.renderValueHumanBounded[val;`long$limit % 2]
  };
 
 .tst.deferAssertionMessage:{[fn;args]
