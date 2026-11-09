@@ -138,11 +138,28 @@
     ()]
  };
 
+/ Under -qspec-compat (bin/qspec) the edge pool keeps only values that qspec's
+/ own generator could produce: no nulls and no infinities, since qspec never
+/ generated either. Its integers span the signed range and its reals and floats
+/ are drawn from [0,10000e) and [0,1e6f), so negatives, signed zero and huge
+/ magnitudes go too. Otherwise a property that passed under qspec for years
+/ goes red on its first resQ run, as the musteq broadcast once did.
+.resq.gen.qspecCompatEdges:{[typeName]
+  $[typeName~`short;-1 0 1h;
+    typeName~`int;-1 0 1i;
+    typeName~`long;-1 0 1j;
+    typeName~`real;0 1e-30e;
+    typeName~`float;0 1e-300;
+    .resq.gen.typeEdges typeName]
+ };
+
 / One counter in four walks the type's edge pool. The seed rotates the starting
 / edge, so replay remains seed-specific while every contiguous 4*n samples cover
 / all n declared edges. The remaining 75% retain the broad legacy domain.
 .resq.gen.sampleType:{[typeName;seed;counter;stream]
-  edges:.resq.gen.typeEdges typeName;
+  edges:$[1b~@[get;`.tst.app.qspecCompat;0b];
+    .resq.gen.qspecCompatEdges typeName;
+    .resq.gen.typeEdges typeName];
   if[(count edges) and 0=counter mod 4;
     offset:.tst.privateIndex[seed;0;stream,"/edge-offset";count edges];
     :edges (offset+counter div 4) mod count edges];

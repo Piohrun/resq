@@ -55,6 +55,8 @@
   };
 
   should["typed generators bias edge values"]{
+    / Native sampling; -qspec-compat narrows the pool (pinned below).
+    `.tst.app.qspecCompat mock 0b;
     names:`byte`short`int`long`real`float;
     {[name]
       generator:.resq.gen.typed name;
@@ -75,6 +77,24 @@
     .resq.gen.replay[generator;token]
       mustmatch .resq.gen.sample[generator;20260814;0;"root"];
     first[.resq.gen.shrinkCandidates[.resq.gen.typed `float;0w]] musteq 0f;
+  };
+
+  should["sample only qspec's own numeric domain under -qspec-compat"]{
+    / qspec never generated a null or an infinity, so a property written
+    / against it may not guard for them. bin/qspec must not feed it either.
+    `.tst.app.qspecCompat mock 1b;
+    {[name]
+      samples:.resq.gen.sampleList[.resq.gen.adapt name;400;20260814;"qspec-domain"];
+      must[not any null samples;"no nulls for ",string name];
+      edges:.resq.gen.typeEdges name;
+      kept:.tst.canonicalValueBytes each .resq.gen.qspecCompatEdges name;
+      dropped:e where not (e:.tst.canonicalValueBytes each edges) in kept;
+      must[0<count dropped;"the native pool must hold edges qspec cannot produce"];
+      must[not any (.tst.canonicalValueBytes each samples) in dropped;
+        "no infinity, negative zero or huge magnitude for ",string name];
+    } each `short`int`long`real`float;
+    floats:.resq.gen.sampleList[.resq.gen.adapt `float;400;7;"qspec-range"];
+    must[all floats within 0 1e6;"floats stay inside qspec's [0,1e6)"];
   };
 
   should["adapt legacy vars forms and keep generated symbols bounded"]{
@@ -99,6 +119,17 @@
     must[any 0=count each intLists;"seed corpus must exercise an empty int list"];
     must[all 14h=type each dateLists;"empty generated date lists must stay typed"];
     must[all 6h=type each intLists;"empty generated int lists must stay typed"];
+  };
+
+  should["generate booleans, not longs, for the boolean type"]{
+    / `0b+word mod 2` is a long in q, so three samples in four (the broad,
+    / non-edge path) were long 0/1: `0b~x`flag` failed and a boolean-list var
+    / came back as a long list.
+    atoms:.resq.gen.sample[.resq.gen.typed `boolean;7;;"root"] each til 64;
+    must[all -1h=type each atoms;"every typed boolean sample must be a boolean atom"];
+    must[(0b in atoms) and 1b in atoms;"the sample must cover both truth values"];
+    lists:.resq.gen.sample[.resq.gen.adapt 8#0b;7;;"root"] each til 64;
+    must[all 1h=type each lists;"generated boolean lists must stay boolean"];
   };
 
   should["replay an exact sample from its portable token"]{

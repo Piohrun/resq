@@ -51,7 +51,7 @@ privateGuid:{[seed;counter;stream]
 privateScalar:{[default;seed;counter;stream]
     tc:type default;
     word:.tst.privateWord[seed;counter;stream];
-    $[tc=-1h;0b+word mod 2;
+    $[tc=-1h;"b"$word mod 2;
       tc=-2h;.tst.privateGuid[seed;counter;stream];
       tc=-4h;"x"$(word mod 256);
       tc=-5h;"h"$(word mod 32767);

@@ -65,6 +65,12 @@ non-boolean conditions, including accidentally swapped message/condition
 arguments. These differences can make an invalid legacy green test fail; they
 do not require a DSL rewrite.
 
+Native `holds` samples typed numeric variables from an edge-biased domain that
+includes nulls and infinities. Compatibility mode keeps only the edges qspec's
+own generator could produce, so no null or infinity reaches a property written
+against qspec. A typed `int` is a real int rather than qspec's long. See
+[Property tests](MIGRATION.md#property-tests-holds).
+
 ## Explicit exclusions
 
 The following are outside contract version 1:

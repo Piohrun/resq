@@ -108,6 +108,13 @@ toward it. If a property cannot accept nulls or infinities, use a finite bounded
 `.resq.gen.scalar`, or a bounded `.resq.gen.filter` with an explicit attempt
 ceiling; do not assume the typed numeric defaults are finite.
 
+Under `-qspec-compat` (and so under `bin/qspec`) the edge pool keeps only
+values qspec's own generator could produce. That is `-1 0 1` for
+`short`/`int`/`long`, and `0` plus a tiny positive magnitude for
+`real`/`float`. No null or infinity reaches a property written against qspec.
+The mode is part of a sample's meaning: replay a token under the same mode
+that produced it.
+
 ### Composite example
 
 ```q
