@@ -593,6 +593,9 @@
 / asserting parallel output in isolation.
 / ============================================================================
 .tst.desc["Isolate: parallel workers #slow"]{
+  / Without this the last run directories stayed in the temp root after every
+  / self-suite run.
+  after{.tst.isotest.cleanupBase[]};
 
   skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout;
          "parallel run reaches the same verdicts as the sequential run"]{

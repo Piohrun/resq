@@ -226,7 +226,7 @@
        " -flake-history ",stateDir,"/flake.json",
        " -quarantine-file ",stateDir,"/quarantine.json",
        " -flake-proposal-file ",stateDir,"/proposals.json",
-       " < /dev/null > ", out, " 2>&1 & echo started )",
+       " < /dev/null > ", out, " 2>&1 & echo $! > ", stateDir, "/watch.pid )",
        " && sleep 2 && echo '/ touched' >> ", tf,
        " && sleep 4 ; true";
   @[system; cmd; {[e] e}];
@@ -234,8 +234,23 @@
   reportExists:.utl.pathExists reportDir,"/test-results.json";
   rawReport:@[read0;hsym `$reportDir,"/test-results.json";{()}];
   schemaVersion:$[count rawReport;"j"$(.j.k "\n" sv rawReport)`schemaVersion;0j];
+  / Stop the watcher before deleting its directory. It outlives the reads
+  / above (timeout 9 s plus a 2 s kill grace), and a report it wrote after the
+  / rm recreated wd/report, leaving one resq_watch_* directory per run.
+  .tst.testState.watchchk.stop stateDir,"/watch.pid";
   system "rm -rf ",wd," ",stateDir;
   `out`reportExists`schemaVersion!(o;reportExists;schemaVersion)
+ };
+
+/ Kill the timeout wrapper's q child, then the wrapper, and wait (bounded)
+/ until the wrapper has gone so nothing writes into the work directory again.
+.tst.testState.watchchk.stop:{[pidFile]
+  pid:first @[read0;hsym `$pidFile;{enlist ""}];
+  if[not all pid in .Q.n;:()];
+  if[0=count pid;:()];
+  @[system;"p=",pid,"; pkill -KILL -P $p 2>/dev/null; kill -KILL $p 2>/dev/null;",
+    " i=0; while kill -0 $p 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done; true";
+    {[e] ()}];
  };
 
 / Exercise the real long-lived process boundary: three file changes, three

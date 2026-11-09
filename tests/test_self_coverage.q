@@ -19,7 +19,7 @@
     raw:@[read0;hsym `$wd,"/self-coverage.json";{()}];
     text:@[read0;hsym `$wd,"/self-coverage.txt";{()}];
     doc:$[count raw;.j.k "\n" sv raw;()!()];
-    if[wd like "*/resq_selfcov_*";system "rm -rf -- ",.utl.shellQuote wd];
+    if[wd like "*/resq_selfcov_*";system "rm -rf -- ",.utl.shellQuote[wd]," ",.utl.shellQuote wd,".out"];
 
     code musteq 0j;
     doc[`schemaVersion] musteq 1f;
