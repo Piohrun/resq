@@ -230,7 +230,9 @@ following checked-in contracts; the final release gate invokes all of them:
 - [x] Report q 4.0's version as `4.0` in reports, envelopes and fingerprints.
 - [x] Guard DSL constructor combinations, unprojected trap handlers and
   qspec's `holds` value domain with release-gated checks.
-- [ ] Complete the clean-clone v2.2.2 release qualification.
+- [x] Complete the clean-clone v2.2.2 release qualification and archive the
+  exact candidate evidence; the certification commit is requalified before the
+  annotated tag is pushed.
 
 ## Post-2.0 ecosystem ideas — not implemented
 
