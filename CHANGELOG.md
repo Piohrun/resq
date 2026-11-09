@@ -4,7 +4,34 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+
+- A failing assertion inside a `perf` body now fails the block. The perf
+  runner discarded the body's assertion state, so `1 musteq 2` inside `perf`
+  reported pass. The failure is reported once, not once per iteration.
+- Under `-strict`, a `perf` block's `maxTime`/`maxSpace` budget and its body
+  assertions now count as checks. Every `perf` block used to fail as having
+  asserted nothing. A block that checks nothing gets a perf-specific message.
+- Reports, identity envelopes and benchmark fingerprints give the q version
+  with one decimal (`.tst.formatQVersion`), so q 4.0 is `4.0`, not `4`. State
+  written by resQ on q 4.0 under the old `4` is archived once on upgrade, as
+  for any identity-envelope change.
+- The self-suite no longer leaves `resq_isolate_test_*` directories and
+  `resq_selfcov_*.out` files in the temp directory after each run.
+
+### Added
+
+- `tests/test_dsl_combinations.q` declares every ordered pair of 14 DSL
+  constructor forms in one `desc` and requires all 196 files to load and pass,
+  natively and through `bin/qspec`'s loader path. In 2.2.0 this would have
+  failed for 55 files.
+- `tools/verify_trap_handlers.py`, run by `verify_static.py`, rejects
+  `@[f;x;h]` / `.[f;x;h]` handlers that take more than the error argument
+  without being projected. It flags all seven defects fixed in 2.2.1.
+- The upstream qspec differential runs a resQ-authored probe suite
+  (`pilots/probes/qspec-domain`). Its `holds` properties hold for every value
+  qspec's generator produces, so `bin/qspec` must pass them too. The
+  differential is now 8 runs and 206 testcases.
 
 ## [2.2.1] - 2026-11-09 - qspec Drop-in Fixes
 

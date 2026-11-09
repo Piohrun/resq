@@ -111,6 +111,19 @@ class ManifestTests(unittest.TestCase):
             for entry in case["expectedDifferences"]:
                 self.assertTrue(entry["reason"].strip(), entry)
 
+    def test_resq_probe_must_live_under_pilots_probes(self) -> None:
+        manifest = json.loads(differential.MANIFEST.read_text(encoding="utf-8"))
+        probe = next(p for p in manifest["projects"] if p.get("origin") == "resq")
+        moved = dict(probe, root="pilots/vendor/cryptoq")
+        with self.assertRaisesRegex(RuntimeError, "escapes"):
+            differential.verify_vendor(moved)
+
+    def test_vendored_project_still_needs_a_pinned_commit(self) -> None:
+        manifest = json.loads(differential.MANIFEST.read_text(encoding="utf-8"))
+        vendored = next(p for p in manifest["projects"] if p.get("origin") != "resq")
+        with self.assertRaisesRegex(RuntimeError, "pinned SHA"):
+            differential.verify_vendor(dict(vendored, commit="main"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,6 +47,10 @@ REQUIRED_CONTRACT_TESTS = {
     "instrument anonymous statements and branches without fake functions",
     "never classify a first failure as suspect",
     "match the reference Mann-Whitney asymptotic result",
+    "load and pass every ordered pair natively and through the qspec loader",
+    "sample only qspec's own numeric domain under -qspec-compat",
+    "unwritable state is a warning, not a failed run",
+    "a failing assertion inside a perf body fails the block",
 }
 
 

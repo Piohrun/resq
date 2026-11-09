@@ -1,0 +1,17 @@
+/ One DSL constructor per line: name|result rows|source. {n} becomes the
+/ constructor's position in the generated desc. test_dsl_combinations.q puts
+/ every ordered pair in one desc and requires each file to load and pass.
+should|1|should["s{n}"]{ 1 musteq 1 };
+it|1|it["i{n}"]{ 1 musteq 1 };
+holdsDictVars|1|holds["h{n}";`runs`vars!(3;`a`b!(`long;`long))]{[x] (x[`a]+x[`b]) musteq x[`b]+x[`a] };
+holdsRuns|1|holds["r{n}";((),`runs)!(),3]{ 1 musteq 1 };
+holdsIntMaxFailRate|1|holds["m{n}";`runs`maxFailRate!(3;0)]{ 1 musteq 1 };
+holdsListVars|1|holds["v{n}";`runs`vars!(3;1 2 3)]{[x] x mustin 1 2 3 };
+holdsFunctionVars|1|holds["f{n}";`runs`vars!(3;{til 3})]{[x] x mustmatch til 3 };
+perf|1|perf["p{n}";`maxTime`runs!(10000;2)]{ til 10 };
+skip|1|skip["skip{n}"]{ 1 musteq 1 };
+pending|1|pending["pending{n}"];
+skipIf|1|skipIf[0b;"skipIf{n}"]{ 1 musteq 1 };
+retry|1|retry[2;"retry{n}"]{ 1 musteq 1 };
+shouldEach|2|shouldEach["each{n}";([]a:1 2)]{[a] a musteq a };
+alt|1|alt{ before{ `altRan mock 1b }; should["alt{n}"]{ must[altRan;"alt before ran"] } };

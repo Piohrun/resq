@@ -57,6 +57,13 @@ differences with reasons: qspec's own tests of its private loader and halt
 machinery, which are outside the [compatibility boundary](QSPEC_COMPATIBILITY.md).
 A listed difference that stops occurring also fails the check.
 
+One more suite is resQ's own: [`pilots/probes/qspec-domain`](../pilots/probes/qspec-domain/README.md)
+(`"origin": "resq"` in the manifest, files pinned the same way, no upstream
+commit). Its `holds` properties hold for any value qspec's generator produces,
+and it mixes `holds` forms with ordinary tests in one `desc`. Upstream qspec
+passes all of them, so a `bin/qspec` failure there means resQ fed a qspec
+property a value qspec never would, or failed to load such a file.
+
 ```sh
 tools/verify_qspec_differential.py --q q --out-dir artifacts/qspec-differential
 ```

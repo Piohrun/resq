@@ -27,6 +27,7 @@ SUITES = {
     "supporting": [
         "tools.tests.test_fable_findings",
         "tools.tests.test_formatter_boundaries",
+        "tools.tests.test_trap_handlers",
         "tools.tests.test_ingestion",
         "tools.tests.test_identity_migration",
         "tools.tests.test_coverage_performance",

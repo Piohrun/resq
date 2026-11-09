@@ -22,6 +22,7 @@ from report_profiles import project  # noqa: E402
 from render_quickstart_coverage import check_document as check_quickstart_coverage  # noqa: E402
 from render_ingestion_assets import expected_assets as expected_ingestion_assets  # noqa: E402
 from verify_formatter_boundaries import check as check_formatter_boundaries  # noqa: E402
+from verify_trap_handlers import check as check_trap_handlers  # noqa: E402
 
 
 REQUIRED = {
@@ -56,6 +57,7 @@ REQUIRED = {
     "tools/self_coverage_trend.py",
     "tools/verify_python_contracts.py",
     "tools/verify_formatter_boundaries.py", "tools/migrate_identity_state.py",
+    "tools/verify_trap_handlers.py",
     "docs/RELEASE_CHECKLIST.md",
     "docs/RELEASE_NOTES_2_2_1.md",
     "docs/PRODUCTION_AUDIT_2_2_1.md",
@@ -512,12 +514,18 @@ def main() -> int:
                 f"{item.path}:{item.line}:{item.token}" for item in formatter_violations
             )
             raise ValueError(f"formatter boundary violations: {details}")
+        handler_violations = check_trap_handlers()
+        if handler_violations:
+            details = ", ".join(
+                f"{item.path}:{item.line}:{{[{item.params}]}}" for item in handler_violations
+            )
+            raise ValueError(f"unprojected multi-argument trap handlers: {details}")
         links = check_docs()
         check_contracts()
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError, ElementTree.ParseError, ValueError) as exc:
         print(f"static verification failed: {exc}", file=sys.stderr)
         return 1
-    print(f"static verification passed: package, schema/report, XML, and {links} local documentation links")
+    print(f"static verification passed: package, schema/report, XML, trap handlers, and {links} local documentation links")
     return 0
 
 

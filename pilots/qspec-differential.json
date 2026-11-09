@@ -139,6 +139,15 @@
         "test/cryptoq.q": "b4261de6e192193ec16719510a359dd554965578abb9c14d1fb0dd2bef1089b9",
         "test/cryptoq_binary.q": "5377a6e9ed8bec22307db46b17480837b851ca8dcf59c26f9d74786844eba338"
       }
+    },
+    {
+      "name": "resq-qspec-domain",
+      "origin": "resq",
+      "root": "pilots/probes/qspec-domain",
+      "files": {
+        "README.md": "7b750d7f4c190826f541d2397916401ab3379e89d86ec3ffa1ce3ab89140ff48",
+        "test/holds_domain.q": "5a9be7ab2072b59ed17311503c46ce81d3dc14e557aecabfac52625dfb10833c"
+      }
     }
   ],
   "cases": [
@@ -237,6 +246,15 @@
           "reason": "qspec's own loader-internals test: it calls qspec's private file finders and expects their exact return shapes (path strings); resQ's loader is different. Private runner APIs are outside the compatibility boundary (docs/QSPEC_COMPATIBILITY.md)."
         }
       ]
+    },
+    {
+      "name": "holds-domain",
+      "project": "resq-qspec-domain",
+      "args": [
+        "--junit",
+        "test/"
+      ],
+      "expectedDifferences": []
     }
   ]
 }

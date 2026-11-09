@@ -29,6 +29,7 @@ from xml.etree import ElementTree
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "pilots/qspec-differential.json"
 VENDOR = ROOT / "pilots/vendor"
+PROBES = ROOT / "pilots/probes"
 LICENCES = {"MIT"}
 
 
@@ -49,17 +50,27 @@ def vendored_files(root: Path) -> list[str]:
 
 
 def verify_vendor(project: dict[str, Any]) -> Path:
+    """Check a corpus project's pinned files.
+
+    Third-party suites are vendored under pilots/vendor with a licence and the
+    upstream commit they were taken from. resQ-authored probe suites
+    ("origin": "resq") live under pilots/probes and have no upstream commit;
+    their files are pinned the same way.
+    """
     name = project["name"]
+    local = project.get("origin") == "resq"
+    base = PROBES if local else VENDOR
     root = (ROOT / project["root"]).resolve()
     try:
-        root.relative_to(VENDOR)
+        root.relative_to(base)
     except ValueError as exc:
-        raise RuntimeError(f"{name}: vendor root escapes {VENDOR}") from exc
-    if project.get("license") not in LICENCES or not (root / "LICENSE").is_file():
-        raise RuntimeError(f"{name}: missing declared licence")
-    commit = project.get("commit", "")
-    if len(commit) != 40 or any(char not in "0123456789abcdef" for char in commit):
-        raise RuntimeError(f"{name}: commit is not a pinned SHA")
+        raise RuntimeError(f"{name}: project root escapes {base}") from exc
+    if not local:
+        if project.get("license") not in LICENCES or not (root / "LICENSE").is_file():
+            raise RuntimeError(f"{name}: missing declared licence")
+        commit = project.get("commit", "")
+        if len(commit) != 40 or any(char not in "0123456789abcdef" for char in commit):
+            raise RuntimeError(f"{name}: commit is not a pinned SHA")
     expected = project["files"]
     actual = vendored_files(root)
     if sorted(expected) != actual:
