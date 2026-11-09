@@ -234,13 +234,13 @@
         .tst.isoTimestamp .z.p;
         count eligible;count ids;ids);
     tmp:path,".tmp.",string .z.i;
-    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[args;err]0b}];
+    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[err]0b}];
     if[not written;
         .tst.recordDiagnostic[`rerun;`warning;`persistence;
             "Unable to write rerun state";enlist[`path]!enlist .tst.repoRelativePath path];
         :0b];
     moved:.[{[src;dst]system "mv -f -- ",.utl.shellQuote[src]," ",.utl.shellQuote dst;1b};
-        (tmp;path);{[args;err]0b}];
+        (tmp;path);{[err]0b}];
     if[not moved;
         @[hdel;hsym `$tmp;{}];
         .tst.recordDiagnostic[`rerun;`warning;`persistence;

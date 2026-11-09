@@ -628,12 +628,16 @@
         ];
     };
     (s;e);
+    / q calls a trap handler with the error alone, so bind the arguments first.
+    / A nested qspec-style .tst.runExpec[();e] passes no spec; there is nothing
+    / to record it under, so that case stays silent as it always was.
     {[args; err]
         spec: first args;
         expec: last args;
-        -1 "ERROR: expecRan failed for suite ", .tst.toString spec`title, " / desc ", .tst.toString expec`desc, ": ", .tst.toString err;
+        if[99h = type spec;
+            -1 "ERROR: expecRan failed for suite ", .tst.toString spec`title, " / desc ", .tst.toString expec`desc, ": ", .tst.toString err];
         :()
-    }]
+    }[(s;e);]]
  };
 
 / ----------------------------------------------------------------------------

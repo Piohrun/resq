@@ -376,7 +376,7 @@
         suffix+:1j];
     moved:.[{[src;dst]
         system "mv -- ",.utl.shellQuote[src]," ",.utl.shellQuote dst;
-        1b};(path;archive);{[args;err]0b}];
+        1b};(path;archive);{[err]0b}];
     $[moved;archive;""]
  };
 

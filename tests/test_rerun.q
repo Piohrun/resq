@@ -125,6 +125,38 @@
   };
 
   skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];
+         "unwritable state is a warning, not a failed run"]{
+    / Every state write is trapped, but the trap handlers took two arguments.
+    / q passes a handler the error alone, so it returned a projection, `not`
+    / on that signalled 'type, and a green suite in a read-only checkout (or a
+    / .resq/ owned by another user) failed with "Framework phase 'rerunState'
+    / failed: type". /dev/null/... is unwritable even for root.
+    wd:.tst.reruntest.base,"/unwritable_state";
+    .utl.ensureDir wd;
+    (hsym `$wd,"/test_green.q") 0: enlist ".tst.desc[\"x\"]{ should[\"y\"]{ 1 musteq 1 }; };";
+    qexe:first @[system;"command -v q 2>/dev/null";{enlist (getenv[`QHOME]),"/l64/q"}];
+    cmd:"cd ",.utl.shellQuote[wd]," && timeout -k 5 30 ",.utl.shellQuote[qexe]," ",
+        .utl.shellQuote[.resq.HOME,"/resq.q"]," test test_green.q",
+        " -state-file /dev/null/resq/last-run.json",
+        " -flake-history /dev/null/resq/flake-history.json",
+        " -json -quiet -outDir report < /dev/null > out.txt 2>&1; echo $?";
+    code:"J"$last @[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "-1"}];
+    code musteq 0;
+    doc:.j.k "\n" sv read0 hsym `$wd,"/report/test-results.json";
+    statuses:{`$.tst.toString x`status} each doc`tests;
+    statuses musteq enlist `pass;
+    messages:{.tst.toString x`message} each doc`diagnostics;
+    must[any messages like "Unable to write rerun state*";
+         "the failed rerun-state write must surface as a diagnostic"];
+    / An uncreatable lock is reported as such, not as a live writer after a
+    / 5 s busy-wait.
+    must[any messages like "Unable to create the flake history lock*";
+         "an unwritable flake-history lock must be named as the cause"];
+    must[not any messages like "*locked by another live writer*";
+         "an unwritable lock must not be blamed on another writer"];
+  };
+
+  skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];
          "corrupt state falls back to the complete suite"]{
     .tst.reruntest.corrupt[];
     fallback:.tst.reruntest.run["-last-failed";1b;0b];

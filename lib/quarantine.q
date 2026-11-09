@@ -500,13 +500,13 @@
     if[0=count dir;dir:"/"];
     .tst.ensureStateDir dir;
     tmp:path,".tmp.",string .z.i;
-    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[args;err]0b}];
+    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[err]0b}];
     if[not written;
         .tst.recordDiagnostic[kind;`warning;`persistence;"Unable to write state";
             enlist[`path]!enlist .tst.repoRelativePath path];
         :0b];
     moved:.[{[src;dst]system "mv -f -- ",.utl.shellQuote[src]," ",.utl.shellQuote dst;1b};
-        (tmp;path);{[args;err]0b}];
+        (tmp;path);{[err]0b}];
     if[not moved;
         @[hdel;hsym `$tmp;{}];
         .tst.recordDiagnostic[kind;`warning;`persistence;"Unable to atomically publish state";
@@ -545,13 +545,19 @@
     .tst.ensureStateDir dir;
     lock:path,".lock";
     quoted:.utl.shellQuote lock;
+    / 0 = acquired, 75 = held by a live writer, 73 = cannot be created at all
+    / (read-only checkout, missing or foreign-owned state directory). Without
+    / the 73 exit an unwritable directory spun the full 5 s busy-wait on every
+    / run and was then misreported as a live writer.
     cmd:"lock=",quoted,"; i=0; while ! mkdir \"$lock\" 2>/dev/null; do ",
+        "if [ ! -d \"$lock\" ]; then mkdir \"$lock\" 2>/dev/null && break; ",
+        "if [ ! -d \"$lock\" ]; then echo 73; exit 0; fi; fi; ",
         "owner=''; if [ -f \"$lock/pid\" ]; then read owner < \"$lock/pid\" || true; fi; ",
         "if [ -n \"$owner\" ] && ! kill -0 \"$owner\" 2>/dev/null; then rm -rf -- \"$lock\"; continue; fi; ",
         "i=$((i+1)); if [ \"$i\" -ge 100 ]; then echo 75; exit 0; fi; sleep 0.05; done; ",
         "echo ",string[.z.i]," > \"$lock/pid\"; echo 0";
     lines:@[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "75"}];
-    (count lines) and 0="J"$last lines
+    $[count lines;"j"$"J"$last lines;75j]
  };
 
 .tst.releaseFlakeHistoryLock:{[path]
@@ -571,9 +577,12 @@
     eligible:rows where .tst.flakeEligibleRow each rows;
     if[0=count eligible;:1b];
     path:.tst.flakeHistoryPath[];
-    if[not .tst.acquireFlakeHistoryLock path;
+    lockStatus:.tst.acquireFlakeHistoryLock path;
+    if[not 0j~lockStatus;
         .tst.recordDiagnostic[`flake;`warning;`persistence;
-            "Flake history is locked by another live writer; current evidence was not published";
+            $[73j~lockStatus;
+                "Unable to create the flake history lock (is the state directory writable?); current evidence was not published";
+                "Flake history is locked by another live writer; current evidence was not published"];
             enlist[`path]!enlist .tst.repoRelativePath path];
         :0b];
     outcome:.[{[eligible;path]
@@ -607,7 +616,7 @@
                 .tst.repoRelativePath .tst.quarantineManifestPath[];proposals);
             ok:ok and .tst.atomicWriteJson[.tst.flakeProposalPath[];pdoc;`flake]];
         (0b;ok;"")
-      };(eligible;path);{[args;err](1b;0b;.tst.toString err)}];
+      };(eligible;path);{[err](1b;0b;.tst.toString err)}];
     .tst.releaseFlakeHistoryLock path;
     if[first outcome;
         .tst.recordDiagnostic[`flake;`warning;`persistence;
