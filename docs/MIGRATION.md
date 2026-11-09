@@ -115,6 +115,13 @@ depend on:
   watch mode see them. Like qspec's `spec.q`, `bin/qspec` preloads qutil's
   `opts.q`, so code that calls `.utl.addOpt` without requiring it still works.
 
+qspec keeps no state between runs. resQ does: rerun and flake history live in a
+`.resq/` directory under the working directory. That directory writes its own
+`.gitignore`, so it stays out of `git status`. If it cannot be written, for
+example in a read-only checkout or when another user owns it, the run still
+passes or fails on its tests alone and records a warning diagnostic.
+`-state-file PATH` and `-flake-history PATH` move the files elsewhere.
+
 Test files that define their own helpers in `.tst` keep working unless a
 helper reuses the name of a resQ internal (resQ's `.tst` is much larger than
 qspec's). That file then fails with a load error naming the helper to rename,
@@ -222,6 +229,27 @@ counts musteq 3 # 0;                   / or compare like-for-like
 signals `'type` on), and it does not silently equate `1` with `1.0`. The
 trade-off is that broadcast comparisons must be written explicitly — or run
 with `-qspec-compat`, which accepts both.
+
+---
+
+## Property tests (`holds`)
+
+`holds` accepts every qspec `vars` form. Native resQ takes one sample in four
+from an edge pool ([property testing](PBT.md#typed-default-domains)):
+- for `short`/`int`/`long`, the q bounds (infinities), null, `-1`, `0` and `1`;
+- for `real`/`float`, the infinities, null, signed zero, and tiny and huge
+  magnitudes.
+
+qspec never generated a null or an infinity, so a property written against it
+may not guard for them. `bin/qspec` and `-qspec-compat` therefore keep only
+the edges qspec could itself produce: `-1`, `0` and `1` for the integer types,
+and `0` plus a tiny positive value for `real` and `float`. A suite that passes
+under qspec does not meet nulls or infinities it never met before. Under
+`resq test` without the switch, the full edge pool applies. Give a variable an
+explicit domain to keep a property on finite values there too, for example
+`` `x!enlist .resq.gen.scalar[`long;-1000;1000] `` or a list of choices.
+
+A typed `int` is a real int (`-6h`) in resQ; qspec gives a long.
 
 ---
 

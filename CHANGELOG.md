@@ -4,7 +4,44 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+
+- A `holds` whose `vars` is a dictionary, list or generator function, or whose
+  `maxFailRate` is an integer, no longer fails the whole test file with a bare
+  `'type`. Before, this happened whenever it shared a `desc` with any other
+  expectation: a `should` before it, or for an integer `maxFailRate` anything
+  after it. 43 of 169 two-expectation combinations failed to load, and upstream
+  qspec runs all of them. The DSL constructors now append through
+  `.tst.appendExpecs`, which promotes column types instead of using in-place
+  `,:`.
+- A run whose state files cannot be written (a read-only checkout, or a
+  `.resq/` owned by another user) no longer fails with "Framework phase
+  'rerunState' failed: type". The state-write traps used two-argument
+  handlers. q passes a handler only the error, so each returned a
+  projection. Failed writes are now the warning diagnostics they were meant
+  to be. The `expecRan` callback's error handler had the same defect and
+  silently swallowed its message.
+- An uncreatable flake-history lock no longer busy-waits 5 s on every run and
+  then blames "another live writer". The diagnostic now names the unwritable
+  state directory.
+- A `boolean` property variable was a long `0`/`1` in three samples of four,
+  and a generated boolean list was a long list. Both are now boolean.
+
+### Changed
+
+- Under `-qspec-compat`, and so `bin/qspec`, typed numeric `holds` variables
+  draw edge values only from what qspec's own generator could produce: `-1 0 1`
+  for integer types, and `0` plus a tiny positive value for `real`/`float`.
+  There are no nulls, infinities, negative reals or huge magnitudes. Before,
+  about one sample in eight was null or infinite. That turned qspec properties
+  without guards for them red on their first resQ run. Native `resq test`
+  keeps the full edge-biased pool.
+
+### Documentation
+
+- MIGRATION.md documents the `.resq/` state directory and how `holds`
+  sampling differs from qspec in each mode. QSPEC_COMPATIBILITY.md and PBT.md
+  describe the compatibility-mode edge pool.
 
 ## [2.2.0] - 2026-10-17 - Faster Runs & qspec xunit
 
