@@ -231,9 +231,13 @@ internals[`]:()!()
 internals[`specObj]:`result`title`failHard!(`didNotRun;"";0b)
 / Shared key superset so every DSL constructor (should/skip/pending/retry/
 / testOnly/holds/perf) emits the SAME columns. In q, `enlist d` is a TABLE, so
-/ `.tst.expecList,: enlist d` only works when every appended dict has identical
-/ keys. The `type` value still distinguishes test/fuzz/perf. fuzz-specific keys
+/ appending a dict only works when every appended dict has identical keys. The
+/ `type` value still distinguishes test/fuzz/perf. fuzz-specific keys
 / (runs/vars/maxFailRate) live in the base too; holds[] overrides them directly.
+/ Constructors MUST append through .tst.appendExpecs, never `,:`. The first row
+/ fixes each column's type (vars is a symbol, maxFailRate a float), and in-place
+/ `,:` signals 'type when a later holds[] supplies a dict, list or lambda `vars`
+/ or an integer maxFailRate, which kills the whole file at load.
 / NOTE: before/after are deliberately NOT in the base - fillExpecBA attaches them
 / uniformly and its `not `before in key ex` guard must still fire.
 internals[`defaultExpecObj]:`result`errorText`desc`code`tags`namespace`line`skipReason`retries`only`props`runs`vars`maxFailRate`parentDesc`caseIndex`parameters`caseNames`caseArgs!(

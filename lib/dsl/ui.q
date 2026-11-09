@@ -72,6 +72,26 @@ ensureExpecHookColumns:{[expecs]
   expecs
  }
 
+/ Every DSL constructor appends through here. `new` is one expectation dict or
+/ a table of them. In-place `,:` is NOT usable: it type-checks against the first
+/ row, so a holds[] with a dict/list/lambda `vars` or an integer maxFailRate
+/ after a should signalled 'type and the whole file failed to load. A plain `,`
+/ promotes such columns to general lists, but needs identical columns, so the
+/ `::` fill that `,:` used to give rows missing an alt block's before/after
+/ columns is done explicitly (hookUnset reads `::` as "not yet set").
+appendExpecs:{[expecs;new]
+  if[99h = type new; new: enlist new];
+  if[0 = count new; :expecs];
+  if[not 98h = type expecs; :expecs, new];
+  if[0 = count expecs; :new];
+  fill:{[names;ex] ex, names!(count names)#enlist (::)};
+  extra: (cols new) except cols expecs;
+  if[count extra; expecs: fill[extra] each expecs];
+  missing: (cols expecs) except cols new;
+  if[count missing; new: fill[missing] each new];
+  expecs, (cols expecs)#new
+ }
+
 alt:{[code]
  oldBefore: .tst.currentBefore;
  oldAfter: .tst.currentAfter;
@@ -87,7 +107,7 @@ alt:{[code]
 should:{[des;code]
   desStr: .tst.toString des;
   tags: `$ {x where x like "#*"} " " vs desStr;
-  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`line!(desStr;code;tags;.tst.currentNs;.tst.currentSourceLine))
+  .tst.expecList: .tst.appendExpecs[.tst.expecList; .tst.internals.testObj, (`desc`code`tags`namespace`line!(desStr;code;tags;.tst.currentNs;.tst.currentSourceLine))]
  }
 
 / Register a table of cases without executing the test body. Every row becomes
@@ -110,14 +130,15 @@ shouldEach:{[des;data;code]
     '"shouldEach table columns must match the body's leading parameter names"];
   desStr:.tst.toString des;
   tags:`$ {x where x like "#*"} " " vs desStr;
-  {[desStr;tags;names;code;i;params]
-    d:.tst.internals.caseObj,
+  cases:{[desStr;tags;names;code;i;params]
+    .tst.internals.caseObj,
       `desc`parentDesc`code`tags`namespace`line`caseIndex`parameters`caseNames`caseArgs!(
         desStr," [case ",string[i+1],"]";
         desStr;code;tags;.tst.currentNs;.tst.currentSourceLine;
-        "j"$i;params;names;value params);
-    .tst.expecList,:enlist d
+        "j"$i;params;names;value params)
   }[desStr;tags;names;code]'[til count data;{[table;i]table i}[data] each til count data];
+  / One join for the whole case table (see .tst.internals.defaultExpecObj).
+  .tst.expecList: .tst.appendExpecs[.tst.expecList; cases];
   ::
  }
 
@@ -135,7 +156,7 @@ holds:{[des;props;code]
     known: (key propsDict) inter `runs`vars`maxFailRate;
     if[0 < count known; d: d, known#propsDict];
     d[`props]: propsDict];
-  .tst.expecList,: enlist d
+  .tst.expecList: .tst.appendExpecs[.tst.expecList; d]
  }
 
 perf:{[des;props;code]
@@ -147,13 +168,13 @@ perf:{[des;props;code]
                ()!()];
   / The perf runner reads opts from expec`props, so stash props there.
   if[0 < count propsDict; d[`props]: propsDict];
-  .tst.expecList,: enlist d
+  .tst.expecList: .tst.appendExpecs[.tst.expecList; d]
  }
 
 / Register a skipped expectation under an explicit description.
 skipNamed:{[desStr;reason;code]
   d: .tst.internals.testObj, (`desc`code`result`skipReason`line!(.tst.toString desStr; {}; `skip; reason;.tst.currentSourceLine));
-  .tst.expecList,: enlist d
+  .tst.expecList: .tst.appendExpecs[.tst.expecList; d]
  }
 
 / Skip a test with a reason
@@ -165,7 +186,7 @@ skip:{[reason;code]
 pending:{[reason]
   desStr: "PENDING: ", .tst.toString reason;
   d: .tst.internals.testObj, (`desc`code`result`skipReason`line!(desStr; {}; `pending; reason;.tst.currentSourceLine));
-  .tst.expecList,: enlist d
+  .tst.expecList: .tst.appendExpecs[.tst.expecList; d]
  }
 
 / Conditionally skip based on a condition.
@@ -183,7 +204,7 @@ skipIf:{[condition;reason;code]
 retry:{[retries;des;code]
   desStr: .tst.toString des;
   d: .tst.internals.testObj, (`desc`code`retries`namespace`line!(desStr;code;retries;.tst.currentNs;.tst.currentSourceLine));
-  .tst.expecList,: enlist d
+  .tst.expecList: .tst.appendExpecs[.tst.expecList; d]
  }
 
 / testOnly: focus the suite on specific tests. When any testOnly test is
@@ -193,7 +214,7 @@ retry:{[retries;des;code]
 testOnly:{[des;code]
   desStr: .tst.toString des;
   tags: (`$"only"), `$ {x where x like "#*"} " " vs desStr;
-  .tst.expecList,: enlist .tst.internals.testObj, (`desc`code`tags`namespace`only`line!(desStr;code;tags;.tst.currentNs;1b;.tst.currentSourceLine))
+  .tst.expecList: .tst.appendExpecs[.tst.expecList; .tst.internals.testObj, (`desc`code`tags`namespace`only`line!(desStr;code;tags;.tst.currentNs;1b;.tst.currentSourceLine))]
  }
 
 / Loader-side declaration audit. q silently turns an under-applied function into

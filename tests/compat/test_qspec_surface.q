@@ -114,6 +114,20 @@
   };
  };
 
+/ qspec suites mix holds with ordinary tests. Once a should has fixed the
+/ expectation table's column types, a holds with a dict/list/lambda `vars` or
+/ an integer maxFailRate used to fail this whole file at load with a bare 'type.
+.tst.desc["qspec surface: holds after other expectations"]{
+  should["register before the property tests"]{ 1 musteq 1 };
+  holds["dict vars"; `runs`vars!(5; `a`b!(`long;`long))]{[x]
+    (x[`a] + x[`b]) musteq (x[`b] + x[`a])
+  };
+  holds["list vars"; `runs`vars!(5; 1 2 3)]{[x] x mustin 1 2 3 };
+  holds["generator function vars"; `runs`vars!(5; {til 4})]{[x] x mustmatch til 4 };
+  holds["integer maxFailRate"; `runs`maxFailRate!(5; 0)]{[x] 1 musteq 1 };
+  should["register after the property tests"]{ 1 musteq 1 };
+ };
+
 / qspec's perf verb is registered at load time but executes only when the
 / runner receives -perf/-performance, exactly like the original framework.
 .tst.desc["qspec surface: performance"]{
