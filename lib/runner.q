@@ -949,15 +949,16 @@
     r: .resq.state.results;
     silent: where (r[`status] = `pass) and 0 = r`assertsRun;
     if[0 = count silent; :()];
-    msg: "Test passed without running any assertion (-strict). A bare expression is not a check: wrap it as must[cond; \"message\"].";
+    testMsg: "Test passed without running any assertion (-strict). A bare expression is not a check: wrap it as must[cond; \"message\"].";
+    perfMsg: "Performance block checked nothing (-strict): give it a maxTime or maxSpace budget, or assert in its body.";
+    msgs: {[t;p;k] $[k~`perf;p;t]}[testMsg;perfMsg] each $[`kind in cols r; r[`kind] silent; count[silent]#`test];
     / Rewrite the offending rows in place so each keeps its own suite and
     / description rather than collapsing into one synthetic failure. Columns are
     / rebuilt explicitly: a table amend over several row indices needs the
     / replacement to conform per row, so each value is repeated count[silent] times.
-    n: count silent;
     st: r`status;   st[silent]: `fail;
-    ms: r`message;  ms[silent]: n # enlist msg;
-    fl: r`failures; fl[silent]: n # enlist enlist msg;
+    ms: r`message;  ms[silent]: msgs;
+    fl: r`failures; fl[silent]: enlist each msgs;
     r[`status]: st; r[`message]: ms; r[`failures]: fl;
     .resq.state.results: r;
  };

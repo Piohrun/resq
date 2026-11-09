@@ -186,6 +186,20 @@ runners[`perf]:{[expec];
           expec[`failures],: enlist "Performance Failure: Avg Space ",string[avgSpace]," bytes > Limit ",string[opts`maxSpace]," bytes";
       ];
   ];
+  / Assertions in the measured body count, and so does each budget checked.
+  / The runner used to drop both: a failing assertion inside a perf body
+  / reported pass, and -strict failed every perf block as asserting nothing.
+  / The body runs once per warm-up and measured iteration, so a failure it
+  / records is reported once rather than per iteration. Repeats differ in
+  / their "(assertion #n in this test)" ordinal and lack the first one's diff
+  / block, so they are matched on the first line without the ordinal.
+  rawFailures: .tst.toString each .tst.assertState.failures;
+  failureKeys: {i: x ss " (assertion #"; first "\n" vs $[count i; (first i)#x; x]} each rawFailures;
+  bodyFailures: rawFailures failureKeys?distinct failureKeys;
+  if[count bodyFailures;
+      expec[`result]: `testFail;
+      expec[`failures]: bodyFailures, expec`failures];
+  expec[`assertsRun]: .tst.assertState.assertsRun + sum `maxTime`maxSpace in key opts;
   expec
  }
 

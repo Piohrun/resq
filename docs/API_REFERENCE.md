@@ -314,6 +314,11 @@ perf["sorting 10000 elements"; `runs`maxTime!(1000; 50)]{
 };
 ```
 
+`perf` blocks run only with `-perf`. An assertion that fails inside the
+measured body fails the block, reported once rather than per iteration. Each
+`maxTime` or `maxSpace` budget counts as one assertion, as do assertions in the
+body. Under `-strict`, a block with neither fails as having checked nothing.
+
 ---
 
 ### skip / pending / skipIf

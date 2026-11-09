@@ -136,3 +136,40 @@
     musteq[r`code; 0];
   };
  };
+
+/ ---------------------------------------------------------------------------
+/ perf blocks. The perf runner used to drop the measured body's assertion
+/ state: a failing assertion inside a perf body reported pass, and -strict
+/ failed every perf block as asserting nothing, budget or not.
+/ ---------------------------------------------------------------------------
+.tst.testState.strictchk.perfBlocks: (
+  ".tst.desc[\"perf\"]{";
+  "  perf[\"budgeted\";`maxTime`runs!(10000;2)]{ til 10 };";
+  "  perf[\"asserting body\";(enlist `runs)!enlist 2]{ 1 musteq 1 };";
+  "  perf[\"failing body\";(enlist `runs)!enlist 2]{ 1 musteq 2 };";
+  "  perf[\"checks nothing\";(enlist `runs)!enlist 2]{ til 10 };";
+  " };");
+
+.tst.desc["strict: perf blocks #slow"]{
+
+  skipIf[not .tst.testState.strictchk.canQ;
+         "a failing assertion inside a perf body fails the block"]{
+    r: .tst.testState.strictchk.run[.tst.testState.strictchk.perfBlocks; "-perf"];
+    must[0 <> r`code; "a failing perf body must fail the run"];
+    must[.tst.testState.strictchk.anyLike[r`out; "4 total (3 passed, 1 failed"];
+         "only the failing body fails without -strict"];
+    must[1 = sum r[`out] like "*expected 2 (diff: -1)*";
+         "the body failure is reported once, not once per iteration"];
+  };
+
+  skipIf[not .tst.testState.strictchk.canQ;
+         "a budget or a body assertion counts as a check under -strict"]{
+    r: .tst.testState.strictchk.run[.tst.testState.strictchk.perfBlocks; "-perf -strict"];
+    must[.tst.testState.strictchk.anyLike[r`out; "4 total (2 passed, 2 failed"];
+         "budgeted and asserting perf blocks pass under -strict"];
+    must[.tst.testState.strictchk.anyLike[r`out; "Performance block checked nothing"];
+         "a perf block that checks nothing gets the perf-specific message"];
+    must[not .tst.testState.strictchk.anyLike[r`out; "without running any assertion"];
+         "perf blocks do not get the bare-expression message"];
+  };
+ };
