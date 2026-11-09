@@ -4,6 +4,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.2.1] - 2026-11-09 - qspec Drop-in Fixes
+
+resQ 2.2.1 fixes defects a qspec suite meets on its first `bin/qspec` run:
+property tests that failed their file at load, qspec properties fed nulls
+and infinities, and unwritable state that failed green runs. It keeps the
+2.x DSL, report-v2 contract and identity v3.
+
 ### Fixed
 
 - A `holds` whose `vars` is a dictionary, list or generator function, or whose

@@ -212,6 +212,15 @@ following checked-in contracts; the final release gate invokes all of them:
   exact candidate evidence; the certification commit is requalified before the
   annotated tag is pushed.
 
+## 2.2.1 — qspec drop-in fixes
+
+- [x] Load `holds` with dict, list or function `vars` and integer
+  `maxFailRate` alongside other expectations, pinned by the qspec surface test.
+- [x] Keep `holds` samples inside qspec's value domain under `-qspec-compat`,
+  and keep typed booleans boolean.
+- [x] Treat unwritable rerun/flake state as a warning, not a failed run.
+- [ ] Complete the clean-clone v2.2.1 release qualification.
+
 ## Post-2.0 ecosystem ideas — not implemented
 
 These are roadmap ideas, not resQ capabilities or release commitments:
