@@ -1,0 +1,1277 @@
+{
+  "schemaVersion": 1,
+  "kind": "resq-release-audit",
+  "framework": "resQ",
+  "status": "pass",
+  "commit": "a9e0b333f0a67d8243890265090add35537e3cfb",
+  "startedAt": "2026-11-09T10:47:40.769098Z",
+  "finishedAt": "2026-11-09T10:59:10.807739Z",
+  "durationSeconds": 690.038641,
+  "qVersion": "4.1",
+  "resqVersion": "2.2.1",
+  "environment": {
+    "platform": "Linux-7.2.10-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "system": "Linux",
+    "release": "7.2.10-200.fc44.x86_64",
+    "machine": "x86_64",
+    "runnerIdentity": "fedora",
+    "pythonVersion": "3.14.8",
+    "qExecutable": "/home/greg/.local/bin/q",
+    "licensedRuntime": {
+      "available": true,
+      "credentialMaterialArchived": false,
+      "note": "The gate records runtime availability, never licence secrets."
+    }
+  },
+  "qualificationScope": {
+    "qualified": [
+      "kdb+/q 4.1.x 64-bit on Linux x86-64"
+    ],
+    "unqualified": [
+      "other q 4.x releases",
+      "macOS",
+      "Windows",
+      "optional AxLibraries self-coverage provider",
+      "unlisted external codebases and CI providers"
+    ]
+  },
+  "selfSuite": {
+    "suiteCount": 199,
+    "testCount": 799,
+    "assertionCount": 2674,
+    "passCount": 798,
+    "failCount": 0,
+    "errorCount": 0,
+    "skipCount": 1,
+    "duration": "0D00:02:08.746269312",
+    "durationSeconds": 128.7463,
+    "testDurationSumSeconds": 128.7463
+  },
+  "isolatedSuite": {
+    "suiteCount": 199,
+    "testCount": 799,
+    "assertionCount": 2674,
+    "passCount": 798,
+    "failCount": 0,
+    "errorCount": 0,
+    "skipCount": 1,
+    "duration": "0D00:02:06.887261577",
+    "durationSeconds": 126.8873,
+    "testDurationSumSeconds": 126.8873
+  },
+  "suiteReconciliation": {
+    "schemaVersion": 1,
+    "kind": "resq-suite-reconciliation",
+    "status": "pass",
+    "modeIndependentSummary": {
+      "suiteCount": 199,
+      "testCount": 799,
+      "passCount": 798,
+      "failCount": 0,
+      "errorCount": 0,
+      "skipCount": 1,
+      "assertionCount": 2674
+    },
+    "testInventorySha256": "ea2642a3edcac8e528d6aeecf041405041dca7d9fb8ab57eb975034bc872b80a",
+    "stableIdVerdictParity": true,
+    "semanticInventoryParity": true
+  },
+  "differentialCorpus": {
+    "loaderSeeds": 400,
+    "coverageSeeds": 2000,
+    "summary": {
+      "suiteCount": 3,
+      "testCount": 5,
+      "assertionCount": 10,
+      "passCount": 5,
+      "failCount": 0,
+      "errorCount": 0,
+      "skipCount": 0,
+      "duration": "0D00:02:38.745679722",
+      "durationSeconds": 158.7457,
+      "testDurationSumSeconds": 158.7457
+    }
+  },
+  "preprocessingBudget": {
+    "environment": {
+      "platform": "Linux-7.2.10-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "python": "3.14.8"
+    },
+    "kind": "resq-review-benchmark",
+    "loader": [
+      {
+        "aggregation": "median",
+        "expectations": 50,
+        "preprocessSeconds": 0.01187,
+        "sampleCount": 7,
+        "samples": [
+          0.01187,
+          0.013503,
+          0.010858,
+          0.011947,
+          0.011949,
+          0.011038,
+          0.01086
+        ],
+        "warmups": 2
+      },
+      {
+        "aggregation": "median",
+        "expectations": 100,
+        "preprocessSeconds": 0.023364,
+        "sampleCount": 7,
+        "samples": [
+          0.022352,
+          0.022191,
+          0.025005,
+          0.022639,
+          0.023578,
+          0.023364,
+          0.024855
+        ],
+        "warmups": 2
+      },
+      {
+        "aggregation": "median",
+        "expectations": 200,
+        "preprocessSeconds": 0.046405,
+        "sampleCount": 7,
+        "samples": [
+          0.04847,
+          0.045835,
+          0.049364,
+          0.046434,
+          0.044057,
+          0.046405,
+          0.043341
+        ],
+        "warmups": 2
+      }
+    ],
+    "loaderGrowthRatios": [
+      1.968324,
+      1.986175
+    ],
+    "report": {
+      "aggregation": "median",
+      "bytes": 24082819,
+      "bytesPerTest": 2408.2819,
+      "failureEvery": 0,
+      "peakBytes": 93837330,
+      "sampleCount": 7,
+      "samples": [
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837386,
+          "tests": 10000,
+          "wallSeconds": 2.606879
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837330,
+          "tests": 10000,
+          "wallSeconds": 2.37562
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837330,
+          "tests": 10000,
+          "wallSeconds": 2.376126
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837330,
+          "tests": 10000,
+          "wallSeconds": 2.295817
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93837330,
+          "tests": 10000,
+          "wallSeconds": 2.499421
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93845514,
+          "tests": 10000,
+          "wallSeconds": 2.784625
+        },
+        {
+          "bytes": 24082819,
+          "bytesPerTest": 2408.2819,
+          "failureEvery": 0,
+          "peakBytes": 93845474,
+          "tests": 10000,
+          "wallSeconds": 2.406807
+        }
+      ],
+      "tests": 10000,
+      "wallSeconds": 2.406807,
+      "warmups": 2
+    },
+    "schemaVersion": 1,
+    "verdicts": {
+      "correctness": {
+        "passed": true,
+        "reason": "every generated report validated"
+      },
+      "performance": {
+        "failures": [],
+        "passed": true
+      }
+    }
+  },
+  "coverage": {
+    "functionsFound": 20,
+    "functionsHit": 14,
+    "linesFound": 59,
+    "linesHit": 48,
+    "statementSitesFound": 72,
+    "statementSitesHit": 51,
+    "branchesFound": 34,
+    "branchesHit": 19,
+    "statementInstrumentationPercent": 100,
+    "branchInstrumentationPercent": 100
+  },
+  "coverageReconciliation": {
+    "schemaVersion": 1,
+    "kind": "resq-coverage-reconciliation",
+    "framework": "resQ",
+    "frameworkVersion": "2.2.1",
+    "matched": true,
+    "correctnessRunId": "run_3670a011f6a73546c79d6721f5e7f42d",
+    "coverageRunId": "run_455047f992d821e3dd20092862b0426f",
+    "manifestDigest": "manifest_aacfb99b66853ed5632eee30b708f1bf",
+    "inventory": {
+      "tests": 30,
+      "assertions": 61,
+      "passes": 30,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "comparedExecutionFields": [
+      "testId",
+      "caseId",
+      "suite",
+      "description",
+      "file",
+      "status",
+      "assertsRun"
+    ],
+    "allowedDifferences": [
+      "run identity and timestamps",
+      "wall-clock and per-test durations",
+      "coverage configuration, diagnostics, events, and artifacts",
+      "isolation process metadata"
+    ]
+  },
+  "coveragePerformance": {
+    "budgets": {
+      "maxContextOverheadRatio": 25.0,
+      "maxReportNsPerEntry": 6000.0,
+      "maxStatementOverheadRatio": 5.0
+    },
+    "medians": {
+      "contextNsPerHit": 7187.832,
+      "contextOverheadRatio": 17.883471086717456,
+      "controlNsPerHit": 401.926,
+      "reportNsPerEntry": 4312.89,
+      "statementNsPerHit": 1803.888,
+      "statementOverheadRatio": 4.488109751546305
+    }
+  },
+  "soak": {
+    "schemaVersion": 1,
+    "kind": "resq-soak-evidence",
+    "status": "pass",
+    "qVersion": "4.1",
+    "platform": "Linux-7.2.10-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "cycles": 20,
+    "warmupCycles": 2,
+    "watchCycles": 3,
+    "fixture": "tests/fixtures/distributed/coverage_suite.q",
+    "coverageSource": "tests/fixtures/distributed/coverage_source.q",
+    "limits": {
+      "maxUsedGrowthBytes": 16777216,
+      "maxHeapGrowthBytes": 67108864,
+      "maxSymbolGrowth": 64,
+      "maxSymbolBytesGrowth": 65536,
+      "maxNamespaceGrowth": 1,
+      "maxIpcHandleGrowth": 0,
+      "maxOsHandleGrowth": 0
+    },
+    "observed": {
+      "usedGrowthBytes": 0,
+      "heapGrowthBytes": 0,
+      "symbolGrowth": 0,
+      "symbolBytesGrowth": 0,
+      "namespaceGrowth": 0,
+      "ipcHandleGrowth": 0,
+      "osHandleGrowth": 0
+    },
+    "samples": [
+      {
+        "cycle": 1,
+        "usedBytes": 3864464,
+        "heapBytes": 67108864,
+        "symbolCount": 5826,
+        "symbolBytes": 361825,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 2,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 3,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 4,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 5,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 6,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 7,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 8,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 9,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 10,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 11,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 12,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 13,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 14,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 15,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 16,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 17,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 18,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 19,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      },
+      {
+        "cycle": 20,
+        "usedBytes": 3868576,
+        "heapBytes": 67108864,
+        "symbolCount": 5832,
+        "symbolBytes": 362214,
+        "namespaceCount": 10,
+        "ipcHandleCount": 0,
+        "osHandleCount": 5,
+        "timerFingerprint": "789e43c5b635a7806e0843ffa2d334b7"
+      }
+    ],
+    "violations": [],
+    "note": "q symbols and empty namespace names are interned; this gate exercises bounded coverage identity/context caches across re-initialization, bounds post-warmup growth, and never claims reclamation"
+  },
+  "reportScale": {
+    "failureHeavy": {
+      "artifacts": {
+        "allure": {
+          "bytes": 17410000,
+          "bytesPerTest": 1741.0,
+          "maxRecordBytes": 2765,
+          "peakBytes": 407578,
+          "wallSeconds": 0.688318
+        },
+        "full": {
+          "bytes": 44422942,
+          "bytesPerTest": 4442.2942,
+          "maxRecordBytes": 0,
+          "peakBytes": 88846446,
+          "wallSeconds": 0.991368
+        },
+        "junit": {
+          "bytes": 12828981,
+          "bytesPerTest": 1282.8981,
+          "maxRecordBytes": 0,
+          "peakBytes": 134217728,
+          "wallSeconds": 9.987262
+        },
+        "model": {
+          "bytes": 0,
+          "bytesPerTest": 0.0,
+          "maxRecordBytes": 0,
+          "peakBytes": 45767442,
+          "wallSeconds": 0.637567
+        },
+        "ndjson": {
+          "bytes": 15430745,
+          "bytesPerTest": 1543.0745,
+          "maxRecordBytes": 2056,
+          "peakBytes": 411616,
+          "wallSeconds": 0.689647
+        },
+        "results": {
+          "bytes": 27340227,
+          "bytesPerTest": 2734.0227,
+          "maxRecordBytes": 0,
+          "peakBytes": 62600616,
+          "wallSeconds": 0.377285
+        },
+        "telemetry": {
+          "bytes": 8590420,
+          "bytesPerTest": 859.042,
+          "maxRecordBytes": 0,
+          "peakBytes": 62595768,
+          "wallSeconds": 0.17682
+        }
+      },
+      "tests": 10000,
+      "transcript": {
+        "complete": true,
+        "expectedBytes": 1024,
+        "failureCount": 5000,
+        "profileMessagesEqual": true
+      }
+    },
+    "green": {
+      "artifacts": {
+        "allure": {
+          "bytes": 7170000,
+          "bytesPerTest": 717.0,
+          "maxRecordBytes": 717,
+          "peakBytes": 404413,
+          "wallSeconds": 0.603882
+        },
+        "full": {
+          "bytes": 23922940,
+          "bytesPerTest": 2392.294,
+          "maxRecordBytes": 0,
+          "peakBytes": 62282672,
+          "wallSeconds": 0.927273
+        },
+        "junit": {
+          "bytes": 2588981,
+          "bytesPerTest": 258.8981,
+          "maxRecordBytes": 0,
+          "peakBytes": 67108864,
+          "wallSeconds": 9.479669
+        },
+        "model": {
+          "bytes": 0,
+          "bytesPerTest": 0.0,
+          "maxRecordBytes": 0,
+          "peakBytes": 45694175,
+          "wallSeconds": 0.995581
+        },
+        "ndjson": {
+          "bytes": 10310743,
+          "bytesPerTest": 1031.0743,
+          "maxRecordBytes": 1849,
+          "peakBytes": 409536,
+          "wallSeconds": 0.60501
+        },
+        "results": {
+          "bytes": 6840225,
+          "bytesPerTest": 684.0225,
+          "maxRecordBytes": 0,
+          "peakBytes": 62280432,
+          "wallSeconds": 0.327787
+        },
+        "telemetry": {
+          "bytes": 3470418,
+          "bytesPerTest": 347.0418,
+          "maxRecordBytes": 0,
+          "peakBytes": 62275768,
+          "wallSeconds": 0.152129
+        }
+      },
+      "tests": 10000,
+      "transcript": {
+        "complete": true,
+        "expectedBytes": 0,
+        "failureCount": 0,
+        "profileMessagesEqual": true
+      }
+    },
+    "kind": "resq-report-scale-measurement",
+    "lifecycle": {
+      "baseline": {
+        "expectedEvents": 42204,
+        "files": 100,
+        "pythonSamples": [
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17374459,
+            "bytesPerTest": 1737.4459,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 25804624,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 1.504045
+          },
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17374459,
+            "bytesPerTest": 1737.4459,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 25804576,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 1.510565
+          },
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17374459,
+            "bytesPerTest": 1737.4459,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 25804576,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 1.513909
+          }
+        ],
+        "qSamples": [
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17604457,
+            "bytesPerTest": 1760.4457,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 67108864,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 0.4322671
+          },
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17604457,
+            "bytesPerTest": 1760.4457,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 67108864,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 0.4285009
+          },
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 17604457,
+            "bytesPerTest": 1760.4457,
+            "eventCount": 42204,
+            "maxRecordBytes": 404176,
+            "peakBytes": 67108864,
+            "sequenceComplete": true,
+            "typeOrderDigest": "44486596c05f34c296527d6aae787933",
+            "wallSeconds": 0.431129
+          }
+        ],
+        "suites": 1000,
+        "tests": 10000
+      },
+      "qualification": {
+        "expectedEvents": 402204,
+        "files": 100,
+        "pythonSamples": [
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 167169872,
+            "bytesPerTest": 1671.69872,
+            "eventCount": 402204,
+            "maxRecordBytes": 4004177,
+            "peakBytes": 246377376,
+            "sequenceComplete": true,
+            "typeOrderDigest": "c32f11fc6061ffa9112d2d89c5946552",
+            "wallSeconds": 14.886228
+          }
+        ],
+        "qSamples": [
+          {
+            "benchmarkTimeCorrect": true,
+            "bytes": 169469870,
+            "bytesPerTest": 1694.6987,
+            "eventCount": 402204,
+            "maxRecordBytes": 4004177,
+            "peakBytes": 1140850688,
+            "sequenceComplete": true,
+            "typeOrderDigest": "c32f11fc6061ffa9112d2d89c5946552",
+            "wallSeconds": 4.46632
+          }
+        ],
+        "suites": 1000,
+        "tests": 100000
+      },
+      "selector": "lifecycle 100k near-linear"
+    },
+    "schemaVersion": 2
+  },
+  "installation": {
+    "schemaVersion": 1,
+    "kind": "resq-installation-evidence",
+    "status": "pass",
+    "repository": "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq",
+    "requestedRef": "a9e0b333f0a67d8243890265090add35537e3cfb",
+    "branchClone": false,
+    "resolvedCommit": "a9e0b333f0a67d8243890265090add35537e3cfb",
+    "versionOutput": "resQ version 2.2.1",
+    "quickstart": {
+      "suiteCount": 6,
+      "testCount": 30,
+      "assertionCount": 61,
+      "passCount": 30,
+      "failCount": 0,
+      "errorCount": 0,
+      "skipCount": 0,
+      "duration": "0D00:00:00.106193608",
+      "durationSeconds": 0.1061936,
+      "testDurationSumSeconds": 0.1061936
+    },
+    "emptyPrefix": true,
+    "symlinkLaunchers": [
+      "resq",
+      "qspec",
+      "resq-merge"
+    ],
+    "mergeHelp": true,
+    "console": "\n=== Benchmark Results ===\nIterations: 100\nTiming: Min=51us Avg=53us Max=136us\nPercentiles: p50=51us p99=65us\nDistribution (us):\n  51.00 - 59.48 us         |############################## 94%\n  59.48 - 67.96 us         |## 5%\n  67.96 - 76.44 us         | 0%\n  76.44 - 84.92 us         | 0%\n  84.92 - 93.40 us         | 0%\n  93.40 - 101.88 us        | 0%\n  101.88 - 110.36 us       | 0%\n  110.36 - 118.84 us       | 0%\n  118.84 - 127.32 us       | 0%\n  127.32 - 135.80 us       | 1%\n\nComparing: SMA window=10 vs SMA window=100\nSMA window=10: Avg=53us\nSMA window=100: Avg=89us\nWinner: SMA window=10 (1.680794x faster)\nSystem shutdown triggered by admin\nWARNING: Test 'Order Processing Service' modified globals in order: .order.orders\n  -> Restored modified globals in order.\nComparing: each vs matrix\neach: Avg=33us\nmatrix: Avg=27us\nWinner: matrix (1.255519x faster)\nEVENT: userCreated for user 1\nEVENT: userCreated for user 1\nEVENT: userCreated for user 2\nEVENT: userCreated for user 3\nEVENT: userCreated for user 4\nEVENT: userCreated for user 5\nEVENT: userCreated for user 6\nEVENT: userCreated for user 7\nEVENT: userCreated for user 8\nEVENT: userCreated for user 9\nEVENT: userCreated for user 1\nEVENT: userCreated for user 1\nEVENT: roleUpdated for user 1\nEVENT: userCreated for user 1\nEVENT: userDeactivated for user 1\nEVENT: userCreated for user 1\nEVENT: userCreated for user 2\nEVENT: userDeactivated for user 1\nWARNING: Test 'User Management Service' modified globals in user: .user.users\n  -> Restored modified globals in user.\n\n======================================================================\nSUMMARY\n----------------------------------------------------------------------\nTests:      30 total (30 passed, 0 failed, 0 error, 0 skipped)\nAssertions: 61 total\nDuration:   106 ms\n======================================================================\n\n----------------------------------------------------------------\nAll tests passed.\nJSON Report written to /tmp/resq-empty-install-bznegw0i/quickstart-evidence/test-results.json\n"
+  },
+  "findingLedger": {
+    "kind": "resq-fable-review-findings",
+    "baselineCommit": "4aeb532b46264e4cd602d29ec9f86b7477ebf4cc",
+    "reviewDate": "2026-08-14",
+    "total": 44,
+    "closed": 44,
+    "open": 0
+  },
+  "schemas": [
+    "schemas/resq-benchmark-baseline-v1.schema.json",
+    "schemas/resq-coverage-v2.schema.json",
+    "schemas/resq-ingestion-tables-v1.schema.json",
+    "schemas/resq-ingestion-tables-v2.schema.json",
+    "schemas/resq-release-audit-v1.schema.json",
+    "schemas/resq-report-v2.schema.json",
+    "schemas/ci-lanes.json",
+    "schemas/quickstart-coverage.json",
+    "schemas/report-scale-budgets.json",
+    "schemas/soak-budgets.json",
+    "schemas/fable-findings.json"
+  ],
+  "archive": {
+    "checksumAlgorithm": "SHA-256",
+    "checksumManifest": "checksums.sha256",
+    "rawCommandLogs": "logs/",
+    "retentionPolicy": "90-day CI artifact plus attached release archive"
+  },
+  "steps": [
+    {
+      "name": "shell syntax contracts",
+      "status": "pass",
+      "command": [
+        "bash",
+        "-n",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/bin/resq",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/bin/qspec",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/bin/resq-merge"
+      ],
+      "durationSeconds": 0.002452,
+      "log": "logs/01-shell-syntax-contracts.log",
+      "logSha256": "f9bd88ab26d0edca11abf15d78865f8b8f056653b4fe61d0e824b278934c128d"
+    },
+    {
+      "name": "licence-free contracts",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_static.py"
+      ],
+      "durationSeconds": 0.143217,
+      "log": "logs/02-licence-free-contracts.log",
+      "logSha256": "865d74fc68462359a000b78d7328a90fdd2c9280fb371c78252a4af29785efc6"
+    },
+    {
+      "name": "Python contract tests",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_python_contracts.py"
+      ],
+      "durationSeconds": 2.419027,
+      "log": "logs/03-python-contract-tests.log",
+      "logSha256": "2e8f0cccd5e01937b07987b7bb159a313b65e58e209c270e3a329679986a6e00"
+    },
+    {
+      "name": "CLI terminal contract",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_cli_terminal.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 1.315855,
+      "log": "logs/04-cli-terminal-contract.log",
+      "logSha256": "a467d09f8c36e2ebc7686d500582ee60c74f70a5736373bbf86445b094421d1c"
+    },
+    {
+      "name": "full strict suite",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/bin/resq",
+        "test",
+        "tests",
+        "-strict",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-report-profile",
+        "full",
+        "-outDir",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/normal",
+        "-state-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/normal-last-run.json",
+        "-flake-history",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/normal-flake-history.json",
+        "-quarantine-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/normal-quarantine.json",
+        "-flake-proposal-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/normal-proposals.json"
+      ],
+      "durationSeconds": 131.728985,
+      "log": "logs/05-full-strict-suite.log",
+      "logSha256": "c4e8b9d29c518355d8eaf4821ff1b0c00018f3ad20095f4144d9fd85d0b60df3"
+    },
+    {
+      "name": "full strict isolated suite",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/bin/resq",
+        "test",
+        "tests",
+        "-strict",
+        "-isolate",
+        "-isolateTimeout",
+        "90",
+        "-isolateWorkers",
+        "4",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-report-profile",
+        "full",
+        "-outDir",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/isolated",
+        "-state-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/isolated-last-run.json",
+        "-flake-history",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/isolated-flake-history.json",
+        "-quarantine-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/isolated-quarantine.json",
+        "-flake-proposal-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/isolated-proposals.json"
+      ],
+      "durationSeconds": 118.083217,
+      "log": "logs/06-full-strict-isolated-suite.log",
+      "logSha256": "9bf4c78df234a8021889da9ec3b3d80a800787e29b565ba6a7491a657fe21122"
+    },
+    {
+      "name": "extended loader and coverage differentials",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/bin/resq",
+        "test",
+        "tests/test_loader_differential.q",
+        "tests/test_coverage_differential.q",
+        "nightly/test_oversized_desc.q",
+        "-strict",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-report-profile",
+        "full",
+        "-outDir",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/differential",
+        "-state-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/differential-last-run.json",
+        "-flake-history",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/differential-flake-history.json",
+        "-quarantine-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/differential-quarantine.json",
+        "-flake-proposal-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/differential-proposals.json"
+      ],
+      "durationSeconds": 159.174258,
+      "log": "logs/07-extended-loader-and-coverage-differentials.log",
+      "logSha256": "cd34dd43258574faffc548b8887ed03479a76e7836304afb7db47a4ec2fb66f9"
+    },
+    {
+      "name": "linear preprocessing budget",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/benchmark_review_regressions.py",
+        "--q",
+        "q",
+        "--report-tests",
+        "10000",
+        "--loader-counts",
+        "50",
+        "100",
+        "200",
+        "--max-loader-growth-ratio",
+        "3.0",
+        "--output",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/preprocess-budget.json"
+      ],
+      "durationSeconds": 32.84608,
+      "log": "logs/08-linear-preprocessing-budget.log",
+      "logSha256": "6bdce86af919736fa3c92562317621393044b098b58bc3209f136f20b13388ea"
+    },
+    {
+      "name": "supported execution matrix",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_execution_matrix.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 9.615522,
+      "log": "logs/09-supported-execution-matrix.log",
+      "logSha256": "0498880e9c7a8910676a014a4def5f03866e4d15205fca8bcef580bbb72d20bd"
+    },
+    {
+      "name": "distributed shard merge matrix",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_shard_merge.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 5.855192,
+      "log": "logs/10-distributed-shard-merge-matrix.log",
+      "logSha256": "07cb6e0c1536a9a7965035862b1e089e6463183bfa4d6f997bc7757924c7a1b1"
+    },
+    {
+      "name": "property generator and shrink protocol",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_property_protocol.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 0.301612,
+      "log": "logs/11-property-generator-and-shrink-protocol.log",
+      "logSha256": "3ec88710e88ca0df714d1ee970df7162b52ca3e80e81afba342849c22aa1a1c8"
+    },
+    {
+      "name": "flake evidence and quarantine policy",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_quarantine.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 2.264155,
+      "log": "logs/12-flake-evidence-and-quarantine-policy.log",
+      "logSha256": "19b72d695d7096fcac12fb0a6b3084a5501c6009dd2617c858b19e1fbf49b06c"
+    },
+    {
+      "name": "snapshot inventory and recoverable pruning",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_snapshot_inventory.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 3.152352,
+      "log": "logs/13-snapshot-inventory-and-recoverable-pruning.log",
+      "logSha256": "08e73596383e3a8e8ee255ffc3bc3f53c53f81d3f525ead99ab35b4aec3ddf12"
+    },
+    {
+      "name": "benchmark regression baselines and telemetry",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_benchmark_regression.py"
+      ],
+      "durationSeconds": 4.500981,
+      "log": "logs/14-benchmark-regression-baselines-and-telemetry.log",
+      "logSha256": "297482e11abc0caa9f00555761213b219016cf0a8ac655c676479d1b1a56ad41"
+    },
+    {
+      "name": "hostile environment audit",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_hostile_env.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 8.43982,
+      "log": "logs/15-hostile-environment-audit.log",
+      "logSha256": "d2959497876ea5a3a27d01db4d3c5199d3fc7dee4de91b4baed491bc4cccd43c"
+    },
+    {
+      "name": "bounded labels and execution context",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_labels_context.py"
+      ],
+      "durationSeconds": 2.348546,
+      "log": "logs/16-bounded-labels-and-execution-context.log",
+      "logSha256": "f68690273e1a85a5b18d38cf6ba667cb524a3cd05c83ba9adcb44a5cf99d4ea1"
+    },
+    {
+      "name": "normalized ingestion contract",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_ingestion_contract.py"
+      ],
+      "durationSeconds": 0.153204,
+      "log": "logs/17-normalized-ingestion-contract.log",
+      "logSha256": "1b080f02fcaa85ae86916cdd938f6f0b0e37ff7fdbdf6b517d330df7d76bcd2e"
+    },
+    {
+      "name": "external adoption pilots",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_external_pilots.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 1.598815,
+      "log": "logs/18-external-adoption-pilots.log",
+      "logSha256": "942a1de6668bf63f55b49070a885e8d495e54077aa6ec38a5fd791c9d2b83ad9"
+    },
+    {
+      "name": "pinned qspec compatibility lanes",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_qspec_compatibility.py",
+        "--q",
+        "q",
+        "--out-dir",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/compatibility"
+      ],
+      "durationSeconds": 0.911118,
+      "log": "logs/19-pinned-qspec-compatibility-lanes.log",
+      "logSha256": "e434f89ead6294d63ac35ec48703796a4ccf957902ec399c5be563242c801b97"
+    },
+    {
+      "name": "upstream qspec differential",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_qspec_differential.py",
+        "--q",
+        "q",
+        "--out-dir",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/qspec-differential"
+      ],
+      "durationSeconds": 6.062197,
+      "log": "logs/20-upstream-qspec-differential.log",
+      "logSha256": "64882259f6e47e858ae17de54a3fbd8283afa3d0d6ccb5753ed3d1f109161998"
+    },
+    {
+      "name": "repeated-process soak budget",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_soak.py",
+        "--q",
+        "q",
+        "--output",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/soak-evidence.json"
+      ],
+      "durationSeconds": 10.411645,
+      "log": "logs/21-repeated-process-soak-budget.log",
+      "logSha256": "38239f77722a7500776762ec6141c516c42750a23eaca604a80f99777a19f9c9"
+    },
+    {
+      "name": "coverage hot-path performance budget",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_coverage_performance.py",
+        "--q",
+        "q"
+      ],
+      "durationSeconds": 0.947311,
+      "log": "logs/22-coverage-hot-path-performance-budget.log",
+      "logSha256": "160f468136d40dfe6e51bd2c839cd4ce602d4882fc9586982bf3de9daf1a73f3"
+    },
+    {
+      "name": "10k artifact and 100k lifecycle scale budgets",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_report_scale.py",
+        "--q",
+        "q",
+        "--output",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/report-scale.json"
+      ],
+      "durationSeconds": 184.866217,
+      "log": "logs/23-10k-artifact-and-100k-lifecycle-scale-budgets.log",
+      "logSha256": "b187adb4cf312b995c4edd46fa8f45df1bbd48fd34eda61705ef39ede0c3dbab"
+    },
+    {
+      "name": "empty-prefix installation",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/tools/verify_installation.py",
+        "--repository",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq",
+        "--ref",
+        "a9e0b333f0a67d8243890265090add35537e3cfb",
+        "--q",
+        "q",
+        "--output",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/installation-evidence.json"
+      ],
+      "durationSeconds": 1.033934,
+      "log": "logs/24-empty-prefix-installation.log",
+      "logSha256": "1906fdf6f2698abad321bf673bca5bb1629f451ecad948b24ddd9340f97f4a8f"
+    },
+    {
+      "name": "isolated quickstart correctness",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/bin/resq",
+        "test",
+        "examples/quickstart/test",
+        "-strict",
+        "-isolate",
+        "-isolateTimeout",
+        "90",
+        "-isolateWorkers",
+        "2",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-report-profile",
+        "full",
+        "-outDir",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/coverage-correctness",
+        "-state-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/coverage-correctness-last-run.json",
+        "-flake-history",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/coverage-correctness-flake-history.json",
+        "-quarantine-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/coverage-correctness-quarantine.json",
+        "-flake-proposal-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/coverage-correctness-proposals.json"
+      ],
+      "durationSeconds": 1.094244,
+      "log": "logs/25-isolated-quickstart-correctness.log",
+      "logSha256": "01cd92c1cf20f68628f1103ca95bc9b84a17c5292c7a8864e7138e748d932337"
+    },
+    {
+      "name": "canonical quickstart coverage",
+      "status": "pass",
+      "command": [
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/resq/bin/resq",
+        "cover",
+        "examples/quickstart/test",
+        "--source",
+        "examples/quickstart/src",
+        "-strict",
+        "-cov-statements",
+        "-cov-branches",
+        "-cov-contexts",
+        "-cov-min",
+        "70",
+        "-cov-lines-min",
+        "80",
+        "-cov-completeness-min",
+        "100",
+        "-cov-branches-min",
+        "50",
+        "-cov-branch-completeness-min",
+        "100",
+        "-json",
+        "-junit",
+        "-quiet",
+        "-outDir",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/coverage",
+        "-state-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/coverage-last-run.json",
+        "-flake-history",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/coverage-flake-history.json",
+        "-quarantine-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/coverage-quarantine.json",
+        "-flake-proposal-file",
+        "/tmp/claude-1000/-home-greg-Code-resq/93c6867b-98a7-4100-b260-b128a8469f82/scratchpad/rel/cand/release-audit/state/coverage-proposals.json"
+      ],
+      "durationSeconds": 0.502107,
+      "log": "logs/26-canonical-quickstart-coverage.log",
+      "logSha256": "793c9d1cf348a4ad3b2d678d89c79e723b14181180448f89339119e7f751bc2f"
+    }
+  ]
+}

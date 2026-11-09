@@ -219,7 +219,9 @@ following checked-in contracts; the final release gate invokes all of them:
 - [x] Keep `holds` samples inside qspec's value domain under `-qspec-compat`,
   and keep typed booleans boolean.
 - [x] Treat unwritable rerun/flake state as a warning, not a failed run.
-- [ ] Complete the clean-clone v2.2.1 release qualification.
+- [x] Complete the clean-clone v2.2.1 release qualification and archive the
+  exact candidate evidence; the certification commit is requalified before the
+  annotated tag is pushed.
 
 ## Post-2.0 ecosystem ideas — not implemented
 

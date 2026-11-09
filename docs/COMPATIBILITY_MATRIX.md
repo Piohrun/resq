@@ -5,7 +5,7 @@
 | Runtime | Platform | Status |
 |---------|----------|--------|
 | kdb+/q 4.1.x 64-bit | Linux x86-64 | Supported and required in CI |
-| kdb+/q 4.0 64-bit | Linux x86-64 | Verified, not release-gated: on KX build 2023.08.11 (2026-10-16) the self-suite passed normal, isolated and `-qspec-compat`, as did the execution matrix, shard merge, qspec contract and CLI terminal gates |
+| kdb+/q 4.0 64-bit | Linux x86-64 | Verified, not release-gated: on KX build 2023.08.11, resQ 2.2.1's code passed the complete 26-step release gate with only its q-version guards relaxed (2026-11-09, [audit](PRODUCTION_AUDIT_2_2_1.md#additional-runtime-evidence)) |
 | other q 4.x releases | Linux | Best effort; run the matrix with `--allow-unsupported` before adoption |
 | macOS / Windows | any | Not a production support target |
 
