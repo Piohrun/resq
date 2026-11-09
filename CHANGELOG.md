@@ -4,6 +4,14 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.2.2] - 2026-11-09 - perf Correctness & Regression Guards
+
+resQ 2.2.2 fixes `perf` blocks that passed despite a failing assertion,
+reports q 4.0 as `4.0`, and adds permanent checks for the defect classes
+fixed in 2.2.1. It keeps the 2.x DSL, report-v2 contract and identity v3.
+
 ### Fixed
 
 - A failing assertion inside a `perf` body now fails the block. The perf

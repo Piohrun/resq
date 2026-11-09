@@ -223,6 +223,15 @@ following checked-in contracts; the final release gate invokes all of them:
   exact candidate evidence; the certification commit is requalified before the
   annotated tag is pushed.
 
+## 2.2.2 — perf correctness and regression guards
+
+- [x] Fail `perf` blocks on body assertion failures, and count budgets and
+  body assertions under `-strict`.
+- [x] Report q 4.0's version as `4.0` in reports, envelopes and fingerprints.
+- [x] Guard DSL constructor combinations, unprojected trap handlers and
+  qspec's `holds` value domain with release-gated checks.
+- [ ] Complete the clean-clone v2.2.2 release qualification.
+
 ## Post-2.0 ecosystem ideas — not implemented
 
 These are roadmap ideas, not resQ capabilities or release commitments:

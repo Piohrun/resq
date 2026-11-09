@@ -59,6 +59,7 @@ REQUIRED = {
     "tools/verify_formatter_boundaries.py", "tools/migrate_identity_state.py",
     "tools/verify_trap_handlers.py",
     "docs/RELEASE_CHECKLIST.md",
+    "docs/RELEASE_NOTES_2_2_2.md",
     "docs/RELEASE_NOTES_2_2_1.md",
     "docs/PRODUCTION_AUDIT_2_2_1.md",
     "docs/RELEASE_NOTES_2_2_0.md",
