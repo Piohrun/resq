@@ -137,7 +137,7 @@
     assemblyId: .tst.output.xunitUuid runSeed, "/assembly";
     assemblyOpen: "  <assembly id=\"", assemblyId, "\" name=\"",
         .tst.output.escapeXml[assemblyName], "\" environment=\"kdb+ q ",
-        .tst.output.escapeXml[string .z.K], "\" test-framework=\"",
+        .tst.output.escapeXml[.tst.formatQVersion .z.K], "\" test-framework=\"",
         .tst.output.escapeXml[framework], "\" run-date=\"", runDate,
         "\" run-time=\"", runTime, "\" total=\"", string[totalCount],
         "\" passed=\"", string[passCount], "\" failed=\"", string[failedCount],

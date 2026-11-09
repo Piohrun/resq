@@ -95,7 +95,7 @@
             .tst.coveragePerfControl;statementFn;contextFn;reportFn;
             iterations;reportEntries];
         payload:`schemaVersion`kind`qVersion`iterations`reportContexts`metricsPerContext`samples!(
-            1j;"resq-coverage-performance-probe";.tst.toString .z.K;
+            1j;"resq-coverage-performance-probe";.tst.formatQVersion .z.K;
             iterations;reportContexts;metricsPerContext;samples);
         -1 "RESQ_COVERAGE_PERF=",.j.j payload;
         .tst.coveragePerfCounter musteq 9*iterations;

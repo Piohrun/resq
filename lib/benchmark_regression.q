@@ -35,7 +35,7 @@
     coresText:.tst.firstCommandLine "getconf _NPROCESSORS_ONLN 2>/dev/null";
     cores:@[{"J"$x};coresText;{0Nj}];
     values:`qVersion`qRelease`os`architecture`cpuModel`logicalCores!(
-        string .z.K;string .z.k;string .z.o;architecture;cpuModel;cores);
+        .tst.formatQVersion .z.K;string .z.k;string .z.o;architecture;cpuModel;cores);
     values[`fingerprint]:"environment_",.tst.stableHashBytes
         .tst.canonicalValueBytes values;
     values

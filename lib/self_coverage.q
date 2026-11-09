@@ -41,7 +41,7 @@
         "resQ";
         .tst.toString @[get;`.resq.VERSION;{"unknown"}];
         .tst.isoTimestamp .z.P;
-        .tst.toString .z.K;
+        .tst.formatQVersion .z.K;
         measurement;
         summary;
         rows);

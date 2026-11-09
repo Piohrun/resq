@@ -872,7 +872,7 @@
     metaKeys:`id`startedAt`finishedAt`durationSeconds`wallDurationSeconds`hostname`cwd,
         `qVersion`qRelease`os`resqVersion`labels`vcs`ci`config`ordering`selection`shard;
     .tst.app.runMetadata:metaKeys!(
-        runId;.tst.isoTimestamp started;"";0f;0f;host;root;string .z.K;
+        runId;.tst.isoTimestamp started;"";0f;0f;host;root;.tst.formatQVersion .z.K;
         string .z.k;string .z.o;$[`VERSION in key `.resq;.resq.VERSION;"unknown"];
         .tst.normalizeLabels @[get;`.tst.app.labels;{()!()}];
         .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[];ordering;

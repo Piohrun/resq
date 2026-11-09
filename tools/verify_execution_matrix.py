@@ -31,7 +31,7 @@ FIXTURES = [
 
 def q_version(q_executable: str) -> str:
     completed = subprocess.run(
-        [q_executable, "-q"], input="-1 string .z.K; exit 0\n", text=True,
+        [q_executable, "-q"], input="-1 .Q.f[1;.z.K]; exit 0\n", text=True,
         capture_output=True, check=False, timeout=15,
     )
     if completed.returncode != 0:

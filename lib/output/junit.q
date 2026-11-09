@@ -134,7 +134,7 @@
         .tst.output.escapeXml[runId],"\"/><property name=\"resq.version\" value=\"",
         .tst.output.escapeXml[$[`VERSION in key `.resq;.resq.VERSION;"unknown"]],
         "\"/><property name=\"q.version\" value=\"",
-        .tst.output.escapeXml[string .z.K],"\"/></properties>";""];
+        .tst.output.escapeXml[.tst.formatQVersion .z.K],"\"/></properties>";""];
     suites: distinct t`suite;
     / q lambdas do not close over outer locals, so the per-suite table t is
     / passed in explicitly as the first projected argument.

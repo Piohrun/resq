@@ -214,6 +214,15 @@
     count[.tst.resultRows model] musteq 1;
   };
 
+  should["report the q version with one decimal, including q 4.0"]{
+    / `string .z.K` is "4" on q 4.0, which reports and envelopes used to carry.
+    .tst.formatQVersion[4f] musteq "4.0";
+    .tst.formatQVersion[4.1] musteq "4.1";
+    .tst.formatQVersion[3.6] musteq "3.6";
+    (.tst.identityCodecMetadata[]`qVersion) musteq .tst.formatQVersion .z.K;
+    (.tst.benchmarkEnvironment[]`qVersion) musteq .tst.formatQVersion .z.K;
+  };
+
   should["structure diagnostics, snapshots and benchmark lifecycle data"]{
     .tst.currentSnapshots:();
     .tst.recordSnapshotEvent[`text;"orders";`matched;"tests/__snapshots__/orders.snap.txt"];

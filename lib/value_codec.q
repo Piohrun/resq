@@ -45,9 +45,14 @@
     raze string md5 bytes
  };
 
+/ q's release as text with one decimal. `string .z.K` is "4" on q 4.0 (.z.K
+/ is 4f there) but "4.1" on q 4.1; reports, identity envelopes and benchmark
+/ fingerprints all use this form.
+.tst.formatQVersion:{[release] .Q.f[1;release]};
+
 .tst.valueCodecMetadata:{[]
     `name`version`qVersion`qRelease`ipcSerialization`capabilityLevel!(
-        .tst.VALUE_CODEC_NAME;.tst.VALUE_CODEC_VERSION;string .z.K;string .z.k;
+        .tst.VALUE_CODEC_NAME;.tst.VALUE_CODEC_VERSION;.tst.formatQVersion .z.K;string .z.k;
         "q unary -8!/-9!";
         "local unary serialization; no negotiated IPC connection capability")
  };

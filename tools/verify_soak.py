@@ -34,7 +34,7 @@ def q_driver(cycles: int) -> str:
 
 def q_version(q_executable: str) -> str:
     completed = subprocess.run(
-        [q_executable, "-q"], input="-1 string .z.K; exit 0\n", text=True,
+        [q_executable, "-q"], input="-1 .Q.f[1;.z.K]; exit 0\n", text=True,
         capture_output=True, check=False, timeout=15,
     )
     lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
