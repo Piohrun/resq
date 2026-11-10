@@ -245,3 +245,6 @@ if[`uiExports in key `.tst; .tst.registerDslExports .tst.uiExports];
     .tst.output.top:.tst.output.xunitTop];
   1b
  }
+
+/ Public non-exiting, call-scoped execution API.
+.resq.require .resq.HOME,"/lib/api.q";

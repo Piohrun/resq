@@ -2,6 +2,10 @@
 
 Complete reference documentation for the resQ testing framework.
 
+For application harnesses, `.resq.run[paths;options]` is the public non-exiting
+execution API. See [embedded execution](EMBEDDED.md) for its options, structured
+return value, and host-state restoration contract.
+
 ---
 
 ## Table of Contents

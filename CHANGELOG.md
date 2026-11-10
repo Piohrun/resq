@@ -6,6 +6,10 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- Public `.resq.run[paths;options]` library API with structured results, per-call
+  configuration and temporary history, host-state restoration, and cleanup after
+  file-load failures. Fresh-process regressions cover repeated runs, callbacks,
+  fixtures, mocks, handles, coverage, invalid calls, and setup failures.
 - Workplace qspec migration parity tool: configurable commands and startup
   environments, JUnit/qspec-xUnit testcase inventories, diagnostics, exact
   allowances with stale detection, bounded execution and retained evidence.

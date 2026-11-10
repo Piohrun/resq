@@ -29,6 +29,9 @@ assistance.
 
 ## Key Features
 
+- **Embedded execution**: `.resq.run[paths;options]` returns structured results in
+  an existing q process, restores caller state, and supports repeated runs. See
+  [the library API](docs/EMBEDDED.md).
 - **High-Resolution Benchmarking**: Raw samples, stable identities, explicit
   versioned baselines, reference-validated statistics, shard-safe regression
   gates, and ASCII histograms are built in.

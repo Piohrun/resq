@@ -14,6 +14,7 @@
 9. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
 10. [Claim-to-gate index](VERIFICATION.md) — Executable evidence behind supported correctness and performance claims
 
+- [Embedded execution](EMBEDDED.md) — Public non-exiting API for application harnesses and agents
 - [qspec migration parity](QSPEC_PARITY.md) — Compare workplace runner commands and retain per-test evidence
 
 ### Going deeper

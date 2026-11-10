@@ -88,11 +88,28 @@ qutil loader state, and leaves `.q` unchanged. For example:
 system "l /opt/resq/lib/init.q";
 ```
 
-Initialization provides library definitions; it is not a test-run command and
-has no launcher completion guard. Use the launcher in a separate process for
-migration comparisons. Do not infer that initialization is an unload/reload API
-or that qspec and resQ can coexist in one process. For custom harnesses, qualify
-helpers as `.tst.*`; bare DSL syntax is bound by resQ's test-file loader.
+Initialization only defines the library. To execute suites inside the existing
+application, use the public API:
+
+```q
+r:.resq.run["tests";(enlist `strict)!enlist 1b];
+r`exitCode
+r`results
+```
+
+Read [`docs/EMBEDDED.md`](../docs/EMBEDDED.md) for options and the schema-v1
+result contract. Each call starts with defaults plus its options, restores host
+framework state, and returns without exiting. Do not configure `.tst.app` or
+invoke private runner phases to implement a harness. Invalid/unsupported options
+and nested runs signal before test loading; execution failures return a nonzero
+`exitCode` with diagnostics. Read the returned `results`, since the host's prior
+`.resq.state.results` is restored afterward.
+
+Embedded execution has no launcher completion guard: tests can still exit or
+hang. Use the launcher in a separate process for migration comparisons and
+containment. Do not infer that initialization is an unload/reload API or that
+qspec and resQ can coexist in one process. For custom harnesses, qualify helpers
+as `.tst.*`; bare DSL syntax is bound by resQ's test-file loader.
 
 ## 3. Project layout
 
