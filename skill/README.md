@@ -13,6 +13,11 @@ That's it. Next time you start Claude Code in a q project, the `resq` skill is a
 
 ## What it covers
 
+- Side-by-side qspec evaluation with unchanged tests, explicit compatibility
+  semantics, testcase parity checks, and separate processes.
+- Library initialization with native loading or qutil, including its limits.
+
+
 - Setup against three scenarios: an existing on-disk install, vendoring, or a global install.
 - Project layout, discovery conventions, and `resq.json`.
 - The canonical test-file pattern (incl. the `.utl.FILELOADING`-relative SUT loader).

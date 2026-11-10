@@ -4,7 +4,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+
+- Library initialization now locates its own source under nested native and
+  qutil loads, bootstraps even when qutil already supplies `.utl.require`,
+  preserves `.utl.DEBUG`, and restores the caller's directory on bootstrap
+  failure. Fresh-process regressions exercise qutil package loading afterward.
+- The bundled agent skill now explains side-by-side qspec evaluation,
+  compatibility semantics and library loading, and corrects stale DSL,
+  teardown, coverage-command and launcher guidance.
 
 ## [2.2.2] - 2026-11-09 - perf Correctness & Regression Guards
 

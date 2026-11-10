@@ -19,6 +19,38 @@ intentional differences and migration workflow.
 
 ---
 
+## Evaluate alongside the existing runner
+
+Keep the existing qspec installation and command intact during evaluation.
+Invoke `<resq>/bin/qspec` by explicit path in a separate process with the same
+startup configuration, QPATH, working directory, inputs, and test selection.
+Use disposable equivalent work directories if tests modify files or fixtures.
+Compare testcase inventories and individual verdicts, including skips and load
+errors, and inspect cleanup effects. Equal exit codes or equal test counts
+alone do not establish parity. Keep each intentional difference explicit.
+
+Both frameworks own `.tst` and overlapping runtime names; loading both into
+one q process is not a supported coexistence mechanism. The bundled agent
+skill includes this evaluation procedure. Its pinned upstream differential
+corpus is supporting evidence; qualify the actual application suites before
+switching their runner.
+
+### Library initialization in a custom harness
+
+`lib/init.q` may be loaded from an existing application with native loading or
+qutil's `.utl.require`:
+
+```q
+system "l /opt/resq/lib/init.q";
+```
+
+It locates its own bootstrap under nested loads, preserves the caller's working
+directory (also on bootstrap failure), and preserves qutil's loader state and
+debug setting. It leaves reserved `.q` unchanged. This initializes library
+definitions; it does not execute a suite, supply the launcher's premature-exit
+guard, or provide an unload/reload API. Use explicit `.tst.*` names in custom
+harness code; the bare test DSL is bound by resQ's test-file loader.
+
 ## Source-Compatible Surface
 
 The following qspec constructs work in resQ without changes:
@@ -354,9 +386,11 @@ automatic after each `should` block, including when the test throws or fails).
 
 ### Suggested migration order
 
-1. Put `bin/qspec` on `PATH` and run the existing command. The suite should load
-   and execute unchanged.
-2. Adopt resQ-only features while retaining the compatibility launcher.
+1. Keep the upstream command and run `<resq>/bin/qspec` alongside it in a
+   separate process. Establish testcase and verdict parity on unchanged suites,
+   accounting for intentional differences before replacing the command.
+2. Switch the project runner after that comparison, then adopt resQ-only
+   features while retaining the compatibility launcher.
 3. Optionally switch to `resq test` and fix any `vector musteq scalar`
    comparisons that the stricter native semantics flag.
 4. Run once with `-strict`, which additionally fails any test that executed no

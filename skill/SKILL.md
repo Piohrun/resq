@@ -1,13 +1,15 @@
 ---
 name: resq
-description: Set up and write tests with the resQ q/kdb+ test framework. Use whenever you are adding tests to a q codebase, debugging an existing resQ suite, or wiring resQ into a new project. The framework is a BDD-style runner with assertions, mocks/spies, fixtures, snapshots, fuzz, coverage, and a watch mode. Pairs naturally with the `q-kdb` skill — load that one too for general q syntax/idioms.
+description: Set up and write tests with the resQ q/kdb+ test framework. Use whenever you are adding tests to a q codebase, debugging an existing resQ suite, or evaluating resQ alongside qspec in an existing project. The framework is a BDD-style runner with assertions, mocks/spies, fixtures, snapshots, fuzz, coverage, and a watch mode. Pairs naturally with the `q-kdb` skill — load that one too for general q syntax/idioms.
 ---
 
 # resQ — q/kdb+ Test Framework Skill
 
 resQ is the q equivalent of jest / pytest / rspec: BDD-style `describe` /
 `should` blocks, assertions, mocks/spies, fixtures, snapshots, fuzz,
-coverage, watch mode. Single-process, no external dependencies, kdb+ 4.x.
+coverage, watch mode. The supported baseline is q 4.1.x on Linux x86-64.
+The core runner needs q; launchers and process isolation also need the shell
+utilities listed in the installed repository's docs/CI.md.
 
 **Tests are still q code** — the q pitfalls below apply. If the task
 involves writing q itself (not just tests), also load the `q-kdb` skill.
@@ -27,7 +29,7 @@ For general (non-test) q code, this skill is the wrong one — use `q-kdb`.
 ## 2. Setup — pick the scenario
 
 q must be on PATH. resQ runs as `q <home>/resq.q <args>` or via the
-`bin/resq` launcher (which exports `RESQ_HOME` then execs that). Both run
+`bin/resq` launcher (which exports `RESQ_HOME` and supervises completion). Both run
 from **your** CWD, so test paths you pass resolve against your project.
 
 | Scenario | How to run |
@@ -37,6 +39,55 @@ from **your** CWD, so test paths you pass resolve against your project.
 | **C — Global install** (one resQ, many projects) | clone to `~/.local/share/resq`, then `ln -s ~/.local/share/resq/bin/resq ~/.local/bin/resq`. Now `resq test tests/` works anywhere. |
 
 Verify with `<install>/bin/resq -version` (prints `resQ version …`).
+Prefer the launcher for unattended tests: it detects premature `exit 0`.
+Direct q invocation cannot change that requested exit status.
+Pin an approved release tag or commit when vendoring; do not silently track main.
+
+### Existing qspec project: preserve semantics first
+
+Keep upstream qspec installed and invoke both runners by explicit paths in
+separate processes. Do not replace the existing `qspec` executable or load both
+frameworks into one q process: they share `.tst` and other runtime names.
+
+1. Inspect the existing runner command, q startup (`q.q`/`QINIT`), QPATH,
+   custom loaders, test discovery, data fixtures, and helpers under `.tst`.
+   Read the installed resQ repository's `docs/QSPEC_COMPATIBILITY.md` and
+   `docs/MIGRATION.md` before changing integration code.
+2. Run the unchanged suite with the old runner and `<resq>/bin/qspec`, keeping
+   the same working directory, startup configuration, data and test selection.
+   Use separate disposable work directories for suites that write fixtures or
+   state. The compatibility launcher preserves legacy discovery, comparison
+   semantics, runner flags, and JUnit/xUnit naming. Plain `resq test` does not.
+3. Compare discovered testcase inventories and verdicts, not just exit codes
+   or total counts. Investigate every missing, extra, skipped, failed or errored
+   test. Inspect teardown and application state as well as assertions.
+4. Keep differences explicit: null/swapped `must` arguments are rejected;
+   private qspec runner/reporter APIs, nested desc blocks, and console-byte
+   compatibility are excluded. Never weaken assertions, rename tests to hide
+   discrepancies, or disable cleanup checks merely to make parity green.
+5. Add resQ features while retaining compatibility. Moving to native equality
+   and broader property domains is a separate, deliberate migration step.
+
+`<resq>/bin/resq test tests/ -qspec-compat` restores comparisons but retains
+resQ discovery defaults. Use `<resq>/bin/qspec` for the full legacy runner path.
+The repository's `tools/verify_qspec_differential.py` exercises pinned upstream
+projects; it is supporting evidence, not proof of compatibility with a work repo.
+
+### Loading resQ as a library
+
+Load `<resq>/lib/init.q` through native q loading or the existing qutil loader.
+It locates its own bootstrap, preserves the caller's working directory and
+qutil loader state, and leaves `.q` unchanged. For example:
+
+```q
+system "l /opt/resq/lib/init.q";
+```
+
+Initialization provides library definitions; it is not a test-run command and
+has no launcher completion guard. Use the launcher in a separate process for
+migration comparisons. Do not infer that initialization is an unload/reload API
+or that qspec and resQ can coexist in one process. For custom harnesses, qualify
+helpers as `.tst.*`; bare DSL syntax is bound by resQ's test-file loader.
 
 ## 3. Project layout
 
@@ -61,7 +112,7 @@ discovery globs via `resq.json` (`"testFilePatterns": ["*_spec.q"]`).
 / Load the code under test relative to THIS file (survives any CWD).
 .t.root: "/" sv -2 _ "/" vs $[":" = first f: string .utl.FILELOADING;
                               1 _ f; f];
-system "l ", .t.root, "/src/calculator.q";
+.utl.require .t.root, "/src/calculator.q";
 
 .tst.desc["Calculator"]{
 
@@ -85,18 +136,20 @@ Rules:
    an alias.
 2. `should[<desc>; <body>]` inside it registers an expectation. `it` is
    an alias.
-3. All DSL/assertion names are root-exported, so unqualified `should`,
-   `musteq`, `mock` resolve inside test files (they fall through `.q`).
+3. The test-file loader binds bare DSL/assertion names to `.tst.dsl.*`,
+   respecting local shadowing. It never adds aliases to reserved `.q`.
+   Explicit `.tst.*` helpers are available to custom harnesses.
 4. The test file's own locals live in a private sandbox namespace and
    auto-clean. **Top-level names you create** (`.foo.x: 1`) during a
    test trip the pollution guard — values are cleared to `::` (q can't
    remove top-level names). Loader assignments at file scope (like
    `.t.root` above) are fine; they happen before execution.
 
-⚠️ **Spaced source paths**: `\l` / `system "l …"` throw `'nyi` on any
-path containing a space (a q limitation, not resQ). Keep your `src/`
-paths space-free. Test **files** under spaced directories are fine —
-discovery handles them; only the in-file loader line is affected.
+For source paths containing spaces, use `.utl.require path` once resQ is
+initialized; existing files load through resQ's path-safe loader and retain
+coverage/dependency tracking. `.utl.loadQFile path` is the lower-level native
+load helper (without that instrumentation). Raw native loading splits spaced
+paths. Source loads and load errors restore the caller's directory.
 
 ## 5. Block keywords (inside a desc body)
 
@@ -104,7 +157,7 @@ discovery handles them; only the in-file loader line is affected.
 |---|---|---|
 | `should` / `it` | `should[desc; {body}]` | one expectation |
 | `before` / `after` | `before{body}` | run around EACH expectation; `after` runs even on failure |
-| `beforeAll` / `afterAll` | `beforeAll{body}` | once per desc block. Must be **inside** the block (outside → ignored, with a warning). `beforeAll` throw → block's tests skipped + one error row; `afterAll` still runs. A throwing `afterAll` warns only. |
+| `beforeAll` / `afterAll` | `beforeAll{body}` | once per desc block. Must be **inside** the block (outside → ignored, with a warning). `beforeAll` throw → block's tests skipped + one error row; `afterAll` still runs. A throwing `afterAll` records a cleanup error and fails the run. |
 | `skip` | `skip[reason; {body}]` | not run; reported skipped |
 | `pending` | `pending[reason]` | placeholder — **NO code block** |
 | `skipIf` | `skipIf[cond; reason; {body}]` | runs body unless `cond` |
@@ -201,7 +254,8 @@ accumulated in resQ's own suite. Every check must go through an assertion verb
 Two things catch it: the reporter lists any test that passed while running zero
 assertions, and `-strict` fails them.
 
-`must` also requires a genuinely boolean condition. `all` treats `5`, `0N` and
+`must` accepts boolean and numeric conditions (non-zero is true), but rejects nulls
+and non-numeric conditions. `all` treats `5`, `0N` and
 any non-empty string as true, so `must[0N; ...]` and a swapped
 `must["message"; cond]` are reported rather than silently passing.
 
@@ -297,8 +351,10 @@ should["pass-through spy: record without changing behaviour"]{
 the replacement; `(::)` keeps the original. `lastCall` returns the args
 as a list (1 arg → `enlist arg`; 2+ → the tuple). Constraints:
 - Up to arity-8 functions (q's lambda ceiling).
-- Cannot mock/spy names in reserved namespaces: `.q .Q .z .h .j .tst
-  .resq .utl` (raises "Cannot mock a system namespace").
+- Cannot mock/spy entire reserved namespaces: `.q .Q .z .h .j .tst
+  .resq .utl` (raises "Cannot mock a system namespace"). Individual members
+  are not blocked by this guard; prefer application wrappers over runtime or
+  framework internals.
 
 > Meta-test note: anything that calls `.tst.restore[]` mid-body (e.g.
 > `.tst.runAllPhase.finalCleanup`) wipes your mocks. Only framework
@@ -332,7 +388,7 @@ resq test tests/ -junit -outDir reports/   # JUnit -> reports/test-results.xml
 resq test tests/ -strict               # 0 EXECUTED tests, or any test that asserts nothing => failure
 resq test tests/ -desc                 # LIST tests, do not run them (exit 0)
 resq test tests/ -isolate              # each FILE in its own subprocess; -isolateTimeout N (s, default 300)
-resq cover src/ tests/                 # coverage: LCOV + HTML in outDir
+resq cover tests/ --source src/        # inventory source; LCOV/JSON/HTML
 resq watch src/ tests/                 # re-run on change
 ```
 
@@ -373,7 +429,7 @@ and resQ never writes them into reserved `.q`.
 | `WARNING: No test files found` | files don't match `test_*.q` / `*_test.q`; rename or set `testFilePatterns`. `resq test` (no path) looks for `./tests/`. |
 | `CRITICAL LOAD ERROR … near line N: assign` | assigned to a q builtin name (`abs:`, `count:`, `key:`…). Rename. |
 | `CRITICAL LOAD ERROR … near line N: [` or `}` | bracket/syntax error near that line. |
-| `'nyi` during a `\l`/`system "l"` load | spaced path in the loader line (§4). Remove spaces from the src path. |
+| `'nyi` during a `\l`/`system "l"` load | spaced path in the loader line (§4). Use `.utl.loadQFile` for a path containing spaces. |
 | `Error: type` on a passing-looking assertion | q precedence — parenthesise the LHS (§6). A genuinely failing `musteq` shows a FAILURE DIFF, not a type error. |
 | `mustthrow expects [pattern; code] — got code first…` | you called it infix / code-first. Use `mustthrow[pattern; {code}]`. |
 | `Explicit test path not found: <path>` | a CLI path doesn't exist (exit 4). Fix the typo. |
@@ -391,7 +447,7 @@ and resQ never writes them into reserved `.q`.
 - [ ] Asserting on call count/args ⇒ used **`.tst.spy`**, not plain `mock`.
 - [ ] No mock/spy on `.q .Q .z .h .j .tst .resq .utl`.
 - [ ] Tests creating files use `tempFile` / `registerCleanup` (or `registerSpecCleanup` if a held handle blocks the `hdel`).
-- [ ] SUT loaded via `.utl.FILELOADING`-derived path, not CWD; src path has no spaces.
+- [ ] SUT loaded via `.utl.FILELOADING`-derived path; use `.utl.loadQFile` for spaced paths.
 - [ ] Tags that should filter are in the **suite (desc) title**, as `#word`.
 
 ## 15. Deeper docs

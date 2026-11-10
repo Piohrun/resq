@@ -1,20 +1,27 @@
 if[not `utl in key `; .utl:(enlist `)!enlist (::)];
 / `lib/init.q` is a supported standalone entry point. When the dispatcher has
 / not already loaded bootstrap.q, locate it beside this file, load it through a
-/ temporary cwd switch, and restore the caller's directory before continuing.
-.utl.initSourcePath: string .z.f;
+/ temporary cwd switch, and restore the caller's directory even on failure.
+/ .z.f names the command-line script, not this file under a nested load.
+/ Native lambda metadata identifies this file under both system "l" and qutil.
+.utl.initSourcePath: {first -3#value .z.s}[];
 if[.utl.initSourcePath like ":*";.utl.initSourcePath:1_.utl.initSourcePath];
 .utl.initSourceParts: "/" vs .utl.initSourcePath;
 .utl.initSourceDir: $[1<count .utl.initSourceParts;
     "/" sv -1_.utl.initSourceParts;
     "."];
 if[0=count .utl.initSourceDir;.utl.initSourceDir:"/"];
+if[0=count @[get;`.resq.HOME;{""}];
+    .resq.HOME:"/" sv -1_"/" vs .utl.initSourceDir];
 .utl.ensureInitBootstrap:{[]
-    if[`require in key `.utl;:()];
+    / qutil's .utl.require does not imply that resQ has bootstrapped.
+    if[(`require in @[key;`.resq;{`symbol$()}]) and
+       `emptyResults in @[key;`.resq.state;{`symbol$()}];:()];
     previousDirectory:system "cd";
-    system "cd ",.utl.initSourceDir;
-    system "l bootstrap.q";
+    outcome:@[{system "cd ",.utl.initSourceDir;
+               system "l bootstrap.q";(0b;"")};();{[err](1b;err)}];
     system "cd ",previousDirectory;
+    if[first outcome;'last outcome];
     ::
  };
 .utl.ensureInitBootstrap[];
@@ -25,7 +32,7 @@ if[0=count .utl.initSourceDir;.utl.initSourceDir:"/"];
 .resq.PKGLOADING: $[count .utl.resqHomeAtBoot;
     .utl.resqHomeAtBoot,"/lib";
     .utl.initSourceDir];
-.utl.DEBUG: 0b;
+if[not `DEBUG in key `.utl;.utl.DEBUG:0b];
 
 / Initialize .resq sub-namespaces. Each guarded independently because
 / resq.q sets .resq.HOME before init.q runs, so a coarse `resq in key \``
