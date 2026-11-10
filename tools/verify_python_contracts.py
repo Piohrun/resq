@@ -36,6 +36,7 @@ SUITES = {
         "tools.tests.test_release_gate",
         "tools.tests.test_documentation_scope",
         "tools.tests.test_qspec_differential",
+        "tools.tests.test_qspec_parity",
     ],
 }
 

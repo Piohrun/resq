@@ -14,6 +14,8 @@
 9. [Troubleshooting](TROUBLESHOOTING.md) — Common errors and diagnostic tips
 10. [Claim-to-gate index](VERIFICATION.md) — Executable evidence behind supported correctness and performance claims
 
+- [qspec migration parity](QSPEC_PARITY.md) — Compare workplace runner commands and retain per-test evidence
+
 ### Going deeper
 11. [Fixtures](FIXTURES.md) — Fixture scopes and lifecycle hooks
 12. [Snapshots](SNAPSHOTS.md) — Binary and text snapshot testing

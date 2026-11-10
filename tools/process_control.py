@@ -43,7 +43,14 @@ def run_bounded(
         except subprocess.TimeoutExpired:
             _signal_group(process, signal.SIGKILL)
             output, errors = process.communicate()
+        # With file-backed output the parent can exit on TERM while a child
+        # ignores it. Reap that remaining group even when communicate returned.
+        _signal_group(process, signal.SIGKILL)
         raise subprocess.TimeoutExpired(
             argv, timeout, output=output, stderr=errors,
         ) from None
+    except BaseException:
+        _signal_group(process, signal.SIGKILL)
+        process.communicate()
+        raise
     return subprocess.CompletedProcess(argv, process.returncode, output, errors)

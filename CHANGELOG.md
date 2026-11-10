@@ -4,6 +4,13 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Workplace qspec migration parity tool: configurable commands and startup
+  environments, JUnit/qspec-xUnit testcase inventories, diagnostics, exact
+  allowances with stale detection, bounded execution and retained evidence.
+  Parity and passing-suite status are reported independently.
+
 ### Fixed
 
 - Library initialization now locates its own source under nested native and

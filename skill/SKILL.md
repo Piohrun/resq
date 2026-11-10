@@ -70,6 +70,11 @@ frameworks into one q process: they share `.tst` and other runtime names.
 
 `<resq>/bin/resq test tests/ -qspec-compat` restores comparisons but retains
 resQ discovery defaults. Use `<resq>/bin/qspec` for the full legacy runner path.
+For workplace comparisons, use `tools/qspec_parity.py CONFIG --out-dir NEW_DIR`;
+read `docs/QSPEC_PARITY.md` for its argv-array configuration and exact allowances.
+Inspect `parity.json`: `parity` and `suitesGreen` answer different questions.
+A parity pass can contain matching failures or explicitly accepted differences.
+Do not generate allowances automatically to turn a failed comparison green.
 The repository's `tools/verify_qspec_differential.py` exercises pinned upstream
 projects; it is supporting evidence, not proof of compatibility with a work repo.
 

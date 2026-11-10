@@ -21,6 +21,9 @@ intentional differences and migration workflow.
 
 ## Evaluate alongside the existing runner
 
+Use the [migration parity tool](QSPEC_PARITY.md) to run your actual commands,
+compare individual results and retain evidence with explicit known differences.
+
 Keep the existing qspec installation and command intact during evaluation.
 Invoke `<resq>/bin/qspec` by explicit path in a separate process with the same
 startup configuration, QPATH, working directory, inputs, and test selection.
