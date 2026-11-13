@@ -26,15 +26,18 @@ runners:()!()
  };
 
 / True when a .Q.sbt line opens a frame: two spaces, "[", digits, "]".
+/ .Q.sbt pads the marker to a fixed width, so from frame 1000 up the digits run
+/ straight into the frame text with no "]" ("  [1791{.z.s x+1}"). Those are
+/ heads too; a deep recursion consists of little else.
 .tst.btIsFrameHead:{[ln]
     if[not 10h = abs type ln; :0b];
     if[3 > count ln; :0b];
     if[not "  [" ~ 3 # ln; :0b];
     rest: 3 _ ln;
-    at: rest ? "]";
-    if[at >= count rest; :0b];
-    digits: at # rest;
-    (0 < count digits) and all digits in .Q.n
+    digitCount: (rest in .Q.n) ? 0b;
+    if[0 = digitCount; :0b];
+    if[4 <= digitCount; :1b];
+    (digitCount < count rest) and "]" = rest digitCount
  };
 
 / Group .Q.sbt's flat text into frames. A frame is its head line plus the
@@ -123,6 +126,25 @@ runners:()!()
         " resQ runner frame", $[1 = omitted; ""; "s"], " omitted)"
  };
 
+/ Keep the innermost and outermost frames of a very deep trace. Runaway
+/ recursion fills q's stack with ~1,800 copies of one frame; printed in full
+/ that was 3,600 console lines and 100 KB in every report for a single test.
+/ The innermost frames show where it failed and the outermost how it was
+/ entered; the count of what was dropped is stated in between.
+.tst.backtraceHeadFrames: 20;
+.tst.backtraceTailFrames: 10;
+.tst.capBacktraceFrames:{[formatted]
+    lines: "\n" vs formatted;
+    frames: .tst.btFrames lines;
+    headCount: .tst.backtraceHeadFrames;
+    tailCount: .tst.backtraceTailFrames;
+    if[(count frames) <= headCount + tailCount; :formatted];
+    omitted: (count frames) - headCount + tailCount;
+    "\n" sv (raze headCount # frames),
+        (enlist "  ... (", string[omitted], " frames omitted)"),
+        raze (neg tailCount) # frames
+ };
+
 / Format the backtrace object supplied by .Q.trp while the original failing
 / frames still exist. Formatting is defensive: a formatter problem must never
 / replace the test's original error.
@@ -132,6 +154,8 @@ runners:()!()
     if[not 10h = type formatted; formatted: .tst.toString formatted];
     if[count formatted;
         formatted: @[.tst.trimRunnerFrames; formatted; {[orig; err] orig}[formatted;]]];
+    if[count formatted;
+        formatted: @[.tst.capBacktraceFrames; formatted; {[orig; err] orig}[formatted;]]];
     if[count formatted;
         ctx,: $[count ctx; "\n"; ""], "Q Backtrace:\n", formatted];
     ctx

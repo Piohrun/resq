@@ -131,4 +131,36 @@
         / Verify musteq is defined in .tst namespace - type 100h is function
         musteq[100h; type .tst.asserts`musteq];
     };
+    should["recognise frame heads numbered 1000 and above"]{
+        must[.tst.btIsFrameHead "  [12] {x+1}"; "ordinary head"];
+        must[.tst.btIsFrameHead "  [1791{.z.s x+1}"; "four-digit head has no closing bracket"];
+        must[not .tst.btIsFrameHead "        ^"; "caret line"];
+        must[not .tst.btIsFrameHead "  [abc] x"; "non-numeric marker"];
+        must[not .tst.btIsFrameHead "  [12 x"; "short number without bracket"];
+    };
+
+    should["keep both ends of a very deep backtrace and count the rest"]{
+        frame: {[k] ("  [",string[k],$[k < 1000; "] "; ""],"{.z.s x+1}"; "        ^")};
+        formatted: "\n" sv raze frame each reverse 1 + til 1500;
+        capped: .tst.capBacktraceFrames formatted;
+        lines: "\n" vs capped;
+        musteq[count lines; 1 + 2 * .tst.backtraceHeadFrames + .tst.backtraceTailFrames];
+        musteq[first lines; "  [1500{.z.s x+1}"];
+        musteq[lines 2 * .tst.backtraceHeadFrames; "  ... (1470 frames omitted)"];
+        musteq[lines (count lines) - 2; "  [1] {.z.s x+1}"];
+    };
+
+    should["leave an ordinary backtrace untouched"]{
+        formatted: "\n" sv raze {[k] ("  [",string[k],"] {f x}"; "        ^")} each reverse 1 + til 30;
+        musteq[.tst.capBacktraceFrames formatted; formatted];
+    };
+
+    should["report runaway recursion with a bounded trace"]{
+        outcome: .Q.trp[{[x] {.z.s x+1} x}; 0; {[err;bt] (err; .tst.stackTraceFor bt)}];
+        musteq[first outcome; "stack"];
+        trace: last outcome;
+        must[(count trace) < 10000; "stack trace must stay bounded, got ",string count trace];
+        must[0 < count ss[trace; "frames omitted)"]; "the omission must be stated"];
+    };
+
 };

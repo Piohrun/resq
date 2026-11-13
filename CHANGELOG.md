@@ -17,6 +17,18 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- A failing assertion on a large value no longer renders the whole value
+  before cutting it to `reportLimit`. Rendering now stops once the limit is
+  covered: a failed `musteq` on a 2M-row table took 79 s and now takes under
+  a second. Text within the limit is unchanged. The truncation marker is now
+  `... [truncated; md5=<digest>]`; it no longer states the untruncated length,
+  which required the full rendering.
+- The dictionary diff describes the first 20 differing keys and counts the
+  rest, instead of recursing into every common key.
+- A very deep backtrace (runaway recursion) keeps its 20 innermost and 10
+  outermost frames and states how many were omitted. One such test used to
+  add about 1,800 frames, 100 KB, to the console and every report. Frames
+  numbered 1000 and above are now recognised as frames.
 - Library initialization now locates its own source under nested native and
   qutil loads, bootstraps even when qutil already supplies `.utl.require`,
   preserves `.utl.DEBUG`, and restores the caller's directory on bootstrap

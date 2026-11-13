@@ -4,12 +4,11 @@
 .tst.VALUE_CODEC_NAME:"resq-value-v1+q-ipc-leaves";
 .tst.VALUE_CODEC_VERSION:1j;
 
+/ Lower-case hex of a byte vector. `string` is native over the whole vector;
+/ a per-byte lambda made digesting a large value take seconds.
 .tst.valueHexBytes:{[bytes]
-    digits:"0123456789abcdef";
-    numbers:"j"$bytes;
-    if[0=count numbers;:""];
-    raze {[alphabet;n]
-        (alphabet n div 16),alphabet n mod 16}[digits;] each numbers
+    if[0=count bytes;:""];
+    raze string (),bytes
  };
 
 .tst.valueFrame:{[tag;payload]
@@ -87,62 +86,106 @@
       .tst.valueHexBytes -8!raw]
  };
 
-.tst.renderValueFull:{[raw]
+/ Rendering takes a character budget so that a failure on a large value costs
+/ what is shown, not what the value holds. Every item renders to at least one
+/ character, so `budget` leading items of a vector, or container items taken
+/ until their text exceeds the budget, always cover the first `budget`
+/ characters of the unbounded rendering. Headers keep the real counts. A budget
+/ of 0W renders everything.
+.tst.renderItemsWithin:{[render;items;budget]
+    if[budget=0W;:render each items];
+    out:enlist "";
+    used:0;
+    i:0;
+    n:count items;
+    while[(i<n) and used<=budget;
+        text:render items i;
+        out,:enlist text;
+        used+:count text;
+        i+:1];
+    1 _ out
+ };
+
+.tst.leadingItems:{[raw;budget] $[budget<count raw;budget sublist raw;raw]};
+
+.tst.renderValueFullWithin:{[raw;budget]
     valueType:type raw;
     if[98h=valueType;
-        :"table[",string[count raw],"](",.tst.renderValueFull[flip raw],")"];
+        :"table[",string[count raw],"](",.tst.renderValueFullWithin[flip raw;budget],")"];
     if[99h=valueType;
         dictKeys:key raw;dictValues:value raw;
-        pairs:{[k;v].tst.renderValueFull[k],"=>",.tst.renderValueFull[v]}'[dictKeys;dictValues];
+        pairs:.tst.renderItemsWithin[{[budget;i;k;v]
+                .tst.renderValueFullWithin[k i;budget],"=>",.tst.renderValueFullWithin[v i;budget]
+            }[budget;;dictKeys;dictValues];til count dictKeys;budget];
         :"dict[",string[count raw],"]{",$[count pairs;", " sv pairs;""],"}"];
     if[0h=valueType;
-        items:.tst.renderValueFull each raw;
+        items:.tst.renderItemsWithin[.tst.renderValueFullWithin[;budget];raw;budget];
         :"list[",string[count raw],"](",$[count items;", " sv items;""],")"];
-    if[10h=valueType;:.j.j raw];
+    if[10h=valueType;:.j.j .tst.leadingItems[raw;budget]];
     if[(valueType>0h) and valueType<20h;
-        items:.tst.renderAtomFull each raw;
-        if[0=count items;:"vector[type=",string[valueType],",count=0]()"];
+        if[0=count raw;:"vector[type=",string[valueType],",count=0]()"];
+        items:.tst.renderAtomFull each .tst.leadingItems[raw;budget];
         :$[11h=valueType;"" sv items;" " sv items]];
     .tst.renderAtomFull raw
  };
 
+.tst.renderValueFull:{[raw] .tst.renderValueFullWithin[raw;0W]};
+
 / Failure messages are read by people (console, JUnit failure text). Tables,
 / keyed tables, dictionaries and general lists render as q literals there.
 / renderValueFull stays the canonical form for toString and identities.
-.tst.renderValueHuman:{[raw]
+.tst.renderValueHumanWithin:{[raw;budget]
     valueType:type raw;
-    columns:{[table]
-        "; " sv {[name;column] string[name],":",.tst.renderValueHuman column}'[cols table;value flip table]};
+    columns:{[budget;table]
+        names:cols table;
+        columnValues:value flip table;
+        "; " sv .tst.renderItemsWithin[{[budget;names;columnValues;i]
+                string[names i],":",.tst.renderValueHumanWithin[columnValues i;budget]
+            }[budget;names;columnValues];til count names;budget]}[budget];
     if[98h=valueType;:"([] ",columns[raw],")"];
     if[99h=valueType;
         if[(98h=type key raw) and 98h=type value raw;
             :"([",columns[key raw],"] ",columns[value raw],")"];
-        :.tst.renderValueHuman[key raw],"!",.tst.renderValueHuman value raw];
+        :.tst.renderValueHumanWithin[key raw;budget],"!",.tst.renderValueHumanWithin[value raw;budget]];
     if[(valueType within 0 20h) and 1=count raw;
-        :"enlist ",.tst.renderValueHuman first raw];
+        :"enlist ",.tst.renderValueHumanWithin[first raw;budget]];
     if[0h=valueType;
-        :"(",("; " sv .tst.renderValueHuman each raw),")"];
-    .tst.renderValueFull raw
+        :"(",("; " sv .tst.renderItemsWithin[.tst.renderValueHumanWithin[;budget];raw;budget]),")"];
+    .tst.renderValueFullWithin[raw;budget]
+ };
+
+.tst.renderValueHuman:{[raw] .tst.renderValueHumanWithin[raw;0W]};
+
+/ The digest identifies the whole value, so it reads every byte. Above this
+/ serialized size it is skipped rather than doubling a large value in memory.
+.tst.TRUNCATION_DIGEST_MAX_BYTES:268435456j;
+
+.tst.truncationMarker:{[raw]
+    size:@[-22!;raw;{[e] 0W}];
+    digest:$[size>.tst.TRUNCATION_DIGEST_MAX_BYTES;"";
+        @[{.tst.canonicalValueDigest .tst.canonicalValueBytes x};raw;{[e] ""}]];
+    "... [truncated",$[count digest;"; md5=",digest;"; value too large to digest"],"]"
+ };
+
+/ A rendering no longer than the limit is complete: the budget is one past the
+/ limit, so anything left out would have pushed the text beyond it.
+.tst.boundRendering:{[raw;maximum;render]
+    limit:0|"j"$maximum;
+    text:render[raw;limit+1];
+    if[count[text]<=limit;:text];
+    marker:.tst.truncationMarker raw;
+    if[limit<=count marker;:limit#marker];
+    ((limit-count marker)#text),marker
  };
 
 .tst.renderValueHumanBounded:{[raw;maximum]
-    full:@[.tst.renderValueHuman;raw;{[raw;e] .tst.renderValueFull raw}[raw]];
-    limit:0|"j"$maximum;
-    if[count[full]<=limit;:full];
-    digest:.tst.canonicalValueDigest .tst.canonicalValueBytes raw;
-    marker:"... [truncated ",string[count full]," chars; md5=",digest,"]";
-    if[limit<=count marker;:limit#marker];
-    ((limit-count marker)#full),marker
+    .tst.boundRendering[raw;maximum;{[raw;budget]
+        @[.tst.renderValueHumanWithin[;budget];raw;
+            {[raw;budget;e] .tst.renderValueFullWithin[raw;budget]}[raw;budget]]}]
  };
 
 .tst.renderValueBounded:{[raw;maximum]
-    full:.tst.renderValueFull raw;
-    limit:0|"j"$maximum;
-    if[count[full]<=limit;:full];
-    digest:.tst.canonicalValueDigest .tst.canonicalValueBytes raw;
-    marker:"... [truncated ",string[count full]," chars; md5=",digest,"]";
-    if[limit<=count marker;:limit#marker];
-    ((limit-count marker)#full),marker
+    .tst.boundRendering[raw;maximum;.tst.renderValueFullWithin]
  };
 
 \d .

@@ -44,6 +44,9 @@ fmtVal:{[v;color]
     s
  };
 
+/ Differing dictionary keys described per level before summarising the rest.
+diffDictKeyLimit: 20;
+
 / Internal recursive diff
 diffDeep:{[path;expected;actual]
     if[expected ~ actual; :()];
@@ -66,14 +69,21 @@ diffDeep:{[path;expected;actual]
         missing: kExp except kAct;
         extra: kAct except kExp;
         
-        if[count missing; msg,: enlist pStr, "Missing keys: ", .tst.fmt.color[`red; .tst.renderValueFull missing]];
-        if[count extra;   msg,: enlist pStr, "Extra keys:   ", .tst.fmt.color[`cyan; .tst.renderValueFull extra]];
+        if[count missing; msg,: enlist pStr, "Missing keys: ", .tst.fmtVal[missing;`red]];
+        if[count extra;   msg,: enlist pStr, "Extra keys:   ", .tst.fmtVal[extra;`cyan]];
         
-        / Value mismatches for common keys
+        / Value mismatches for common keys. Find the differing keys with one
+        / vector comparison and describe only the first few: recursing into
+        / every common key made a failure on a large dictionary cost seconds
+        / and print one block per differing key.
         common: kExp inter kAct;
         pNext: $[count path; path, "."; ""];
-        resList: { [p;e;a;k] .tst.diffDeep[p, .tst.toString[k]; e k; a k] }[pNext;expected;actual] each common;
+        differing: @[{[e;a;k] k where not (e k) ~' a k}[expected;actual]; common; {[k;err] k}[common]];
+        shown: .tst.diffDictKeyLimit sublist differing;
+        resList: { [p;e;a;k] .tst.diffDeep[p, .tst.toString[k]; e k; a k] }[pNext;expected;actual] each shown;
         msg,: raze resList;
+        if[(count differing) > count shown;
+            msg,: enlist pStr, "... ", string[(count differing) - count shown], " more differing keys not shown"];
         
         if[count msg; :msg];
     ];
