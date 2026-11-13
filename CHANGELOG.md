@@ -31,6 +31,19 @@ All notable changes to the **resQ** project will be documented in this file.
 - `bin/qspec -isolate` loaded each file into a sandbox instead of the root
   namespace, because the child did not inherit `-qspec-discovery`. Suites
   that pass under `bin/qspec` failed with a bare-name error once isolated.
+- Failure messages show floats as they are typed (`2f`, `1 2 3f`) instead
+  of with 15 decimal places, and enumerated symbols (the sym column of a
+  splayed or partitioned table) as symbols instead of one bare name per
+  line. Report evidence and identities keep their exact form.
+- An infix assertion whose left operand follows a word, such as
+  `count x musteq 3` or `f each xs musteq ys`, was rewritten into one fused
+  identifier and failed at run time with `count.tst.dsl.musteq` as the error.
+- A test file the loader cannot bind is now that file's load error. It used
+  to abort the whole run as a framework failure, so no other file ran. The
+  message names the source line and the prefix form to use instead.
+- A `.z` callback (`.z.pg`, `.z.ps`, `.z.ts`, ...) mocked while unset is
+  unset again after the test. It used to stay installed for later tests,
+  with a `deleteVar failed` warning.
 - Under `-isolate`, background processes a test file started and left
   running are terminated when the file finishes, with a warning naming the
   file. They used to outlive the run. A process that moved to its own

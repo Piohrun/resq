@@ -426,7 +426,16 @@
     / stop there instead of parsing every suffix of the expression.
     start: exprStart;
     while[start < leftEnd;
-        if[.tst.dslParsedAs[(leftEnd - start) # start _ txt;target]; :start];
+        if[.tst.dslParsedAs[(leftEnd - start) # start _ txt;target];
+            / The widest match can begin with the whitespace that separates the
+            / operand from a preceding word (`f each xs musteq ys`), or with
+            / comment lines above the operand. Leave both outside the rewrite:
+            / the generated call otherwise fuses with the word into one
+            / identifier (each.tst.dsl.musteq), and a comment pulled inside
+            / the brackets stops being one. The mask blanks comments, so
+            / skipping its blanks skips them too.
+            while[(start < leftEnd) and masked[start] in " \t\n"; start+: 1];
+            :start];
         start+: 1];
     0N
  };
@@ -516,7 +525,12 @@
         explicitlyQualified: pair 4;
         leftStart: .tst.dslAssertionLeftStart[txt;masked;at;width;adverb];
         if[0N ~ leftStart;
-            '"resQ could not safely bind infix DSL call ",name];
+            / Name the source: the caller reports this against a whole file.
+            lineStart: 1 + last -1, where (at # txt) = "\n";
+            lineText: (lineStart _ txt) til ((lineStart _ txt) ? "\n");
+            '"resQ could not safely bind infix DSL call ",name,
+                "; write it in prefix form, .tst.",name,"[actual;expected]. Source: ",
+                .tst.lstrip 120 sublist lineText];
         rhsStart: at + width + count adverb;
         lhs: .tst.rstrip leftStart _ at # txt;
         rhs: rhsStart _ txt;
@@ -910,8 +924,10 @@
         / original message.
         / Add the outcome tag outside evalPreprocessed's return value. Ordinary q
         / code can then return any shape without impersonating a loader error.
-        res: @[{[lines] (0b; .tst.evalPreprocessed lines)};
-               .tst.preprocessScript content;
+        / Preprocessing runs inside the trap too. It signals on source it
+        / cannot bind safely, and that must fail this file, not the whole run.
+        res: @[{[lines] (0b; .tst.evalPreprocessed .tst.preprocessScript lines)};
+               content;
                {[err] (1b; err)}];
         if[1b ~ first res;
             e: .tst.dslLoadErrorHint[last res;content];

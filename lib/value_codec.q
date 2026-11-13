@@ -134,8 +134,38 @@
 / Failure messages are read by people (console, JUnit failure text). Tables,
 / keyed tables, dictionaries and general lists render as q literals there.
 / renderValueFull stays the canonical form for toString and identities.
+/ A float as a person would type it: q's own short form when that reads back
+/ to the same bits, otherwise the exact evidence form. renderFloatAtom always
+/ prints 15 or more places (2f as 2.000000000000000); identities depend on
+/ that form, so it stays as it is and only failure messages use this one.
+.tst.renderFloatHuman:{[raw]
+    if[null raw; :$[-8h = type raw; "0Ne"; "0n"]];
+    short: string raw;
+    back: @[{"F"$x}; short; {[e] 0n}];
+    if[-8h = type raw; back: "e"$back];
+    $[(-8!back) ~ -8!raw; short; .tst.renderAtomFull raw]
+ };
+
+.tst.renderFloatsHuman:{[raw;budget]
+    items: .tst.renderFloatHuman each .tst.leadingItems[(),raw;budget];
+    text: " " sv items;
+    / q needs a type suffix when nothing else marks the literal as a float.
+    isReal: 8h = abs type raw;
+    suffix: $[any items like "*ipc=*"; "";
+        isReal; $["e" = last text; ""; "e"];
+        any text in ".enw"; ""; "f"];
+    text, suffix
+ };
+
 .tst.renderValueHumanWithin:{[raw;budget]
     valueType:type raw;
+    / An enumerated value (a sym column of a splayed or partitioned table)
+    / reads as the symbols it stands for.
+    if[(abs valueType) within 20 76h;
+        :.tst.renderValueHumanWithin[value raw;budget]];
+    if[(abs valueType) in 8 9h;
+        if[(valueType < 0h) or 1 < count raw;
+            :.tst.renderFloatsHuman[raw;budget]]];
     columns:{[budget;table]
         names:cols table;
         columnValues:value flip table;

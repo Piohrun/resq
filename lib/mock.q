@@ -130,6 +130,12 @@
 .tst.deleteVar:{[sym]
     s: string sym;
     / Handle namespaced variables (e.g. .foo.bar)
+    / .z callbacks (.z.pg, .z.ps, .z.ts, ...) are not dictionary entries; q
+    / unsets one with \x. Without this a handler mocked while unset stayed
+    / installed for every later test.
+    if[s like ".z.*";
+        @[system; "x ", s; {[s;e] -1 "WARN: deleteVar failed for ", s, ": ", e}[s]];
+        :()];
     if[s like ".*";
         parts: "." vs s;
         ns: `$ "." sv -1 _ parts;  / namespace (e.g. .foo)

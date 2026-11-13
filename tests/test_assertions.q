@@ -372,3 +372,35 @@
   probe[{mustne[1 2 3; 1 2 4]}] musteq 0;   / resQ: the values are not identical
   };
  };
+
+/ Failure messages show values the way they are typed. The evidence form
+/ (renderValueFull) keeps its fixed 15+ places because identities depend on it.
+.tst.desc["human rendering of floats and enumerations"]{
+ should["render floats in q's short form when it reads back exactly"]{
+  .tst.renderValueHuman[2f] musteq "2f";
+  .tst.renderValueHuman[1 2 3f] musteq "1 2 3f";
+  .tst.renderValueHuman[1.5 2] musteq "1.5 2";
+  .tst.renderValueHuman[0n 1 0w] musteq "0n 1 0w";
+  .tst.renderValueHuman[1.5 2e] musteq "1.5 2e";
+  .tst.renderValueHuman[0Ne] musteq "0Ne";
+  .tst.renderValueHuman[enlist 2f] musteq "enlist 2f";
+  .tst.renderValueHuman[([] p:1 2f)] musteq "([] p:1 2f)";
+  };
+ should["keep the exact evidence form for a float the short form cannot reproduce"]{
+  rendered:.tst.renderValueHuman 0.1+0.2;
+  must[rendered like "*ipc=*"; "an inexact short form must fall back, got ",rendered];
+  .tst.renderValueFull[2f] musteq "2.000000000000000";
+  };
+ should["render an enumerated value as its symbols"]{
+  `.tst.testState.enumDomain mock `a`b`c;
+  enumerated:`.tst.testState.enumDomain$`b`a`c;
+  .tst.renderValueHuman[enumerated] musteq "`b`a`c";
+  .tst.renderValueHuman[first enumerated] musteq "`b";
+  .tst.renderValueHuman[([] s:enumerated)] musteq "([] s:`b`a`c)";
+  };
+ should["bound a large float vector without walking it"]{
+  bounded:.tst.renderValueHumanBounded[1000000?1f;200];
+  (count bounded) musteq 200;
+  must[0<count ss[bounded;"truncated"]; "a truncated rendering must say so"];
+  };
+};

@@ -186,6 +186,24 @@
         .tst.rewriteInfixAssertions[`resqNoDslShadows;"x musteq/:y"] musteq ".tst.dsl.musteq/:[x;] y";
         .tst.rewriteInfixAssertions[`resqNoDslShadows;"x musteq' y"] musteq ".tst.dsl.musteq'[x;] y";
     };
+
+    should["keep the space between a preceding word and a rewritten assertion"]{
+        / `count x musteq 3` binds as count (x musteq 3). The rewrite used to
+        / swallow the separating space and emit `count.tst.dsl.musteq[ x;] 3`,
+        / one identifier, which failed at run time with that name as the error.
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;"count x musteq 3"] musteq "count .tst.dsl.musteq[x;] 3";
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;"f each xs musteq ys"] musteq "f each .tst.dsl.musteq[xs;] ys";
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;"not\tx mustmatch y"] musteq "not\t.tst.dsl.mustmatch[x;] y";
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;"  x musteq y"] musteq "  .tst.dsl.musteq[x;] y";
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;"f each `v mock 1"] musteq "f each .tst.dsl.mock[`v;] 1";
+        (count 1 2 3 musteq 1 2 3) musteq 1;
+    };
+
+    should["leave a comment above an assertion outside the rewrite"]{
+        src: "{\n  / note: x musteq 3 here\n  1 musteq 1 }";
+        .tst.rewriteInfixAssertions[`resqNoDslShadows;src] musteq
+            "{\n  / note: x musteq 3 here\n  .tst.dsl.musteq[1;] 1 }";
+    };
 };
 
 ::

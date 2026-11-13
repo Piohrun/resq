@@ -42,3 +42,24 @@
   mustnotthrow[()] {`var.name mock 1};
   };
  };
+
+/ A .z callback mocked while unset must be unset again afterwards. `key `.z`
+/ does not list callbacks, so "unset" is observed as `get` signalling.
+.tst.testState.zCallbackSet:{[name] @[{get x; 1b}; name; {[e] 0b}]};
+.tst.desc["mocking an unset .z callback"]{
+  should["install the handler for the test"]{
+    must[not .tst.testState.zCallbackSet `.z.ps; "this test needs .z.ps unset beforehand"];
+    `.z.ps mock {[x] x};
+    must[.tst.testState.zCallbackSet `.z.ps; "the mock must be installed"];
+  };
+  should["leave it unset for the next test"]{
+    must[not .tst.testState.zCallbackSet `.z.ps; "a mocked .z.ps must not outlive its test"];
+  };
+  should["restore a handler that was set"]{
+    .z.ps: {[x] `original};
+    .tst.registerCleanup[{system "x .z.ps"}; enlist (::)];
+    `.z.ps mock {[x] `mocked};
+    .tst.restore[];
+    (.z.ps 1) musteq `original;
+  };
+ };

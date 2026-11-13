@@ -234,6 +234,25 @@
   };
  };
 
+.tst.desc["a file the loader cannot bind #slow"]{
+  skipIf[not .tst.testState.dropin.canQ; "fails as that file's load error while other files still run"]{
+    / Every marker primitive the binder could use appears in the expression,
+    / so it refuses to guess. That refusal used to abort the whole run as a
+    / framework failure, taking every other file with it.
+    launcher: .utl.shellQuote .resq.HOME, "/bin/resq";
+    files: ("tests/test_a.q";"tests/test_b.q")!(.tst.testState.dropin.passingSpec;
+      enlist ".tst.desc[\"bad\"]{ should[\"b\"]{ wavg xexp binr wsum musteq 1 }; };");
+    r: .tst.testState.dropin.run[files;
+      {[l;wd] "timeout 90 ", l, " test tests", .tst.testState.dropin.stateFlags wd}[launcher]];
+    text: "\n" sv r[`out],r`err;
+    must[4 = r`code; "an unbindable file is a load error (exit 4), got ", string[r`code], "\n", text];
+    must[0 < count ss[text; "CRITICAL LOAD ERROR"]; "it must be reported against the file"];
+    must[0 < count ss[text; "prefix form"]; "the message must say how to rewrite the line"];
+    must[0 = count ss[text; "Framework phase"]; "it must not be a framework failure"];
+    must[0 < count ss[text; "1 passed"]; "the other file must still run:\n", text];
+  };
+ };
+
 .tst.desc["path separator through the launcher #slow"]{
   skipIf[not .tst.testState.dropin.canQ; "bin/resq -- runs a test file whose name starts with a dash"]{
     launcher: .utl.shellQuote .resq.HOME, "/bin/resq";
