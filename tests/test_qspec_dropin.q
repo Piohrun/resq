@@ -234,6 +234,16 @@
   };
  };
 
+.tst.desc["path separator through the launcher #slow"]{
+  skipIf[not .tst.testState.dropin.canQ; "bin/resq -- runs a test file whose name starts with a dash"]{
+    launcher: .utl.shellQuote .resq.HOME, "/bin/resq";
+    files: (enlist "-dash_test.q")!enlist .tst.testState.dropin.passingSpec;
+    r: .tst.testState.dropin.run[files;
+      {[l;wd] "timeout 90 ", l, " test -strict", .tst.testState.dropin.stateFlags[wd], " -- -dash_test.q"}[launcher]];
+    must[0 = r`code; "a dash-leading path after -- must run, got exit ", string[r`code], "\n", "\n" sv r[`out],r`err];
+  };
+ };
+
 .tst.testState.dropin.argsSpec: (
   ".tst.desc[\"application arguments\"]{";
   "  should[\"see them\"]{";

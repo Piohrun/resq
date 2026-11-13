@@ -161,7 +161,9 @@ class ExecutionTests(unittest.TestCase):
         def alive():
             try:
                 return Path(f'/proc/{pid}/stat').read_text().split(') ', 1)[1][0] != 'Z'
-            except FileNotFoundError:
+            except (FileNotFoundError, ProcessLookupError):
+                # The process can vanish between open() and read(): the read
+                # then fails with ESRCH rather than ENOENT.
                 return False
         def cleanup_child():
             if alive():

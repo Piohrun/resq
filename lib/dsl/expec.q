@@ -409,6 +409,29 @@ callExpec:{[expec];
       {[err] }];
  };
 
+/ An isolated child also checkpoints its report while it runs, so the parent
+/ can keep the finished tests of a file whose process then hangs, exits or is
+/ killed. A checkpoint rewrites the whole document, so they are spaced out:
+/ one once the row count has grown by a quarter (every test in a small file),
+/ or two seconds after the last one. Total work stays linear in the tests run.
+/ The write is not atomic; a checkpoint cut short fails to decode and the
+/ parent falls back to the progress log's counts.
+.tst.checkpointState: `rows`at!(0j; 0Np);
+.tst.checkpointResults:{[]
+    if[not 1b ~ @[get; `.tst.app.isolateChild; 0b]; :()];
+    rowCount: count @[get; `.resq.state.results; ()];
+    previous: .tst.checkpointState`rows;
+    if[rowCount <= previous; :()];
+    grown: rowCount >= previous + 1 | previous div 4;
+    waited: 0D00:00:02 < .z.p - .tst.checkpointState`at;
+    if[not grown or waited; :()];
+    @[{[ignored]
+        path: hsym `$(.tst.toString .tst.runOutputDir[]), "/partial-results.json";
+        path 0: enlist .tst.output.jsonReportText .resq.state.results;
+      }; ::; {[err] }];
+    .tst.checkpointState: `rows`at!(rowCount; .z.p);
+ };
+
 runExpec:{[spec;expec];
  time:.z.p;
  expec[`startedAt]:.tst.isoTimestamp time;
@@ -431,6 +454,7 @@ runExpec:{[spec;expec];
     expec[`finishedAt]:.tst.isoTimestamp finishedTime;
     expec:.tst.teardownExpec[spec;expec];
     .tst.noteTestProgress["F";exStatus;expec];
+    .tst.checkpointResults[];
     :expec
  ];
  
@@ -507,6 +531,7 @@ runExpec:{[spec;expec];
  if[.tst.halt and 1b~@[get;`.tst.app.failHard;0b];
     .tst.stageBadExpec[spec;startExpec;beforeBad]];
  .tst.noteTestProgress["F";.tst.normalizeResultStatus expec`result;expec];
+ .tst.checkpointResults[];
  expec
  }
 

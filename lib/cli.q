@@ -94,7 +94,10 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     appArgsAt: where {any x ~/: ("-args";"--args")} each args;
     .resq.appArgs: $[count appArgsAt; (1 + first appArgsAt) _ args; ()];
     if[count appArgsAt; args: (first appArgsAt) # args];
-    separatorPositions: where {"--" ~ x} each args;
+    / q rejects a bare "--" on its own command line ('- invalid) before this
+    / script runs, so bin/resq passes the separator as -paths. Both spellings
+    / mean the same here.
+    separatorPositions: where {any x ~/: ("--";"-paths";"--paths")} each args;
     separator: $[count separatorPositions; first separatorPositions; count args];
     preTokens: raze .tst.cli.splitInlineValue each separator # args;
     postTokens: $[separator < count args; (separator + 1) _ args; ()];
@@ -305,6 +308,8 @@ printUsage:{[]
         "  -desc                 List suites and tests without running them";
         "  -root-load            Load test files into the root namespace (no per-file";
         "                        sandbox), for applications that define root globals";
+        "  -- PATH ...           Treat what follows as paths, even with a leading dash";
+        "                        (spelled -paths when invoking q resq.q directly)";
         "  -args ...             Everything after -args is left for the application";
         "                        (.resq.appArgs, .z.x); resQ does not parse it";
         "  -ff / -fh             Fail fast / fail hard";

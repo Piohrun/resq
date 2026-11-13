@@ -306,6 +306,13 @@
         .tst.cliParseFails[("test"; "-xunit-format"; "nunit"); "xunit-format must be one of: xunit2, qspec"] musteq 1b;
     };
 
+    should["accept -paths as the separator q lets through"]{
+        r: .tst.parseCLI ("test"; "-quiet"; "-paths"; "-suite.q");
+        r[`ok] musteq 1b;
+        r[`args] mustmatch enlist (system "cd"), "/-suite.q";
+        r[`options; `quiet] musteq 1b;
+    };
+
     should["leave everything after -args to the application"]{
         `.resq.appArgs mock ();
         r: .tst.parseCLI ("test"; "tests"; "-quiet"; "-args"; "-env"; "prod"; "--bogus=1"; "-strict");

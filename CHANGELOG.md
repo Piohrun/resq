@@ -22,14 +22,23 @@ All notable changes to the **resQ** project will be documented in this file.
   under test (`.resq.appArgs`, `.z.x`) and forwarded to `-isolate` children.
   `bin/qspec` keeps its own flags ahead of it.
 - A `-isolate` child that hangs, exits or is killed now names the test that
-  was running and counts the tests that had finished. Their individual
-  results are still lost with the process.
+  was running, and the tests that had finished keep their results: the child
+  checkpoints its report while it runs. In a large file the last few finished
+  tests may fall after the final checkpoint; the message says how many.
 
 ### Fixed
 
 - `bin/qspec -isolate` loaded each file into a sandbox instead of the root
   namespace, because the child did not inherit `-qspec-discovery`. Suites
   that pass under `bin/qspec` failed with a bare-name error once isolated.
+- Under `-isolate`, background processes a test file started and left
+  running are terminated when the file finishes, with a warning naming the
+  file. They used to outlive the run. A process that moved to its own
+  session is out of reach.
+- `resq test -- -name.q` works. q rejected the bare `--` with `'- invalid`
+  before resQ started, so the documented separator for dash-leading paths
+  never reached the parser. The launcher now passes it as `-paths`, which
+  `q resq.q` also accepts directly.
 - A leading `#!` interpreter line in a test file is skipped, as q does,
   instead of failing the load.
 - A failing assertion on a large value no longer renders the whole value

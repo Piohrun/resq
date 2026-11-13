@@ -198,7 +198,7 @@
 
 / What a child that left no report had been doing, from the boundary log it
 / writes per test (.tst.noteTestProgress). Returns "" when there is no log.
-.tst.isolate.progressSummary:{[wd]
+.tst.isolate.progressSummary:{[wd;recovered]
     lines: @[read0; hsym `$wd, "/progress.txt"; {[err] ()}];
     if[0 = count lines; :""];
     fields: "\t" vs/: lines;
@@ -208,10 +208,14 @@
     finished: fields where fields[;0] ~\: enlist "F";
     statuses: finished[;1];
     passed: sum statuses ~\: "pass";
+    lost: 0 | (count finished) - recovered;
+    kept: $[0 = lost; "their results are kept";
+        0 = recovered; "their results were lost with the process";
+        "the results of the last ", string[lost], " were lost with the process"];
     counts: $[0 = count finished; "no test had finished";
         string[count finished], " test", $[1 = count finished; ""; "s"],
         " had finished (", string[passed], " passed, ",
-        string[(count finished) - passed], " not passed); their results were lost with the process"];
+        string[(count finished) - passed], " not passed); ", kept];
     inFlight: (count started) > count finished;
     current: last started;
     $[inFlight;
@@ -219,9 +223,18 @@
         "between tests; ", counts]
  };
 
-.tst.isolate.withProgress:{[wd;msg]
-    summary: .tst.isolate.progressSummary wd;
+.tst.isolate.withProgress:{[wd;recovered;msg]
+    summary: .tst.isolate.progressSummary[wd;recovered];
     $[count summary; msg, "\n", summary; msg]
+ };
+
+/ Rows from the last report checkpoint of a child that left no final report
+/ (.tst.checkpointResults). Empty when there is none or it does not decode.
+.tst.isolate.checkpointRows:{[wd]
+    raw: @[read0; hsym `$wd, "/partial-results.json"; {[err] ()}];
+    decoded: .tst.isolate.decodeReport raw;
+    if[not decoded`valid; :()];
+    @[{[report] .tst.isolate.rowsFromJson report`tests}; decoded`report; {[err] ()}]
  };
 
 / GNU timeout's verbose line is evidence that the supervisor actually sent a
@@ -493,6 +506,8 @@
     @[hdel; hsym `$wd, "/test-results.json"; {}];
     @[hdel; hsym `$wd, "/rc.txt"; {}];
     @[hdel; hsym `$wd, "/progress.txt"; {}];
+    @[hdel; hsym `$wd, "/partial-results.json"; {}];
+    @[hdel; hsym `$wd, "/leftover.txt"; {}];
     ::
  };
 
@@ -518,8 +533,22 @@
 / Any command after the redirect restores normal shell behaviour. Verified: with
 / the trailing `; true` removed, every file reports "exit -1".
 .tst.isolate.fileCommand:{[wd; file; timeoutSecs]
-    .tst.isolate.processCommand[wd;file;timeoutSecs],"; ",
-        "echo $? > ", .utl.shellQuote[wd, "/rc.txt"], "; true"
+    .tst.isolate.processCommand[wd;file;timeoutSecs]," & p0=$!; ",
+        "wait \"$p0\"; echo $? > ", .utl.shellQuote[wd, "/rc.txt"], "; ",
+        .tst.isolate.reapLeftovers["p0";wd], " true"
+ };
+
+/ Shell fragment run once a child has been waited for. GNU timeout puts the
+/ child in a process group of its own, led by timeout's PID, so anything still
+/ in that group is a process the test file started and never stopped. Left
+/ alone it outlives the run, holding ports and licences on a CI host. The
+/ signal only succeeds when the group still has members; that is recorded for
+/ interpretFile to report. A process that moved itself to another session
+/ (setsid, a daemon) is out of reach, as it is for the timeout itself.
+.tst.isolate.reapLeftovers:{[name;wd]
+    "if kill -TERM -- \"-$",name,"\" 2>/dev/null; then echo 1 > ",
+        .utl.shellQuote[wd,"/leftover.txt"],"; sleep 0.2; ",
+        "kill -KILL -- \"-$",name,"\" 2>/dev/null; fi;"
  };
 
 .tst.isolate.groupStart:{[index;command]
@@ -529,7 +558,8 @@
 
 .tst.isolate.groupWait:{[index;wd]
     name:"p",string index;
-    "wait \"$",name,"\"; echo $? > ",.utl.shellQuote[wd,"/rc.txt"],";"
+    "wait \"$",name,"\"; echo $? > ",.utl.shellQuote[wd,"/rc.txt"],"; ",
+        .tst.isolate.reapLeftovers[name;wd]
  };
 
 / Exit code recorded by fileCommand. A missing or unparseable rc.txt means the
@@ -582,15 +612,21 @@
         `symbol$()];
     hasFailingRows: any rowStatus in `fail`error;
     progress: "[", string[k], "/", string[n], "] ", file, " ... ";
+    if[0 < count @[read0; hsym `$wd, "/leftover.txt"; {[err] ()}];
+        .tst.isolate.print "WARNING: ", file,
+            " left background processes running; resQ terminated them"];
+    / A child that died left no final report; keep what it had checkpointed.
+    kept: $[valid; (); .tst.isolate.checkpointRows wd];
+    recovered: count kept;
 
     timedOut:.tst.isolate.supervisorTimedOut wd;
     if[timedOut;
-        msg: .tst.isolate.withProgress[wd;
+        msg: .tst.isolate.withProgress[wd; recovered;
                 "file exceeded isolateTimeout (", string[timeoutSecs], "s); killed"],
              $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
         .tst.isolate.print progress, "TIMEOUT";
         :.tst.isolate.attachCaptured[wd;
-            enlist .tst.isolate.errorRow[`ISOLATED_FILE_TIMEOUT; file; msg]]];
+            kept, enlist .tst.isolate.errorRow[`ISOLATED_FILE_TIMEOUT; file; msg]]];
 
     if[code = .resq.EXIT.LOAD_ERROR;
         hasLoadRow: $[count rows;
@@ -624,13 +660,13 @@
     detail: .tst.isolate.tail[wd; 20];
     if[0 = count raw;
         if[code=137;
-            msg:.tst.isolate.withProgress[wd;
+            msg:.tst.isolate.withProgress[wd; recovered;
                     "child exited 137 (SIGKILL; possible OOM or external kill); ",
                     "the isolate supervisor did not initiate a timeout"],
                 $[count detail;"\n",detail;""];
             .tst.isolate.print progress,"KILLED (exit 137, no results)";
             :.tst.isolate.attachCaptured[wd;
-                enlist .tst.isolate.errorRow[`ISOLATED_PROCESS_KILLED;file;msg]]];
+                kept, enlist .tst.isolate.errorRow[`ISOLATED_PROCESS_KILLED;file;msg]]];
         if[code=-1;
             msg:"isolation infrastructure did not record a child exit status",
                 $[count detail;"\n",detail;""];
@@ -638,14 +674,14 @@
             :.tst.isolate.attachCaptured[wd;
                 enlist .tst.isolate.errorRow[`ISOLATED_INFRASTRUCTURE_ERROR;file;msg]]];
         msg: .tst.isolate.noReportMessage[code;detail];
-        summary: .tst.isolate.progressSummary wd;
+        summary: .tst.isolate.progressSummary[wd; recovered];
         if[count summary; msg,: "\n", summary];
         licenseFailure:.tst.isolate.fatalHint[detail]~"couldn't connect to license daemon";
         suite:$[licenseFailure;`ISOLATED_Q_STARTUP_ERROR;`ISOLATED_PROCESS_EXIT];
         .tst.isolate.print progress,
             $[licenseFailure;"Q STARTUP ERROR";"DIED (exit ", string[code], ", no results)"];
         :.tst.isolate.attachCaptured[wd;
-            enlist .tst.isolate.errorRow[suite; file; msg]]];
+            $[licenseFailure; (); kept], enlist .tst.isolate.errorRow[suite; file; msg]]];
 
     msg: decoded`error, " (exit ", string[code], ")",
          $[count detail; "\n", detail; ""];

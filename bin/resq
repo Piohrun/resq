@@ -14,9 +14,18 @@ RESQ_HOME="$(dirname "$DIR")"
 
 # q claims -h for itself and dies with '-h before the script can read .z.x, so
 # the short help flag has to be translated here rather than in the CLI parser.
+# q also rejects a bare "--" ('- invalid), so the path separator is passed as
+# -paths. Nothing after -args is touched: that part belongs to the application.
 args=()
+app_args=0
 for a in "$@"; do
-  if [ "$a" = "-h" ]; then args+=("--help"); else args+=("$a"); fi
+  if [ "$app_args" = 1 ]; then args+=("$a"); continue; fi
+  case "$a" in
+    -args|--args) app_args=1; args+=("$a") ;;
+    -h) args+=("--help") ;;
+    --) args+=("-paths") ;;
+    *) args+=("$a") ;;
+  esac
 done
 
 # Run from the user's CWD so test/discover paths they pass in resolve

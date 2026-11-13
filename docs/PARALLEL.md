@@ -47,9 +47,17 @@ Hang termination requires GNU coreutils `timeout` with `--verbose` support on
 `PATH`; on hosts with a non-GNU `timeout` (busybox, BSD userlands) isolation
 runs without a supervisor cap and a hung file must be stopped externally.
 `-isolateTimeout N` caps each whole file, not each test; timing out abandons any
-later tests in that file. The failure names the test that was running and
-counts the tests that had finished; the same applies to a child that exits or
-is killed. Results of the finished tests are not recovered. `-maxTestTime N` is an observational post-return test
+later tests in that file. The failure names the test that was running, and
+tests that had already finished keep their results; the same applies to a child
+that exits or is killed. The child checkpoints its report as it runs, spaced so
+the cost stays linear, so in a large file the last few finished tests can fall
+after the final checkpoint. The failure message states how many were lost.
+
+When an isolated file finishes, resQ terminates any background process the
+file started and left running (anything still in the child's process group)
+and prints a warning naming the file. Stop such processes in `after` or
+`afterAll` instead of relying on this. A process that moved itself to another
+session (`setsid`, a daemon) is not reached. `-maxTestTime N` is an observational post-return test
 budget and cannot stop a hang. Coverage instrumentation does not compose with
 child isolation, so production uses paired isolated-correctness and
 non-isolated-coverage lanes.

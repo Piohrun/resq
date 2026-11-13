@@ -35,7 +35,9 @@
     out
  };
 
-.resq.reportJson:{[results]
+/ The report document as JSON text. Shared by the end-of-run reporter and the
+/ mid-run checkpoint an isolated child writes (.tst.checkpointResults).
+.tst.output.jsonReportText:{[results]
     isModel:0b;
     if[99h=type results;isModel:all `run`summary`tests in key results];
     payload:$[isModel;results;.tst.canonicalRunModel results];
@@ -43,7 +45,11 @@
     jsonPayload[`tests]:.tst.output.jsonRow each .tst.resultRows payload;
     profile:`$lower .tst.toString @[get;`.tst.app.reportProfile;`full];
     jsonPayload:.tst.output.profileRunModel[jsonPayload;profile];
-    jsonReport: .tst.output.evidenceJson jsonPayload;
+    .tst.output.evidenceJson jsonPayload
+ };
+
+.resq.reportJson:{[results]
+    jsonReport: .tst.output.jsonReportText results;
 
     outDirStr: .tst.toString .tst.runOutputDir[];
     if[0 = count outDirStr; outDirStr: "."];

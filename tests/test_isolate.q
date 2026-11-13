@@ -193,24 +193,29 @@
         ("S\t\tpricing\tfirst"; "F\tpass\tpricing\tfirst";
          "S\t\tpricing\tsecond"; "F\tfail\tpricing\tsecond";
          "S\t\trisk\thangs here")];
-    summary: .tst.isolate.progressSummary wd;
+    summary: .tst.isolate.progressSummary[wd; 0];
     must[10h = type summary; "the summary must be one string"];
-    must[summary like "while running 'risk :: hangs here'; 2 tests had finished (1 passed, 1 not passed)*";
+    must[summary like "while running 'risk :: hangs here'; 2 tests had finished (1 passed, 1 not passed); their results were lost*";
          "got: ", summary];
+    must[(.tst.isolate.progressSummary[wd; 2]) like "*; their results are kept"; "all recovered"];
+    must[(.tst.isolate.progressSummary[wd; 1]) like "*; the results of the last 1 were lost*"; "partly recovered"];
   };
 
   should["say so when the process died between tests or before any finished"]{
     wd: .tst.isotest.workDir[];
     .tst.isotest.writeFixture[wd; "progress.txt"; ("S\t\ta\tone"; "F\tpass\ta\tone")];
-    must[(.tst.isolate.progressSummary wd) like "between tests; 1 test had finished*"; "between tests"];
+    must[(.tst.isolate.progressSummary[wd; 0]) like "between tests; 1 test had finished*"; "between tests"];
     .tst.isotest.writeFixture[wd; "progress.txt"; enlist "S\t\ta\tone"];
-    (.tst.isolate.progressSummary wd) musteq "while running 'a :: one'; no test had finished";
+    (.tst.isolate.progressSummary[wd; 0]) musteq "while running 'a :: one'; no test had finished";
   };
 
   should["stay silent without a log and leave the message unchanged"]{
     wd: .tst.isotest.workDir[];
-    (.tst.isolate.progressSummary wd) musteq "";
-    .tst.isolate.withProgress[wd; "killed"] musteq "killed";
+    (.tst.isolate.progressSummary[wd; 0]) musteq "";
+    .tst.isolate.withProgress[wd; 0; "killed"] musteq "killed";
+    (count .tst.isolate.checkpointRows wd) musteq 0;
+    .tst.isotest.writeFixture[wd; "partial-results.json"; enlist "{\"tests\": [truncated"];
+    (count .tst.isolate.checkpointRows wd) musteq 0;
   };
 
   should["write nothing outside an isolated child"]{
@@ -393,6 +398,43 @@
     must[.tst.isotest.anyLike[r`out; "without producing results"]; "exit-zero must be a failure"];
     must[.tst.isotest.anyLike[r`out; "while running '"]; "the exit must name the test that was running"];
     must[.tst.isotest.anyLike[r`out; "[2/2]"]; "later file must still execute"];
+    must[0 = r`scratchCount; "private scratch must be removed"];
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "background processes a file leaves behind are terminated and reported"]{
+    {[workers]
+      wd: .tst.isotest.workDir[];
+      pidFile: wd, "/leftover.pid";
+      lines: (".tst.desc[\"iso leftover\"]{";
+          "  should[\"starts a background process\"]{";
+          "    system \"sleep 600 >/dev/null 2>&1 & echo $! > ", pidFile, "; true\";";
+          "    1 musteq 1 };";
+          "  };");
+      f: .tst.isotest.writeFixture[wd; "test_leftover.q"; lines];
+      fb: .tst.isotest.writeFixture[wd; "test_b.q"; .tst.isotest.fxPass2];
+      r: .tst.isotest.run[.utl.shellQuote[f], " ", .utl.shellQuote[fb], " -isolateWorkers ", string workers];
+      pidLines: @[read0; hsym `$pidFile; {()}];
+      musteq[r`code; 0];
+      must[0 < count pidLines; "the fixture must have started its process"];
+      must[.tst.isotest.anyLike[r`out; "left background processes running"]; "the leftover must be reported"];
+      must[not .tst.isotest.childAlive $[count pidLines; first pidLines; ""]; "the leftover process must be gone"];
+    } each 1 2;
+  };
+
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "tests finished before a child died keep their results"]{
+    wd: .tst.isotest.workDir[];
+    lines: (".tst.desc[\"iso partial\"]{";
+        "  should[\"finishes first\"]{ 1 musteq 1 };";
+        "  should[\"fails second\"]{ 1 musteq 2 };";
+        "  should[\"then exits\"]{ exit 0 };";
+        "  };");
+    f: .tst.isotest.writeFixture[wd; "test_partial.q"; lines];
+    r: .tst.isotest.run[.utl.shellQuote[f], ""];
+    musteq[r`code; 1];
+    must[.tst.isotest.anyLike[r`out; "while running 'iso partial :: then exits'"]; "the exiting test must be named"];
+    must[.tst.isotest.anyLike[r`out; "their results are kept"]; "finished results must be reported as kept"];
+    must[.tst.isotest.anyLike[r`out; "(1 passed, 1 failed, 1 error, 0 skipped)"];
+         "the finished pass and failure must be counted beside the process error:\n", "\n" sv r`out];
     must[0 = r`scratchCount; "private scratch must be removed"];
   };
 
