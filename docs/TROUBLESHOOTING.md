@@ -102,6 +102,20 @@ FILE_LOAD_ERROR: mismatch
 
 ---
 
+### Every test errors with the name of an application table or function
+
+**Symptom:** each test in a file reports `Error: trade` (or another bare
+application name), although the application loaded without complaint.
+
+**Cause:** the application returned to the root namespace with `\d .` and
+defined that name there. resQ loads a test file into its own namespace, and q
+looks a bare name up in the namespace of the code using it.
+
+**Solution:** run with `-root-load`, set `"rootLoad": true` in `resq.json`, or
+use `bin/qspec`. See [Sandboxed Loading](MIGRATION.md#sandboxed-loading).
+
+---
+
 ### Error: Test file not found
 
 **Symptom:**

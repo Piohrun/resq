@@ -196,6 +196,34 @@
     $[count lines; "\n" sv lines; ""]
  };
 
+/ What a child that left no report had been doing, from the boundary log it
+/ writes per test (.tst.noteTestProgress). Returns "" when there is no log.
+.tst.isolate.progressSummary:{[wd]
+    lines: @[read0; hsym `$wd, "/progress.txt"; {[err] ()}];
+    if[0 = count lines; :""];
+    fields: "\t" vs/: lines;
+    fields: fields where 4 <= count each fields;
+    if[0 = count fields; :""];
+    started: fields where fields[;0] ~\: enlist "S";
+    finished: fields where fields[;0] ~\: enlist "F";
+    statuses: finished[;1];
+    passed: sum statuses ~\: "pass";
+    counts: $[0 = count finished; "no test had finished";
+        string[count finished], " test", $[1 = count finished; ""; "s"],
+        " had finished (", string[passed], " passed, ",
+        string[(count finished) - passed], " not passed); their results were lost with the process"];
+    inFlight: (count started) > count finished;
+    current: last started;
+    $[inFlight;
+        "while running '", (current 2), " :: ", (current 3), "'; ", counts;
+        "between tests; ", counts]
+ };
+
+.tst.isolate.withProgress:{[wd;msg]
+    summary: .tst.isolate.progressSummary wd;
+    $[count summary; msg, "\n", summary; msg]
+ };
+
 / GNU timeout's verbose line is evidence that the supervisor actually sent a
 / deadline signal. Exit 124/137 alone is ambiguous: a child may return 124
 / itself, and SIGKILL/OOM conventionally appears as 137 without any timeout.
@@ -401,6 +429,10 @@
     argv: .tst.isolate.appendFlag[argv; "-fail-fast"; @[get; `.tst.app.failFast; 0b]];
     argv: .tst.isolate.appendFlag[argv; "-fail-hard"; @[get; `.tst.app.failHard; 0b]];
     argv: .tst.isolate.appendFlag[argv; "-qspec-compat"; @[get; `.tst.app.qspecCompat; 0b]];
+    / A child must load its file into the namespace the parent would have used:
+    / without this, bin/qspec -isolate sandboxed files that qspec loads in root.
+    argv: .tst.isolate.appendFlag[argv; "-qspec-discovery"; @[get; `.tst.app.qspecDiscovery; 0b]];
+    argv: .tst.isolate.appendFlag[argv; "-root-load"; @[get; `.tst.app.rootLoad; 0b]];
     argv: .tst.isolate.appendFlag[argv; "-no-line-annotations";
         not @[get; `.tst.app.expectationLineAnnotations; 1b]];
     argv: .tst.isolate.appendValue[argv; "-maxTestTime"; @[get; `.tst.app.maxTestTime; 0]];
@@ -444,7 +476,10 @@
     / test output without the child's duplicate summary and scratch-path
     / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.
     argv,: enlist "-isolate-child";
-    argv, ("-json"; "-outDir"; wd)
+    argv,: ("-json"; "-outDir"; wd);
+    / Application arguments go last: -args ends resQ's own option parsing.
+    appArgs: @[get; `.resq.appArgs; ()];
+    $[count appArgs; argv, enlist["-args"], appArgs; argv]
  };
 
 .tst.isolate.shellCommand:{[argv]
@@ -457,6 +492,7 @@
     @[hdel; hsym `$wd, "/out.txt"; {}];
     @[hdel; hsym `$wd, "/test-results.json"; {}];
     @[hdel; hsym `$wd, "/rc.txt"; {}];
+    @[hdel; hsym `$wd, "/progress.txt"; {}];
     ::
  };
 
@@ -549,7 +585,8 @@
 
     timedOut:.tst.isolate.supervisorTimedOut wd;
     if[timedOut;
-        msg: "file exceeded isolateTimeout (", string[timeoutSecs], "s); killed",
+        msg: .tst.isolate.withProgress[wd;
+                "file exceeded isolateTimeout (", string[timeoutSecs], "s); killed"],
              $[count detail: .tst.isolate.tail[wd; 20]; "\n", detail; ""];
         .tst.isolate.print progress, "TIMEOUT";
         :.tst.isolate.attachCaptured[wd;
@@ -587,8 +624,9 @@
     detail: .tst.isolate.tail[wd; 20];
     if[0 = count raw;
         if[code=137;
-            msg:"child exited 137 (SIGKILL; possible OOM or external kill); ",
-                "the isolate supervisor did not initiate a timeout",
+            msg:.tst.isolate.withProgress[wd;
+                    "child exited 137 (SIGKILL; possible OOM or external kill); ",
+                    "the isolate supervisor did not initiate a timeout"],
                 $[count detail;"\n",detail;""];
             .tst.isolate.print progress,"KILLED (exit 137, no results)";
             :.tst.isolate.attachCaptured[wd;
@@ -600,6 +638,8 @@
             :.tst.isolate.attachCaptured[wd;
                 enlist .tst.isolate.errorRow[`ISOLATED_INFRASTRUCTURE_ERROR;file;msg]]];
         msg: .tst.isolate.noReportMessage[code;detail];
+        summary: .tst.isolate.progressSummary wd;
+        if[count summary; msg,: "\n", summary];
         licenseFailure:.tst.isolate.fatalHint[detail]~"couldn't connect to license daemon";
         suite:$[licenseFailure;`ISOLATED_Q_STARTUP_ERROR;`ISOLATED_PROCESS_EXIT];
         .tst.isolate.print progress,

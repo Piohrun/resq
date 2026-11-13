@@ -186,6 +186,87 @@
   };
  };
 
+/ Application code that returns to root with `\d .` defines its tables there.
+/ A sandboxed test file cannot reach them by bare name, so the launchers must
+/ load test files in root wherever qspec would have, isolated children included.
+.tst.testState.dropin.rootApp: (
+  "\\d .app";
+  "upd:{[t;x] t insert x; count value t}";
+  "\\d .";
+  "trade:([]sym:`$();px:`float$())");
+.tst.testState.dropin.rootSpec: (
+  "\\l app.q";
+  ".tst.desc[\"root tables\"]{";
+  "  before{ `trade mock 0#trade; };";
+  "  should[\"reach a root table by bare name\"]{ 1 musteq .app.upd[`trade;(`a;1f)]; 1 musteq count trade };";
+  "  };");
+.tst.testState.dropin.rootFiles:{[]
+  ("app.q";"tests/test_root.q")!(.tst.testState.dropin.rootApp;.tst.testState.dropin.rootSpec)
+ };
+.tst.testState.dropin.runRoot:{[launcherName;flags]
+  launcher: .utl.shellQuote .resq.HOME, "/bin/", launcherName;
+  .tst.testState.dropin.run[.tst.testState.dropin.rootFiles[];
+    {[l;flags;wd] "timeout 90 ", l, " tests ", flags,
+      .tst.testState.dropin.stateFlags wd}[launcher;flags]]
+ };
+
+.tst.desc["root-namespace loading #slow"]{
+  skipIf[not .tst.testState.dropin.canQ; "bin/qspec -isolate loads each file in root like qspec"]{
+    r: .tst.testState.dropin.runRoot["qspec";"-isolate -strict"];
+    must[0 = r`code; "isolated qspec children must load in root, got exit ", string[r`code], "\n", "\n" sv r[`out],r`err];
+  };
+  skipIf[not .tst.testState.dropin.canQ; "resq -root-load reaches root globals, with and without -isolate"]{
+    r: .tst.testState.dropin.runRoot["resq";"-root-load -strict"];
+    must[0 = r`code; "-root-load must pass, got exit ", string[r`code], "\n", "\n" sv r[`out],r`err];
+    r: .tst.testState.dropin.runRoot["resq";"-root-load -isolate -strict"];
+    must[0 = r`code; "-root-load -isolate must pass, got exit ", string[r`code], "\n", "\n" sv r[`out],r`err];
+  };
+  skipIf[not .tst.testState.dropin.canQ; "the default sandbox still isolates such a file"]{
+    r: .tst.testState.dropin.runRoot["resq";"-strict"];
+    must[1 = r`code; "without -root-load the bare name is unreachable, got exit ", string r`code];
+  };
+  skipIf[not .tst.testState.dropin.canQ; "rootLoad in resq.json selects root loading"]{
+    launcher: .utl.shellQuote .resq.HOME, "/bin/resq";
+    files: .tst.testState.dropin.rootFiles[], (enlist "resq.json")!enlist enlist "{\"rootLoad\": true}";
+    r: .tst.testState.dropin.run[files;
+      {[l;wd] "timeout 90 ", l, " tests -strict", .tst.testState.dropin.stateFlags wd}[launcher]];
+    must[0 = r`code; "resq.json rootLoad must pass, got exit ", string[r`code], "\n", "\n" sv r[`out],r`err];
+  };
+ };
+
+.tst.testState.dropin.argsSpec: (
+  ".tst.desc[\"application arguments\"]{";
+  "  should[\"see them\"]{";
+  "    (\"-env\";\"prod\";\"-flag\") musteq .resq.appArgs;";
+  "    \"prod\" musteq first (.Q.opt .z.x)`env;";
+  "    };";
+  "  };");
+
+.tst.desc["application arguments after -args #slow"]{
+  skipIf[not .tst.testState.dropin.canQ; "reach the test process through both launchers and into isolated children"]{
+    files: (enlist "tests/test_args.q")!enlist .tst.testState.dropin.argsSpec;
+    {[files;launcherName;flags]
+      launcher: .utl.shellQuote .resq.HOME, "/bin/", launcherName;
+      r: .tst.testState.dropin.run[files;
+        {[l;flags;wd] "timeout 90 ", l, " tests -strict ", flags,
+          .tst.testState.dropin.stateFlags[wd], " -args -env prod -flag"}[launcher;flags]];
+      must[0 = r`code; launcherName, " ", flags, " must pass application arguments, got exit ",
+        string[r`code], "\n", "\n" sv r[`out],r`err];
+    }[files] ./: (("resq";"");("resq";"-isolate");("qspec";"");("qspec";"-isolate");("qspec";"--junit"));
+  };
+ };
+
+.tst.desc["interpreter line"]{
+  should["skip a leading #! line only, as q does"]{
+    out: .tst.preprocessScript ("#!/usr/bin/env q"; "x:1"; "#!not first");
+    out mustmatch ("x:1"; "#!not first");
+  };
+  should["keep declaration line numbers after a #! line"]{
+    .tst.annotateExpectationLine[2; "should[\"a\"]{}"] mustmatch
+      last .tst.preprocessScript ("#!/usr/bin/env q"; "should[\"a\"]{}");
+  };
+ };
+
 .tst.desc["qspec helper surface"]{
   should["resolve .tst.testFilePath next to the running test file"]{
     / qutil's own suite reads its config fixtures this way.

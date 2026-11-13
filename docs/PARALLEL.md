@@ -47,7 +47,9 @@ Hang termination requires GNU coreutils `timeout` with `--verbose` support on
 `PATH`; on hosts with a non-GNU `timeout` (busybox, BSD userlands) isolation
 runs without a supervisor cap and a hung file must be stopped externally.
 `-isolateTimeout N` caps each whole file, not each test; timing out abandons any
-later tests in that file. `-maxTestTime N` is an observational post-return test
+later tests in that file. The failure names the test that was running and
+counts the tests that had finished; the same applies to a child that exits or
+is killed. Results of the finished tests are not recovered. `-maxTestTime N` is an observational post-return test
 budget and cannot stop a hang. Coverage instrumentation does not compose with
 child isolation, so production uses paired isolated-correctness and
 non-isolated-coverage lanes.

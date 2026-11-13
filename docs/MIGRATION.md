@@ -347,6 +347,39 @@ resQ loads each test file into a unique isolated namespace. Consequences:
   test locals may use the same spellings. `qNamespaceExports` is now a
   deprecated, ignored compatibility key.
 
+The sandbox is a q namespace, and q resolves a bare name in the namespace of
+the code that uses it. Application code that returns to root defines its
+globals in root, where a sandboxed test cannot see them by bare name:
+
+```q
+/ src/app.q
+\d .app
+upd:{[t;x] t insert x}
+\d .
+trade:([] sym:`$(); px:`float$())    / lands in root, not in the sandbox
+```
+
+A test that then writes `count trade` fails with the error `trade`. Run such
+suites with `-root-load` (or `"rootLoad": true` in `resq.json`), which loads
+test files into root as qspec does. `bin/qspec` always does this, including
+under `-isolate`. The cost is that top-level names in test files are shared
+between files again; `-isolate` restores that separation per process.
+
+### Application arguments
+
+Code that reads its own command line (`.Q.opt .z.x`) can be given arguments
+after `-args`, which must be the last resQ option:
+
+```bash
+resq test tests/ -strict -args -env uat -hdb /data/hdb
+```
+
+resQ does not parse anything after `-args`. q cannot rewrite `.z.x`, so the
+application sees the whole command line, resQ's options included; `.Q.opt`
+ignores the ones it does not look up. `.resq.appArgs` holds only the part after
+`-args`. q still applies its own options wherever they appear, so `-p 5010`
+after `-args` opens that port, as it would when starting the application.
+
 ---
 
 ## Worked Before/After Example

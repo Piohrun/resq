@@ -306,6 +306,26 @@
         .tst.cliParseFails[("test"; "-xunit-format"; "nunit"); "xunit-format must be one of: xunit2, qspec"] musteq 1b;
     };
 
+    should["leave everything after -args to the application"]{
+        `.resq.appArgs mock ();
+        r: .tst.parseCLI ("test"; "tests"; "-quiet"; "-args"; "-env"; "prod"; "--bogus=1"; "-strict");
+        r[`ok] musteq 1b;
+        r[`args] mustmatch enlist "tests";
+        r[`options; `quiet] musteq 1b;
+        r[`options; `strict] musteq 0b;
+        .resq.appArgs mustmatch ("-env"; "prod"; "--bogus=1"; "-strict");
+        (.tst.parseCLI ("test"; "tests"; "--args"))[`ok] musteq 1b;
+        .resq.appArgs mustmatch ();
+        (.tst.parseCLI ("test"; "tests"))[`ok] musteq 1b;
+        .resq.appArgs mustmatch ();
+    };
+
+    should["accept -root-load as a flag"]{
+        (.tst.parseCLI ("test"; "tests"; "-root-load"))[`options; `rootLoad] musteq 1b;
+        (.tst.parseCLI ("test"; "tests"; "--rootLoad"))[`options; `rootLoad] musteq 1b;
+        (.tst.parseCLI ("test"; "tests"))[`options; `rootLoad] musteq 0b;
+    };
+
     should["treat every token after -- as positional, including dash-prefixed paths"]{
         r: .tst.parseCLI ("test"; "-quiet"; "--"; "-suite.q"; "--not-an-option");
         r[`ok] musteq 1b;

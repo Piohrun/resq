@@ -1882,6 +1882,8 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-cov` / `-coverage` | Enable coverage |
 | `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
+| `-root-load` | Load test files into the root namespace instead of a per-file sandbox, for applications that define root globals after `\d .`. `bin/qspec` always loads this way |
+| `-args ...` | End of resQ's options. Everything after it is left for the application under test: readable as `.resq.appArgs`, still present in `.z.x`, and forwarded to `-isolate` children. Must come last |
 | `-cov-statements` | Measured per-statement coverage (rewrites function bodies at load time; opt-in) |
 | `-cov-branches` | Measure true/false edges for eligible `if`, `while`, and lazy `$` conditions (opt-in rewrite) |
 | `-cov-contexts` | Attribute function/statement/branch hits to stable test/declarative-case execution IDs without changing aggregates or gates |
@@ -2199,6 +2201,7 @@ Create `resq.json` in project root:
 | `diffHugeTableThreshold` | `10000` | Add random table-diff sampling above this row count |
 | `testFilePatterns` | `test_*.q`, `*_test.q` | Basename patterns used during directory discovery |
 | `qspecCompat` | `false` | Use qspec comparison semantics for `musteq` / `mustne` |
+| `rootLoad` | `false` | Load test files into the root namespace instead of a per-file sandbox |
 | `finalDiffs` | `false` | Repeat structural diffs in the final human failure listing |
 | `finalDiffLimit` | `4000` | Total character budget for final repeated diffs |
 | `covStatements` | `false` | Enable measured statement/line instrumentation |

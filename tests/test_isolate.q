@@ -147,6 +147,8 @@
     (argv 1 + argv ? "-exclude-tag") musteq "slow,#slow";
     must["-fail-fast" in argv; "failFast must reach the child"];
     must["-qspec-compat" in argv; "qspec compatibility must reach the child"];
+    must[not "-qspec-discovery" in argv; "root loading is off unless the parent used it"];
+    must[not "-args" in argv; "no application arguments were given"];
     must["-no-line-annotations" in argv; "the annotation kill switch must reach the child"];
     (argv 1 + argv ? "-flake-history") musteq "/tmp/isolate/flake-history.json";
     (argv 1 + argv ? "-flake-proposal-file") musteq "/tmp/isolate/quarantine-proposals.json";
@@ -167,6 +169,53 @@
     doc[`failedTestIds] musteq ("test_a";"test_b");
     doc[`runId] musteq "run_parent";
     system "rm -rf -- ",.utl.shellQuote wd;
+  };
+ };
+
+.tst.desc["Isolate: child inherits namespace mode and application arguments"]{
+  should["forward root loading and place application arguments last"]{
+    `.tst.app.qspecDiscovery mock 1b;
+    `.tst.app.rootLoad mock 1b;
+    `.resq.appArgs mock ("-env"; "prod");
+    argv: .tst.isolate.childArgv["test_a.q"; "/tmp/isolate"];
+    must["-qspec-discovery" in argv; "qspec root loading must reach the child"];
+    must["-root-load" in argv; "-root-load must reach the child"];
+    ((-3) # argv) mustmatch ("-args"; "-env"; "prod");
+  };
+ };
+
+.tst.desc["Isolate: progress log of a child that left no report"]{
+  after{.tst.isotest.cleanupBase[]};
+
+  should["name the running test and count what had finished"]{
+    wd: .tst.isotest.workDir[];
+    .tst.isotest.writeFixture[wd; "progress.txt";
+        ("S\t\tpricing\tfirst"; "F\tpass\tpricing\tfirst";
+         "S\t\tpricing\tsecond"; "F\tfail\tpricing\tsecond";
+         "S\t\trisk\thangs here")];
+    summary: .tst.isolate.progressSummary wd;
+    must[10h = type summary; "the summary must be one string"];
+    must[summary like "while running 'risk :: hangs here'; 2 tests had finished (1 passed, 1 not passed)*";
+         "got: ", summary];
+  };
+
+  should["say so when the process died between tests or before any finished"]{
+    wd: .tst.isotest.workDir[];
+    .tst.isotest.writeFixture[wd; "progress.txt"; ("S\t\ta\tone"; "F\tpass\ta\tone")];
+    must[(.tst.isolate.progressSummary wd) like "between tests; 1 test had finished*"; "between tests"];
+    .tst.isotest.writeFixture[wd; "progress.txt"; enlist "S\t\ta\tone"];
+    (.tst.isolate.progressSummary wd) musteq "while running 'a :: one'; no test had finished";
+  };
+
+  should["stay silent without a log and leave the message unchanged"]{
+    wd: .tst.isotest.workDir[];
+    (.tst.isolate.progressSummary wd) musteq "";
+    .tst.isolate.withProgress[wd; "killed"] musteq "killed";
+  };
+
+  should["write nothing outside an isolated child"]{
+    `.tst.app.isolateChild mock 0b;
+    .tst.noteTestProgress["S"; ""; enlist[`desc]!enlist "x"] mustmatch ();
   };
  };
 
@@ -342,6 +391,7 @@
     r: .tst.isotest.run[.utl.shellQuote[fe], " ", .utl.shellQuote[fb], " -quiet"];
     musteq[r`code; 1];
     must[.tst.isotest.anyLike[r`out; "without producing results"]; "exit-zero must be a failure"];
+    must[.tst.isotest.anyLike[r`out; "while running '"]; "the exit must name the test that was running"];
     must[.tst.isotest.anyLike[r`out; "[2/2]"]; "later file must still execute"];
     must[0 = r`scratchCount; "private scratch must be removed"];
   };
@@ -366,6 +416,8 @@
     pidLines: @[read0; hsym `$pidFile; {()}];
     musteq[r`code; 1];
     must[.tst.isotest.anyLike[r`out; "TIMEOUT"]; "timeout must be reported"];
+    must[.tst.isotest.anyLike[r`out; "while running 'iso hang :: loops'"];
+         "the timeout must name the test that was running"];
     must[not .tst.isotest.childAlive $[count pidLines; first pidLines; ""]; "timed-out q child must be gone"];
     must[0 = r`scratchCount; "private scratch must be removed"];
   };

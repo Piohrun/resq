@@ -15,8 +15,23 @@ All notable changes to the **resQ** project will be documented in this file.
   allowances with stale detection, bounded execution and retained evidence.
   Parity and passing-suite status are reported independently.
 
+- `-root-load` (`rootLoad` in `resq.json`) loads test files into the root
+  namespace instead of a per-file sandbox. Applications that return to root
+  with `\d .` define their globals there, out of reach of a sandboxed test.
+- `-args` ends resQ's own options. What follows is left for the application
+  under test (`.resq.appArgs`, `.z.x`) and forwarded to `-isolate` children.
+  `bin/qspec` keeps its own flags ahead of it.
+- A `-isolate` child that hangs, exits or is killed now names the test that
+  was running and counts the tests that had finished. Their individual
+  results are still lost with the process.
+
 ### Fixed
 
+- `bin/qspec -isolate` loaded each file into a sandbox instead of the root
+  namespace, because the child did not inherit `-qspec-discovery`. Suites
+  that pass under `bin/qspec` failed with a bare-name error once isolated.
+- A leading `#!` interpreter line in a test file is skipped, as q does,
+  instead of failing the load.
 - A failing assertion on a large value no longer renders the whole value
   before cutting it to `reportLimit`. Rendering now stops once the limit is
   covered: a failed `musteq` on a 2M-row table took 79 s and now takes under

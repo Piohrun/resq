@@ -600,6 +600,9 @@
 
 .tst.preprocessScript:{[lines]
     lines: .utl.pathToString each lines;
+    / q skips a "#!" interpreter line at the top of a script. Blank it rather
+    / than drop it so every later line keeps its number.
+    if[count lines; if["#!" ~ 2 sublist first lines; lines[0]: ""]];
     potential:.tst.dslPotentialShadowedNames lines;
     hasScopedNames:0<count potential;
     sourceScope:$[hasScopedNames;.tst.dslScopeArgument lines;`symbol$()];
@@ -843,7 +846,9 @@
         / qspec loads every file into the root namespace, so a helper file in
         / the test tree (tests/00_helpers.q: mkTrade:{...}) defines names the
         / other files use. bin/qspec keeps that instead of a per-file sandbox.
-        rootLoad: 1b~@[get;`.tst.app.qspecDiscovery;0b];
+        / -root-load asks for the same namespace without qspec's discovery.
+        helperFiles: 1b~@[get;`.tst.app.qspecDiscovery;0b];
+        rootLoad: helperFiles or 1b~@[get;`.tst.app.rootLoad;0b];
         nsName: $[rootLoad; `.; `$".sandbox_S", cleanP, "_", hashStr];
         / Register the sandbox so end-of-run cleanup can delete exactly what this
         / run created. finalCleanup used to remove EVERY root namespace matching
@@ -941,8 +946,8 @@
         if[(count .tst.app.allSpecs) = preCount;
             msg: "File ", p, " loaded but added no tests.";
             .tst.app.emptyFiles,: enlist p;
-            if[not rootLoad; -1 "WARNING: ", msg];
-            if[.tst.app.strict and not rootLoad;
+            if[not helperFiles; -1 "WARNING: ", msg];
+            if[.tst.app.strict and not helperFiles;
                 `.tst.app.loadErrors upsert `file`error`type!(`$p; msg; `emptyFile);
             ];
         ];

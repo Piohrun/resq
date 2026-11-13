@@ -390,6 +390,25 @@ callExpec:{[expec];
  '`badExpecType]
  }
 
+/ An isolated child logs each test boundary to its private scratch. When the
+/ process hangs, exits or is killed there is no report, and this log is how the
+/ parent names the test that was running and counts what had finished. The
+/ file is opened and closed per line: a handle held across tests would be
+/ closed by the leaked-handle guard, and its number then reused by test code.
+.tst.noteTestProgress:{[tag;status;expec]
+    if[not 1b ~ @[get; `.tst.app.isolateChild; 0b]; :()];
+    @[{[fields]
+        path: hsym `$(.tst.toString .tst.runOutputDir[]), "/progress.txt";
+        line: "\t" sv {[text] text: (),text; @[text; where text in "\t\n\r"; :; " "]} each fields;
+        h: hopen path;
+        neg[h] line;
+        hclose h;
+      };
+      (tag; .tst.toString status; .tst.toString .tst.currentContext`suite;
+       $[`desc in key expec; .tst.toString expec`desc; ""]);
+      {[err] }];
+ };
+
 runExpec:{[spec;expec];
  time:.z.p;
  expec[`startedAt]:.tst.isoTimestamp time;
@@ -398,6 +417,7 @@ runExpec:{[spec;expec];
  .tst.currentSnapshots:();
  / Record the current test name for stack-trace context.
  .tst.currentContext[`test]: $[`desc in key expec; .tst.toString expec`desc; ""];
+ .tst.noteTestProgress["S";"";expec];
  expec:.tst.setupExpec[spec;expec];
 
  / Skip and pending expectations are terminal states. Do not run hooks or code.
@@ -410,6 +430,7 @@ runExpec:{[spec;expec];
     expec[`time]: finishedTime - time;
     expec[`finishedAt]:.tst.isoTimestamp finishedTime;
     expec:.tst.teardownExpec[spec;expec];
+    .tst.noteTestProgress["F";exStatus;expec];
     :expec
  ];
  
@@ -485,6 +506,7 @@ runExpec:{[spec;expec];
  expec:.tst.teardownExpec[spec;expec];
  if[.tst.halt and 1b~@[get;`.tst.app.failHard;0b];
     .tst.stageBadExpec[spec;startExpec;beforeBad]];
+ .tst.noteTestProgress["F";.tst.normalizeResultStatus expec`result;expec];
  expec
  }
 
