@@ -63,6 +63,29 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Optional: not a required check.
+  peachq:
+    name: Strict isolated tests, hosted runner (optional)
+    needs: licence-free
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: pq
+        uses: peachq-org/setup-peachq@79cbbe80c40ee7450a2f9bb6db16d64b5b08946c # v1.0.0
+        with:
+          version: 0.92.20261116
+          add-to-path: true
+          args: -classic
+      - shell: bash
+        run: |
+          ./bin/resq test tests -strict -isolate -isolateTimeout 90 -isolateWorkers 4 -quiet \
+            -quarantine-file .github/peachq-quarantine.json -quarantine-non-blocking \
+            -exclude 'loader differential*' | tee out.txt
+          echo "**peachq ${{ steps.pq.outputs.version }}:** $(grep -E '^Tests:' out.txt | tail -1)" >> "$GITHUB_STEP_SUMMARY"
+
   # The q jobs below need a self-hosted runner labelled kdb with a q licence.
   # They run only when the repository variable RESQ_KDB_RUNNER is 'true', so a
   # repository without that runner shows them as skipped instead of leaving

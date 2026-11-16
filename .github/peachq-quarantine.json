@@ -1,0 +1,12 @@
+{
+  "identityAlgorithm": "resq-test-case-id-v3",
+  "identityCodec": {"capabilityLevel": "local unary serialization; no negotiated IPC connection capability", "ipcSerialization": "q unary -8!/-9!", "name": "resq-value-v1+q-ipc-leaves", "qRelease": "2026.11.16", "qVersion": "5.0", "version": 1},
+  "kind": "resq-quarantine-manifest",
+  "schemaVersion": 2,
+  "updatedAt": "2026-11-16T00:00:00Z",
+  "entries": [
+    {"createdAt": "2026-11-16T00:00:00Z", "evidence": {"failures": 2, "flakes": 0, "observations": 3, "passes": 1}, "expiresAt": "2027-02-16", "issue": "peachq: unfiled", "owner": "peachq", "reason": "peachq: a bounded rendering of a 2M-row table takes about 13s on a hosted runner against a 5s budget; passed in 1 of 3 runs (tests/hardening/test_large_output.q: render a bounded prefix of a large table without walking all of it)", "testId": "test_02c7f40c3c48d3355a5c53813e23267d"},
+    {"createdAt": "2026-11-16T00:00:00Z", "evidence": {"failures": 1, "flakes": 0, "observations": 1, "passes": 0}, "expiresAt": "2027-02-16", "issue": "peachq: unfiled", "owner": "peachq", "reason": "peachq: a background process left by a file is not reported or reaped (tests/test_isolate.q: background processes a file leaves behind are terminated and reported)", "testId": "test_53a68ce111001d10229be599002fb54e"},
+    {"createdAt": "2026-11-16T00:00:00Z", "evidence": {"failures": 1, "flakes": 0, "observations": 1, "passes": 0}, "expiresAt": "2027-02-16", "issue": "resQ: test depends on the run's flags", "owner": "peachq", "reason": "fails only because this job passes -quarantine-non-blocking: the test reads the run's own setting (tests/test_quarantine.q: keep an active quarantine blocking unless policy is explicitly enabled)", "testId": "test_d2bd1ffac4f26cb4c0595703ba7993ec"}
+  ]
+}
