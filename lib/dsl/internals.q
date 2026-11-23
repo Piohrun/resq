@@ -31,6 +31,13 @@ if[not `coverageBranchMin in key `.tst.app; .tst.app.coverageBranchMin:0];
 if[not `coverageBranchCompletenessMin in key `.tst.app;
     .tst.app.coverageBranchCompletenessMin:0];
 if[not `exit in key `.tst.app; .tst.app.exit: 0b];
+/ `resq mutate` options (lib/mutate.q); the defaults mean "not given".
+if[not `mutationTests in key `.tst.app; .tst.app.mutationTests: ()];
+if[not `mutators in key `.tst.app; .tst.app.mutators: ""];
+if[not `mutationSince in key `.tst.app; .tst.app.mutationSince: ""];
+if[not `maxMutants in key `.tst.app; .tst.app.maxMutants: 0];
+if[not `mutationMin in key `.tst.app; .tst.app.mutationMin: 0N];
+if[not `reportFormats in key `.tst.app; .tst.app.reportFormats: `symbol$()];
 / Set only by the explicit -exit CLI flag. End-of-run exit policy belongs to
 / resq.q; this flag preserves -ff -exit's immediate hard-stop semantics.
 if[not `exitImmediately in key `.tst.app; .tst.app.exitImmediately: 0b];

@@ -40,6 +40,9 @@
 if[not `active in key `.tst.mutate; .tst.mutate.active: 0b];
 if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 
+/ Seconds any one child may run, unless -isolateTimeout says otherwise.
+.tst.mutate.childLimit: 300;
+
 / Tokens exchanged pairwise: the first with the second, the third with the
 / fourth, and so on, in both directions.
 .tst.mutate.pairs: `arithmetic`comparison`logical`keyword!(
@@ -76,7 +79,9 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.tokenKind:{[t]
     k: (t in " \t\r\n")?0b;
     if[k=count t; :`blank];
-    if[("/"=t k) and (k>0) or (1<count t) and not t~"/:"; :`comment];
+    / "/" alone is the over adverb and "/:" each-right; anything longer that
+    / starts with a slash, after blanks or not, is a comment.
+    if[("/"=t k) and (1<count t) and not t~"/:"; :`comment];
     `code
  };
 
@@ -98,12 +103,11 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.argRanges:{[cx;o]
     d: cx`dAfter;
     D: d o;
-    rest: (o+1) _ d;
-    k: rest?D-1;
-    if[k=count rest; :`close`lo`hi!(0N; `long$(); `long$())];
-    c: o+1+k;
+    / The text parses, so the bracket closes: at the first token after which
+    / the depth is back to what it was before o.
+    c: o+1+((o+1) _ d)?D-1;
     s: cx`semi;
-    s: s where (s>o) and (s<c) and D=d s;
+    s: s where (s within (o;c)) and D=d s;
     `close`lo`hi!(c; (o+1),s+1; s,c)
  };
 
@@ -123,8 +127,8 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     toks: cx`toks;
     sig: cx`sig;
     idx: .tst.mutate.indexIn[toks sig; .tst.mutate.subFrom];
-    hit: where idx<count .tst.mutate.subFrom;
-    hit: hit where .tst.mutate.subFamily[idx hit] in families;
+    / A token that is in no pair indexes past the end: a null family.
+    hit: where .tst.mutate.subFamily[idx] in families;
     {[toks;i;r]
         new: .tst.mutate.subTo r;
         (.tst.mutate.subFamily r; i; i; "`",toks[i],"` replaced with `",new,"`";
@@ -141,17 +145,16 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 
 / (digits with sign; type suffix) of a plain integer literal, else ().
 .tst.mutate.intParts:{[t]
-    body: t;
-    suffix: "";
-    if[(1<count body) and last[body] in "hij"; suffix: enlist last body; body: -1 _ body];
+    typed: last[t] in "hij";
+    body: $[typed; -1 _ t; t];
     digits: $["-"=first body; 1 _ body; body];
-    $[(0<count digits) and (16>count digits) and all digits in .Q.n; (body; suffix); ()]
+    $[(0<count digits) and (16>count digits) and all digits in .Q.n; (body; $[typed; -1#t; ""]); ()]
  };
 
 / 1b when token t begins a value, so that a number written before it is applied
 / to it (`-1 "text"`, `h x`) or belongs to the same vector literal (`1 2 3`).
 .tst.mutate.startsNoun:{[t]
-    c: first t;
+    c: t 0;
     if[c in "\"`({",.Q.n; :1b];
     if[(c="-") and 1<count t; :1b];
     if[not c in .Q.a,.Q.A,"."; :0b];
@@ -171,12 +174,13 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         parts: .tst.mutate.intParts t;
         if[0=count parts; :()];
         / An element of a vector literal, or a handle applied to what follows.
-        if[p>0; if[first[toks sig p-1] in .Q.n; :()]];
-        if[(p+1)<n;
-            nxt: toks sig p+1;
-            if[.tst.mutate.startsNoun nxt; :()];
-            / -4!x and its relatives are internal functions, not arithmetic.
-            if[("-"=first t) and nxt~enlist "!"; :()]];
+        / A number is never the first or the last token of a function, so
+        / there is always a token on each side.
+        if[first[toks sig p-1] in .Q.n; :()];
+        nxt: toks sig p+1;
+        if[.tst.mutate.startsNoun nxt; :()];
+        / -4!x and its relatives are internal functions, not arithmetic.
+        if[("-"=first t) and nxt~enlist "!"; :()];
         v: "J"$first parts;
         new: string[$[v=0; 1; v=1; 0; v+1]],last parts;
         enlist (`constant; i; i; "`",t,"` replaced with `",new,"`"; raze @[toks; i; :; new])
@@ -187,7 +191,6 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.bracketHeads:{[cx;names]
     toks: cx`toks;
     sig: cx`sig;
-    sig: sig where sig<cx[`n]-1;
     sig: sig where .tst.mutate.among[toks sig; names];
     sig where (toks sig+1)~\:enlist "["
  };
@@ -197,7 +200,6 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     raze {[cx;i]
         toks: cx`toks;
         r: .tst.mutate.argRanges[cx;i+1];
-        if[null r`close; :()];
         nargs: count r`lo;
         / if[c;...]: the first argument. $[c;a;c;a;default]: every other one
         / (a bracketed cast has two). ?[c;a;b]: the first of exactly three.
@@ -235,21 +237,17 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     toks: cx`toks;
     sig: cx`sig;
     body: .tst.mutate.argRanges[cx;0];
-    if[null body`close; :()];
     lo: body`lo;
     hi: body`hi;
     / Skip a declared parameter list: {[a;b] ...}.
-    if[1<count sig;
-        if[toks[sig 1]~enlist "[";
-            pc: .tst.mutate.argRanges[cx; sig 1]`close;
-            if[not null pc; lo[0]: pc+1]]];
+    if[toks[sig 1]~enlist "["; lo[0]: 1+.tst.mutate.argRanges[cx; sig 1]`close];
     outer: raze .tst.mutate.statementAt[cx] ./: flip (lo;hi);
     / Statements of if/do/while. A block with a single statement is already
     / covered by removing the block itself.
     heads: .tst.mutate.bracketHeads[cx; ("if";"do";"while")];
     inner: raze {[cx;i]
         r: .tst.mutate.argRanges[cx;i+1];
-        if[(null r`close) or 3>count r`lo; :()];
+        if[3>count r`lo; :()];
         raze .tst.mutate.statementAt[cx] ./: 1 _ flip (r`lo;r`hi)
     }[cx] each heads;
     outer,inner
@@ -259,19 +257,24 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     ([] family:`symbol$(); at:`long$(); upto:`long$(); note:(); text:())
  };
 
+/ q's own tokenizer: every token of the text, blanks and comments included.
+.tst.mutate.tokens:{[text] -4!text};
+
 / Mutants of one function's source text. `at` and `upto` are character offsets
 / of the changed span within that text.
 .tst.mutate.generate:{[text;families]
     out: .tst.mutate.emptyMutants[];
     original: @[value; text; {[e] ::}];
     if[not 100h=type original; :out];
-    toks: @[{-4!x}; text; {[e] ()}];
-    if[(0=count toks) or not text~raze toks; :out];
+    / Every change is made to one token and the rest are joined back, so the
+    / tokens must add up to the text exactly, and start with the lambda.
+    toks: @[.tst.mutate.tokens; text; {[e] ()}];
+    if[not text~raze toks; :out];
     if[not (first toks)~enlist "{"; :out];
     len: count each toks;
-    offs: 0, -1 _ sums len;
+    offs: sums[len]-len;
     kind: .tst.mutate.tokenKind each toks;
-    c0: first each toks;
+    c0: toks[;0];
     one: len=1;
     delta: (one and c0 in "([{")-one and c0 in ")]}";
     cx: `toks`n`sig`dAfter`semi!(toks; count toks; where kind=`code; sums delta; where one and c0=";");
@@ -282,7 +285,6 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     if[`constant in families; rows,: .tst.mutate.genConstants cx];
     if[`condition in families; rows,: .tst.mutate.genConditions cx];
     if[`statement in families; rows,: .tst.mutate.genStatements cx];
-    if[0=count rows; :out];
 
     txt: rows[;4];
     / A change that leaves the text as it was, or repeats another, is no mutant.
@@ -294,9 +296,9 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         $[100h=type f; params~(value f) 1; 0b]
     }[params] each txt keep;
     keep: keep where valid;
-    if[0=count keep; :out];
-    a: rows[keep;1];
-    b: rows[keep;2];
+    / Token indexes, as longs even when nothing is left.
+    a: "j"$rows[keep;1];
+    b: "j"$rows[keep;2];
     order: iasc a;
     ([] family:`$string rows[keep;0]; at:offs a; upto:offs[b]+len b; note:rows[keep;3]; text:txt keep) order
  };
@@ -314,13 +316,11 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.functionsIn:{[path]
     out: .tst.mutate.emptyFunctions[];
     lines: @[read0; hsym `$path; {[e] ()}];
-    if[0=count lines; :out];
     cx: .tst.loadGraph.context .tst.loadGraph.lex lines;
     code: cx`code;
     if[0=count code; :out];
     opens: where (code="{") and 0=cx`dBefore;
     closes: where (code="}") and 1=cx`dBefore;
-    if[(0=count opens) or 0=count closes; :out];
     ci: closes binr opens;
     opens: opens where ci<count closes;
     ends: closes ci where ci<count closes;
@@ -329,7 +329,6 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     / than this lambda: a projection, an application, a derived function.
     plain: .tst.loadGraph.endsStatement[code] each ends;
     keep: where plain and 0<count each names;
-    if[0=count keep; :out];
     opens: opens keep;
     ends: ends keep;
     starts: cx`starts;
@@ -350,33 +349,40 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / A child is an ordinary `resq test <file>` run that was handed a plan. A probe
 / plan lists every target function and records which of them the file calls. A
 / mutant plan names one function and the text to replace it with.
+/ .
+/ Everything a child knows is one dictionary held in a global, and each
+/ function here takes the name of that global. The process's own state is
+/ .tst.mutate.child. Taking the name, rather than assuming it, lets a test
+/ drive these functions on a state of its own even while the test process is
+/ itself a mutation child.
 
 .tst.mutate.planPath:{[wd] wd,"/mutation.plan"};
 .tst.mutate.statusPath:{[wd] wd,"/mutation.status"};
 
-.tst.mutate.plan: ()!();
+.tst.mutate.child: ()!();
 .tst.mutate.missing: `resqMutateMissing;
 
-.tst.mutate.loadPlan:{[path]
+/ Read a plan file into the state named `st`. 0b when it cannot be read.
+.tst.mutate.loadPlan:{[st;path]
     plan: @[get; hsym `$path; {[e] ()}];
-    if[not 99h=type plan;
-        -2 "resQ ERROR: unreadable mutation plan: ",path;
-        exit 2];
+    if[not 99h=type plan; :0b];
     n: count plan`names;
-    .tst.mutate.plan: plan;
-    .tst.mutate.orig: n#(::);
-    .tst.mutate.wrap: n#(::);
-    .tst.mutate.matched: n#0b;
-    .tst.mutate.differs: n#0b;
-    .tst.mutate.hits: n#0b;
-    .tst.mutate.mutantFn: (::);
-    .tst.mutate.applied: 0b;
-    .tst.mutate.active: 1b;
+    st set `plan`orig`wrap`matched`differs`hits`mutantFn`applied!(
+        plan; n#(::); n#(::); n#0b; n#0b; n#0b; (::); 0b);
+    1b
+ };
+
+/ Make the state named `st` that of a mutation child and switch the runner's
+/ hooks on. 0b, with nothing changed, when the plan cannot be read.
+.tst.mutate.startChild:{[st;path]
+    ok: .tst.mutate.loadPlan[st;path];
+    if[ok; .tst.mutate.active: 1b];
+    ok
  };
 
 / Append one line to the status file the parent reads.
-.tst.mutate.note:{[line]
-    @[{[line] h: hopen hsym `$.tst.mutate.plan`status; neg[h] line; hclose h;}; line; {[e] ::}];
+.tst.mutate.note:{[st;line]
+    @[{[a] h: hopen hsym `$a 0; neg[h] a 1; hclose h;}; (get[st][`plan]`status; line); {[e] ::}];
  };
 
 .tst.mutate.live:{[name] @[get; name; {[e] .tst.mutate.missing}]};
@@ -391,66 +397,76 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     r
  };
 
+/ Text of the function that stands in for target i while probing: it records
+/ the call in the state named `st` and passes its arguments to the original.
+.tst.mutate.wrapperText:{[st;i;args]
+    at: "`",string[st];
+    "{[",args,"] .[",at,"; (`hits;",string[i],"); :; 1b]; (get[",at,"][`orig] ",string[i],")[",args,"]}"
+ };
+
 / Wrap target i so a call through its name is recorded, when the definition in
 / memory is the one the file holds.
-.tst.mutate.probe:{[i]
-    name: .tst.mutate.plan[`names] i;
+.tst.mutate.probe:{[st;i]
+    s: get st;
+    name: s[`plan;`names] i;
     live: .tst.mutate.live name;
-    if[live~.tst.mutate.wrap i; :()];
+    if[live~s[`wrap] i; :()];
     if[not 100h=type live; :()];
-    if[not (last value live)~.tst.mutate.plan[`texts] i;
-        .tst.mutate.differs[i]: 1b;
+    if[not (last value live)~s[`plan;`texts] i;
+        .[st; (`differs;i); :; 1b];
         :()];
-    args: ";" sv string (value live) 1;
-    wrapper: @[value;
-        "{[",args,"] .tst.mutate.hits[",string[i],"]:1b; .tst.mutate.orig[",string[i],"][",args,"]}";
-        {[e] ::}];
+    wrapper: @[value; .tst.mutate.wrapperText[st; i; ";" sv string (value live) 1]; {[e] ::}];
     if[not 100h=type wrapper; :()];
-    .tst.mutate.orig[i]: live;
-    .tst.mutate.wrap[i]: wrapper;
+    .[st; (`orig;i); :; live];
+    .[st; (`wrap;i); :; wrapper];
     name set wrapper;
-    .tst.mutate.matched[i]: 1b;
+    .[st; (`matched;i); :; 1b];
  };
 
 / Put the mutant in place of the one target, when the definition in memory is
 / the one the file holds. "applied" is written before any test can run on it:
 / the parent counts a kill only with that proof.
-.tst.mutate.applyMutant:{[]
-    name: first .tst.mutate.plan`names;
+.tst.mutate.applyMutant:{[st]
+    s: get st;
+    name: s[`plan;`names] 0;
     live: .tst.mutate.live name;
-    if[live~.tst.mutate.mutantFn; :()];
+    / Once the mutant is in place its text is no longer the file's, so this
+    / also returns when there is nothing left to do.
     if[not 100h=type live; :()];
-    if[not (last value live)~first .tst.mutate.plan`texts; :()];
-    if[(::)~.tst.mutate.mutantFn;
-        r: .tst.mutate.compile[first (value live) 3; .tst.mutate.plan`mutated];
+    if[not (last value live)~s[`plan;`texts] 0; :()];
+    if[(::)~s`mutantFn;
+        r: .tst.mutate.compile[first (value live) 3; s[`plan]`mutated];
         if[not first r;
-            .tst.mutate.note "error could not compile the mutant: ",last r;
+            .tst.mutate.note[st; "error could not compile the mutant: ",last r];
             :()];
-        .tst.mutate.mutantFn: last r];
-    if[not .tst.mutate.applied;
-        .tst.mutate.note "applied";
-        .tst.mutate.applied: 1b];
-    name set .tst.mutate.mutantFn;
+        @[st; `mutantFn; :; last r]];
+    if[not s`applied;
+        .tst.mutate.note[st; "applied"];
+        @[st; `applied; :; 1b]];
+    name set get[st]`mutantFn;
  };
 
 / Called once test files have loaded and again before each test body, because
 / a hook may reload the source. Never signals: an error here must not look
 / like a failing test.
-.tst.mutate.install:{[]
-    @[{[unused]
-        $[`probe~.tst.mutate.plan`mode;
-            .tst.mutate.probe each til count .tst.mutate.plan`names;
-            .tst.mutate.applyMutant[]];
-      }; ::; {[e] .tst.mutate.note "error ",e}];
+.tst.mutate.install:{[st]
+    @[{[st]
+        $[`probe~get[st][`plan]`mode;
+            .tst.mutate.probe[st] each til count get[st][`plan]`names;
+            .tst.mutate.applyMutant st];
+      }; st; {[st;e] .tst.mutate.note[st; "error ",e]}[st]];
  };
 
-/ Called when the run is over: a probe child reports what it saw.
-.tst.mutate.finish:{[]
-    if[not `probe~.tst.mutate.plan`mode; :()];
-    lines: ("matched ",/:string where .tst.mutate.matched),
-        ("differs ",/:string where .tst.mutate.differs and not .tst.mutate.matched),
-        "hit ",/:string where .tst.mutate.hits;
-    @[{[lines] (hsym `$.tst.mutate.plan`status) 0: lines,enlist "done";}; lines; {[e] ::}];
+/ Called when the run is over: a probe child reports what it saw. Like every
+/ write to the status file this appends, so nothing already recorded there,
+/ above all that a mutant was applied, can be lost.
+.tst.mutate.finish:{[st]
+    s: get st;
+    if[not `probe~s[`plan]`mode; :()];
+    lines: ("matched ",/:string where s`matched),
+        ("differs ",/:string where s[`differs] and not s`matched),
+        "hit ",/:string where s`hits;
+    .tst.mutate.note[st; "\n" sv lines,enlist "done"];
  };
 
 / ----------------------------------------------------------------------------
@@ -481,7 +497,6 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / spelling, so a file named twice ("src/a.q", "./src/a.q") is one file.
 .tst.mutate.expandTarget:{[testFiles;target]
     path: target`path;
-    none: ([] path:(); lo:`long$(); hi:`long$());
     spell: {[p] .tst.mutate.display .tst.canonicalPath p};
     if[.utl.isFile path;
         :([] path:enlist spell path; lo:enlist target`lo; hi:enlist target`hi)];
@@ -490,7 +505,6 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     canon: .tst.canonicalPath each .utl.pathToString each .tst.static.findSources path;
     isTest: .tst.mutate.among[canon; testFiles] or .tst.watch.runnable each `$canon;
     files: .tst.mutate.display each canon where not isTest;
-    if[0=count files; :none];
     ([] path:files; lo:(count files)#0N; hi:(count files)#0N)
  };
 
@@ -519,7 +533,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     {[h]
         words: " " vs h;
         plus: first words where words like "+*";
-        nums: "J"$"," vs 1 _ plus;
+        nums: "J"$"," vs plus;
         n: $[1<count nums; nums 1; 1];
         (nums 0; -1+nums[0]+n)
     } each lines where lines like "@@ *"
@@ -539,14 +553,13 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / `since` maps a path (symbol) to the line ranges changed, or is () for all.
 .tst.mutate.gather:{[sources;families;since]
     fns: raze .tst.mutate.functionsIn each distinct sources`path;
-    if[0=count fns; :`functions`mutants!(fns; ())];
     touches: {[lo;hi;ranges] any {[lo;hi;r] (lo<=r 1) and hi>=r 0}[lo;hi] each ranges};
     mutants: raze {[sources;families;since;touches;fnIdx;f]
         m: .tst.mutate.generate[f`text; families];
         if[0=count m; :()];
         pos: .tst.mutate.position[f] each m`at;
         lo: pos[;0];
-        hi: first each .tst.mutate.position[f] each -1+m`upto;
+        hi: first each .tst.mutate.position[f] each m`upto;
         / Keep a mutant whose changed span touches a requested line range.
         rows: sources where sources[`path]~\:f`file;
         wanted: {[r] $[null r`lo; 1 0W; (r`lo; r`hi)]} each rows;
@@ -590,7 +603,10 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     `code`valid`ran`failed`firstFailure`timedOut`licence`status`tail!(
         code; decoded`valid; count rows; count bad; firstFailure;
         (code in 124 137) or 0<count ss[captured; "timeout: sending signal "];
-        0<count ss[lower captured; "couldn't connect to license daemon"];
+        / q reports this on a line of its own that starts with a quote. Looking
+        / for that, rather than the phrase anywhere, keeps test output that
+        / merely mentions it from being taken for a licence failure.
+        any {("'"=first x) and 0<count ss[x; "couldn't connect to license daemon"]} each "\n" vs lower captured;
         @[read0; hsym `$.tst.mutate.statusPath wd; {[e] ()}];
         .tst.isolate.tail[wd; 12])
  };
@@ -598,7 +614,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / Run one child per (test file; plan; timeout) at the same time and return a
 / table with one row of readChild per child.
 .tst.mutate.runBatch:{[files;plans;timeouts]
-    wds: {[unused] @[{[i] .tst.isolate.createScratch[]}; 0; {[e] ""}]} each files;
+    wds: {[unused] @[.tst.isolate.createScratch; ::; {[e] ""}]} each files;
     ready: {[wd;plan]
         if[0=count wd; :0b];
         .tst.isolate.resetScratch wd;
@@ -610,12 +626,16 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     at: where ready;
     .tst.isolate.launchGroup[at; cmds at; wds at];
     results: {[ok;wd] $[ok; .tst.mutate.readChild wd; .tst.mutate.noChild[]]}'[ready;wds];
-    {[wd] if[count wd; @[.tst.isolate.cleanupScratch; wd; {[e] 0b}]];} each wds;
+    {[wd] if[count wd; @[.tst.isolate.cleanupScratch; wd; {[e] ::}]];} each wds;
     results
  };
 
+/ Everything the command prints goes through these, so it can be checked.
+.tst.mutate.out:{[line] -1 line;};
+.tst.mutate.err:{[line] -2 line;};
+.tst.mutate.mark:{[text] 1 text;};
 / Progress marks, written without a newline; silent under -quiet.
-.tst.mutate.tick:{[text] if[not 1b~@[get; `.tst.app.quiet; 0b]; 1 (),text];};
+.tst.mutate.tick:{[text] if[not 1b~.tst.app.quiet; .tst.mutate.mark (),text];};
 
 / ----------------------------------------------------------------------------
 / Baseline: every test file on its own, unmutated, with probes
@@ -624,7 +644,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / Function indexes named by status lines such as "hit 12".
 .tst.mutate.statusIndexes:{[lines;word]
     hit: lines where lines like word," *";
-    "J"${[word;l] (1+count word) _ l}[word] each hit
+    "J"${[word;l] (count word) _ l}[word] each hit
  };
 
 .tst.mutate.baselineReason:{[r]
@@ -662,16 +682,17 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / ----------------------------------------------------------------------------
 
 / What one mutant run shows. `retry means the run proves nothing either way:
-/ it failed without evidence that the mutant was in place.
+/ it failed without evidence that the mutant was in place. An error the child
+/ recorded while placing the mutant makes a passing run worthless, but not a
+/ failing one: the mutant was in place and the tests did fail.
 .tst.mutate.verdict:{[r]
     st: r`status;
     applied: any st like "applied*";
-    if[any st like "error*"; :`error];
+    errored: any st like "error*";
     if[r`licence; :`retry];
-    if[r`timedOut; :$[applied; `timeout; `retry]];
-    if[not r`valid; :$[applied; `killed; `retry]];
-    bad: (0<r`failed) or not 0=r`code;
-    $[bad and applied; `killed; bad; `retry; applied; `survived; `unapplied]
+    if[r`timedOut; :$[applied; `timeout; errored; `error; `retry]];
+    bad: (not r`valid) or (0<r`failed) or not 0=r`code;
+    $[bad and applied; `killed; errored; `error; bad; `retry; applied; `survived; `unapplied]
  };
 
 .tst.mutate.marks: `killed`timeout`survived`unapplied`error!".TS-E";
@@ -694,7 +715,6 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     step: n#0;
     tries: n#0;
     everApplied: n#0b;
-    shown: 0;
     while[count active: where status=`pending;
         batch: workers sublist active;
         fileIdx: {[calledBy;f;k] calledBy[f] k}[calledBy]'[mutants[`fnIdx] batch; step batch];
@@ -723,8 +743,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
                     status[m]: $[everApplied m; `survived; `unapplied]]];
             if[not status[m]~`pending;
                 .tst.mutate.tick .tst.mutate.marks status m;
-                shown+: 1;
-                if[0=shown mod 60; .tst.mutate.tick "\n"]];
+                if[0=(sum status in key .tst.mutate.marks) mod 60; .tst.mutate.tick "\n"]];
             i+: 1];
     ];
     update status:status, killedBy:killedBy from mutants
@@ -734,7 +753,8 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / Report
 / ----------------------------------------------------------------------------
 
-.tst.mutate.percent:{[num;den] $[den>0; 0.1*"j"$1000*num%den; 0n]};
+/ To one decimal place; null when there is nothing to divide by.
+.tst.mutate.percent:{[num;den] 0.1*"j"$1000*num%den};
 .tst.mutate.showPercent:{[p] $[null p; "n/a"; .Q.f[1;p],"%"]};
 
 / Counts and scores. Detected is killed plus timed out. A mutant in a function
@@ -753,7 +773,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         .tst.mutate.percent[detected; detected+survived])
  };
 
-.tst.mutate.pad:{[width;text] $[width>count text; text,(width-count text)#" "; text]};
+.tst.mutate.pad:{[width;text] (width|count text)#text,width#" "};
 
 / "file" heading followed by one line per mutant.
 .tst.mutate.listMutants:{[fns;rows]
@@ -781,49 +801,49 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.report:{[mutants;fns;base]
     s: .tst.mutate.summary mutants;
     st: mutants`status;
-    -1 "";
-    -1 "RESULT";
-    -1 "  killed        ",string s`killed;
-    -1 "  timed out     ",string s`timedOut;
-    -1 "  survived      ",string s`survived;
-    -1 "  not covered   ",string s`notCovered;
-    -1 "  not assessed  ",string s`notAssessed;
-    -1 "";
-    -1 "  Mutation score: ",.tst.mutate.showPercent[s`score],
+    .tst.mutate.out "";
+    .tst.mutate.out "RESULT";
+    .tst.mutate.out "  killed        ",string s`killed;
+    .tst.mutate.out "  timed out     ",string s`timedOut;
+    .tst.mutate.out "  survived      ",string s`survived;
+    .tst.mutate.out "  not covered   ",string s`notCovered;
+    .tst.mutate.out "  not assessed  ",string s`notAssessed;
+    .tst.mutate.out "";
+    .tst.mutate.out "  Mutation score: ",.tst.mutate.showPercent[s`score],
         " (",string[s[`killed]+s`timedOut]," of ",string[s[`killed]+s[`timedOut]+s[`survived]+s`notCovered]," mutants detected)";
     if[0<s`notCovered;
-        -1 "  In functions the tests call: ",.tst.mutate.showPercent s`coveredScore];
+        .tst.mutate.out "  In functions the tests call: ",.tst.mutate.showPercent s`coveredScore];
 
     if[count rows: mutants where st=`survived;
-        -1 "";
-        -1 "SURVIVED (",string[count rows],"): the tests pass with this change in place";
-        -1 each .tst.mutate.listMutants[fns;rows]];
+        .tst.mutate.out "";
+        .tst.mutate.out "SURVIVED (",string[count rows],"): the tests pass with this change in place";
+        .tst.mutate.out each .tst.mutate.listMutants[fns;rows]];
     if[count rows: mutants where st=`timeout;
-        -1 "";
-        -1 "TIMED OUT (",string[count rows],"): counted as detected; the change made a test run far longer";
-        -1 each .tst.mutate.listMutants[fns;rows]];
+        .tst.mutate.out "";
+        .tst.mutate.out "TIMED OUT (",string[count rows],"): counted as detected; the change made a test run far longer";
+        .tst.mutate.out each .tst.mutate.listMutants[fns;rows]];
     if[count rows: mutants where st in `uncovered`unloaded;
-        -1 "";
-        -1 "NOT COVERED (",string[count rows],"): no usable test file calls these functions by name";
-        -1 each .tst.mutate.listFunctions[fns;rows]];
+        .tst.mutate.out "";
+        .tst.mutate.out "NOT COVERED (",string[count rows],"): no usable test file calls these functions by name";
+        .tst.mutate.out each .tst.mutate.listFunctions[fns;rows]];
     if[count rows: mutants where st=`unmatched;
-        -1 "";
-        -1 "NOT ASSESSED (",string[count rows],"): the function in memory is not the definition in the file";
-        -1 each .tst.mutate.listFunctions[fns;rows]];
+        .tst.mutate.out "";
+        .tst.mutate.out "NOT ASSESSED (",string[count rows],"): the function in memory is not the definition in the file";
+        .tst.mutate.out each .tst.mutate.listFunctions[fns;rows]];
     if[count rows: mutants where st=`unapplied;
-        -1 "";
-        -1 "NOT ASSESSED (",string[count rows],"): the function was not in place when the tests ran";
-        -1 each .tst.mutate.listFunctions[fns;rows]];
+        .tst.mutate.out "";
+        .tst.mutate.out "NOT ASSESSED (",string[count rows],"): the function was not in place when the tests ran";
+        .tst.mutate.out each .tst.mutate.listFunctions[fns;rows]];
     if[count rows: mutants where st=`error;
-        -1 "";
-        -1 "NOT ASSESSED (",string[count rows],"): the run failed without the mutant in place (unstable test or environment)";
-        -1 each .tst.mutate.listMutants[fns;rows]];
+        .tst.mutate.out "";
+        .tst.mutate.out "NOT ASSESSED (",string[count rows],"): the run failed without the mutant in place (unstable test or environment)";
+        .tst.mutate.out each .tst.mutate.listMutants[fns;rows]];
     s
  };
 
 .tst.mutate.writeJson:{[mutants;fns;base;summary]
+    / q creates the directory when it writes the file.
     out: .utl.normalizePath @[get; `.resq.config.outDir; "."];
-    .utl.ensureDir out;
     doc: `schemaVersion`kind`framework`frameworkVersion`generatedAt`summary`testFiles`mutants!(
         1j; "resq-mutation-report"; "resQ"; .tst.toString @[get; `.resq.VERSION; {"unknown"}];
         .tst.isoTimestamp .z.P; summary;
@@ -835,90 +855,103 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         }[fns]'[til count mutants; mutants]);
     path: out,"/mutation-report.json";
     (hsym `$path) 0: enlist .tst.output.strictJson doc;
-    -1 "Mutation report written to: ",path;
+    .tst.mutate.out "Mutation report written to: ",path;
  };
 
 / ----------------------------------------------------------------------------
 / Entry point
 / ----------------------------------------------------------------------------
 
-.tst.mutate.run:{[args]
-    if[0=count args; '"name the source to mutate, for example: resq mutate src/pricing.q"];
-    families: .tst.mutate.chosenFamilies @[get; `.tst.app.mutators; ""];
-    testPaths: @[get; `.tst.app.mutationTests; ()];
-    if[0=count testPaths;
+/ The test files to run: those under `paths`, or under tests/ when none are
+/ named. A path that does not exist is an error, not an empty result.
+.tst.mutate.testFiles:{[paths]
+    if[0=count paths;
         if[not .utl.isDir "tests"; '"there is no tests/ directory here; name the tests with -tests PATHS"];
-        testPaths: enlist "tests"];
-    .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
-    testFiles: .utl.pathToString each .tst.selectTestFiles .tst.findTests testPaths;
-    if[count .tst.app.loadErrors;
-        '"test path not found: ",", " sv .utl.pathToString each .tst.app.loadErrors`file];
-    if[0=count testFiles; '"no test files found under: ",", " sv testPaths];
+        paths: enlist "tests"];
+    missing: paths where not (.utl.isFile each paths) or .utl.isDir each paths;
+    if[count missing; '"test path not found: ",", " sv missing];
+    files: asc .utl.pathToString each .tst.findTests paths;
+    if[0=count files; '"no test files found under: ",", " sv paths];
+    files
+ };
 
+/ What a command line selects: the functions, their mutants, how many mutants
+/ there were before -max-mutants, and the test files to run them against.
+.tst.mutate.select:{[args]
+    if[0=count args; '"name the source to mutate, for example: resq mutate src/pricing.q"];
+    families: .tst.mutate.chosenFamilies .tst.app.mutators;
+    testFiles: .tst.mutate.testFiles .tst.app.mutationTests;
     sources: raze .tst.mutate.expandTarget[testFiles] each .tst.mutate.parseTarget each args;
     if[0=count sources; '"no source files to mutate under: ",", " sv args];
-    ref: @[get; `.tst.app.mutationSince; ""];
-    since: ();
-    if[count ref;
-        .tst.mutate.requireRevision ref;
-        paths: distinct sources`path;
-        since: (`$paths)!.tst.mutate.changedLines[ref] each paths];
-
+    ref: .tst.app.mutationSince;
+    since: $[count ref;
+        [.tst.mutate.requireRevision ref;
+         (`$sources`path)!.tst.mutate.changedLines[ref] each sources`path];
+        ()];
     found: .tst.mutate.gather[sources;families;since];
     fns: found`functions;
     mutants: found`mutants;
     total: count mutants;
-    -1 "Mutation testing";
-    if[0=total;
-        -1 "  Nothing to mutate: no named function with a mutable construct in ",
+    / -max-mutants: that many, evenly spaced, and never more than there are.
+    limit: .tst.app.maxMutants;
+    n: $[limit>0; limit&total; total];
+    mutants: mutants "j"$floor (til n)*total%n;
+    / Only the functions that still have a mutant are probed and reported.
+    if[count mutants;
+        used: asc distinct mutants`fnIdx;
+        fns: fns used;
+        mutants: update fnIdx:used?fnIdx from mutants];
+    `functions`mutants`total`testFiles!(fns; mutants; total; testFiles)
+ };
+
+.tst.mutate.run:{[args]
+    chosen: .tst.mutate.select args;
+    fns: chosen`functions;
+    mutants: chosen`mutants;
+    testFiles: chosen`testFiles;
+    ref: .tst.app.mutationSince;
+    .tst.mutate.out "Mutation testing";
+    if[0=count mutants;
+        .tst.mutate.out "  Nothing to mutate: no named function with a mutable construct in ",
             $[count ref; "the lines changed since ",ref; "the selected source"],".";
         :.resq.EXIT.PASS];
-    limit: "j"$@[get; `.tst.app.maxMutants; 0];
-    sampled: (limit>0) and limit<total;
-    if[sampled; mutants: mutants "j"$floor (til limit)*total%limit];
-    / Only the functions that still have a mutant are probed and reported.
-    used: asc distinct mutants`fnIdx;
-    fns: fns used;
-    mutants: update fnIdx:used?fnIdx from mutants;
-    -1 "  Source: ",string[count distinct fns`file]," file(s), ",string[count fns],
+    .tst.mutate.out "  Source: ",string[count distinct fns`file]," file(s), ",string[count fns],
         " function(s), ",string[count mutants]," mutant(s)",
         $[count ref; " on lines changed since ",ref; ""],
-        $[sampled; ", an even sample of ",string[total]," (-max-mutants)"; ""];
+        $[chosen[`total]>count mutants; ", an even sample of ",string[chosen`total]," (-max-mutants)"; ""];
     .tst.mutate.requireTools[];
     .tst.mutate.parent: 1b;
-    workers: .tst.isolate.workerCount count testFiles;
-    cap: "j"$@[get; `.tst.app.isolateTimeout; 300];
+    cap: "j"$@[get; `.tst.app.isolateTimeout; .tst.mutate.childLimit];
 
-    -1 "  Tests:  ",string[count testFiles]," file(s), each first run on its own without a mutant";
+    .tst.mutate.out "  Tests:  ",string[count testFiles]," file(s), each first run on its own without a mutant";
     .tst.mutate.tick "  ";
-    base: .tst.mutate.baseline[testFiles;fns;workers;cap];
+    base: .tst.mutate.baseline[testFiles;fns;.tst.isolate.workerCount count testFiles;cap];
     .tst.mutate.tick "\n";
     unusable: base where not base`usable;
     if[count unusable;
-        -1 "  ",string[count unusable]," test file(s) left out, because a failure there would not be the mutant's doing:";
-        {[r] -1 "    ",.tst.mutate.display[r`file],": ",r`why;} each unusable];
+        .tst.mutate.out "  ",string[count unusable]," test file(s) left out, because a failure there would not be the mutant's doing:";
+        {[r] .tst.mutate.out "    ",.tst.mutate.display[r`file],": ",r`why;} each unusable];
     if[not any base`usable;
-        -1 "";
-        -1 (last unusable)`tail;
+        .tst.mutate.out "";
+        .tst.mutate.out (last unusable)`tail;
         '"no test file passes on its own, so nothing can be assessed"];
 
     / A failing test ends a mutant run: one failure is all a kill needs. A
     / mutant stuck in a loop ignores the first signal, so follow it up quickly.
     .tst.app.failFast: 1b;
     .tst.isolate.killAfter: 1;
-    -1 "  Running mutants (. killed, S survived, T timed out, - not applied, E error)";
+    .tst.mutate.out "  Running mutants (. killed, S survived, T timed out, - not applied, E error)";
     .tst.mutate.tick "  ";
     mutants: .tst.mutate.execute[mutants;fns;base;.tst.isolate.workerCount count mutants;cap];
     .tst.mutate.tick "\n";
 
     summary: .tst.mutate.report[mutants;fns;base];
-    if[`json in @[get; `.tst.app.reportFormats; `symbol$()];
-        .tst.mutate.writeJson[mutants;fns;base;summary]];
-    minimum: @[get; `.tst.app.mutationMin; 0N];
+    if[`json in .tst.app.reportFormats; .tst.mutate.writeJson[mutants;fns;base;summary]];
+    minimum: .tst.app.mutationMin;
     if[not null minimum;
         if[(null summary`score) or minimum>summary`score;
-            -1 "";
-            -1 "Mutation score ",.tst.mutate.showPercent[summary`score]," is below the required ",string[minimum],"%.";
+            .tst.mutate.out "";
+            .tst.mutate.out "Mutation score ",.tst.mutate.showPercent[summary`score]," is below the required ",string[minimum],"%.";
             :.resq.EXIT.FAIL]];
     .resq.EXIT.PASS
  };
@@ -926,6 +959,6 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.main:{[args]
     outcome: @[{[a] (1b; .tst.mutate.run a)}; args; {[e] (0b; e)}];
     if[first outcome; :last outcome];
-    -2 "MUTATION ERROR: ",last outcome;
+    .tst.mutate.err "MUTATION ERROR: ",last outcome;
     .resq.EXIT.FAIL
  };

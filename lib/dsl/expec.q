@@ -541,7 +541,7 @@ runExpec:{[spec;expec];
 runExpecAttempt:{[spec;expec];
  / A mutation child keeps its probes or its mutant in place: a beforeAll or
  / before hook may have reloaded the source. See lib/mutate.q.
- if[.tst.mutate.active; .tst.mutate.install[]];
+ if[.tst.mutate.active; .tst.mutate.install `.tst.mutate.child];
  / Before Block
  beforeBad:`before;
  if[`before in key expec;
@@ -555,7 +555,7 @@ runExpecAttempt:{[spec;expec];
 
   / Main Test
   beforeBad:`test;
-  if[.tst.mutate.active; .tst.mutate.install[]];
+  if[.tst.mutate.active; .tst.mutate.install `.tst.mutate.child];
   if[not count expec[`result];
      budgetMs: "f"$first .tst.app.maxTestTime;
      testStart: .z.p;

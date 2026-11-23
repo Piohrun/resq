@@ -1393,11 +1393,11 @@
     if[continue; continue: .tst.runAllPhase.runSafely[`loadTests; {.tst.loadTests .tst.app.args}]];
     / A mutation child puts its probes or its mutant in place once the test
     / files, and the source they load, are in memory. See lib/mutate.q.
-    if[continue and .tst.mutate.active; .tst.mutate.install[]];
+    if[continue and .tst.mutate.active; .tst.mutate.install `.tst.mutate.child];
     if[continue; continue: .tst.runAllPhase.runSafely[`filterSpecs; .tst.runAllPhase.filterSpecs]];
     if[continue; continue: .tst.runAllPhase.runSafely[`snapshotRun; .tst.captureCanonicalRunSnapshot]];
     if[continue; continue: .tst.runAllPhase.runSafely[`runSpecs; .tst.runAllPhase.runDiscoveredSpecs]];
-    if[.tst.mutate.active; @[.tst.mutate.finish; ::; {[e] ::}]];
+    if[.tst.mutate.active; @[.tst.mutate.finish; `.tst.mutate.child; {[e] ::}]];
     if[continue; continue: .tst.runAllPhase.runSafely[`loadErrors; .tst.runAllPhase.injectLoadErrors]];
     if[continue; continue: .tst.runAllPhase.runSafely[`strictMode; .tst.runAllPhase.applyStrictMode]];
     if[continue; continue: .tst.runAllPhase.runSafely[`coverage; .tst.runAllPhase.generateCoverage]];

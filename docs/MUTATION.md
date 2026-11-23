@@ -95,7 +95,8 @@ A mutant that hangs or crashes ends only its own process. A child is stopped onc
 ### What keeps the verdicts honest
 
 - **Exact match before mutating.** A function is changed only when the definition in memory is, character for character, the definition in the file. If a test file replaces the function, or the file is not what was loaded, the function is reported as not assessed.
-- **Proof before a kill.** The child records that the mutant is in place before any test can run on it. A failing run without that record (a licence blip, a startup failure, an unstable test) is retried twice and then reported as not assessed. It is never counted as a kill.
+- **Proof before a kill.** The child records that the mutant is in place before any test can run on it. A failing run without that record (a licence blip, a startup failure, an unstable test) is retried twice and then reported as not assessed. It is never counted as a kill. The record is only ever added to, so nothing that runs later can remove it.
+- **No survivor on doubt.** If the child hit an error while keeping the mutant in place, a passing run is reported as not assessed: the mutant may not have been there for every test.
 - **Same conditions for both runs.** The baseline and the mutant run each use one test file per process, so a test that only passes after another file has run cannot produce a false kill.
 
 ---
@@ -171,6 +172,8 @@ resq mutate src/ -tests tests/ -qspec-compat -qspec-discovery
 - **Only named top-level functions.** Code that runs when a file loads, and lambdas stored inside a dictionary or list, are not mutated.
 - **A function reached through a captured value looks uncovered.** If a dispatch table holds `.api.get` as a value taken at load time, a call through the table never goes through the name, so the mutant would not be reached and the call is not seen. The function is reported as not covered even when it is tested that way. A table that holds the function's name and looks it up at call time does not have this problem.
 - **A call made while a test file loads is not seen.** Mutants and probes go in after loading.
+- **Code a test reaches only through another process is not measured.** The mutant exists in the test's own q process. A test that starts a second q process and checks what that process does runs the unmutated code there.
+- **A mutant runs your code with one thing changed, side effects included.** If a function writes or deletes files, a mutant of it may do so at a different path. resQ's own run on its status-writing code left a stray file in the working directory this way. Mutate such code in a checkout you can restore.
 - **Equivalent mutants.** Some changes cannot alter behaviour. Starting a sum at index 1 instead of 0 gives the same total, and no test can tell. These survive, and you have to recognise them. Expect a few per file; do not chase 100%.
 - **Unstable tests.** A test that fails at random can kill a mutant it never touched. The mutant was in place, so resQ cannot tell the difference. Fix or quarantine unstable tests before trusting a score.
 - **Time.** Each mutant costs one process start plus the tests that call its function, about a quarter of a second for a small test file. A mutant that hangs costs five seconds or more. Use line ranges, `-since`, `-max-mutants` and `-isolateWorkers` to keep runs short.

@@ -502,7 +502,10 @@ initCLI:{[parsed]
 
     / Mutation testing (lib/mutate.q). A plan marks this process as one of the
     / children `resq mutate` starts; the rest configure the parent.
-    if[0 < count options`mutationPlan; .tst.mutate.loadPlan options`mutationPlan];
+    if[0 < count options`mutationPlan;
+        if[not .tst.mutate.startChild[`.tst.mutate.child; options`mutationPlan];
+            -2 "resQ ERROR: unreadable mutation plan: ", options`mutationPlan;
+            exit 2]];
     if[0 < count options`mutationTests; .tst.app.mutationTests: "," vs options`mutationTests];
     if[0 < count options`mutators; .tst.app.mutators: options`mutators];
     if[0 < count options`mutationSince; .tst.app.mutationSince: options`mutationSince];

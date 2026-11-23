@@ -22,6 +22,10 @@
 .tst.isolate.rmExe: .tst.isolate.commandPath "rm";
 .tst.isolate.shExe: .tst.isolate.commandPath "sh";
 .tst.isolate.childInventory:();
+/ Seconds between the polite signal and the kill when a child overruns. A q
+/ process stuck in a loop ignores the first, so a run that expects hangs
+/ (lib/mutate.q) shortens this.
+.tst.isolate.killAfter: 5;
 
 / All isolation diagnostics pass through one gate so qspec's -pass contract is
 / silent while the parent still returns the aggregated process status.
@@ -521,10 +525,8 @@
 / complete child tree if the foreground run is interrupted.
 .tst.isolate.processCommand:{[wd; file; timeoutSecs]
     childArgv: .tst.isolate.childArgv[file; wd];
-    / Seconds between the polite signal and the kill. A q process stuck in a
-    / loop ignores the first, so a run that expects hangs shortens this.
     timedArgv: (.tst.isolate.timeoutExe; "--verbose"; "-k";
-        .tst.toString @[get; `.tst.isolate.killAfter; 5]; string timeoutSecs), childArgv;
+        .tst.toString .tst.isolate.killAfter; string timeoutSecs), childArgv;
     / The parent launcher owns its completion marker. Isolated q children are
     / already supervised by this module and must not complete the parent's run.
     "LC_ALL=C RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
