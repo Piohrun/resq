@@ -36,7 +36,7 @@ regression.
 | Upstream qspec parity | Three pinned MIT qspec suites and resQ's `holds` value-domain probe run through unmodified upstream qspec and `bin/qspec` produce the same JUnit and qspec-xunit testcase names and verdicts, apart from five listed private-API tests. | [qspec differential verifier](../tools/verify_qspec_differential.py), [differential manifest](../pilots/qspec-differential.json) |
 
 Historical audits record only their named version and commit. Roadmap entries
-label unimplemented ecosystem ideas explicitly. `resq mutate` is a user-facing
-tool whose behaviour is covered by [its tests](../tests/test_mutate.q); it is
-not part of the release gate, and the fault-injection tests inside resQ's own
-verification corpus are separate from it.
+label unimplemented ecosystem ideas explicitly. `resq mutate` is covered by
+[its tests](../tests/test_mutate.q), which run in the release gate's
+self-suite; the fault-injection tests inside resQ's own verification corpus
+are separate from it.

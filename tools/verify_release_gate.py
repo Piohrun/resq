@@ -51,6 +51,12 @@ REQUIRED_CONTRACT_TESTS = {
     "sample only qspec's own numeric domain under -qspec-compat",
     "unwritable state is a warning, not a failed run",
     "a failing assertion inside a perf body fails the block",
+    "judge the loader's calls instead of its definition",
+    "flag a lambda that loads where it stands, named or not",
+    "a loaded source reruns its test, an unloaded one the whole suite, and edits are reloaded",
+    "call a failing run a kill only when the mutant was applied",
+    "kills, survivors, timeouts, uncovered and unmatched functions are told apart",
+    "fail an empty condition under -strict, because it checks nothing",
 }
 
 

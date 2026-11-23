@@ -40,7 +40,7 @@ if[not `DEBUG in key `.utl;.utl.DEBUG:0b];
 if[not `resq in key `; .resq.tmp:1];
 if[not `state in key `.resq; .resq.state.tmp:1];
 if[not `config in key `.resq; .resq.config.tmp:1];
-.resq.VERSION: "2.2.2";
+.resq.VERSION: "2.3.0";
 
 / Exit code constants for CI/CD integration. Only codes actually emitted by the
 / dispatcher (resq.q) are defined; 2 (CONFIG_ERROR) and 5 (PARTIAL) had no

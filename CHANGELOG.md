@@ -4,6 +4,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.3.0] - 2026-11-23 - Mutation Testing & Load-Aware Watch
+
+resQ 2.3.0 adds `resq mutate`, makes watch mode re-run the tests that load a
+changed file, adds the embedded `.resq.run` API, and fixes loader, isolation
+and failure-output defects found on production-style code. It keeps the 2.x
+DSL, report-v2 contract and identity v3; the CLI only gains options.
+
 ### Added
 
 - `resq mutate <source>`: mutation testing. It plants one small change at a

@@ -234,6 +234,21 @@ following checked-in contracts; the final release gate invokes all of them:
   exact candidate evidence; the certification commit is requalified before the
   annotated tag is pushed.
 
+## 2.3.0 — mutation testing and load-aware watch
+
+- [x] Add `resq mutate`: one in-memory mutant per child process, a kill only
+  with proof the mutant was in place, and a list of files mutants changed.
+- [x] Select watch-mode tests by what they load, flag loads that cannot be
+  read, run the full-suite fallback, and re-read files loaded by require.
+- [x] Add the embedded `.resq.run` API, `-root-load`, `-args`, and isolation
+  diagnostics that name the running test and keep finished results.
+- [x] Fail an empty `must` condition under `-strict`.
+- [x] Bound failure rendering and backtraces; fix infix rewriting after a
+  word, per-file bind errors and `.z` mock restoration.
+- [x] Require the load-graph, watch-selection, mutation and strict-`must`
+  tests in the release gate.
+- [ ] Complete the clean-clone v2.3.0 release qualification.
+
 ## Post-2.0 ecosystem ideas — not implemented
 
 These are roadmap ideas, not resQ capabilities or release commitments:
