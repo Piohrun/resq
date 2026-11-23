@@ -108,7 +108,9 @@ asserts:()!()
       `unusable]
  };
 
-asserts[`must]:{[val;message];
+/ The check every assertion ends in: a boolean or numeric condition that must
+/ hold, with the message to record when it does not.
+.tst.assertCondition:{[val;message];
   .tst.assertState.assertsRun+:1;
   kind: .tst.mustConditionKind val;
   $[kind = `unusable;
@@ -119,15 +121,6 @@ asserts[`must]:{[val;message];
     kind = `null;
       .tst.assertState.failures,: enlist
         "must condition is null, which is not a truth value: ", .tst.toString val;
-    / "All of no items hold" is true, so an empty list passes, as it does in
-    / qspec. It also verifies nothing, and is nearly always a comparison made
-    / on an empty result (`must[x like "a*"; ...]` with x empty). -strict
-    / already means a run that verified nothing must not pass.
-    (0 = count val) and 1b ~ @[get; `.tst.app.strict; 0b];
-      [ renderedMessage: .tst.renderAssertionMessage message;
-        m: $[10h = abs type renderedMessage; renderedMessage; .tst.renderValueFull renderedMessage];
-        .tst.assertState.failures,: enlist .tst.withOrdinalSuffix
-          "must condition is an empty list, which checks nothing (-strict): ", m ];
     not all $[kind = `numeric; 0 <> val; val];
       [ renderedMessage: .tst.renderAssertionMessage message;
         m: $[10h = abs type renderedMessage; renderedMessage;.tst.renderValueFull renderedMessage];
@@ -152,6 +145,26 @@ asserts[`must]:{[val;message];
 / numeric match (`1 musteq 1.0`). Trapped, because `=` signals on tables and on
 / length-mismatched operands, which are exactly the cases `~` handles better.
 .tst.qspecEqWouldPass:{[l;r] 1b ~ @[{[a;b] all a = b}[l;]; r; {[e] 0b}] };
+
+/ must, as tests write it. Under -strict an empty list is not accepted as a
+/ condition. "All of no items hold" is true, so it passes in qspec and here
+/ without -strict, but it verifies nothing, and in a test it is nearly always
+/ a comparison made on a result that came back empty (`must[x like "a*"; ...]`
+/ with x empty). Two things are left alone on purpose:
+/ - assertions that compare lists item by item (mustlt, mustlike, ...) call
+/   assertCondition directly: an empty operand is ordinary data to them;
+/ - the body of `holds`, which is given empty values deliberately.
+asserts[`must]:{[val;message];
+  empty: (0 = count val) and .tst.mustConditionKind[val] in `boolean`numeric;
+  if[empty and (not .tst.propertyCase) and 1b ~ @[get; `.tst.app.strict; 0b];
+      .tst.assertState.assertsRun+:1;
+      renderedMessage: .tst.renderAssertionMessage message;
+      m: $[10h = abs type renderedMessage; renderedMessage; .tst.renderValueFull renderedMessage];
+      .tst.assertState.failures,: enlist .tst.withOrdinalSuffix
+        "must condition is an empty list, which checks nothing (-strict): ", m;
+      :(::)];
+  .tst.assertCondition[val;message]
+  }
 
 asserts[`musteq]:{[l;r];
     if[l ~ r; :.tst.assertState.assertsRun+:1];
@@ -192,14 +205,14 @@ asserts[`musteq]:{[l;r];
        diffText: .tst.renderDiffText[r;l];
        .tst.printDiffText diffText;
        if[count diffText; m,: .tst.diffDetailMarker, diffText]];
-   .tst.asserts[`must][0b; m];
+   .tst.assertCondition[0b; m];
   }
 / mustmatch shares musteq's ~-equality semantics; route it through the same body
 / so a mismatch renders the rich FAILURE DIFF instead of a bare -3! message.
 asserts[`mustmatch]:{[l;r]; .tst.asserts[`musteq][l;r]}
 asserts[`mustmatchs]:{[l;r]; .tst.mustmatchSnap[l;r]}
 asserts[`mustmatchst]:{[l;r]; .tst.mustmatchTxtSnap[l;r]}
-asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;
+asserts[`mustnmatch]:{[l;r]; .tst.assertCondition[not l~r;
   .tst.deferAssertionMessage[{[a;b] "Got ",.tst.assertValueText[a],
     " — expected it NOT to match ",.tst.assertValueText[b]};(l;r)]]}
 / mustne is the exact inverse of musteq, so it must use `~` (whole-value match),
@@ -211,7 +224,7 @@ asserts[`mustnmatch]:{[l;r]; .tst.asserts[`must][not l~r;
 / of musteq. -qspec-compat restores the original semantics for unported suites.
 asserts[`mustne]:{[l;r];
   cond: $[1b ~ @[get; `.tst.app.qspecCompat; 0b]; l <> r; not l ~ r];
-  .tst.asserts[`must][cond; .tst.deferAssertionMessage[{[a;b]
+  .tst.assertCondition[cond; .tst.deferAssertionMessage[{[a;b]
     "Got ",.tst.assertValueText[a]," — expected it NOT to equal ",.tst.assertValueText[b]};(l;r)]]}
 
 / Evaluate a comparison under a functional trap. Invalid assertion operands
@@ -224,7 +237,7 @@ asserts[`mustne]:{[l;r];
     typeText:("h and " sv string type each args),"h";
     '"Assertion ",name," cannot compare operand types ",typeText,
       " (",.tst.toString[last outcome],")"];
-  .tst.asserts[`must][last outcome;message]
+  .tst.assertCondition[last outcome;message]
  };
 
 asserts[`mustlt]:{[l;r]; .tst.assertTypedComparison["mustlt";{[a;b]a<b};(l;r);
@@ -233,7 +246,7 @@ asserts[`mustlt]:{[l;r]; .tst.assertTypedComparison["mustlt";{[a;b]a<b};(l;r);
 asserts[`mustgt]:{[l;r]; .tst.assertTypedComparison["mustgt";{[a;b]a>b};(l;r);
   .tst.deferAssertionMessage[{[a;b]
     "Got ",.tst.assertValueText[a]," — expected it to be greater than ",.tst.assertValueText[b]};(l;r)]]}
-asserts[`mustlike]:{[l;r]; .tst.asserts[`must][l like r; .tst.deferAssertionMessage[{[a;b]
+asserts[`mustlike]:{[l;r]; .tst.assertCondition[l like r; .tst.deferAssertionMessage[{[a;b]
   "Expected ",.tst.assertValueText[a]," to be like ",.tst.assertValueText[b]};(l;r)]]}
 asserts[`mustin]:{[l;r]; .tst.assertTypedComparison["mustin";{[a;b]a in b};(l;r);
   .tst.deferAssertionMessage[{[a;b]
@@ -301,7 +314,7 @@ asserts[`mustthrow]:{[e;c];
 
   if[not isErr; m,:" No error thrown"; p:0b];
   if[isErr and (0 < count pats) and not any (), errStr like/: pats; m,: " Error thrown: '",errStr,"'";p:0b];
-  .tst.asserts[`must][p;m]
+  .tst.assertCondition[p;m]
   }
 
 asserts[`mustnotthrow]:{[e;c];
@@ -326,7 +339,7 @@ asserts[`mustnotthrow]:{[e;c];
   p:1b;
   if[isErr and not 0 < count pats; m,:"an error. Error thrown: '",errStr,"'";p:0b];
   if[isErr and (0 < count pats) and any (), errStr like/: pats; m,: "the error '",errStr,"'";p:0b];
-  .tst.asserts[`must][p;m]
+  .tst.assertCondition[p;m]
   }
 
 asserts[`mustmatchignoringorder]:{[l;r];
@@ -346,7 +359,7 @@ asserts[`mustmatchignoringorder]:{[l;r];
       -1 "----------------------------------------------------------------";
     ];
   ];
-  .tst.asserts[`must][l1~r1; m]
+  .tst.assertCondition[l1~r1; m]
  }
 
 asserts[`mustincludecols]:{[l;r];
@@ -355,7 +368,7 @@ asserts[`mustincludecols]:{[l;r];
   cl: cols l; cr: cols r;
   missing: cr except cl;
   if[0<count missing;
-    .tst.asserts[`must][0b; "Missing columns in target: ", ", " sv string missing];
+    .tst.assertCondition[0b; "Missing columns in target: ", ", " sv string missing];
     :();
   ];
   lSub: cr # l;
@@ -365,26 +378,26 @@ asserts[`mustincludecols]:{[l;r];
     $[100h < type .tst.diff; @[{ -1 .tst.diff[x 0; x 1] }; (r;lSub); {[err] -1 "  (diff rendering failed: ", err, ")" }]; -1 "Diff not available"];
     -1 "----------------------------------------------------------------";
   ];
-  .tst.asserts[`must][lSub~r; m]
+  .tst.assertCondition[lSub~r; m]
  }
 
 asserts[`mustBeFasterThan]:{[code;limitMs]
   if[not type[code] in 100 104h; '`type];
   res: .tst.benchmark.measure[20; code];
   avgTime: res[`time;`avg];
-  .tst.asserts[`must][avgTime <= limitMs; "Execution time ",string[avgTime],"ms > Limit ",string[limitMs],"ms"];
+  .tst.assertCondition[avgTime <= limitMs; "Execution time ",string[avgTime],"ms > Limit ",string[limitMs],"ms"];
  };
 
 asserts[`mustAllocLessThan]:{[code;limitBytes]
   if[not type[code] in 100 104h; '`type];
   res: .tst.benchmark.measure[20; code];
   avgSpace: res[`space;`avg];
-  .tst.asserts[`must][avgSpace <= limitBytes; "Allocation ",string[avgSpace]," bytes > Limit ",string[limitBytes]," bytes"];
+  .tst.assertCondition[avgSpace <= limitBytes; "Allocation ",string[avgSpace]," bytes > Limit ",string[limitBytes]," bytes"];
  };
 
 asserts[`mustHaveBeenCalledWith]:{[name;args]
   if[not name in key .tst.spyLog.calls;
-    .tst.asserts[`must][0b; "Function ", (.tst.toString name), " is not spied on."];
+    .tst.assertCondition[0b; "Function ", (.tst.toString name), " is not spied on."];
     :();
   ];
   calls: .tst.spyLog.calls[name];
@@ -392,7 +405,7 @@ asserts[`mustHaveBeenCalledWith]:{[name;args]
   found: any { x ~ y }[args] each calls;
   msg: "Expected ", (.tst.toString name), " to have been called with ",.tst.assertValueText args;
   if[not found; msg,: ". Actual calls: ", $[0 = count calls; "(none)";.tst.assertValueText calls]];
-  .tst.asserts[`must][found; msg];
+  .tst.assertCondition[found; msg];
  };
 
 / Additive camelCase aliases (compat surface). Assigned AFTER their targets

@@ -46,8 +46,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - Under `-strict`, `must` fails when its condition is an empty list. "All of no
   items hold" is true, so `must[names like "a*"; ...]` passed when `names` was
   empty, having checked nothing. Without `-strict` it still passes, as it does
-  in qspec. Found while testing `resq mutate`, where several assertions of this
-  shape had been passing vacuously.
+  in qspec. The rule is for `must` itself: assertions that compare lists item
+  by item (`mustlt`, `mustlike`, ...) and `must` inside `holds` still pass on
+  empty data, which is ordinary there. Found while testing `resq mutate`, where
+  several assertions of this shape had been passing vacuously.
 
 ### Fixed
 

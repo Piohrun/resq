@@ -248,6 +248,30 @@
   (count probe {must[101b; "one false"]}) musteq 1;
   / An empty generic list was never a condition, strict or not.
   (count probe {must[(); "generic"]}) musteq 1;
+  / Assertions that compare lists item by item are left alone: to them an
+  / empty operand is ordinary data, as it is in qspec.
+  (count probe {(`long$()) mustlt 100}) musteq 0;
+  (count probe {(`long$()) mustgt 0}) musteq 0;
+  (count probe {(`symbol$()) mustlike "a*"}) musteq 0;
+  (count probe {(`long$()) mustin 1 2 3}) musteq 0;
+  (count probe {(`long$()) mustwithin 0 9}) musteq 0;
+  (count probe {1 200 3 mustlt 100}) musteq 1;
+  };
+
+ should["let an empty generated value pass a property under -strict"]{
+  `.tst.app.strict mock 1b;
+  / What `holds` does for each generated value, here an empty list.
+  empty: .tst.fuzzRunCollector[{[xs] xs mustlt 100; must[xs<100; "every item is small"]}; `long$()];
+  (count empty`fuzzFailures) musteq 0;
+  (empty`assertsRun) musteq 2;
+  / A value that breaks the property still fails it.
+  broken: .tst.fuzzRunCollector[{[xs] xs mustlt 100}; 1 200 3];
+  (count broken`fuzzFailures) musteq 1;
+  / And the exemption ends with the generated case.
+  .tst.propertyCase musteq 0b;
+  failed: {old: .tst.assertState.failures; must[`boolean$(); "outside a property"];
+           n: (count .tst.assertState.failures)-count old; .tst.assertState.failures: old; n}[];
+  failed musteq 1;
   };
 
  should["name the offending type when the condition is not boolean"]{

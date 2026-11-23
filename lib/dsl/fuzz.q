@@ -374,7 +374,12 @@ runners[`fuzz]:{[expec]
 fuzzRunCollector:{[code;fuzz]
  origState:.tst.assertState;
  .tst.assertState:.tst.defaultAssertState;
+ / A generated value may be empty, and a property over no items holds. Say so
+ / to `must`, which under -strict otherwise fails an empty condition.
+ wasPropertyCase:.tst.propertyCase;
+ .tst.propertyCase:1b;
  @[code; fuzz; { [e] .tst.assertState.failures,: enlist "Error during fuzz run: ",e }];
+ .tst.propertyCase:wasPropertyCase;
  result:$[0<count .tst.assertState.failures;
    `failedFuzz`fuzzFailures`assertsRun!(fuzz;.tst.assertState.failures;.tst.assertState.assertsRun);
    `failedFuzz`fuzzFailures`assertsRun!(fuzz;();.tst.assertState.assertsRun)];

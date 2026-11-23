@@ -31,6 +31,8 @@ if[not `coverageBranchMin in key `.tst.app; .tst.app.coverageBranchMin:0];
 if[not `coverageBranchCompletenessMin in key `.tst.app;
     .tst.app.coverageBranchCompletenessMin:0];
 if[not `exit in key `.tst.app; .tst.app.exit: 0b];
+/ 1b while the body of a property test (`holds`) runs on one generated value.
+if[not `propertyCase in key `.tst; .tst.propertyCase: 0b];
 / `resq mutate` options (lib/mutate.q); the defaults mean "not given".
 if[not `mutationTests in key `.tst.app; .tst.app.mutationTests: ()];
 if[not `mutators in key `.tst.app; .tst.app.mutators: ""];

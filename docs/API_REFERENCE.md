@@ -429,6 +429,10 @@ must[names like "a*"; "every name starts with a"];   / passes; fails under -stri
 ```
 
 Write what is meant: `must[(0<count names) and all names like "a*"; ...]`.
+The rule is for `must` itself. Assertions that compare lists item by item
+(`mustlt`, `mustgt`, `mustlike`, `mustin`, `mustwithin`, ...) still pass on an
+empty operand, as they do in qspec, and so does `must` inside `holds`: a
+property test generates empty values on purpose.
 
 **Parameters:**
 | Name | Type | Description |
@@ -1891,7 +1895,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-perf` | Include performance tests |
 | `-pass` | qspec compatibility: run and preserve exit status, but suppress resQ result reporters/artifacts and loading/audit chatter. Application/test writes and q runtime diagnostics are not intercepted |
 | `-cov` / `-coverage` | Enable coverage |
-| `-strict` | Fail when no tests are found or executed, when a test runs no assertions, or when a `must` condition is an empty list |
+| `-strict` | Fail when no tests are found or executed, when a test runs no assertions, or when the condition given to `must` is an empty list |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-root-load` | Load test files into the root namespace instead of a per-file sandbox, for applications that define root globals after `\d .`. `bin/qspec` always loads this way |
 | `-args ...` | End of resQ's options. Everything after it is left for the application under test: readable as `.resq.appArgs`, still present in `.z.x`, and forwarded to `-isolate` children. Must come last |
