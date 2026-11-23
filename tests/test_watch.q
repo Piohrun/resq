@@ -574,7 +574,9 @@
     "sleep 2; echo '/ edit' >> ", .utl.shellQuote[app], "; ",
     "sleep 3; echo '/ edit' >> ", .utl.shellQuote[other], "; ",
     "sleep 3; echo '.watchsel.add:{[x;y] x-y};' > ", .utl.shellQuote[app], "; ",
-    "sleep 3; kill -KILL $watcher 2>/dev/null; pkill -KILL -P $watcher 2>/dev/null; wait $watcher 2>/dev/null; true";
+    / Children first: once timeout itself is killed its q child is reparented,
+    / pkill -P no longer finds it, and the watcher would run for ever.
+    "sleep 3; pkill -KILL -P $watcher 2>/dev/null; kill -KILL $watcher 2>/dev/null; wait $watcher 2>/dev/null; true";
   @[system; "sh -c ", .utl.shellQuote command; {[e] e}];
   output: @[read0; hsym `$out; {()}];
   system "rm -rf ", .utl.shellQuote[wd], " ", .utl.shellQuote stateDir;
