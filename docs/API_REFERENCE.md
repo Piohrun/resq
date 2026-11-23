@@ -1870,6 +1870,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `cover` | Run with coverage |
 | `discover` | Test discovery |
 | `watch` | Watch mode |
+| `mutate` | Mutation testing: plant small bugs in functions and report the ones no test notices. See [MUTATION.md](MUTATION.md) |
 
 **Options:**
 | Flag | Description |
@@ -1946,6 +1947,11 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-isolate` | Run each test FILE in its own `q` subprocess; the parent aggregates results, reporters, and exit codes (a test calling `exit`, an infinite loop, or a fatal error becomes a per-file failure instead of killing the whole run). This is fault containment, not a security sandbox |
 | `-isolateTimeout N` | Per-FILE wall-clock cap in seconds under `-isolate` (default 300; needs the `timeout` binary to preempt a hang) |
 | `-isolateWorkers N` | Run N isolated files concurrently (default 1, i.e. sequential). Verdicts, ordering and exit codes are identical to a sequential run; only wall-clock changes. Each worker consumes a q runtime/licence allocation |
+| `-tests PATHS` | `mutate` mode: comma-separated test files or directories to run (default `tests/`) |
+| `-since REV` | `mutate` mode: only mutate lines changed since a git revision, uncommitted changes included |
+| `-mutators LIST` | `mutate` mode: comma-separated subset of `arithmetic`, `comparison`, `logical`, `keyword`, `constant`, `condition`, `statement` (default all) |
+| `-max-mutants N` | `mutate` mode: run an even sample of at most N mutants (N > 0) |
+| `-mutation-min N` | `mutate` mode: exit 1 when the mutation score is below integer percentage N (0..100) or cannot be computed |
 | `-outDir DIR` | Output directory for reports and coverage files |
 | `-noquit` | Suppress exit call (process stays running; useful interactively) |
 | `-exit` | Force exit-on-completion (overrides `"exit": false` in `resq.json`) |
@@ -2072,6 +2078,10 @@ q resq.q watch src/ tests/
 
 # Watch with a declared coverage inventory (fresh coverage per rerun)
 q resq.q watch tests/ -coverage --source src/
+
+# Mutation testing: one file, then only the lines changed since main
+q resq.q mutate src/pricing.q
+q resq.q mutate src/ -since main -isolateWorkers 4
 ```
 
 ---

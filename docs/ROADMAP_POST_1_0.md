@@ -243,6 +243,7 @@ These are roadmap ideas, not resQ capabilities or release commitments:
 - No plugin registry, package discovery, or third-party distribution ecosystem
   is shipped. The implemented feature is only the documented trusted,
   in-process observer/reporter API loaded from explicit files.
-- No mutation-testing runner or service is shipped. Targeted fault-injection
-  tests inside resQ's own verification corpus do not constitute a user-facing
-  mutation-testing product.
+- No mutation-testing service is shipped. `resq mutate`
+  ([MUTATION.md](MUTATION.md)) is a local command: it mutates named top-level
+  functions in memory, one child process per mutant. There is no hosted
+  service, no incremental result cache and no statement-level coverage gating.

@@ -24,6 +24,7 @@
 14. [Coverage](COVERAGE.md) — Instrumenting application coverage and reading LCOV output
 15. [Optional resQ self-coverage](SELF_COVERAGE.md) — Independent, partial framework evidence
 16. [Watch mode](WATCH.md) — File-watch mode
+- [Mutation testing](MUTATION.md) — Find behaviour no test checks
 17. [Continuous Integration](CI.md) — Production gates, artifacts, and runner prerequisites
 18. [Compatibility matrix](COMPATIBILITY_MATRIX.md) — Supported q runtime and execution-mode parity
 19. [External adoption pilots](EXTERNAL_PILOTS.md) — Pinned third-party compatibility evidence

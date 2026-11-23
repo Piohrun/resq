@@ -34,7 +34,7 @@ class DocumentationScopeContractTests(unittest.TestCase):
     def test_ecosystem_claims_remain_scoped(self) -> None:
         documents = self.mutated(
             "docs/ROADMAP_POST_1_0.md",
-            "No mutation-testing runner or service is shipped.",
+            "No mutation-testing service is shipped.",
         )
         with self.assertRaisesRegex(ValueError, "ecosystem claims remain scoped"):
             check_documentation_scope(documents)

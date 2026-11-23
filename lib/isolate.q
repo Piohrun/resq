@@ -490,6 +490,10 @@
     / reporter lines. See .tst.isolatedReportSentinel in lib/runner.q.
     argv,: enlist "-isolate-child";
     argv,: ("-json"; "-outDir"; wd);
+    / A mutation run hands each child its plan through the child's own scratch
+    / (see lib/mutate.q); nothing else distinguishes such a child.
+    if[1b ~ @[get; `.tst.mutate.parent; 0b];
+        argv,: ("-mutation-plan"; .tst.mutate.planPath wd)];
     / Application arguments go last: -args ends resQ's own option parsing.
     appArgs: @[get; `.resq.appArgs; ()];
     $[count appArgs; argv, enlist["-args"], appArgs; argv]
@@ -517,8 +521,10 @@
 / complete child tree if the foreground run is interrupted.
 .tst.isolate.processCommand:{[wd; file; timeoutSecs]
     childArgv: .tst.isolate.childArgv[file; wd];
+    / Seconds between the polite signal and the kill. A q process stuck in a
+    / loop ignores the first, so a run that expects hangs shortens this.
     timedArgv: (.tst.isolate.timeoutExe; "--verbose"; "-k";
-        .tst.toString 5; string timeoutSecs), childArgv;
+        .tst.toString @[get; `.tst.isolate.killAfter; 5]; string timeoutSecs), childArgv;
     / The parent launcher owns its completion marker. Isolated q children are
     / already supervised by this module and must not complete the parent's run.
     "LC_ALL=C RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
@@ -560,6 +566,24 @@
     name:"p",string index;
     "wait \"$",name,"\"; echo $? > ",.utl.shellQuote[wd,"/rc.txt"],"; ",
         .tst.isolate.reapLeftovers[name;wd]
+ };
+
+/ Run several child commands at once and wait for all of them. `indexes` name
+/ the shell variables, `cmds` are processCommand strings and `wds` the scratch
+/ directory each exit code is written to. An interrupted run kills every child.
+.tst.isolate.launchGroup:{[indexes;cmds;wds]
+    if[0 = count indexes; :()];
+    / Background timeout itself (not a wrapper subshell), retain each PID,
+    / then wait and write the corresponding rc file in deterministic order.
+    starts:" " sv .tst.isolate.groupStart'[indexes;cmds];
+    waits:" " sv .tst.isolate.groupWait'[indexes;wds];
+    batch:"true; pids=''; cleanup(){ trap - INT TERM HUP EXIT; ",
+        "if [ -n \"$pids\" ]; then for p in $pids; do kill -TERM -$p 2>/dev/null || kill -TERM $p 2>/dev/null || true; done; ",
+        "sleep 1; for p in $pids; do kill -KILL -$p 2>/dev/null || kill -KILL $p 2>/dev/null || true; done; ",
+        "wait $pids 2>/dev/null || true; fi; }; ",
+        "trap cleanup INT TERM HUP EXIT; ",starts,
+        " ",waits," trap - INT TERM HUP EXIT";
+    @[system; batch; {[e] ()}];
  };
 
 / Exit code recorded by fileCommand. A missing or unparseable rc.txt means the
@@ -802,19 +826,7 @@
     }[timeoutSecs]'[wds; files];
 
     runnableAt:where okFlags;
-    if[count runnableAt;
-        / Background timeout itself (not a wrapper subshell), retain each PID,
-        / then wait and write the corresponding rc file in deterministic order.
-        starts:" " sv .tst.isolate.groupStart'[runnableAt;cmds runnableAt];
-        waits:" " sv .tst.isolate.groupWait'[runnableAt;wds runnableAt];
-        batch:"true; pids=''; cleanup(){ trap - INT TERM HUP EXIT; ",
-            "if [ -n \"$pids\" ]; then for p in $pids; do kill -TERM -$p 2>/dev/null || kill -TERM $p 2>/dev/null || true; done; ",
-            "sleep 1; for p in $pids; do kill -KILL -$p 2>/dev/null || kill -KILL $p 2>/dev/null || true; done; ",
-            "wait $pids 2>/dev/null || true; fi; }; ",
-            "trap cleanup INT TERM HUP EXIT; ",starts,
-            " ",waits," trap - INT TERM HUP EXIT";
-        @[system; batch; {[e] ()}];
-    ];
+    .tst.isolate.launchGroup[runnableAt;cmds runnableAt;wds runnableAt];
 
     raze {[timeoutSecs; n; wd; file; k]
         if[0 = count wd;

@@ -11,11 +11,13 @@
 / inherited by every process the child then spawns, and a test that launches a
 / nested resQ run would have had the marker appear in output it asserts on.
 / Not listed in printUsage; it is a protocol detail, not a user option.
-.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`qspecDiscovery`rootLoad`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`noVcs`finalDiffs`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles`shardUnit`flakeHistoryFile`quarantineFile`flakeProposalFile`benchmarkBaseline`flakeEvidenceMin`flakeFailureMin`flakeWindow`reportProfile`labels`finalDiffLimit`junitNames`xunitFormat;
-.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("qspec-discovery";"qspecDiscovery");("root-load";"rootLoad");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");("quarantine-non-blocking";"quarantineNonBlocking");("flake-proposals";"flakeProposals");("snapshot-audit";"snapshotAudit");("snapshot-gate";"snapshotGate");("benchmark-gate";"benchmarkGate");("benchmark-accept-environment";"benchmarkAcceptEnvironment");("no-vcs";"noVcs");("final-diffs";"finalDiffs");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");("benchmark-alpha";"benchmarkAlphaPercent");("benchmark-effect-min";"benchmarkEffectMin");("benchmark-min-samples";"benchmarkMinSamples");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins");("shard-unit";"shardUnit");("flake-history";"flakeHistoryFile");("quarantine-file";"quarantineFile");("flake-proposal-file";"flakeProposalFile");("benchmark-baseline";"benchmarkBaseline");("flake-evidence-min";"flakeEvidenceMin");("flake-failure-min";"flakeFailureMin");("flake-window";"flakeWindow");("report-profile";"reportProfile");("labels";"label-json");("final-diff-limit";"finalDiffLimit");("junit-names";"junitNames");("xunit-format";"xunitFormat"));
-.tst.cli.specKinds:(41 # `flag), 41 # `value;
-.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`flakeEvidenceMin`flakeFailureMin`flakeWindow`finalDiffLimit;
-.tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`benchmarkAlphaPercent`benchmarkEffectMin;
+/ `mutationPlan` is INTERNAL in the same way: `resq mutate` passes it to the
+/ children it starts (see lib/mutate.q).
+.tst.cli.specNames:`perf`passOnly`junit`xunit`json`noquit`exit`strict`quiet`isolate`coverage`version`describe`failFast`failHard`debug`interactive`qspecCompat`qspecDiscovery`rootLoad`covStatements`covBranches`covContexts`covAttemptContexts`noLineAnnotations`help`scaffold`isolateChild`allowPartialLineCoverage`randomOrder`lastFailed`failedFirst`strictPlugins`quarantineNonBlocking`flakeProposals`snapshotAudit`snapshotGate`benchmarkGate`benchmarkAcceptEnvironment`noVcs`finalDiffs`isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`coverageInclude`coverageExclude`coverageSources`outDir`exclude`only`tag`excludeTag`stateFile`pluginFiles`shardUnit`flakeHistoryFile`quarantineFile`flakeProposalFile`benchmarkBaseline`flakeEvidenceMin`flakeFailureMin`flakeWindow`reportProfile`labels`finalDiffLimit`junitNames`xunitFormat`mutationTests`mutators`mutationSince`mutationPlan`mutationMin`maxMutants;
+.tst.cli.specAliases:(("perf";"performance");enlist "pass";("junit";"xml");enlist "xunit";enlist "json";enlist "noquit";enlist "exit";enlist "strict";enlist "quiet";enlist "isolate";("cov";"coverage");("v";"version");("desc";"describe");("ff";"fail-fast");("fh";"fail-hard");enlist "debug";enlist "interactive";("qspec-compat";"qspecCompat");("qspec-discovery";"qspecDiscovery");("root-load";"rootLoad");("cov-statements";"covStatements");("cov-branches";"covBranches");("cov-contexts";"covContexts");("cov-attempt-contexts";"covAttemptContexts");("no-line-annotations";"noLineAnnotations");("help";"usage");enlist "scaffold";("isolate-child";"isolateChild");("cov-allow-partial";"allow-partial-coverage");("random-order";"randomOrder");("last-failed";"lastFailed";"lf");("failed-first";"failedFirst");("strict-plugins";"strictPlugins");("quarantine-non-blocking";"quarantineNonBlocking");("flake-proposals";"flakeProposals");("snapshot-audit";"snapshotAudit");("snapshot-gate";"snapshotGate");("benchmark-gate";"benchmarkGate");("benchmark-accept-environment";"benchmarkAcceptEnvironment");("no-vcs";"noVcs");("final-diffs";"finalDiffs");enlist "isolateTimeout";("isolateWorkers";"isolate-workers");enlist "maxTestTime";("fuzzLimit";"fuzz-display-limt";"fdl");("cov-min";"coverage-min");enlist "cov-functions-min";enlist "cov-lines-min";enlist "cov-completeness-min";enlist "cov-branches-min";enlist "cov-branch-completeness-min";enlist "cov-context-max";enlist "cov-context-entry-max";enlist "seed";("shard-index";"shardIndex");("shard-count";"shardCount");("benchmark-alpha";"benchmarkAlphaPercent");("benchmark-effect-min";"benchmarkEffectMin");("benchmark-min-samples";"benchmarkMinSamples");enlist "cov-include";enlist "cov-exclude";("source";"coverage-source");enlist "outDir";enlist "exclude";enlist "only";enlist "tag";enlist "exclude-tag";("state-file";"stateFile");("plugin";"plugins");("shard-unit";"shardUnit");("flake-history";"flakeHistoryFile");("quarantine-file";"quarantineFile");("flake-proposal-file";"flakeProposalFile");("benchmark-baseline";"benchmarkBaseline");("flake-evidence-min";"flakeEvidenceMin");("flake-failure-min";"flakeFailureMin");("flake-window";"flakeWindow");("report-profile";"reportProfile");("labels";"label-json");("final-diff-limit";"finalDiffLimit");("junit-names";"junitNames");("xunit-format";"xunitFormat");("tests";"mutation-tests");enlist "mutators";enlist "since";("mutation-plan";"mutationPlan");("mutation-min";"mutationMin");("max-mutants";"maxMutants"));
+.tst.cli.specKinds:(41 # `flag), 47 # `value;
+.tst.cli.numericNames: `isolateTimeout`isolateWorkers`maxTestTime`fuzzLimit`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`coverageContextMax`coverageContextEntryMax`seed`shardIndex`shardCount`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`flakeEvidenceMin`flakeFailureMin`flakeWindow`finalDiffLimit`mutationMin`maxMutants;
+.tst.cli.percentNames:`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`coverageBranchMin`coverageBranchCompletenessMin`benchmarkAlphaPercent`benchmarkEffectMin`mutationMin;
 
 / The three spec lists are positionally coupled; refuse to load if an edit to
 / one of them ever leaves them misaligned (a silent mislabel otherwise).
@@ -173,7 +175,7 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     invalidRanges: where
         (numericValues < 0) or
         ((numericOptionNames = `isolateTimeout) and numericValues = 0) or
-        ((numericOptionNames in `isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax) and numericValues = 0) or
+        ((numericOptionNames in `isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax`maxMutants) and numericValues = 0) or
         ((numericOptionNames in `flakeEvidenceMin`benchmarkMinSamples) and numericValues < 2) or
         ((numericOptionNames = `benchmarkAlphaPercent) and numericValues = 0) or
         ((numericOptionNames in `flakeFailureMin`flakeWindow) and numericValues = 0) or
@@ -181,7 +183,7 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
     if[count invalidRanges;
         badIndex: first invalidRanges;
         numericValuePositions: valuePositions where numericMask;
-        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax`flakeFailureMin`flakeWindow; "> 0";
+        requirement: $[numericOptionNames[badIndex] in `isolateTimeout`isolateWorkers`shardCount`coverageContextMax`coverageContextEntryMax`flakeFailureMin`flakeWindow`maxMutants; "> 0";
                        numericOptionNames[badIndex] in `flakeEvidenceMin`benchmarkMinSamples; ">= 2";
                        numericOptionNames[badIndex]~`benchmarkAlphaPercent; "between 1 and 100";
                        numericOptionNames[badIndex] in .tst.cli.percentNames; "between 0 and 100";
@@ -291,6 +293,8 @@ printUsage:{[]
         "  discover <src> <tst>  Report source functions not referenced by tests;";
         "                        writes coverage_report.html to -outDir";
         "  watch <dirs>          Re-run affected tests on file change";
+        "  mutate <source>       Plant small bugs in functions and report the ones";
+        "                        no test notices (see MUTATION below)";
         "";
         "COMMON OPTIONS";
         "  -strict               Fail on no tests, all-skipped, or a test with no assertion";
@@ -358,6 +362,16 @@ printUsage:{[]
         "  --source PATHS        Source files/directories to inventory (comma-separated)";
         "  -cov-include / -cov-exclude PATS   Comma-separated path filters";
         "";
+        "MUTATION";
+        "  resq mutate src/a.q [src/b.q:10-40 ...]   Files, directories or line ranges";
+        "  -tests PATHS          Test files or directories to run (default tests/)";
+        "  -since REV            Only mutate lines changed since a git revision";
+        "  -mutators LIST        Comma-separated: arithmetic, comparison, logical,";
+        "                        keyword, constant, condition, statement (default all)";
+        "  -max-mutants N        Run an even sample of at most N mutants";
+        "  -mutation-min N       Exit 1 when the mutation score is below N% (0-100)";
+        "  -isolateWorkers N     Run N mutants at once; -json writes mutation-report.json";
+        "";
         "EXIT CODES";
         "  0 pass   1 failure   3 no test files   4 load error";
         "";
@@ -367,7 +381,7 @@ printUsage:{[]
         "Full reference: docs/API_REFERENCE.md");
  };
 
-validModes:`test`cover`discover`watch;
+validModes:`test`cover`discover`watch`mutate;
 
 parseModeArgs:{[args]
     mode:`test;
@@ -485,6 +499,15 @@ initCLI:{[parsed]
         .tst.app.maxTestTime: options`maxTestTime];
     if[0 < count options`fuzzLimit;
         .tst.output.fuzzLimit: options`fuzzLimit];
+
+    / Mutation testing (lib/mutate.q). A plan marks this process as one of the
+    / children `resq mutate` starts; the rest configure the parent.
+    if[0 < count options`mutationPlan; .tst.mutate.loadPlan options`mutationPlan];
+    if[0 < count options`mutationTests; .tst.app.mutationTests: "," vs options`mutationTests];
+    if[0 < count options`mutators; .tst.app.mutators: options`mutators];
+    if[0 < count options`mutationSince; .tst.app.mutationSince: options`mutationSince];
+    if[not 10h = type options`mutationMin; .tst.app.mutationMin: "j"$options`mutationMin];
+    if[not 10h = type options`maxMutants; .tst.app.maxMutants: "j"$options`maxMutants];
 
     / Coverage Support
     .tst.app.runCoverage: 0b;

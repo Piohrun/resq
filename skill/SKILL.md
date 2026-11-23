@@ -412,6 +412,8 @@ resq test tests/ -desc                 # LIST tests, do not run them (exit 0)
 resq test tests/ -isolate              # each FILE in its own subprocess; -isolateTimeout N (s, default 300)
 resq cover tests/ --source src/        # inventory source; LCOV/JSON/HTML
 resq watch src/ tests/                 # re-run the tests that load a changed file
+resq mutate src/pricing.q              # which bugs would the tests miss? (docs/MUTATION.md)
+resq mutate src/ -since main           # same, only for lines changed since main
 ```
 
 Other true facts:
@@ -419,6 +421,12 @@ Other true facts:
   project's own loader function. Name a loader defined outside the watched
   directories with `"watchLoaders": [".lib.load"]` in `resq.json`. A test that
   loads a computed path or a module name re-runs on every source change.
+- **Mutate** changes one thing at a time in a named function, in memory, in
+  a child process per mutant, and lists the changes no test failed on. After
+  writing tests for a change, run `resq mutate <files> -since <base>`: a
+  survivor is behaviour your tests do not check. Add an assertion that fails
+  on it, unless the change cannot alter behaviour (an equivalent mutant).
+  `-json` writes `mutation-report.json` with one entry per mutant.
 - **Color** auto-disables when `NO_COLOR` is set or output is not a TTY.
 - A **syntax error** in a test file reports `CRITICAL LOAD ERROR in <file>
   near line N: …`.

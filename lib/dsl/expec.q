@@ -539,6 +539,9 @@ runExpec:{[spec;expec];
 / Returns `expec`beforeBad!(attemptedExpec; lastStageSym). Does NOT teardown or
 / record - the caller (runExpec) owns the single teardownExpec / expecRan call.
 runExpecAttempt:{[spec;expec];
+ / A mutation child keeps its probes or its mutant in place: a beforeAll or
+ / before hook may have reloaded the source. See lib/mutate.q.
+ if[.tst.mutate.active; .tst.mutate.install[]];
  / Before Block
  beforeBad:`before;
  if[`before in key expec;
@@ -552,6 +555,7 @@ runExpecAttempt:{[spec;expec];
 
   / Main Test
   beforeBad:`test;
+  if[.tst.mutate.active; .tst.mutate.install[]];
   if[not count expec[`result];
      budgetMs: "f"$first .tst.app.maxTestTime;
      testStart: .z.p;

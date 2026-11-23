@@ -6,6 +6,19 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- `resq mutate <source>`: mutation testing. It plants one small change at a
+  time in a named function (an operator, a comparison boundary, a constant, a
+  negated condition, a removed statement) and re-runs the tests that call the
+  function. A change no test fails on is reported with its file, line and
+  column. No source file is edited or copied: each mutant runs in its own
+  child process, which loads the tests as usual and then redefines the one
+  function in memory, so it works whatever loader the project uses. A kill is
+  only reported with proof that the mutant was in place; a function whose
+  definition in memory is not the one in the file is reported as not assessed
+  rather than guessed at. Options: `-tests`, `-since REV` (only changed
+  lines), `file.q:10-40` line ranges, `-mutators`, `-max-mutants`,
+  `-mutation-min`, `-isolateWorkers`, and `-json` for `mutation-report.json`.
+  See `docs/MUTATION.md`.
 - Public `.resq.run[paths;options]` library API with structured results, per-call
   configuration and temporary history, host-state restoration, and cleanup after
   file-load failures. Fresh-process regressions cover repeated runs, callbacks,

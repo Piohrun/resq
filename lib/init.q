@@ -83,6 +83,7 @@ if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: "
 .resq.require .resq.PKGLOADING,"/loader.q"
 .resq.require .resq.PKGLOADING,"/test_finder.q"
 .resq.require .resq.PKGLOADING,"/isolate.q"
+.resq.require .resq.PKGLOADING,"/mutate.q"
 
 / Alias .resq expansion functions to .tst for backward compatibility with example tests
 if[`resq in key `;

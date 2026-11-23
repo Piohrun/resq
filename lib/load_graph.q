@@ -255,13 +255,11 @@
     .tst.loadGraph.judgeTarget[cx; .tst.loadGraph.finalLiteral[cx;e;stop]]
  };
 
-/ Qualified name of the function whose body contains offset p, or "" when p is
-/ at top level or inside a lambda that is not assigned to a name.
-.tst.loadGraph.enclosingName:{[cx;p]
+/ Qualified name a lambda opening at offset `open` is assigned to, or "" when
+/ it is not the right-hand side of a plain `name:{` or `name::{`.
+.tst.loadGraph.definedName:{[cx;open]
     code: cx`code;
-    if[0>=cx[`bBefore] p; :""];
-    tops: where (code="{") and 0=cx`bBefore;
-    j: -1+last tops where tops<p;
+    j: open-1;
     while[(j>=0) and code[j] in " \t"; j-: 1];
     if[(j<0) or not code[j]=":"; :""];
     j-: 1;
@@ -274,6 +272,14 @@
     if[(j>=0) and code[j]="`"; :""];
     ns: .tst.loadGraph.nsAt[cx;j+1];
     $["."=first name; name; count ns; ns,".",name; name]
+ };
+
+/ Qualified name of the function whose body contains offset p, or "" when p is
+/ at top level or inside a lambda that is not assigned to a name.
+.tst.loadGraph.enclosingName:{[cx;p]
+    if[0>=cx[`bBefore] p; :""];
+    tops: where (cx[`code]="{") and 0=cx`bBefore;
+    .tst.loadGraph.definedName[cx; last tops where tops<p]
  };
 
 / ----------------------------------------------------------------------------

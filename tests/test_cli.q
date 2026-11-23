@@ -34,7 +34,34 @@
     };
 
     should["expose the canonical mode list"]{
-        .tst.validModes mustmatch `test`cover`discover`watch;
+        .tst.validModes mustmatch `test`cover`discover`watch`mutate;
+    };
+};
+
+.tst.desc["CLI mutation options"]{
+    should["parse the mutate mode, its targets and its options"]{
+        r: .tst.parseCLI ("mutate"; "src/a.q:10-40"; "src/lib"; "-tests"; "tests/unit,tests/it";
+            "-since"; "main"; "--mutators"; "comparison,statement"; "-max-mutants"; "50";
+            "-mutation-min"; "80");
+        r[`ok] musteq 1b;
+        r[`mode] musteq `mutate;
+        r[`args] mustmatch ("src/a.q:10-40"; "src/lib");
+        r[`options; `mutationTests] mustmatch "tests/unit,tests/it";
+        r[`options; `mutationSince] mustmatch "main";
+        r[`options; `mutators] mustmatch "comparison,statement";
+        r[`options; `maxMutants] musteq 50;
+        r[`options; `mutationMin] musteq 80;
+    };
+
+    should["reject a sample of zero and a score above one hundred"]{
+        r: .tst.parseCLI ("mutate"; "src"; "-max-mutants"; "0");
+        r[`ok] musteq 0b;
+        must[r[`error] like "Value must be > 0 for -max-mutants*"; r`error];
+        r: .tst.parseCLI ("mutate"; "src"; "-mutation-min"; "101");
+        r[`ok] musteq 0b;
+        must[r[`error] like "Value must be between 0 and 100 for -mutation-min*"; r`error];
+        r: .tst.parseCLI ("mutate"; "src"; "-mutators");
+        r[`ok] musteq 0b;
     };
 };
 

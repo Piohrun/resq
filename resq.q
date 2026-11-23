@@ -206,6 +206,12 @@ if[.resq.mode ~ `discover;
     exit 0;
  ];
 
+/ MODE: MUTATE
+/ Mutation testing runs each mutant in a child `resq test` process and prints
+/ its own report, so no reporter is initialised here. See lib/mutate.q.
+if[.resq.mode ~ `mutate;
+    exit .tst.mutate.main .tst.app.args];
+
 / MODE: WATCH
 if[.resq.mode ~ `watch;
     dirs: enlist ".";

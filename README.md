@@ -63,6 +63,7 @@ assistance.
     dynamic-name declarations, and recoverable dry-run-first obsolete pruning.
 - **Coverage** (`resq cover`): `--source src/` inventories loaded and entirely unloaded modules, then `\l`/`system "l "` instrumentation records hits. One canonical model produces LCOV, detailed `coverage.json`, annotated HTML, and complete state output. Coverage is function-level by default; `-cov-statements` adds measured statements and `-cov-branches` adds true/false edges for `if`, `while`, and lazy `$` conditions, including eligible anonymous lambdas under stable enclosing-function identities. Opt-in `-cov-contexts`/`-cov-attempt-contexts` add bounded stable attribution without changing aggregate gates. Function, line, branch, and instrumentation-completeness gates are independent and fail closed on incomplete denominators. Compiled operators and derived functions are skipped.
 - **Watch mode** (`resq watch`): Polls source and test directories and re-runs the tests that load a changed file, read from the load statements in your source.
+- **Mutation testing** (`resq mutate`): Plants one small bug at a time in your functions and reports the ones no test notices. No source file is edited: each mutant runs in its own process and replaces one function in memory. See [mutation testing](docs/MUTATION.md).
 
 ---
 
@@ -463,6 +464,7 @@ See `docs/` for detailed guides:
 | `docs/SNAPSHOTS.md` | Binary and text snapshot testing |
 | `docs/TROUBLESHOOTING.md` | Common errors, exit codes, debug tips |
 | `docs/WATCH.md` | Watch mode configuration |
+| `docs/MUTATION.md` | Mutation testing: what survives, how it runs, limits |
 | `docs/MIGRATION.md` | Migrating from qspec to resQ |
 | `docs/QSPEC_COMPATIBILITY.md` | Versioned public qspec compatibility boundary |
 

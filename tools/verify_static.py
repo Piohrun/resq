@@ -270,7 +270,7 @@ def check_documentation_scope(documents: dict[str, str] | None = None) -> None:
             "## Post-2.0 ecosystem ideas — not implemented",
             "No IDE/editor integration is shipped.",
             "No plugin registry, package discovery, or third-party distribution ecosystem is shipped.",
-            "No mutation-testing runner or service is shipped.",
+            "No mutation-testing service is shipped.",
         ),
         "ecosystem claims remain scoped",
     )
