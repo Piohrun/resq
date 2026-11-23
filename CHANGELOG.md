@@ -4,7 +4,11 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+
+- A comment that starts at column 1 inside a test block no longer fails the
+  file when it mentions an assertion or `mock` (a commented-out
+  `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
 
 ## [2.3.0] - 2026-11-23 - Mutation Testing & Load-Aware Watch
 

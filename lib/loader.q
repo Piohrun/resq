@@ -136,7 +136,9 @@
 / loader masks every line several times and a per-character q loop dominated
 / suite load time. States: 0 code, 1 string, 2 string after a backslash,
 / 3 line comment. Character classes: 0 quote, 1 backslash, 2 comment slash
-/ (a "/" at offset 0 or after a space or tab), 3 newline, 4 anything else.
+/ (a "/" at offset 0 or after a space, tab or newline), 3 newline, 4 anything
+/ else. The newline matters when a whole multi-line statement is masked at
+/ once: a "/" at the start of one of its lines is a comment line, as q reads it.
 / Quotes, code and the newline that ends a comment keep their character;
 / string contents and comments become spaces.
 .tst.maskTransitions:(1 0 3 0 0;0 2 1 1 1;1 1 1 1 1;3 3 3 0 3);
@@ -144,7 +146,7 @@
 / Returns (state before each character; character class) for a non-empty line.
 .tst.qLexStates:{[txt]
     cls: "\"\\/\n" ? txt;
-    slashOk: 1b, (-1 _ txt) in " \t";
+    slashOk: 1b, (-1 _ txt) in " \t\n";
     cls[where (cls = 2) and not slashOk]: 4;
     (0, -1 _ .tst.maskTransitions\[0; cls]; cls)
  };

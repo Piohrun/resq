@@ -70,3 +70,18 @@
          "coverage.q must export its entry points, missing: ", .Q.s1 missing];
   };
  };
+
+.tst.desc["comments at column 1 inside a test block"]{
+  should["leave a commented-out assertion alone"]{
+    src: (".tst.desc[\"d\"]{"; "  should[\"a\"]{"; "    r: 1+1;"; "/    r musteq 3;"; "    r musteq 2;"; "  };"; " };");
+    out: .tst.preprocessScript src;
+    (out 3) musteq "/    r musteq 3;";
+    (any out like "*.tst.dsl.musteq?r;? 2;*") musteq 1b;
+  };
+  should["leave prose that mentions mock, with a lone quote, alone"]{
+    src: (".tst.desc[\"d\"]{"; "  should[\"a\"]{"; "/ TODO: mock the feed; the 12\" disk case"; "    1 musteq 1;"; "  };"; " };");
+    out: .tst.preprocessScript src;
+    (out 2) musteq "/ TODO: mock the feed; the 12\" disk case";
+    (any out like "*.tst.dsl.musteq?1;? 1;*") musteq 1b;
+  };
+ };
