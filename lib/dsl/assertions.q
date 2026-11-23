@@ -119,6 +119,15 @@ asserts[`must]:{[val;message];
     kind = `null;
       .tst.assertState.failures,: enlist
         "must condition is null, which is not a truth value: ", .tst.toString val;
+    / "All of no items hold" is true, so an empty list passes, as it does in
+    / qspec. It also verifies nothing, and is nearly always a comparison made
+    / on an empty result (`must[x like "a*"; ...]` with x empty). -strict
+    / already means a run that verified nothing must not pass.
+    (0 = count val) and 1b ~ @[get; `.tst.app.strict; 0b];
+      [ renderedMessage: .tst.renderAssertionMessage message;
+        m: $[10h = abs type renderedMessage; renderedMessage; .tst.renderValueFull renderedMessage];
+        .tst.assertState.failures,: enlist .tst.withOrdinalSuffix
+          "must condition is an empty list, which checks nothing (-strict): ", m ];
     not all $[kind = `numeric; 0 <> val; val];
       [ renderedMessage: .tst.renderAssertionMessage message;
         m: $[10h = abs type renderedMessage; renderedMessage;.tst.renderValueFull renderedMessage];

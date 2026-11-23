@@ -219,8 +219,35 @@
   probe[{must[0b; "false fails"]}] musteq 1;
   probe[{must[111b; "all-true vector passes"]}] musteq 0;
   probe[{must[101b; "any-false vector fails"]}] musteq 1;
-  / "all of zero items hold" -- an assertion over an empty set still passes.
+  / "all of zero items hold" -- an assertion over an empty set still passes,
+  / as it does in qspec, unless -strict says a check must check something.
+  `.tst.app.strict mock 0b;
   probe[{must[`boolean$(); "empty boolean vector"]}] musteq 0;
+  probe[{must[`long$(); "empty numeric vector"]}] musteq 0;
+  };
+
+ should["fail an empty condition under -strict, because it checks nothing"]{
+  probe: {[f] old: .tst.assertState.failures; f[];
+              new: (count old) _ .tst.assertState.failures;
+              .tst.assertState.failures: old; new};
+  `.tst.app.strict mock 1b;
+  said: probe {must[`boolean$(); "every name starts with a"]};
+  (count said) musteq 1;
+  must[(first said) like "must condition is an empty list, which checks nothing (-strict): every name starts with a*";
+       "the failure says what happened and keeps the message: ", first said];
+  / The usual way to get one: a comparison on a result that came back empty.
+  (count probe {names: `symbol$(); must[names like "a*"; "every name starts with a"]}) musteq 1;
+  (count probe {must[`long$(); "an empty numeric list"]}) musteq 1;
+  (count probe {must[`float$(); "an empty float list"]}) musteq 1;
+  / Anything that holds a value is judged as before.
+  (count probe {must[1b; "true"]}) musteq 0;
+  (count probe {must[111b; "all true"]}) musteq 0;
+  (count probe {must[enlist 1b; "one true item"]}) musteq 0;
+  (count probe {must[count 1 2 3; "a count"]}) musteq 0;
+  (count probe {must[0b; "false"]}) musteq 1;
+  (count probe {must[101b; "one false"]}) musteq 1;
+  / An empty generic list was never a condition, strict or not.
+  (count probe {must[(); "generic"]}) musteq 1;
   };
 
  should["name the offending type when the condition is not boolean"]{

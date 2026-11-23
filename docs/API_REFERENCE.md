@@ -418,7 +418,17 @@ The condition must be a boolean. A non-boolean is reported as a failure naming
 the offending type, rather than being coerced — `all` treats `5`, `0N` and any
 non-empty string as true, so a null result or a swapped `must["message"; cond]`
 would otherwise pass silently. A boolean vector passes when every element is
-true; an empty one passes ("all of zero items hold").
+true; an empty one passes ("all of zero items hold"), as it does in qspec.
+
+Under `-strict` an empty condition fails instead. It verifies nothing, and it is
+almost always a comparison made on a result that came back empty:
+
+```q
+names: exec name from users where region=`nowhere;   / no rows
+must[names like "a*"; "every name starts with a"];   / passes; fails under -strict
+```
+
+Write what is meant: `must[(0<count names) and all names like "a*"; ...]`.
 
 **Parameters:**
 | Name | Type | Description |
@@ -1881,7 +1891,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-perf` | Include performance tests |
 | `-pass` | qspec compatibility: run and preserve exit status, but suppress resQ result reporters/artifacts and loading/audit chatter. Application/test writes and q runtime diagnostics are not intercepted |
 | `-cov` / `-coverage` | Enable coverage |
-| `-strict` | Fail when no tests are found or executed, or when a test runs no assertions |
+| `-strict` | Fail when no tests are found or executed, when a test runs no assertions, or when a `must` condition is an empty list |
 | `-qspec-compat` | Restore qspec's `musteq` (`=`) and `mustne` (`<>`) semantics for an unported qspec suite |
 | `-root-load` | Load test files into the root namespace instead of a per-file sandbox, for applications that define root globals after `\d .`. `bin/qspec` always loads this way |
 | `-args ...` | End of resQ's options. Everything after it is left for the application under test: readable as `.resq.appArgs`, still present in `.z.x`, and forwarded to `-isolate` children. Must come last |
@@ -2169,7 +2179,7 @@ Create `resq.json` in project root:
 | `runSpecs` | empty | Suite-title glob(s) to include |
 | `passOnly` | `false` | qspec-compatible silent result reporting |
 | `exit` | `true` | Exit the q process with the run status |
-| `strict` | `false` | Fail empty, all-skipped, and assertion-free runs/tests |
+| `strict` | `false` | Fail empty, all-skipped, and assertion-free runs/tests, and a `must` whose condition is an empty list |
 | `fuzzLimit` | `100` | Maximum displayed fuzz failures |
 | `failFast` | `false` | Enable fail-fast behavior |
 | `failHard` | `false` | Halt remaining expectations and suites after failure; mandatory cleanup still runs |

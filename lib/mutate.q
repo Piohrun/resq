@@ -634,6 +634,8 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.out:{[line] -1 line;};
 .tst.mutate.err:{[line] -2 line;};
 .tst.mutate.mark:{[text] 1 text;};
+/ The time, through a function so that a test can decide what time it is.
+.tst.mutate.clock:{[] .z.p};
 / Progress marks, written without a newline; silent under -quiet.
 .tst.mutate.tick:{[text] if[not 1b~.tst.app.quiet; .tst.mutate.mark (),text];};
 
@@ -664,9 +666,9 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     plan: `mode`names`texts`mutated`status!(`probe; fns`name; fns`text; ""; "");
     groups: workers cut til count testFiles;
     raze {[testFiles;plan;cap;idx]
-        started: .z.p;
+        started: .tst.mutate.clock[];
         res: .tst.mutate.runBatch[testFiles idx; (count idx)#enlist plan; (count idx)#cap];
-        secs: ("f"$.z.p-started)%1e9;
+        secs: ("f"$.tst.mutate.clock[]-started)%1e9;
         why: .tst.mutate.baselineReason each res;
         .tst.mutate.tick raze ?[0=count each why; "."; "x"];
         ([] file:testFiles idx; usable:0=count each why; why:why; secs:(count idx)#secs;
@@ -676,6 +678,64 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
             tail:res`tail)
     }[testFiles;plan;cap] each groups
  };
+
+/ ----------------------------------------------------------------------------
+/ Files changed while mutants ran
+/ ----------------------------------------------------------------------------
+/ A mutant is the code under test with one thing changed, and that code may
+/ write or delete files. Short of a sandbox nothing can stop a mutant doing so
+/ in the wrong place, but what it did can be found. In a git checkout the
+/ working directory is looked at before the mutants run and after each batch.
+
+/ 1b when the working directory is inside a git checkout.
+.tst.mutate.inGit:{[]
+    out: @[system; "(git rev-parse --is-inside-work-tree 2>/dev/null; true)"; {[e] ()}];
+    any out~\:"true"
+ };
+
+.tst.mutate.noFiles:{[] ([] path:`symbol$(); untracked:`boolean$(); print:())};
+
+/ The files named by `git ls-files -t` lines, each once: "C path" is a tracked
+/ file and "? path" an untracked one.
+.tst.mutate.listedFiles:{[lines]
+    syms: `$2 _' lines;
+    keep: where (til count syms)=syms?syms;
+    ([] path:syms keep; untracked:"?"=lines[keep;0])
+ };
+
+/ Every file under the working directory that git sees as modified, deleted or
+/ untracked (ignored files are left out), with a fingerprint of its state.
+/ Empty outside a git checkout.
+.tst.mutate.snapshot:{[]
+    lines: @[system; "(git -c core.quotepath=off ls-files -t -m -o --exclude-standard -- . 2>/dev/null; true)"; {[e] ()}];
+    if[0=count lines; :.tst.mutate.noFiles[]];
+    found: .tst.mutate.listedFiles lines;
+    paths: string found`path;
+    update print:.tst.watch.fingerprintWith[.tst.watch.statAll paths] each paths from found
+ };
+
+.tst.mutate.noChanges:{[] ([] path:(); change:`symbol$(); mutants:())};
+
+/ What differs between two snapshots, one row per file: created, modified,
+/ deleted, or restored (a changed tracked file is back as git has it).
+.tst.mutate.changes:{[before;after]
+    absent: (-1;"";"");
+    at: before[`path]?after`path;
+    isNew: at=count before;
+    same: (not isNew) and after[`print]~'before[`print] at;
+    k: where not same;
+    kind: {[absent;isNew;untracked;print]
+        $[print~absent; `deleted; isNew and untracked; `created; `modified]
+    }[absent]'[isNew k; after[`untracked] k; after[`print] k];
+    / No longer listed: an untracked file is gone, or a tracked one is clean.
+    lost: where not before[`path] in after`path;
+    ([] path:string (after[`path] k),before[`path] lost;
+        change:kind,?[before[`untracked] lost; `deleted; `restored])
+ };
+
+/ Above this, looking at the working directory after every batch would slow
+/ the run noticeably, so it is looked at once, at the end.
+.tst.mutate.snapshotBudget: 0D00:00:00.5;
 
 / ----------------------------------------------------------------------------
 / Mutant runs
@@ -698,8 +758,9 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.marks: `killed`timeout`survived`unapplied`error!".TS-E";
 
 / Run every pending mutant against the test files that call its function,
-/ quickest file first, until one kills it. Returns the mutants with a status
-/ and, for a kill, the test file responsible.
+/ quickest file first, until one kills it. Returns `mutants, with a status and
+/ for a kill the test file responsible, and `changes: the files changed in the
+/ working directory meanwhile, each with the mutants that were running.
 .tst.mutate.execute:{[mutants;fns;base;workers;cap]
     n: count mutants;
     usable: where base`usable;
@@ -715,6 +776,10 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     step: n#0;
     tries: n#0;
     everApplied: n#0b;
+    changes: .tst.mutate.noChanges[];
+    started: .tst.mutate.clock[];
+    seen: .tst.mutate.snapshot[];
+    eachBatch: .tst.mutate.snapshotBudget>.tst.mutate.clock[]-started;
     while[count active: where status=`pending;
         batch: workers sublist active;
         fileIdx: {[calledBy;f;k] calledBy[f] k}[calledBy]'[mutants[`fnIdx] batch; step batch];
@@ -725,6 +790,11 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         / Generous next to the unmutated run, so only a real hang times out.
         timeouts: cap&"j"$ceiling 5+3*base[`secs] fileIdx;
         res: .tst.mutate.runBatch[base[`file] fileIdx; plans; timeouts];
+        if[eachBatch;
+            now: .tst.mutate.snapshot[];
+            delta: .tst.mutate.changes[seen;now];
+            changes,: update mutants:(count delta)#enlist batch from delta;
+            seen: now];
         verdicts: .tst.mutate.verdict each res;
         i: 0;
         while[i<count batch;
@@ -746,7 +816,11 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
                 if[0=(sum status in key .tst.mutate.marks) mod 60; .tst.mutate.tick "\n"]];
             i+: 1];
     ];
-    update status:status, killedBy:killedBy from mutants
+    / Looked at once: which mutant it was cannot be told.
+    if[not eachBatch;
+        delta: .tst.mutate.changes[seen; .tst.mutate.snapshot[]];
+        changes,: update mutants:(count delta)#enlist `long$() from delta];
+    `mutants`changes!(update status:status, killedBy:killedBy from mutants; changes)
  };
 
 / ----------------------------------------------------------------------------
@@ -798,7 +872,22 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     }[fns;rows] each idx
  };
 
-.tst.mutate.report:{[mutants;fns;base]
+/ Where and what one mutant is, for a line of the report.
+.tst.mutate.whereIs:{[fns;m] .tst.mutate.display[fns[`file] m`fnIdx],":",string m`line};
+
+/ One line per changed file: what happened to it and which mutants were running.
+.tst.mutate.listChanges:{[mutants;fns;changes]
+    w: max count each string changes`change;
+    {[mutants;fns;w;c]
+        ids: c`mutants;
+        during: $[0=count ids; "at some point in the run";
+            1=count ids; "during ",.tst.mutate.whereIs[fns; mutants ids 0]," ",mutants[ids 0]`note;
+            "during one of: ",(", " sv .tst.mutate.whereIs[fns] each mutants 3 sublist ids),$[3<count ids; ", ..."; ""]];
+        "    ",.tst.mutate.pad[w; string c`change],"  ",c[`path],"  (",during,")"
+    }[mutants;fns;w] each changes
+ };
+
+.tst.mutate.report:{[mutants;fns;base;changes]
     s: .tst.mutate.summary mutants;
     st: mutants`status;
     .tst.mutate.out "";
@@ -838,16 +927,21 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         .tst.mutate.out "";
         .tst.mutate.out "NOT ASSESSED (",string[count rows],"): the run failed without the mutant in place (unstable test or environment)";
         .tst.mutate.out each .tst.mutate.listMutants[fns;rows]];
+    if[count changes;
+        .tst.mutate.out "";
+        .tst.mutate.out "FILES CHANGED (",string[count changes],"): in the working directory while mutants ran; nothing was undone";
+        .tst.mutate.out each .tst.mutate.listChanges[mutants;fns;changes]];
     s
  };
 
-.tst.mutate.writeJson:{[mutants;fns;base;summary]
+.tst.mutate.writeJson:{[mutants;fns;base;summary;changes]
     / q creates the directory when it writes the file.
     out: .utl.normalizePath @[get; `.resq.config.outDir; "."];
-    doc: `schemaVersion`kind`framework`frameworkVersion`generatedAt`summary`testFiles`mutants!(
+    doc: `schemaVersion`kind`framework`frameworkVersion`generatedAt`summary`testFiles`filesChanged`mutants!(
         1j; "resq-mutation-report"; "resQ"; .tst.toString @[get; `.resq.VERSION; {"unknown"}];
         .tst.isoTimestamp .z.P; summary;
         {[r] `file`usable`reason!(.tst.mutate.display r`file; r`usable; r`why)} each base;
+        {[c] `path`change`mutants!(c`path; string c`change; c`mutants)} each changes;
         {[fns;i;m]
             `id`file`line`column`function`mutator`description`status`killedBy!(
                 i; .tst.mutate.display fns[`file] m`fnIdx; m`line; m`col; string fns[`name] m`fnIdx;
@@ -940,13 +1034,16 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     / mutant stuck in a loop ignores the first signal, so follow it up quickly.
     .tst.app.failFast: 1b;
     .tst.isolate.killAfter: 1;
+    if[not .tst.mutate.inGit[];
+        .tst.mutate.out "  Not a git checkout: files a mutant writes or deletes here cannot be listed"];
     .tst.mutate.out "  Running mutants (. killed, S survived, T timed out, - not applied, E error)";
     .tst.mutate.tick "  ";
-    mutants: .tst.mutate.execute[mutants;fns;base;.tst.isolate.workerCount count mutants;cap];
+    ran: .tst.mutate.execute[mutants;fns;base;.tst.isolate.workerCount count mutants;cap];
+    mutants: ran`mutants;
     .tst.mutate.tick "\n";
 
-    summary: .tst.mutate.report[mutants;fns;base];
-    if[`json in .tst.app.reportFormats; .tst.mutate.writeJson[mutants;fns;base;summary]];
+    summary: .tst.mutate.report[mutants;fns;base;ran`changes];
+    if[`json in .tst.app.reportFormats; .tst.mutate.writeJson[mutants;fns;base;summary;ran`changes]];
     minimum: .tst.app.mutationMin;
     if[not null minimum;
         if[(null summary`score) or minimum>summary`score;

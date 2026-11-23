@@ -297,7 +297,8 @@ printUsage:{[]
         "                        no test notices (see MUTATION below)";
         "";
         "COMMON OPTIONS";
-        "  -strict               Fail on no tests, all-skipped, or a test with no assertion";
+        "  -strict               Fail on no tests, all-skipped, a test with no assertion,";
+        "                        or a must whose condition is an empty list";
         "  -isolate              Run each test FILE in its own q process (survives";
         "                        exit/hang/wsfull); -isolateTimeout N caps each file (s)";
         "                        Fault containment only: not a security sandbox";

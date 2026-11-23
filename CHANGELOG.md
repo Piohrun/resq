@@ -18,7 +18,9 @@ All notable changes to the **resQ** project will be documented in this file.
   rather than guessed at. Options: `-tests`, `-since REV` (only changed
   lines), `file.q:10-40` line ranges, `-mutators`, `-max-mutants`,
   `-mutation-min`, `-isolateWorkers`, and `-json` for `mutation-report.json`.
-  See `docs/MUTATION.md`.
+  In a git checkout the report also lists files that were created, changed or
+  deleted while mutants ran, with the mutant responsible: a mutant of code
+  that writes files can write to the wrong place. See `docs/MUTATION.md`.
 - Public `.resq.run[paths;options]` library API with structured results, per-call
   configuration and temporary history, host-state restoration, and cleanup after
   file-load failures. Fresh-process regressions cover repeated runs, callbacks,
@@ -38,6 +40,14 @@ All notable changes to the **resQ** project will be documented in this file.
   was running, and the tests that had finished keep their results: the child
   checkpoints its report while it runs. In a large file the last few finished
   tests may fall after the final checkpoint; the message says how many.
+
+### Changed
+
+- Under `-strict`, `must` fails when its condition is an empty list. "All of no
+  items hold" is true, so `must[names like "a*"; ...]` passed when `names` was
+  empty, having checked nothing. Without `-strict` it still passes, as it does
+  in qspec. Found while testing `resq mutate`, where several assertions of this
+  shape had been passing vacuously.
 
 ### Fixed
 

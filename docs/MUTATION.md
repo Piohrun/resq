@@ -99,6 +99,21 @@ A mutant that hangs or crashes ends only its own process. A child is stopped onc
 - **No survivor on doubt.** If the child hit an error while keeping the mutant in place, a passing run is reported as not assessed: the mutant may not have been there for every test.
 - **Same conditions for both runs.** The baseline and the mutant run each use one test file per process, so a test that only passes after another file has run cannot produce a false kill.
 
+### Files a mutant changes
+
+A function that writes a file may, as a mutant, write a different one. In a git checkout resQ looks at the working directory before the mutants run and after each batch, and lists what changed:
+
+```text
+FILES CHANGED (1): in the working directory while mutants ran; nothing was undone
+    created  stray.txt  (during src/save.q:2 `0` replaced with `1`)
+```
+
+- **What is seen:** files created, modified or deleted under the working directory, and a changed file put back as committed (`restored`). Files git ignores are not looked at.
+- **Which mutant:** with one mutant at a time, the one that was running. With `-isolateWorkers N`, one of the N in that batch; up to three are named.
+- **What resQ does about it:** nothing. It will not delete or restore a file, because it cannot know the file is not yours. Remove strays yourself; `git status` shows them.
+- **Large trees:** if one look takes more than half a second, resQ looks once at the end instead, and reports the change without naming a mutant.
+- **Outside a git checkout** the run says it cannot list changed files, and carries on.
+
 ---
 
 ## Options
@@ -155,6 +170,7 @@ resq mutate src/ -tests tests/ -qspec-compat -qspec-discovery
   "summary": {"mutants": 22, "killed": 11, "timedOut": 0, "survived": 8,
               "notCovered": 3, "notAssessed": 0, "score": 50.0, "coveredScore": 57.9},
   "testFiles": [{"file": "tests/test_pricing.q", "usable": true, "reason": ""}],
+  "filesChanged": [{"path": "stray.txt", "change": "created", "mutants": [3]}],
   "mutants": [
     {"id": 3, "file": "src/pricing.q", "line": 5, "column": 13, "function": ".app.price",
      "mutator": "comparison", "description": "`<` replaced with `<=`",
@@ -163,7 +179,7 @@ resq mutate src/ -tests tests/ -qspec-compat -qspec-discovery
 }
 ```
 
-`status` is one of `killed`, `timeout`, `survived`, `uncovered`, `unloaded`, `unmatched`, `unapplied`, `error`. `uncovered` and `unloaded` are both reported as *not covered*: the first means the function was in memory but never called, the second that no test file loaded it. The last three are *not assessed*. `score` and `coveredScore` are `null` when nothing could be assessed.
+`status` is one of `killed`, `timeout`, `survived`, `uncovered`, `unloaded`, `unmatched`, `unapplied`, `error`. `uncovered` and `unloaded` are both reported as *not covered*: the first means the function was in memory but never called, the second that no test file loaded it. The last three are *not assessed*. `score` and `coveredScore` are `null` when nothing could be assessed. `filesChanged` lists each file with `change` (`created`, `modified`, `deleted` or `restored`) and the `id`s of the mutants that were running; the list of ids is empty when that is not known.
 
 ---
 
@@ -173,7 +189,7 @@ resq mutate src/ -tests tests/ -qspec-compat -qspec-discovery
 - **A function reached through a captured value looks uncovered.** If a dispatch table holds `.api.get` as a value taken at load time, a call through the table never goes through the name, so the mutant would not be reached and the call is not seen. The function is reported as not covered even when it is tested that way. A table that holds the function's name and looks it up at call time does not have this problem.
 - **A call made while a test file loads is not seen.** Mutants and probes go in after loading.
 - **Code a test reaches only through another process is not measured.** The mutant exists in the test's own q process. A test that starts a second q process and checks what that process does runs the unmutated code there.
-- **A mutant runs your code with one thing changed, side effects included.** If a function writes or deletes files, a mutant of it may do so at a different path. resQ's own run on its status-writing code left a stray file in the working directory this way. Mutate such code in a checkout you can restore.
+- **A mutant runs your code with one thing changed, side effects included.** If a function writes or deletes files, a mutant of it may do so at a different path. resQ reports what changed in a git checkout (see *Files a mutant changes*) but does not prevent it or undo it. Mutate such code in a checkout you can restore.
 - **Equivalent mutants.** Some changes cannot alter behaviour. Starting a sum at index 1 instead of 0 gives the same total, and no test can tell. These survive, and you have to recognise them. Expect a few per file; do not chase 100%.
 - **Unstable tests.** A test that fails at random can kill a mutant it never touched. The mutant was in place, so resQ cannot tell the difference. Fix or quarantine unstable tests before trusting a score.
 - **Time.** Each mutant costs one process start plus the tests that call its function, about a quarter of a second for a small test file. A mutant that hangs costs five seconds or more. Use line ranges, `-since`, `-max-mutants` and `-isolateWorkers` to keep runs short.

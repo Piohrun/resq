@@ -787,6 +787,21 @@
 .tst.testState.mut.canRun: (0 < count .tst.isolate.qExe) and
   0 < count @[system; "which timeout 2>/dev/null"; {[e] ()}];
 
+/ A small git checkout: a.q committed and then changed, b.q not yet tracked.
+.tst.testState.mut.gitProject:{[]
+  root: .utl.tempRoot[], "/resq_mut_git_", string[.z.i], "_", string `long$.z.p;
+  system "mkdir -p ", .utl.shellQuote root;
+  (hsym `$root, "/a.q") 0: ("one"; "two"; "three");
+  git: "git -C ", .utl.shellQuote[root], " -c user.email=t@example.invalid -c user.name=t ";
+  system git, "init -q .";
+  system git, "add -A";
+  system git, "commit -q -m base";
+  (hsym `$root, "/a.q") 0: ("one"; "TWO"; "three"; "four");
+  (hsym `$root, "/b.q") 0: enlist "new";
+  root
+ };
+.tst.testState.mut.hasGit: 0 < count @[system; "which git 2>/dev/null"; {[e] ()}];
+
 / ---------------------------------------------------------------------------
 / The parent side. What the command prints is collected instead of shown, and
 / the function that starts child processes is replaced by one that answers
@@ -1033,6 +1048,8 @@
 .tst.desc["mutation: the baseline run"]{
   should["probe every file, in groups, and read what each saw"]{
     .tst.testState.mut.capture[];
+    / The first group of two takes 2.5 seconds and the second a quarter.
+    .tst.testState.mut.clockAt 10 12.5 20 20.25;
     .tst.testState.mut.script {[file;plan]
       st: $[file~"a.q"; ("matched 0"; "matched 1"; "hit 1"; "done");
             file~"b.q"; enlist "done";
@@ -1048,8 +1065,7 @@
     (base[`hits] 0) mustmatch enlist 1;
     (count base[`hits] 2) musteq 0;
     (base[`differs] 2) mustmatch enlist 2;
-    must[all (base`secs) within 0 60; "a time in seconds for every file: ", .Q.s1 base`secs];
-    (base[`secs] 0) musteq base[`secs] 1;
+    (base`secs) mustmatch 2.5 2.5 0.25;
     / Two at a time: (a;b) then (c). Every child is given the same limit.
     calls: .tst.testState.mut.calls;
     (calls`files) mustmatch (("a.q"; "b.q"); enlist "c.q");
@@ -1077,6 +1093,12 @@
   ([] family:n#`arithmetic; at:n#1; upto:n#2; note:texts; text:texts; fnIdx:fnIdx; line:n#1; col:n#10)
  };
 
+/ execute with the working directory left out of it: just the mutants.
+.tst.testState.mut.exec:{[mutants;fns;base;workers;cap]
+  `.tst.mutate.snapshot mock {[] .tst.mutate.noFiles[]};
+  .tst.mutate.execute[mutants;fns;base;workers;cap]`mutants
+ };
+
 / Answer from a table of what each mutant does on each file, in call order.
 .tst.testState.mut.byScript:{[plays]
   .tst.testState.mut.plays: plays;
@@ -1094,7 +1116,7 @@
     .tst.testState.mut.capture[];
     .tst.testState.mut.script {[file;plan] .tst.testState.mut.outcome `killed};
     m: .tst.testState.mut.mutantsOf[("idle"; "changed"; "absent"); 1 2 3];
-    r: .tst.mutate.execute[m; .tst.testState.mut.fns4; .tst.testState.mut.base3; 2; 300];
+    r: .tst.testState.mut.exec[m; .tst.testState.mut.fns4; .tst.testState.mut.base3; 2; 300];
     / Matched but never called; found different; never seen. c.q called all
     / three, but it fails on its own.
     (r`status) mustmatch `uncovered`unmatched`unloaded;
@@ -1106,7 +1128,7 @@
   should["run a mutant whose function a single test file calls"]{
     .tst.testState.mut.capture[];
     .tst.testState.mut.byScript (enlist `$"lone@b.q")!enlist enlist `killed;
-    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[enlist "lone"; enlist 4]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
+    r: .tst.testState.mut.exec[.tst.testState.mut.mutantsOf[enlist "lone"; enlist 4]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
     (r`status) mustmatch enlist `killed;
     (r`killedBy) mustmatch enlist "b.q";
     (raze .tst.testState.mut.calls`files) mustmatch enlist "b.q";
@@ -1116,7 +1138,7 @@
     .tst.testState.mut.capture[];
     .tst.testState.mut.byScript (`$("first@b.q"; "second@b.q"; "second@a.q"))!(enlist `killed; enlist `survived; enlist `killed);
     m: .tst.testState.mut.mutantsOf[("first"; "second"); 0 0];
-    r: .tst.mutate.execute[m; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
+    r: .tst.testState.mut.exec[m; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
     (r`status) mustmatch `killed`killed;
     (r`killedBy) mustmatch ("b.q"; "a.q");
     calls: .tst.testState.mut.calls;
@@ -1134,7 +1156,7 @@
   should["never wait longer than the limit given"]{
     .tst.testState.mut.capture[];
     .tst.testState.mut.byScript (`$("m@b.q"; "m@a.q"))!(enlist `survived; enlist `survived);
-    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[enlist enlist "m"; enlist 0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 4];
+    r: .tst.testState.mut.exec[.tst.testState.mut.mutantsOf[enlist enlist "m"; enlist 0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 4];
     (raze .tst.testState.mut.calls`timeouts) mustmatch 4 4;
   };
 
@@ -1147,7 +1169,7 @@
       enlist `unapplied; enlist `unapplied;
       enlist `timeout;
       enlist `error);
-    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[names; 5#0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 5; 300];
+    r: .tst.testState.mut.exec[.tst.testState.mut.mutantsOf[names; 5#0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 5; 300];
     / Applied in one file is enough to call it survived.
     (r`status) mustmatch `survived`survived`unapplied`timeout`error;
     (r`killedBy) mustmatch (""; ""; ""; "b.q"; "");
@@ -1160,7 +1182,7 @@
       `retry`retry`survived; `retry`killed;
       enlist `retry;
       enlist `survived; `retry`retry`retry);
-    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[("blip"; "dead"; "late"); 3#0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
+    r: .tst.testState.mut.exec[.tst.testState.mut.mutantsOf[("blip"; "dead"; "late"); 3#0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
     / blip: two blips then a pass on b.q; the count starts again on a.q.
     (r`status) mustmatch `killed`error`error;
     (r`killedBy) mustmatch ("a.q"; ""; "");
@@ -1175,10 +1197,137 @@
     .tst.testState.mut.capture[];
     .tst.testState.mut.script {[file;plan] .tst.testState.mut.outcome `killed};
     names: string each til 61;
-    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[names; 61#0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 25; 300];
+    r: .tst.testState.mut.exec[.tst.testState.mut.mutantsOf[names; 61#0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 25; 300];
     must[all `killed=r`status; "all killed"];
     (count each .tst.testState.mut.calls`files) mustmatch 25 25 11;
     .tst.testState.mut.marks mustmatch (60#"."), "\n", ".";
+  };
+ };
+
+/ ---------------------------------------------------------------------------
+/ Snapshots handed out one per call; the last is repeated.
+.tst.testState.mut.snapshots:{[given]
+  .tst.testState.mut.snaps: given;
+  .tst.testState.mut.snapCalls: 0;
+  `.tst.mutate.snapshot mock {[]
+    i: .tst.testState.mut.snapCalls;
+    .tst.testState.mut.snapCalls+: 1;
+    .tst.testState.mut.snaps i&-1+count .tst.testState.mut.snaps};
+ };
+/ Changes as path -> what happened, in path order whatever order git lists in.
+.tst.testState.mut.byPath:{[c] d: (`$c`path)!c`change; (asc key d)#d};
+/ The clock, set by the test: each call returns the next offset in seconds
+/ from a fixed moment; the last is repeated.
+.tst.testState.mut.clockAt:{[seconds]
+  .tst.testState.mut.ticks: 2000.01.01D00:00:00+"n"$1e9*seconds;
+  .tst.testState.mut.tickCalls: 0;
+  `.tst.mutate.clock mock {[]
+    i: .tst.testState.mut.tickCalls;
+    .tst.testState.mut.tickCalls+: 1;
+    .tst.testState.mut.ticks i&-1+count .tst.testState.mut.ticks};
+ };
+.tst.testState.mut.listed:{[paths] ([] path:`$paths; untracked:(count paths)#1b; print:(count paths)#enlist (1; "m"; ""))};
+
+.tst.desc["mutation: files changed while mutants ran"]{
+  should["name the mutants that were running when a file changed"]{
+    .tst.testState.mut.capture[];
+    .tst.testState.mut.script {[file;plan] .tst.testState.mut.outcome `killed};
+    / Before the run; after the first two mutants; after the third.
+    .tst.testState.mut.snapshots (
+      .tst.testState.mut.listed enlist "mine.txt";
+      .tst.testState.mut.listed ("mine.txt"; "stray.txt");
+      .tst.testState.mut.listed ("mine.txt"; "stray.txt"; "other.txt"));
+    m: .tst.testState.mut.mutantsOf[("a"; "b"; "c"); 0 0 0];
+    r: .tst.mutate.execute[m; .tst.testState.mut.fns4; .tst.testState.mut.base3; 2; 300];
+    (r[`mutants]`status) mustmatch `killed`killed`killed;
+    c: r`changes;
+    (c`path) mustmatch ("stray.txt"; "other.txt");
+    (c`change) mustmatch `created`created;
+    (c`mutants) mustmatch (0 1; enlist 2);
+    / Once before, and once after each of the two batches.
+    .tst.testState.mut.snapCalls musteq 3;
+  };
+
+  should["report nothing when nothing changed, and look only once when nothing runs"]{
+    .tst.testState.mut.capture[];
+    .tst.testState.mut.script {[file;plan] .tst.testState.mut.outcome `killed};
+    .tst.testState.mut.snapshots enlist .tst.testState.mut.listed enlist "mine.txt";
+    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[("a"; "b"); 0 0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
+    r[`changes] mustmatch .tst.mutate.noChanges[];
+    .tst.testState.mut.snapCalls musteq 3;
+    .tst.testState.mut.snapshots enlist .tst.testState.mut.listed enlist "mine.txt";
+    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[enlist "idle"; enlist 1]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
+    r[`changes] mustmatch .tst.mutate.noChanges[];
+    .tst.testState.mut.snapCalls musteq 1;
+  };
+
+  should["look once at the end when looking is slow, and then name no mutant"]{
+    .tst.testState.mut.capture[];
+    .tst.testState.mut.script {[file;plan] .tst.testState.mut.outcome `killed};
+    / The first look took the whole half second allowed, which is too long.
+    .tst.testState.mut.clockAt 0 0.5;
+    .tst.testState.mut.snapshots (.tst.mutate.noFiles[]; .tst.testState.mut.listed enlist "stray.txt");
+    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[("a"; "b"; "c"); 0 0 0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
+    (r[`changes]`path) mustmatch enlist "stray.txt";
+    (r[`changes]`mutants) mustmatch enlist `long$();
+    .tst.testState.mut.snapCalls musteq 2;
+    / A little under, and it looks after every batch.
+    .tst.testState.mut.clockAt 0 0.499;
+    .tst.testState.mut.snapshots (.tst.mutate.noFiles[]; .tst.testState.mut.listed enlist "stray.txt");
+    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[("a"; "b"; "c"); 0 0 0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 1; 300];
+    (r[`changes]`mutants) mustmatch enlist enlist 0;
+    .tst.testState.mut.snapCalls musteq 4;
+  };
+
+  should["read the list git gives, each file once"]{
+    found: .tst.mutate.listedFiles ("C a"; "? b.q"; "C a"; "? dir/c d.txt");
+    (found`path) mustmatch `a`b.q,`$"dir/c d.txt";
+    (found`untracked) mustmatch 011b;
+  };
+
+  should["tell created, modified, deleted and restored apart"]{
+    absent: (-1; ""; "");
+    before: ([] path:`tracked`untracked`stays`todelete`leaves`cleaned;
+      untracked:010010b; print:((5; "a"; ""); (5; "a"; ""); (5; "a"; ""); (5; "a"; ""); (5; "a"; ""); (5; "a"; "")));
+    after: ([] path:`tracked`untracked`stays`todelete`new`dirtied`removed;
+      untracked:0100100b; print:((6; "b"; ""); (6; "b"; ""); (5; "a"; ""); absent; (1; "c"; ""); (2; "d"; ""); absent));
+    c: .tst.mutate.changes[before; after];
+    ((`$c`path)!c`change) mustmatch `tracked`untracked`todelete`new`dirtied`removed`leaves`cleaned!
+      `modified`modified`deleted`created`modified`deleted`deleted`restored;
+    (c`path) mustmatch string `tracked`untracked`todelete`new`dirtied`removed`leaves`cleaned;
+    (count .tst.mutate.changes[before; before]) musteq 0;
+    (count .tst.mutate.changes[.tst.mutate.noFiles[]; .tst.mutate.noFiles[]]) musteq 0;
+  };
+
+  skipIf[not .tst.testState.mut.hasGit; "see what git sees in the working directory, and nothing outside a checkout"]{
+    root: .tst.testState.mut.gitProject[];
+    plain: .tst.testState.mut.scratch["x.txt"; enlist "not a checkout"];
+    here: system "cd";
+    system "cd ", root;
+    inside: .tst.mutate.inGit[];
+    first1: .tst.mutate.snapshot[];
+    (hsym `$root, "/c.q") 0: enlist "brand new";
+    (hsym `$root, "/b.q") 0: ("new"; "and longer now");
+    hdel hsym `$root, "/a.q";
+    second: .tst.mutate.snapshot[];
+    (hsym `$root, "/a.q") 0: ("one"; "two"; "three");
+    hdel hsym `$root, "/c.q";
+    third: .tst.mutate.snapshot[];
+    system "cd ", .tst.static.getDir plain;
+    outside: .tst.mutate.inGit[];
+    nothing: .tst.mutate.snapshot[];
+    system "cd ", here;
+    system "rm -rf ", .utl.shellQuote root;
+    .tst.testState.mut.drop plain;
+    must[inside; "a checkout is recognised"];
+    must[not outside; "and a plain directory is not"];
+    nothing mustmatch .tst.mutate.noFiles[];
+    / a.q was changed after the commit and b.q is new.
+    (asc first1`path) mustmatch `a.q`b.q;
+    (`a.q`b.q#(first1`path)!first1`untracked) mustmatch `a.q`b.q!01b;
+    .tst.testState.mut.byPath[.tst.mutate.changes[first1; second]] mustmatch `a.q`b.q`c.q!`deleted`modified`created;
+    / a.q is back as committed, so git no longer lists it; c.q is gone.
+    .tst.testState.mut.byPath[.tst.mutate.changes[second; third]] mustmatch `a.q`c.q!`restored`deleted;
   };
  };
 
@@ -1197,11 +1346,16 @@
     line:12 5 5 10 11 2 2 9 7 10 6 21; col:3 20 8 14 2 10 12 10 10 30 4 7; status:st; killedBy:killers)
  };
 .tst.testState.mut.reportBase: ([] file:("tests/t.q"; "tests/u.q"); usable:10b; why:(""; "ran no tests"));
+/ Files changed while one mutant ran, while one of several ran, and at a time
+/ nobody knows.
+.tst.testState.mut.reportChanges: ([] path:("applied"; "src/a.q"; "data/x.csv"; "notes.txt"; "out/log.txt");
+  change:`created`modified`deleted`restored`created;
+  mutants:(enlist 1; 0 2 3 4; `long$(); enlist 11; 5 6 7));
 
 .tst.desc["mutation: the report"]{
   should["print the counts, the score, and each group that needs attention"]{
     .tst.testState.mut.capture[];
-    s: .tst.mutate.report[.tst.testState.mut.reportMutants[]; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase];
+    s: .tst.mutate.report[.tst.testState.mut.reportMutants[]; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase; .tst.mutate.noChanges[]];
     .tst.testState.mut.printed mustmatch (
       "";
       "RESULT";
@@ -1246,7 +1400,7 @@
   should["print nothing but the result when every mutant was killed"]{
     .tst.testState.mut.capture[];
     m: update status:`killed from .tst.testState.mut.reportMutants[];
-    .tst.mutate.report[m; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase];
+    .tst.mutate.report[m; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase; .tst.mutate.noChanges[]];
     .tst.testState.mut.printed mustmatch (
       "";
       "RESULT";
@@ -1259,11 +1413,25 @@
       "  Mutation score: 100.0% (12 of 12 mutants detected)");
   };
 
+  should["list the files that changed while mutants ran, and which mutants those were"]{
+    .tst.testState.mut.capture[];
+    m: update status:`killed from .tst.testState.mut.reportMutants[];
+    .tst.mutate.report[m; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase; .tst.testState.mut.reportChanges];
+    (-7#.tst.testState.mut.printed) mustmatch (
+      "";
+      "FILES CHANGED (5): in the working directory while mutants ran; nothing was undone";
+      "    created   applied  (during src/a.q:5 `*` replaced with `%`)";
+      "    modified  src/a.q  (during one of: src/a.q:12, src/a.q:5, src/a.q:10, ...)";
+      "    deleted   data/x.csv  (at some point in the run)";
+      "    restored  notes.txt  (during src/b.q:21 `first` replaced with `last`)";
+      "    created   out/log.txt  (during one of: src/b.q:2, src/b.q:2, src/b.q:9)");
+  };
+
   should["give the second score as soon as one mutant is not covered"]{
     .tst.testState.mut.capture[];
     m: update status:`killed from .tst.testState.mut.reportMutants[];
     m: update status:`uncovered from m where i=5;
-    .tst.mutate.report[m; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase];
+    .tst.mutate.report[m; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase; .tst.mutate.noChanges[]];
     p: .tst.testState.mut.printed;
     must[.tst.testState.mut.has[p; "  Mutation score: 91.7% (11 of 12 mutants detected)"]; .Q.s1 p];
     must[.tst.testState.mut.has[p; "  In functions the tests call: 100.0%"]; .Q.s1 p];
@@ -1292,7 +1460,7 @@
     `.resq.config.outDir mock dir;
     m: .tst.testState.mut.reportMutants[];
     summary: .tst.mutate.summary m;
-    .tst.mutate.writeJson[m; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase; summary];
+    .tst.mutate.writeJson[m; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase; summary; .tst.testState.mut.reportChanges];
     doc: .j.k raze read0 hsym `$dir, "/mutation-report.json";
     .tst.testState.mut.drop marker;
     .tst.testState.mut.printed mustmatch enlist "Mutation report written to: ", dir, "/mutation-report.json";
@@ -1315,6 +1483,11 @@
     one[`status] mustmatch "killed";
     one[`killedBy] mustmatch "tests/t.q";
     (doc[`mutants]`status) mustmatch string .tst.testState.mut.reportMutants[]`status;
+    changed: doc`filesChanged;
+    (changed`path) mustmatch ("applied"; "src/a.q"; "data/x.csv"; "notes.txt"; "out/log.txt");
+    (changed`change) mustmatch ("created"; "modified"; "deleted"; "restored"; "created");
+    must[(changed[`mutants] 1)~0 2 3 4f; "the mutants that were running: ", .Q.s1 changed`mutants];
+    (count changed[`mutants] 2) musteq 0;
   };
 
   should["show progress marks unless asked to be quiet"]{
@@ -1443,20 +1616,6 @@
  };
 
 / ---------------------------------------------------------------------------
-.tst.testState.mut.gitProject:{[]
-  root: .utl.tempRoot[], "/resq_mut_git_", string[.z.i], "_", string `long$.z.p;
-  system "mkdir -p ", .utl.shellQuote root;
-  (hsym `$root, "/a.q") 0: ("one"; "two"; "three");
-  git: "git -C ", .utl.shellQuote[root], " -c user.email=t@example.invalid -c user.name=t ";
-  system git, "init -q .";
-  system git, "add -A";
-  system git, "commit -q -m base";
-  (hsym `$root, "/a.q") 0: ("one"; "TWO"; "three"; "four");
-  (hsym `$root, "/b.q") 0: enlist "new";
-  root
- };
-.tst.testState.mut.hasGit: 0 < count @[system; "which git 2>/dev/null"; {[e] ()}];
-
 .tst.desc["mutation: lines changed since a revision"]{
   skipIf[not .tst.testState.mut.hasGit; "read the changed lines of a tracked file, and count a new file as all new"]{
     root: .tst.testState.mut.gitProject[];
@@ -1492,7 +1651,9 @@
   `.tst.mutate.execute mock {[mutants;fns;base;workers;cap]
     .tst.testState.mut.handed[`execute]: (count mutants; fns`name; base`file; workers; cap);
     n: count mutants;
-    update status:n#.tst.testState.mut.statuses, killedBy:n#enlist "" from mutants};
+    `mutants`changes!(update status:n#.tst.testState.mut.statuses, killedBy:n#enlist "" from mutants; .tst.testState.mut.runChanges)};
+  .tst.testState.mut.runChanges: .tst.mutate.noChanges[];
+  `.tst.mutate.inGit mock {[] 1b};
   `.tst.mutate.parent mock 0b;
   `.tst.app.failFast mock 0b;
   `.tst.isolate.killAfter mock 5;
@@ -1593,6 +1754,22 @@
     / The output of the last file that failed is shown, to say why.
     (-2#none) mustmatch (""; "the last output");
     must[not `execute in key .tst.testState.mut.handed; "no mutant is run"];
+  };
+
+  should["report files that changed, and say when it cannot tell"]{
+    root: .tst.testState.mut.runSetup enlist `killed;
+    .tst.testState.mut.runChanges: ([] path:enlist "stray.txt"; change:enlist `created; mutants:enlist enlist 0);
+    .tst.mutate.run enlist root, "/src/calc.q";
+    inCheckout: .tst.testState.mut.printed;
+    .tst.testState.mut.capture[];
+    `.tst.mutate.inGit mock {[] 0b};
+    .tst.mutate.run enlist root, "/src/calc.q";
+    plain: .tst.testState.mut.printed;
+    system "rm -rf ", .utl.shellQuote root;
+    must[.tst.testState.mut.has[inCheckout; "FILES CHANGED (1): in the working directory while mutants ran; nothing was undone"]; .Q.s1 inCheckout];
+    must[any inCheckout like "    created  stray.txt  (during *src/calc.q:1 statement removed: x+y)"; .Q.s1 inCheckout];
+    must[not any inCheckout like "*Not a git checkout*"; "nothing is said when it can look"];
+    plain[3] mustmatch "  Not a git checkout: files a mutant writes or deletes here cannot be listed";
   };
 
   should["write the JSON report only when asked"]{
