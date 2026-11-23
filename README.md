@@ -62,7 +62,7 @@ assistance.
   - **Snapshot Lifecycle**: Complete/partial inventories, fail-closed CI gates,
     dynamic-name declarations, and recoverable dry-run-first obsolete pruning.
 - **Coverage** (`resq cover`): `--source src/` inventories loaded and entirely unloaded modules, then `\l`/`system "l "` instrumentation records hits. One canonical model produces LCOV, detailed `coverage.json`, annotated HTML, and complete state output. Coverage is function-level by default; `-cov-statements` adds measured statements and `-cov-branches` adds true/false edges for `if`, `while`, and lazy `$` conditions, including eligible anonymous lambdas under stable enclosing-function identities. Opt-in `-cov-contexts`/`-cov-attempt-contexts` add bounded stable attribution without changing aggregate gates. Function, line, branch, and instrumentation-completeness gates are independent and fail closed on incomplete denominators. Compiled operators and derived functions are skipped.
-- **Watch mode** (`resq watch`): Polls source and test directories and re-runs affected tests on change.
+- **Watch mode** (`resq watch`): Polls source and test directories and re-runs the tests that load a changed file, read from the load statements in your source.
 
 ---
 

@@ -580,4 +580,38 @@
   };
  };
 
+.tst.desc["Config: watchLoaders"]{
+ should["accept one loader name or a list, as strings"]{
+  0 musteq count .tst.invalidConfigKeys (enlist `watchLoaders)!enlist ".lib.load";
+  0 musteq count .tst.invalidConfigKeys (enlist `watchLoaders)!enlist (".lib.load"; ".app.require");
+  0 musteq count .tst.invalidConfigKeys (enlist `watchLoaders)!enlist ();
+  0 musteq count .tst.validateConfig (enlist `watchLoaders)!enlist enlist ".lib.load";
+  };
+
+ should["reject values that are not q function names"]{
+  bad:{[v] `watchLoaders in .tst.invalidConfigKeys (enlist `watchLoaders)!enlist v};
+  must[bad 42; "a number is not a name"];
+  must[bad "not a name"; "a name has no spaces"];
+  must[bad (".lib.load"; "1bad"); "a name does not start with a digit"];
+  must[bad (".lib.load"; ""); "a name is not empty"];
+  must[bad ".lib..load"; "a name has no empty namespace"];
+  warnings:.tst.validateConfig (enlist `watchLoaders)!enlist "not a name";
+  must[any warnings like "watchLoaders*"; "the warning names the key: ", .Q.s1 warnings];
+  };
+
+ should["apply a valid value as a list of strings and ignore an invalid one"]{
+  `.resq.config.watchLoaders mock enlist "before";
+  .tst.applyConfig (enlist `watchLoaders)!enlist ".lib.load";
+  .resq.config.watchLoaders mustmatch enlist ".lib.load";
+  .tst.applyConfig (enlist `watchLoaders)!enlist (".lib.load"; ".app.require");
+  .resq.config.watchLoaders mustmatch (".lib.load"; ".app.require");
+  .tst.applyConfig (enlist `watchLoaders)!enlist "not a name";
+  .resq.config.watchLoaders mustmatch (".lib.load"; ".app.require");
+  };
+
+ should["default to naming no loader"]{
+  (count .tst.defaultConfig`watchLoaders) musteq 0;
+  };
+ };
+
 ::

@@ -2142,6 +2142,7 @@ Create `resq.json` in project root:
     "expectationLineAnnotations": true,
     "exit": true,
     "testFilePatterns": ["test_*.q", "*_test.q"],
+    "watchLoaders": [],
     "diffLargeTableThreshold": 1000,
     "diffHugeTableThreshold": 10000
 }
@@ -2202,6 +2203,7 @@ Create `resq.json` in project root:
 | `testFilePatterns` | `test_*.q`, `*_test.q` | Basename patterns used during directory discovery |
 | `qspecCompat` | `false` | Use qspec comparison semantics for `musteq` / `mustne` |
 | `rootLoad` | `false` | Load test files into the root namespace instead of a per-file sandbox |
+| `watchLoaders` | none | Watch mode: names of loader functions defined outside the watched directories, e.g. `[".lib.load"]`. See [WATCH.md](WATCH.md) |
 | `finalDiffs` | `false` | Repeat structural diffs in the final human failure listing |
 | `finalDiffLimit` | `4000` | Total character budget for final repeated diffs |
 | `covStatements` | `false` | Enable measured statement/line instrumentation |

@@ -411,10 +411,14 @@ resq test tests/ -strict               # 0 EXECUTED tests, or any test that asse
 resq test tests/ -desc                 # LIST tests, do not run them (exit 0)
 resq test tests/ -isolate              # each FILE in its own subprocess; -isolateTimeout N (s, default 300)
 resq cover tests/ --source src/        # inventory source; LCOV/JSON/HTML
-resq watch src/ tests/                 # re-run on change
+resq watch src/ tests/                 # re-run the tests that load a changed file
 ```
 
 Other true facts:
+- **Watch** finds loads by reading `.q` path literals in source, so it follows a
+  project's own loader function. Name a loader defined outside the watched
+  directories with `"watchLoaders": [".lib.load"]` in `resq.json`. A test that
+  loads a computed path or a module name re-runs on every source change.
 - **Color** auto-disables when `NO_COLOR` is set or output is not a TTY.
 - A **syntax error** in a test file reports `CRITICAL LOAD ERROR in <file>
   near line N: …`.

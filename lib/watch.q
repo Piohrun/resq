@@ -3,20 +3,45 @@
 
 / Dependencies
 .resq.require .resq.PKGLOADING,"/static_analysis.q"
+.resq.require .resq.PKGLOADING,"/load_graph.q"
 
 / Configuration
 .tst.watch.watchDirs: enlist "."
 .tst.watch.fileStates: ()!()
 .tst.watch.deletedFiles: `symbol$()
+/ Extra loader function names, e.g. enlist ".lib.load", for a loader that is
+/ defined outside the watched directories. `watchLoaders` in resq.json adds to
+/ this. Loaders defined in a watched file are found without being named.
+.tst.watch.loaders: ()
+/ The load graph of the tracked files (lib/load_graph.q), rebuilt on change.
+.tst.watch.graph: ()
 / Poll interval in seconds, consumed by the watch loop's sleep. The 1s rescan
 / walks the whole tree via recursive `key` each tick, so raising this trades
 / latency for less churn on large trees.
 .tst.watch.interval: 1
 
-/ Default runner command (can be overridden). Accepts a (possibly empty) list
-/ of files as symbols and/or strings.
+/ resQ's require (.utl.require, .resq.require) loads a file once per process,
+/ and watch reruns in that same process. A watched file it has loaded must be
+/ forgotten before a rerun, or its edits are never read: the right tests run,
+/ against the old definitions, and a broken edit stays green. resQ's own
+/ modules stay loaded.
+.tst.watch.forgetLoaded:{[]
+    loaded: @[get; `.utl.loaded; {()}];
+    if[0=count loaded; :()];
+    canon: .tst.loadGraph.canonical[system "cd"];
+    tracked: `$canon each key .tst.watch.fileStates;
+    own: (canon .resq.PKGLOADING), "/";
+    paths: canon each loaded;
+    isOwn: {[own;p] (count[own]<=count p) and own~(count own)#p}[own] each paths;
+    .utl.loaded: loaded where not ((`$paths) in tracked) and not isOwn;
+ };
+
+/ Default runner command (can be overridden). Accepts a list of files as
+/ symbols and/or strings; an empty list means the full suite, which is every
+/ test file under the watched directories. Handing the runner the empty list
+/ itself made it discover nothing, so each full-suite fallback ran no tests.
 .tst.watch.runnerCmd: {
-    files: x;
+    files: $[count x; x; .tst.watch.watchDirs];
     / Reload runner state to clear previous runs. Anchor at install root
     / so this works no matter where the user invoked resq from.
     home: @[get; `.resq.HOME; {"."}];
@@ -24,6 +49,9 @@
 
     / Force no exit for watch mode runner
     .tst.app.exit: 0b;
+
+    / Selection is advisory, so a failure here must not stop the rerun.
+    @[.tst.watch.forgetLoaded; ::; {[e] -1 ">> Could not reset loaded files (", e, ")."}];
 
     / Set args for runner. The runner expects a list of path STRINGS (as the
     / CLI passes); check[] yields symbols, so normalize each entry to a string.
@@ -149,6 +177,7 @@
     .tst.watch.deletedFiles:: `symbol$();
     -1 ">> Watch initialized. Tracking ",string[count .tst.watch.fileStates]," files.";
     -1 ">> Directories: ", ", " sv dirs;
+    .tst.watch.describeGraph[];
  }
 
 / Check for changes
@@ -206,52 +235,139 @@
     any (-1 _ segs) ~\: "test"
  }
 
+/ ----------------------------------------------------------------------------
+/ Choosing what to rerun
+/ ----------------------------------------------------------------------------
+
+.tst.watch.loaderNames:{[]
+    distinct .tst.loadGraph.names[@[get; `.resq.config.watchLoaders; {()}]],
+        .tst.loadGraph.names @[get; `.tst.watch.loaders; {()}]
+ };
+
+/ A file the runner can be handed: a test file, or anything under test/.
+.tst.watch.runnable:{[f]
+    s: string f;
+    .tst.watch.isTestFile[s] or .tst.watch.inTestDir s
+ };
+
+/ Rebuild the load graph for the tracked files and return it. `test` marks the
+/ runnable files. Unchanged files are served from the graph's own cache.
+.tst.watch.refreshGraph:{[]
+    tracked: key .tst.watch.fileStates;
+    tracked: $[0=count tracked; `symbol$(); tracked];
+    g: .tst.loadGraph.build[tracked; value .tst.watch.fileStates; .tst.watch.loaderNames[]];
+    g[`test]: .tst.watch.runnable each tracked;
+    .tst.watch.graph:: g;
+    g
+ };
+
+/ The graph is advisory: if it cannot be built, watch still reruns tests, it
+/ just cannot narrow a source change below the full suite.
+.tst.watch.tryGraph:{[]
+    @[{.tst.watch.refreshGraph[]}; ::; {[e] -1 ">> Load graph unavailable (", e, ")."; ()}]
+ };
+
+/ One line on the graph at startup, plus the loads it could not resolve: those
+/ are why some tests rerun on every source change.
+.tst.watch.describeGraph:{[]
+    g: .tst.watch.tryGraph[];
+    if[0=count g; :()];
+    -1 ">> Load graph: ", string[sum count each g`deps], " load(s) found between tracked files.";
+    opaque: .tst.watch.opaqueTests g;
+    if[0=count opaque; :()];
+    -1 ">> ", string[count opaque], " test file(s) rerun on every source change: a load they reach has no fixed target.";
+    dyn: where g`dynamic;
+    dyn: dyn where {[g;i] any g[`test] .tst.loadGraph.loadedBy[g; enlist i]}[g] each dyn;
+    lines: raze {[g;i] (string[g[`tracked] i], " ") ,/: g[`why] i}[g] each dyn;
+    -1 each ">>   " ,/: 5 sublist lines;
+    if[5<count lines; -1 ">>   (", string[(count lines)-5], " more)"];
+ };
+
+/ Tracked test files that load f, directly or through other files.
+.tst.watch.testsLoading:{[g;f]
+    i: g[`tracked]?f;
+    if[i=count g`tracked; :`symbol$()];
+    idx: .tst.loadGraph.loadedBy[g; enlist i] except i;
+    g[`tracked] idx where g[`test] idx
+ };
+
+/ Test files that reach a file with an unresolved load. What they load cannot
+/ be known, so any source change may concern them.
+.tst.watch.opaqueTests:{[g]
+    dyn: where g`dynamic;
+    if[0=count dyn; :`symbol$()];
+    idx: .tst.loadGraph.loadedBy[g; dyn];
+    g[`tracked] idx where g[`test] idx
+ };
+
+/ Test files matched to a source file by name (src/foo.q -> test_foo.q,
+/ foo_test.q under the default patterns). Kept alongside the load graph so a
+/ test that loads its source in a way the graph cannot see is still rerun.
+.tst.watch.namedTests:{[f]
+    name: .tst.static.getBase f;
+    if[".q" ~ -2 # name; name: (count[name]-2)#name];
+    patterns: .tst.watch.testFilePatterns[];
+    patterns: patterns where {any x = "*"} each patterns;
+    targets: {[n; p] ssr[p; "*"; n]}[name;] each patterns;
+    candidates: key .tst.watch.fileStates;
+    candidates: $[0=count candidates; `symbol$(); candidates];
+    candidates where {[targets; p] (last "/" vs string p) in targets}[targets] each candidates
+ };
+
+/ Decide what a set of changed files reruns. Returns
+/   all    1b to run the full suite
+/   tests  the files to run otherwise
+/   notes  lines explaining a decision the user would not guess
+/ Rules, in order:
+/   - A deleted file reruns everything: what loaded it can no longer be read.
+/   - A runnable file reruns itself and every test that loads it.
+/   - Any other file reruns the tests that load it, plus those matching it by
+/     name. If there are none, nothing is known about who uses it, so the full
+/     suite runs.
+/   - Unless only test files changed, tests with an unresolved load run too.
+.tst.watch.plan:{[files]
+    out: `all`tests`notes!(0b; `symbol$(); ());
+    deleted: @[get; `.tst.watch.deletedFiles; `symbol$()];
+    if[any files in deleted; out[`all]: 1b; :out];
+    g: .tst.watch.tryGraph[];
+    hasGraph: 0<count g;
+    one: {[g;hasGraph;f]
+        runnable: .tst.watch.runnable f;
+        loading: $[hasGraph; .tst.watch.testsLoading[g;f]; `symbol$()];
+        tests: distinct $[runnable; f, loading; loading, .tst.watch.namedTests f];
+        `tests`unknown!(tests; (not runnable) and (0=count tests) or not hasGraph)
+    }[g;hasGraph] each files;
+    unknown: files where one[;`unknown];
+    if[count unknown;
+        out[`all]: 1b;
+        if[hasGraph;
+            out[`notes]: enlist ">> No test file is known to load ", ", " sv string unknown];
+        :out];
+    tests: distinct raze one[;`tests];
+    sourceChanged: not all {.tst.watch.isTestFile string x} each files;
+    if[hasGraph and sourceChanged;
+        extra: .tst.watch.opaqueTests[g] except tests;
+        if[count extra;
+            tests,: extra;
+            out[`notes]: enlist ">> Including ", string[count extra],
+                " test file(s) whose loads have no fixed target."]];
+    out[`tests]: tests;
+    out
+ };
+
 / Run tests for changed files
 .tst.watch.onChanges:{[files]
     -1 ">> Changes detected in: ", ", " sv string files;
-
-    / Heuristic:
-    / 1. Is it a test file? Run it.
-    / 2. Is it a source file? Find dependent tests?
-
-    deleted: @[get; `.tst.watch.deletedFiles; `symbol$()];
-    patterns: .tst.watch.testFilePatterns[];
-    testsToRun: distinct raze {[deleted; patterns; f]
-        s: string f;
-        if[f in deleted; :enlist `ALL];
-        $[.tst.watch.isTestFile s;
-            enlist f;
-            .tst.watch.inTestDir s;
-            enlist f;
-            [
-                / It's a source file. Find mapping.
-                / Simple mapping: src/foo.q -> test/test_foo.q
-                base: .tst.static.getBase f;
-                name: base;
-                if[".q" ~ -2 # name; name: (count[name]-2)#name];
-
-                / Map every configured wildcard convention (by default both
-                / test_NAME.q and NAME_test.q) to this source basename.
-                candidates: key .tst.watch.fileStates;
-                wildcardPatterns: patterns where {any x = "*"} each patterns;
-                targetNames: { [n; p] ssr[p; "*"; n] }[name;] each wildcardPatterns;
-                matches: candidates where
-                    {[targets; p] (last "/" vs string p) in targets}[targetNames] each candidates;
-
-                $[0<count matches; matches; enlist `ALL]
-            ]
-        ]
-    }[deleted; patterns;] each files;
-    
-    / Run
-    $[(`ALL in testsToRun) or (0=count testsToRun);
+    plan: .tst.watch.plan files;
+    -1 each plan`notes;
+    $[plan[`all] or 0=count plan`tests;
         [
             -1 ">> Running ALL tests.";
             .tst.watch.runnerCmd[()];
         ];
         [
-            -1 ">> Running target tests: ", ", " sv string testsToRun;
-            .tst.watch.runnerCmd[testsToRun];
+            -1 ">> Running target tests: ", ", " sv string plan`tests;
+            .tst.watch.runnerCmd[plan`tests];
         ]
     ];
  }

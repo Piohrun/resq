@@ -7,6 +7,7 @@
 defaultConfig:`fmt`outDir`describeOnly`xmlOutput`runPerformance`excludeSpecs`runSpecs`passOnly`exit`strict`fuzzLimit`failFast`failHard`pollutionGuard`maxTestTime`reportLimit`reportListLimit`qNamespaceExports`expectationLineAnnotations`diffLargeTableThreshold`diffHugeTableThreshold`testFilePatterns`qspecCompat`covStatements`coverageMin`coverageFunctionMin`coverageLineMin`coverageCompletenessMin`allowPartialLineCoverage`coverageSources`randomOrder`seed`lastFailed`failedFirst`stateFile`shardIndex`shardCount`strictPlugins`pluginFiles`covBranches`coverageBranchMin`coverageBranchCompletenessMin`covContexts`covAttemptContexts`coverageContextMax`coverageContextEntryMax`shardUnit`quarantineNonBlocking`flakeProposals`flakeHistoryFile`quarantineFile`flakeProposalFile`flakeEvidenceMin`flakeFailureMin`flakeWindow`snapshotAudit`snapshotGate`benchmarkBaseline`benchmarkGate`benchmarkAcceptEnvironment`benchmarkAlphaPercent`benchmarkEffectMin`benchmarkMinSamples`reportProfile`labels`vcsProbe!(`text;".";0b;0b;0b;();();0b;1b;0b;100;0b;0b;1b;0;50000;1000;0b;1b;1000;10000;("test_*.q"; "*_test.q");0b;0b;0;0;0;0;0b;();0b;0j;0b;0b;".resq/last-run.json";0j;1j;0b;();0b;0;0;0b;0b;10000j;250000j;`file;0b;0b;".resq/flake-history.json";".resq/quarantine.json";".resq/quarantine-proposals.json";3j;2j;20j;0b;0b;"";0b;0b;5j;5j;5j;`full;()!();1b)
 defaultConfig:defaultConfig,`finalDiffs`finalDiffLimit!(0b;4000);
 defaultConfig:defaultConfig,enlist[`rootLoad]!enlist 0b;
+defaultConfig:defaultConfig,enlist[`watchLoaders]!enlist ();
 
 .tst.LABEL_MAX_COUNT:32j;
 .tst.LABEL_MAX_KEY:64j;
@@ -386,6 +387,24 @@ loadConfig:{[path]
     $[10h=type patterns;enlist patterns;patterns]
  };
 
+/ Watch-mode loader names: one q function name or a list of them, as strings
+/ or symbols. An empty list is valid and names no loader.
+.tst.normalizeWatchLoaders:{[loaders]
+    $[10h=type loaders;enlist loaders;
+      -11h=type loaders;enlist string loaders;
+      11h=type loaders;string each loaders;
+      0h=type loaders;{$[10h=type x;x;-11h=type x;string x;""]} each loaders;
+      ()]
+ };
+
+.tst.validWatchLoaders:{[loaders]
+    if[not (type loaders) in 0 10 11 -11h; :0b];
+    names:.tst.normalizeWatchLoaders loaders;
+    if[0=count names; :1b];
+    all {[n] (0<count n) and (all n in .Q.a,.Q.A,.Q.n,"._") and
+        (not first[n] in .Q.n,"_") and not n like "*..*"} each names
+ };
+
 / Coverage source roots accept one path or a list of string/symbol paths. Keep
 / them as strings so filesystem discovery never interns user-controlled text.
 .tst.validCoverageSources:{[sources]
@@ -650,6 +669,12 @@ validateConfig:{[cfg]
     ];
   ];
 
+  if[`watchLoaders in key cfg;
+    if[not .tst.validWatchLoaders cfg`watchLoaders;
+      warnings,:enlist "watchLoaders must be a q function name or a list of function names"
+    ];
+  ];
+
   warnings
  }
 
@@ -773,6 +798,9 @@ invalidConfigKeys:{[cfg]
 
   if[`coverageSources in key cfg;
     if[not .tst.validCoverageSources cfg`coverageSources; invalid,:`coverageSources]];
+
+  if[`watchLoaders in key cfg;
+    if[not .tst.validWatchLoaders cfg`watchLoaders; invalid,:`watchLoaders]];
 
   distinct invalid
  }
@@ -908,6 +936,8 @@ applyConfig:{[cfg]
     if[ok`diffHugeTableThreshold; .resq.config.diffHugeTableThreshold: cfg`diffHugeTableThreshold];
     if[ok`testFilePatterns;
         .resq.config.testFilePatterns:.tst.normalizeTestFilePatterns cfg`testFilePatterns];
+    if[ok`watchLoaders;
+        .resq.config.watchLoaders:.tst.normalizeWatchLoaders cfg`watchLoaders];
  }
 
 

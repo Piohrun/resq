@@ -336,3 +336,268 @@
     must[result`reportExists;"the final cycle must publish its JSON report"];
   };
  };
+
+/ ---------------------------------------------------------------------------
+/ (6) Choosing what to rerun from the load graph (lib/load_graph.q).
+/ Watch used to map src/foo.q to test_foo.q by NAME only, so a second test
+/ that loaded foo.q was silently skipped. These write a real project to a
+/ scratch directory, track it, and assert on .tst.watch.plan - the decision
+/ onChanges acts on - with the runner mocked out.
+
+/ Write `files` (relative path -> source lines) under a fresh scratch root and
+/ make them the watcher's tracked files.
+.tst.testState.watchsel.setup:{[files]
+  root: .utl.tempRoot[], "/resq_watchsel_", string[.z.i], "_", string `long$.z.p;
+  full: (root, "/") ,/: key files;
+  system "mkdir -p ", " " sv .utl.shellQuote each distinct .tst.static.getDir each full;
+  {[path;lines] (hsym `$path) 0: lines}'[full; value files];
+  .tst.testState.watchsel.root: root;
+  tracked: .tst.static.findSources root;
+  .tst.watch.fileStates: tracked!(count tracked)#enlist (1; "t"; "");
+  root
+ };
+
+.tst.testState.watchsel.sym:{[rel] `$.tst.testState.watchsel.root, "/", rel};
+.tst.testState.watchsel.syms:{[rels] asc .tst.testState.watchsel.sym each rels};
+.tst.testState.watchsel.plain: enlist "x: 1";
+
+.tst.desc["watch: a source change reruns every test that loads it"]{
+  before{
+    `.tst.watch.runnerCmd mock {.tst.testState.watchsel.ran: x};
+    `.tst.watch.fileStates mock ()!();
+    `.tst.watch.deletedFiles mock `symbol$();
+    `.tst.watch.loaders mock ();
+    `.tst.watch.graph mock ();
+    `.tst.testState.watchsel.ran mock `unset;
+    `.tst.testState.watchsel.root mock "";
+  };
+  after{
+    if[count .tst.testState.watchsel.root;
+      system "rm -rf ", .utl.shellQuote .tst.testState.watchsel.root];
+  };
+
+  should["rerun the test that loads a source file under another name"]{
+    .tst.testState.watchsel.setup ("src/foo.q"; "tests/test_foo.q"; "tests/test_bar.q"; "tests/test_other.q")!(
+      .tst.testState.watchsel.plain;
+      .tst.testState.watchsel.plain;
+      enlist "\\l src/foo.q";
+      .tst.testState.watchsel.plain);
+    plan: .tst.watch.plan enlist .tst.testState.watchsel.sym "src/foo.q";
+    must[not plan`all; "a known loader narrows the run"];
+    / test_bar by its load; test_foo by its name, as before; test_other not at all.
+    (asc plan`tests) mustmatch .tst.testState.watchsel.syms ("tests/test_bar.q"; "tests/test_foo.q");
+  };
+
+  should["hand the chosen tests to the runner"]{
+    .tst.testState.watchsel.setup ("src/foo.q"; "tests/test_bar.q"; "tests/test_other.q")!(
+      .tst.testState.watchsel.plain;
+      enlist "\\l src/foo.q";
+      .tst.testState.watchsel.plain);
+    .tst.watch.onChanges enlist .tst.testState.watchsel.sym "src/foo.q";
+    .tst.testState.watchsel.ran mustmatch enlist .tst.testState.watchsel.sym "tests/test_bar.q";
+  };
+
+  should["follow a change through the files in between"]{
+    .tst.testState.watchsel.setup ("src/a.q"; "src/b.q"; "tests/test_a.q"; "tests/test_c.q")!(
+      enlist "\\l src/b.q";
+      .tst.testState.watchsel.plain;
+      enlist "\\l src/a.q";
+      .tst.testState.watchsel.plain);
+    plan: .tst.watch.plan enlist .tst.testState.watchsel.sym "src/b.q";
+    must[not plan`all; "the chain is known"];
+    plan[`tests] mustmatch enlist .tst.testState.watchsel.sym "tests/test_a.q";
+  };
+
+  should["run the full suite when nothing is known to load the file"]{
+    .tst.testState.watchsel.setup ("src/lonely.q"; "tests/test_a.q")!(
+      .tst.testState.watchsel.plain; .tst.testState.watchsel.plain);
+    plan: .tst.watch.plan enlist .tst.testState.watchsel.sym "src/lonely.q";
+    must[plan`all; "an unexplained file cannot be narrowed"];
+    must[any plan[`notes] like "*lonely.q*"; "the fallback names the file: ", .Q.s1 plan`notes];
+  };
+
+  should["rerun the tests that load a changed helper"]{
+    .tst.testState.watchsel.setup ("tests/helpers.q"; "tests/test_a.q"; "tests/test_b.q")!(
+      .tst.testState.watchsel.plain;
+      enlist "\\l tests/helpers.q";
+      .tst.testState.watchsel.plain);
+    plan: .tst.watch.plan enlist .tst.testState.watchsel.sym "tests/helpers.q";
+    must[not plan`all; "the helper's users are known"];
+    plan[`tests] mustmatch enlist .tst.testState.watchsel.sym "tests/test_a.q";
+  };
+
+  should["rerun a changed file under test/ together with the tests that load it"]{
+    .tst.testState.watchsel.setup ("test/helpers.q"; "test/test_a.q"; "test/test_b.q")!(
+      .tst.testState.watchsel.plain;
+      enlist "\\l test/helpers.q";
+      .tst.testState.watchsel.plain);
+    plan: .tst.watch.plan enlist .tst.testState.watchsel.sym "test/helpers.q";
+    (asc plan`tests) mustmatch .tst.testState.watchsel.syms ("test/helpers.q"; "test/test_a.q");
+  };
+ };
+
+.tst.desc["watch: a test whose loads cannot be read is rerun, not skipped"]{
+  before{
+    `.tst.watch.runnerCmd mock {.tst.testState.watchsel.ran: x};
+    `.tst.watch.fileStates mock ()!();
+    `.tst.watch.deletedFiles mock `symbol$();
+    `.tst.watch.loaders mock ();
+    `.tst.watch.graph mock ();
+    `.tst.testState.watchsel.root mock "";
+  };
+  after{
+    if[count .tst.testState.watchsel.root;
+      system "rm -rf ", .utl.shellQuote .tst.testState.watchsel.root];
+  };
+
+  should["include it on a source change and leave it out when only a test changed"]{
+    .tst.testState.watchsel.setup ("src/a.q"; "tests/test_a.q"; "tests/test_dyn.q"; "tests/test_plain.q")!(
+      .tst.testState.watchsel.plain;
+      enlist "\\l src/a.q";
+      ("path: getenv `WATCHSEL_SOURCE;"; "system \"l \", path;");
+      .tst.testState.watchsel.plain);
+    onSource: .tst.watch.plan enlist .tst.testState.watchsel.sym "src/a.q";
+    (asc onSource`tests) mustmatch .tst.testState.watchsel.syms ("tests/test_a.q"; "tests/test_dyn.q");
+    must[any onSource[`notes] like "*no fixed target*"; "the extra tests are explained: ", .Q.s1 onSource`notes];
+    onTest: .tst.watch.plan enlist .tst.testState.watchsel.sym "tests/test_a.q";
+    onTest[`tests] mustmatch enlist .tst.testState.watchsel.sym "tests/test_a.q";
+  };
+
+  should["treat a named external loader's module names as unreadable"]{
+    files: ("src/a.q"; "tests/test_a.q"; "tests/test_m.q")!(
+      .tst.testState.watchsel.plain;
+      enlist "\\l src/a.q";
+      enlist ".ext.load \"pricing\";");
+    .tst.testState.watchsel.setup files;
+    unnamed: .tst.watch.plan enlist .tst.testState.watchsel.sym "src/a.q";
+    unnamed[`tests] mustmatch enlist .tst.testState.watchsel.sym "tests/test_a.q";
+    .tst.watch.loaders: enlist ".ext.load";
+    named: .tst.watch.plan enlist .tst.testState.watchsel.sym "src/a.q";
+    (asc named`tests) mustmatch .tst.testState.watchsel.syms ("tests/test_a.q"; "tests/test_m.q");
+  };
+
+  should["read loader names from both the variable and resq.json"]{
+    `.resq.config.watchLoaders mock enlist ".cfg.load";
+    .tst.watch.loaders: `.var.load;
+    (asc .tst.watch.loaderNames[]) mustmatch asc (".cfg.load"; ".var.load");
+  };
+
+  should["run the full suite on a source change when the graph cannot be built"]{
+    .tst.testState.watchsel.setup ("src/foo.q"; "tests/test_foo.q")!(
+      .tst.testState.watchsel.plain; .tst.testState.watchsel.plain);
+    `.tst.loadGraph.build mock {[tracked;fingerprints;loaders] '"simulated graph failure"};
+    onSource: .tst.watch.plan enlist .tst.testState.watchsel.sym "src/foo.q";
+    must[onSource`all; "without a graph a source change cannot be narrowed"];
+    onTest: .tst.watch.plan enlist .tst.testState.watchsel.sym "tests/test_foo.q";
+    must[not onTest`all; "a changed test still reruns alone"];
+    onTest[`tests] mustmatch enlist .tst.testState.watchsel.sym "tests/test_foo.q";
+  };
+ };
+
+/ ---------------------------------------------------------------------------
+/ (7) The full-suite fallback must run the suite. The default runner used to
+/ pass its empty file list straight to the test loader, which then discovered
+/ nothing: "Running ALL tests" ran no tests. The loader, reporter setup and
+/ runAll are mocked so only the argument hand-off is exercised.
+.tst.desc["watch: the full-suite fallback runs the watched directories"]{
+  should["hand the runner the watched directories when given no files"]{
+    `.utl.loadQFile mock {[p] ::};
+    `.tst.initReporting mock {[] ::};
+    `.tst.runAll mock {[x] .tst.testState.watchsel.args: .tst.app.args};
+    `.tst.app.exit mock .tst.app.exit;
+    `.tst.app.args mock .tst.app.args;
+    `.tst.watch.watchDirs mock ("srcdir"; "testdir");
+    `.tst.testState.watchsel.args mock `unset;
+    .tst.watch.runnerCmd[()];
+    .tst.testState.watchsel.args mustmatch ("srcdir"; "testdir");
+    .tst.watch.runnerCmd enlist `$"t/test_a.q";
+    .tst.testState.watchsel.args mustmatch enlist "t/test_a.q";
+  };
+ };
+
+/ ---------------------------------------------------------------------------
+/ (7b) resQ's require loads a file once per process, and watch reruns in one
+/ process. Without forgetting watched files, an edit to a source file loaded
+/ through .utl.require was never read again: the test reran and stayed green
+/ on the old definitions.
+.tst.desc["watch: a rerun reloads watched files that require has cached"]{
+  should["forget tracked files, keep resQ's own modules and unrelated paths"]{
+    own: .resq.PKGLOADING, "/mock.q";
+    `.tst.watch.fileStates mock (`$"/proj/src/a.q"; `$own)!((1; "t"; ""); (1; "t"; ""));
+    `.utl.loaded mock (""; "/proj/src/a.q"; ":/proj/src/a.q"; "/elsewhere/b.q"; own);
+    .tst.watch.forgetLoaded[];
+    .utl.loaded mustmatch (""; "/elsewhere/b.q"; own);
+  };
+
+  should["recognise a tracked file however it was spelled when required"]{
+    here: system "cd";
+    `.tst.watch.fileStates mock (enlist `$"src/rel.q")!enlist (1; "t"; "");
+    `.utl.loaded mock (""; here, "/src/rel.q"; "./src/rel.q"; "src/x/../rel.q"; "src/other.q");
+    .tst.watch.forgetLoaded[];
+    .utl.loaded mustmatch (""; "src/other.q");
+  };
+
+  should["leave the list alone when nothing is tracked"]{
+    `.tst.watch.fileStates mock ()!();
+    `.utl.loaded mock (""; "/proj/src/a.q");
+    .tst.watch.forgetLoaded[];
+    .utl.loaded mustmatch (""; "/proj/src/a.q");
+  };
+ };
+
+/ ---------------------------------------------------------------------------
+/ (8) Subprocess #slow: the same decisions through the real watch loop. One
+/ test loads src/app.q through .utl.require; src/other.q is loaded by nothing.
+/ Editing app.q must rerun just that test; editing other.q must fall back to
+/ the full suite AND the full suite must actually run the test; and breaking
+/ app.q afterwards must turn the test red, which proves the rerun read the
+/ edited file rather than the copy require had already loaded.
+.tst.testState.watchchk.runSelection:{[]
+  wd: .utl.tempRoot[], "/resq_watch_sel_", string[.z.i], "_", string `long$.z.p;
+  srcDir: wd, "/src";
+  app: srcDir, "/app.q";
+  other: srcDir, "/other.q";
+  tf: wd, "/test_w.q";
+  out: wd, "/out.txt";
+  stateDir: wd, "_state";
+  system "mkdir -p ", .utl.shellQuote[srcDir], " ", .utl.shellQuote stateDir;
+  (hsym `$app) 0: enlist ".watchsel.add:{[x;y] x+y};";
+  (hsym `$other) 0: enlist ".watchsel.unused:{[x] x};";
+  (hsym `$tf) 0: (".utl.require \"", app, "\";"; ".tst.desc[\"watch selection\"]{ should[\"pass\"]{ .watchsel.add[1;2] musteq 3 } };");
+  command: "timeout -k 2 15 q ", .utl.shellQuote[.resq.HOME, "/resq.q"],
+    " watch ", .utl.shellQuote[wd],
+    " -state-file ", .utl.shellQuote[stateDir, "/last-run.json"],
+    " -flake-history ", .utl.shellQuote[stateDir, "/flake.json"],
+    " -quarantine-file ", .utl.shellQuote[stateDir, "/quarantine.json"],
+    " -flake-proposal-file ", .utl.shellQuote[stateDir, "/proposals.json"],
+    " < /dev/null > ", .utl.shellQuote[out], " 2>&1 & watcher=$!; ",
+    "sleep 2; echo '/ edit' >> ", .utl.shellQuote[app], "; ",
+    "sleep 3; echo '/ edit' >> ", .utl.shellQuote[other], "; ",
+    "sleep 3; echo '.watchsel.add:{[x;y] x-y};' > ", .utl.shellQuote[app], "; ",
+    "sleep 3; kill -KILL $watcher 2>/dev/null; pkill -KILL -P $watcher 2>/dev/null; wait $watcher 2>/dev/null; true";
+  @[system; "sh -c ", .utl.shellQuote command; {[e] e}];
+  output: @[read0; hsym `$out; {()}];
+  system "rm -rf ", .utl.shellQuote[wd], " ", .utl.shellQuote stateDir;
+  output
+ };
+
+.tst.desc["watch: selection through the real loop (#slow)"]{
+  skipIf[(not .tst.testState.watchchk.canQ) or
+         0=count @[system;"which timeout 2>/dev/null";{()}];
+         "a loaded source reruns its test, an unloaded one the whole suite, and edits are reloaded"]{
+    o: .tst.testState.watchchk.runSelection[];
+    shown: "\n" sv o;
+    must[.tst.testState.watchchk.anyLike[o; "Load graph: 1 load"]; "the graph sees the test's load: ", shown];
+    targeted: o where o like "*Running target tests:*";
+    must[2 = count targeted; "both edits to app.q are targeted runs: ", shown];
+    must[all targeted like "*test_w.q"; "the targeted runs are the test that loads app.q: ", shown];
+    must[.tst.testState.watchchk.anyLike[o; "No test file is known to load"]; "the unloaded file is called out: ", shown];
+    must[.tst.testState.watchchk.anyLike[o; "Running ALL tests"]; "and falls back to the full suite: ", shown];
+    passes: sum o like "*1 total (1 passed*";
+    must[passes = 2; "the first targeted run and the full suite ran the test green: ", shown];
+    must[1 = sum o like "*1 total (0 passed, 1 failed*";
+         "the broken edit was reloaded and turned the test red: ", shown];
+    must[not .tst.testState.watchchk.anyLike[o; "No test files found"]; "the full suite must find the tests: ", shown];
+    must[not .tst.testState.watchchk.anyLike[o; "Error during test run"]; "no rerun may error: ", shown];
+  };
+ };

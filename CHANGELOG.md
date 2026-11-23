@@ -28,6 +28,25 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- Watch mode re-runs every test that loads a changed file. It used to map
+  `src/foo.q` to `test_foo.q` by name alone, so a second test file that loaded
+  `foo.q` was skipped without a word. Loads are now read from source: any
+  literal naming a `.q` file is a dependency, followed through intermediate
+  files. A project's own loader function is recognised when it is defined in
+  a watched directory; one defined elsewhere is named with `watchLoaders` in
+  `resq.json`. A test that reaches a load with no fixed target (a computed
+  path, a module name) re-runs on every source change, and watch lists those
+  loads at startup. The name match still applies in addition.
+- Watch mode's full-suite fallback runs the suite. It handed the runner an
+  empty file list, which discovered nothing, so `Running ALL tests` after a
+  deletion or an unmatched source change ran no tests and reported
+  `No test files found`.
+- Watch mode re-reads an edited file that a test loads with `.utl.require`.
+  require loads a file once per process and watch re-runs in one process, so
+  after the first run the test kept the old definitions and a broken edit
+  stayed green. Watched files are now forgotten before each re-run. A loader
+  of your own that caches what it has loaded is still outside resQ's reach.
+
 - `bin/qspec -isolate` loaded each file into a sandbox instead of the root
   namespace, because the child did not inherit `-qspec-discovery`. Suites
   that pass under `bin/qspec` failed with a bare-name error once isolated.
