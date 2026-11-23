@@ -247,7 +247,9 @@ following checked-in contracts; the final release gate invokes all of them:
   word, per-file bind errors and `.z` mock restoration.
 - [x] Require the load-graph, watch-selection, mutation and strict-`must`
   tests in the release gate.
-- [ ] Complete the clean-clone v2.3.0 release qualification.
+- [x] Complete the clean-clone v2.3.0 release qualification and archive the
+  exact candidate evidence; the certification commit is requalified before the
+  annotated tag is pushed.
 
 ## Post-2.0 ecosystem ideas — not implemented
 

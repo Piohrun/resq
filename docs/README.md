@@ -39,6 +39,7 @@
 - [Road to resQ 1.0](ROADMAP_1_0.md) — Production-readiness delivery ledger and release gates
 - [Post-1.0 delivery ledger](ROADMAP_POST_1_0.md) — Branch coverage, distributed execution, quality automation, and completion gates
 - [Release checklist](RELEASE_CHECKLIST.md) — Executable release gate and human sign-off
+- [resQ 2.3.0 production audit](PRODUCTION_AUDIT_2_3_0.md) — Clean-clone certification and supported claim
 - [resQ 2.3.0 release notes](RELEASE_NOTES_2_3_0.md) — mutation testing, load-aware watch, embedded runs, isolation and loader fixes
 - [resQ 2.2.2 production audit](PRODUCTION_AUDIT_2_2_2.md) — Clean-clone certification and supported claim
 - [resQ 2.2.2 release notes](RELEASE_NOTES_2_2_2.md) — perf correctness, q 4.0 version text, regression guards
@@ -98,6 +99,7 @@
 | `ROADMAP_1_0.md` | Contributors | Production-readiness delivery ledger and release gates |
 | `ROADMAP_POST_1_0.md` | Contributors | Post-1.0 delivery tasks, dependencies, and release gates |
 | `RELEASE_CHECKLIST.md` | Maintainers | One-command release evidence and manual sign-off |
+| `PRODUCTION_AUDIT_2_3_0.md` | Users / maintainers | resQ 2.3.0 clean-clone production evidence and limits |
 | `RELEASE_NOTES_2_3_0.md` | Users / maintainers | resQ 2.3.0 mutation testing and load-aware watch release notes |
 | `PRODUCTION_AUDIT_2_2_2.md` | Users / maintainers | resQ 2.2.2 clean-clone production evidence and limits |
 | `RELEASE_NOTES_2_2_2.md` | Users / maintainers | resQ 2.2.2 perf correctness and regression-guard release notes |
