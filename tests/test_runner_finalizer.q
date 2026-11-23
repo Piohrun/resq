@@ -39,7 +39,8 @@
 
 .tst.testState.finalizer.probeCleanup:{[probePath]
     ".tst.registerSpecCleanup[{[p] (hsym `$p) 0: enlist string .appx.marker};enlist ",
-        .Q.s1[probePath], "];"
+        / .j.j, not .Q.s1, which cuts a long path to the console width.
+        .j.j[probePath], "];"
  };
 
 .tst.desc["runSpec always-finalize contract #slow"]{
@@ -94,7 +95,7 @@
                  "  afterAll{ .tst.failHardAfterAllRan:1b };";
                  "  should[\"fails after registering cleanup\"]{";
                  "    .appx.marker:`polluted;";
-                 "    .tst.registerSpecCleanup[{[p] (hsym `$p) 0: enlist string[.appx.marker],\"|\",string .tst.failHardAfterAllRan};enlist ", .Q.s1[probePath], "];";
+                 "    .tst.registerSpecCleanup[{[p] (hsym `$p) 0: enlist string[.appx.marker],\"|\",string .tst.failHardAfterAllRan};enlist ", .j.j[probePath], "];";
                  "    1 musteq 2;";
                  "  };";
                  "};")};

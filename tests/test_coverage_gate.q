@@ -121,7 +121,8 @@
     (hsym `$missedPath) 0:enlist
         ".branch.never:{[x] if[x; :1]; 0};";
     (hsym `$fixturePath) 0:(
-        "system \"l \", ",.Q.s1[sourcePath],";";
+        / .j.j, not .Q.s1, which cuts a long path to the console width.
+        "system \"l \", ",.j.j[sourcePath],";";
         ".tst.desc[\"known branch truth\"]{";
         "  should[\"takes selected edges\"]{";
         "    .branch.classify[5] musteq `positive;";

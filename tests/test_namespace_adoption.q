@@ -13,7 +13,9 @@
     (hsym `$sourcePath) 0: enlist
         ".appx.delta:{[t] before:first t; after:last t; mock:after-before; it:mock+0; holds:it; perf:holds; must:perf};";
     (hsym `$fixturePath) 0: (
-        "system \"l \", ", .Q.s1[sourcePath], ";";
+        / JSON string encoding, not .Q.s1: the latter cuts a long path to the
+        / console width, and the temp directory may be deep.
+        "system \"l \", ", .j.j[sourcePath], ";";
         "describe[\"application adoption\"]{";
         "  should[\"loads ordinary DSL-shaped application locals\"]{";
         "  .appx.delta[10 15] musteq 5;";
