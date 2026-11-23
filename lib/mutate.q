@@ -327,8 +327,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     names: .tst.loadGraph.definedName[cx] each opens;
     / Anything after the closing brace but ";" makes the value something other
     / than this lambda: a projection, an application, a derived function.
-    after: {[code;e] rest: (e+1) _ code; trim (rest?"\n")#rest}[code] each ends;
-    plain: {(0=count x) or ";"=first x} each after;
+    plain: .tst.loadGraph.endsStatement[code] each ends;
     keep: where plain and 0<count each names;
     if[0=count keep; :out];
     opens: opens keep;

@@ -50,6 +50,16 @@ All notable changes to the **resQ** project will be documented in this file.
   `resq.json`. A test that reaches a load with no fixed target (a computed
   path, a module name) re-runs on every source change, and watch lists those
   loads at startup. The name match still applies in addition.
+- Watch mode no longer takes a lambda that runs where it is written for a
+  loader. `loaded: {system "l ",x} each paths;` was read as defining a loader
+  named `loaded`, so its computed loads were never flagged and the tests
+  depending on them could be skipped. It now marks the file as having a load
+  that cannot be read, as does a lambda that is projected or stored in a
+  dictionary. Found by running `resq mutate` on the load graph, which also led
+  to these smaller corrections: `\l .` counts as a load of a watched
+  directory; a directory named by a joined path that begins with "/" is matched
+  by whole components, so `root,"/src"` no longer matches `mysrc/`; and the
+  startup list names each source line once.
 - Watch mode's full-suite fallback runs the suite. It handed the runner an
   empty file list, which discovered nothing, so `Running ALL tests` after a
   deletion or an unmatched source change ran no tests and reported

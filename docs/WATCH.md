@@ -53,7 +53,15 @@ system "l src/", name, ".q";   / the name is computed
 .lib.load "pricing";           / a module name, which only the loader can map to a file
 ```
 
-A test file that reaches such a load re-runs on **every** source change, because what it loads cannot be known. Watch lists these at startup with the file and line:
+Loading a directory runs the scripts in it, so a load that names a watched directory counts too, as does `\l .`:
+
+```q
+\l src                         / a watched directory
+system "l ", root, "/src";     / a path that ends in one
+\l .                           / the current directory, wherever that is at run time
+```
+
+A test file that reaches such a load re-runs on **every** source change, because what it loads cannot be known. Watch lists these at startup with the file and line, each line once:
 
 ```text
 >> 1 test file(s) rerun on every source change: a load they reach has no fixed target.
@@ -70,6 +78,13 @@ A function that loads a computed path is treated as a loader, and its calls are 
 
 .lib.load "src/a.q";                      / fixed target: a dependency on src/a.q
 .lib.load "src/", name, ".q";             / computed target: unreadable, see above
+```
+
+Only a function that is simply assigned to a name is a loader. A lambda that runs where it is written is a load of that file, and is treated as one that cannot be read:
+
+```q
+loaded: {system "l ", x} each paths;      / runs now: this file loads computed paths
+ld: {[root;p] system "l ", root, p}[base]; / a projection: what it was given cannot be read
 ```
 
 A loader defined in a watched file is found without configuration. A loader defined **outside** the watched directories has to be named, or its calls with computed targets look like ordinary calls and go unnoticed:
