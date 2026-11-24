@@ -20,6 +20,10 @@
         prevFmt: .resq.config.fmt;
         prevXmlOutput: .tst.app.xmlOutput;
         prevReport: .resq.report;
+        / Formats given on the command line (-json) take the place of fmt;
+        / this test is about fmt, so there are none. With them it passed only
+        / when an earlier test had happened to load the XML reporter.
+        `.tst.app.reportFormats mock `symbol$();
         .resq.config.fmt: `xml;
         .tst.initReporting[];
         result: .tst.app.xmlOutput and (`top in key `.tst.output);

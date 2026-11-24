@@ -27,24 +27,28 @@
 / desc blocks run in definition order (runner.q runDiscoveredSpecs iterates
 / .tst.app.allSpecs, populated by descLoaded in definition order), so the
 / second suite can assert what the first suite's afterAll recorded.
-.tst.desc["afterAll records completion"]{
-  afterAll{
-    .tst.testState.hookcheck.afterAllRuns: 1 + @[get; `.tst.testState.hookcheck.afterAllRuns; 0];
-  };
-
-  should["pass a trivial assertion"]{ 1 musteq 1 };
-  should["pass another trivial assertion"]{ 2 musteq 2 };
+.tst.testState.afterallonce.inOrder:{[name]
+  wd: .utl.tempRoot[], "/resq_afterallonce_order_", string[.z.i], "_", string `long$.z.p;
+  .utl.ensureDir wd;
+  fixture: .resq.HOME, "/tests/fixtures/declaration_order/", name;
+  cmd: "cd ", .utl.shellQuote[wd], " && timeout -k 2 60 ", .utl.shellQuote[.resq.HOME, "/bin/resq"],
+      " test ", .utl.shellQuote[fixture], " -json -outDir out -state-file out/s.json",
+      " -flake-history out/f.json -flake-proposal-file out/p.json < /dev/null > out.txt 2>&1; echo $?";
+  code: "J"$last @[system; "sh -c ", .utl.shellQuote cmd; {[e] enlist "-1"}];
+  raw: @[read0; hsym `$wd, "/out/test-results.json"; {()}];
+  rows: $[count raw; (.j.k raze raw)`tests; ()];
+  @[system; "rm -rf -- ", .utl.shellQuote wd; {}];
+  `code`rows!(code; rows)
  };
+.tst.testState.afterallonce.canQ: 0 < count @[system; "which q 2>/dev/null"; {()}];
 
-.tst.desc["afterAll from the previous suite ran exactly once"]{
-  should["see afterAllRuns == 1 from the prior suite"]{
-    (@[get; `.tst.testState.hookcheck.afterAllRuns; 0]) musteq 1;
-  };
-
-  should["clean up the hookcheck state"]{
-    / Remove our scratch state so it does not leak between runs.
-    @[{![`.tst.testState; (); 0b; enlist `hookcheck]}; (); {}];
-    1 musteq 1;
+.tst.desc["afterAll runs once, checked by the suite after it, in declaration order #slow"]{
+  skipIf[not .tst.testState.afterallonce.canQ; "see afterAll run exactly once after its suite"]{
+    r: .tst.testState.afterallonce.inOrder "afterall_once.q";
+    r[`code] musteq 0;
+    statuses: {x`status} each r`rows;
+    (count statuses) musteq 4;
+    (distinct statuses) musteq enlist "pass";
   };
  };
 

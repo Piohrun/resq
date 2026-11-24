@@ -127,6 +127,11 @@
 / Load a generated function, exercise it, instrument it, exercise it again, and
 / compare BOTH the returned values and the side-effect count.
 .tst.testState.cdiff.checkSource:{[label; src]
+  / Each check starts from no coverage state. Every source defines the same
+  / .cdiffgen.f, and what an earlier check left decided whether a later one
+  / instrumented: the corpus fell short when the seeded checks ran first,
+  / as under -random-order.
+  .tst.testState.cdiff.resetCoverage[];
   d: .tst.testState.cdiff.dir;
   .utl.ensureDir d;
   path: d, "/", label, ".q";

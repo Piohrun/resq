@@ -78,30 +78,30 @@
 / already-filled expectations with unfilled ones coerces the list to a table and
 / q fills the new rows' before/after with `::`; treating that placeholder as a
 / real hook meant a before/after declared after an alt block silently never ran.
-.tst.testState.altlog: ();
-.tst.desc["alt blocks and hooks declared after them"]{
-    alt{
-        before{ .tst.testState.altlog,: enlist "innerBefore" };
-        after{  .tst.testState.altlog,: enlist "innerAfter" };
-        should["inside alt"]{ .tst.testState.altlog,: enlist "innerTest"; 1 musteq 1; };
-    };
-    before{ .tst.testState.altlog,: enlist "outerBefore" };
-    after{  .tst.testState.altlog,: enlist "outerAfter" };
-    should["declared after the alt block"]{
-        .tst.testState.altlog,: enlist "outerTest"; 1 musteq 1;
-    };
-};
+.tst.testState.althooks.inOrder:{[name]
+  wd: .utl.tempRoot[], "/resq_althooks_order_", string[.z.i], "_", string `long$.z.p;
+  .utl.ensureDir wd;
+  fixture: .resq.HOME, "/tests/fixtures/declaration_order/", name;
+  cmd: "cd ", .utl.shellQuote[wd], " && timeout -k 2 60 ", .utl.shellQuote[.resq.HOME, "/bin/resq"],
+      " test ", .utl.shellQuote[fixture], " -json -outDir out -state-file out/s.json",
+      " -flake-history out/f.json -flake-proposal-file out/p.json < /dev/null > out.txt 2>&1; echo $?";
+  code: "J"$last @[system; "sh -c ", .utl.shellQuote cmd; {[e] enlist "-1"}];
+  raw: @[read0; hsym `$wd, "/out/test-results.json"; {()}];
+  rows: $[count raw; (.j.k raze raw)`tests; ()];
+  @[system; "rm -rf -- ", .utl.shellQuote wd; {}];
+  `code`rows!(code; rows)
+ };
+.tst.testState.althooks.canQ: 0 < count @[system; "which q 2>/dev/null"; {()}];
 
-.tst.desc["alt hook masking verification"]{
-    should["run the alt's own hooks, then the outer hooks declared after it"]{
-        .tst.testState.altlog musteq ("innerBefore";"innerTest";"innerAfter";
-                                      "outerBefore";"outerTest";"outerAfter");
-    };
-    should["clean up its scratch state"]{
-        @[{![`.tst.testState; (); 0b; enlist `altlog]}; (); {}];
-        1 musteq 1;
-    };
-};
+.tst.desc["alt blocks and the hooks declared after them, in declaration order #slow"]{
+  skipIf[not .tst.testState.althooks.canQ; "run the alt's own hooks, then the outer hooks declared after it"]{
+    r: .tst.testState.althooks.inOrder "alt_hooks.q";
+    r[`code] musteq 0;
+    statuses: {x`status} each r`rows;
+    (count statuses) musteq 4;
+    (distinct statuses) musteq enlist "pass";
+  };
+ };
 
 / q has one random stream. A test that seeds it (\S 42) expects a known
 / sequence; resQ drew from it for a temporary file's name and for the rows a

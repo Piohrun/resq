@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- resQ's own suite passes under `-random-order`. Ten tests checked what an
+  earlier suite or test had left (retry and hook counts, `afterAll`, `alt`
+  hooks, a temporary file, a leaked handle, a fixture registered by another
+  test, a loaded database, coverage state, a loaded reporter); each is now
+  self-contained or runs its pair in a child resQ where declaration order
+  holds. The release gate's isolated run of the suite is in random order,
+  with a seed that changes each release.
 - A directory fixture no longer loads the project directory as a database.
   After the fixture, resQ reloads the database it displaced, and decided
   whether there was one with a check that always said yes (the directory and

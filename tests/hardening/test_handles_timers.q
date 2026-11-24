@@ -1,41 +1,27 @@
-.tst.desc["Phase 1 Hardening: Handles and Timers"; {
-    .tst.should["leak a handle"; {
-        fn: "test_dummy_handle_1.txt";
-        / Spec-scope so the unlink runs AFTER the runner closes the leaked handle.
-        .tst.registerSpecCleanup[{[p] @[hdel; hsym `$p; {}]}; enlist fn];
-        hsym[`$fn] 0: enlist "dummy";
-        / Use a fresh handle each time
-        h: hopen hsym `$fn;
-        .tst.testState.handlecheck.leakedHandle:h;
-        / Leave h open. resq should warn and close it after the spec.
-        must[0 < h; "the handle this test deliberately leaks must actually be open"];
-    }];
+.tst.testState.handlestimers.inOrder:{[name]
+  wd: .utl.tempRoot[], "/resq_handlestimers_order_", string[.z.i], "_", string `long$.z.p;
+  .utl.ensureDir wd;
+  fixture: .resq.HOME, "/tests/fixtures/declaration_order/", name;
+  cmd: "cd ", .utl.shellQuote[wd], " && timeout -k 2 60 ", .utl.shellQuote[.resq.HOME, "/bin/resq"],
+      " test ", .utl.shellQuote[fixture], " -json -outDir out -state-file out/s.json",
+      " -flake-history out/f.json -flake-proposal-file out/p.json < /dev/null > out.txt 2>&1; echo $?";
+  code: "J"$last @[system; "sh -c ", .utl.shellQuote cmd; {[e] enlist "-1"}];
+  raw: @[read0; hsym `$wd, "/out/test-results.json"; {()}];
+  rows: $[count raw; (.j.k raze raw)`tests; ()];
+  @[system; "rm -rf -- ", .utl.shellQuote wd; {}];
+  `code`rows!(code; rows)
+ };
+.tst.testState.handlestimers.canQ: 0 < count @[system; "which q 2>/dev/null"; {()}];
 
-    .tst.should["modify .z.ts"; {
-        / Safely store original if not already done
-        if[not `origTs in key `.tst; .tst.origTs:: @[get; `.z.ts; {::}]];
-        .z.ts: { 2 + 2 };
-        / We leave it modified. resq should warn and restore it.
-        must[{ 2 + 2 } ~ @[get; `.z.ts; {::}]; "the .z.ts override must be in place for the guard to restore"];
-    }];
-}];
-
-.tst.desc["Phase 1 Hardening: Verification of Restoration"; {
-  .tst.should["have restored .z.ts"; {
-    curr: @[get; `.z.ts; {::}];
-    must[not { 2 + 2 } ~ curr; ".z.ts not restored"];
-  }];
-  
-  .tst.should["have closed the leaked handle"; {
-      fdCommand:"readlink /proc/",string[.z.i],"/fd/* 2>/dev/null";
-      openTargets:@[system;fdCommand;{()}];
-      leakedHandle:.tst.testState.handlecheck.leakedHandle;
-      handleProbe:@[read1;leakedHandle;{[e] `closed}];
-      must[handleProbe~`closed;
-        "the suite boundary must close logical handle ",string[leakedHandle],
-        "; probe=",.Q.s1[handleProbe],"; targets=",.Q.s1 openTargets];
-      diagnostics:@[get;`.tst.app.diagnostics;{()}];
-      must[`resource in diagnostics`type;
-        "resource restoration must be visible as a structured diagnostic"];
-  }];
-}];
+/ One suite leaks a handle and sets .z.ts; the next checks that the runner
+/ closed and restored them between suites. That holds only in declaration
+/ order, so the pair runs in a child resQ.
+.tst.desc["Phase 1 Hardening: a leaked handle and .z.ts are put right between suites #slow"]{
+  skipIf[not .tst.testState.handlestimers.canQ; "close the handle and restore .z.ts before the next suite"]{
+    r: .tst.testState.handlestimers.inOrder "handles_timers.q";
+    r[`code] musteq 0;
+    statuses: {x`status} each r`rows;
+    (count statuses) musteq 4;
+    (distinct statuses) musteq enlist "pass";
+  };
+ };

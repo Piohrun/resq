@@ -559,11 +559,16 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
         require_supported_environment(normal_report)
         verify_self_contract(normal_report)
 
+        # The isolated lane also runs files, suites and tests in a random
+        # order, so a test that depends on what an earlier one left fails
+        # here. The seed follows the release and is recorded in the report.
+        order_seed = str(int(hashlib.sha256(expected_version.encode()).hexdigest()[:6], 16))
         audit.run(
-            "full strict isolated suite",
+            f"full strict isolated suite, random order (seed {order_seed})",
             [
                 str(ROOT / "bin/resq"), "test", "tests", "-strict", "-isolate",
                 "-isolateTimeout", "90", "-isolateWorkers", "4", "-json", "-junit",
+                "-random-order", "-seed", order_seed,
                 "-quiet", "-report-profile", "full", "-outDir", str(isolated_dir),
                 *private_state_args(output, "isolated"),
             ],

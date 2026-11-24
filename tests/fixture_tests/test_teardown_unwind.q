@@ -74,10 +74,12 @@
     };
  };
 
-/ A separate following suite catches runner-level leakage that an assertion in
-/ the throwing fixture's own suite could miss.
+/ A separate suite catches runner-level leakage that an assertion in the
+/ throwing fixture's own suite could miss. It compares with its own suite's
+/ namespace, not with a value the suite above left: under -random-order it
+/ may run first.
 .tst.desc["fixture namespace following suite"]{
-    should["start in the namespace active before the failed fixture"]{
-        (system "d") musteq .tst.testState.fixtureOriginalDir;
+    should["start in the namespace of its own suite"]{
+        (system "d") musteq .tst.context;
     };
  };
