@@ -92,3 +92,40 @@
     (any r[`log] like "*TIMEOUT*") musteq 0b;
   };
  };
+
+/ A q that ends in the middle of a run (out of memory under -w, a crash, an
+/ exit in a test) writes no report. It named no test either.
+.tst.desc["a run that dies in the middle of a test says which #slow"]{
+  should["name the test, and the file, that was running"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    wd: .tst.testState.interrupt.workDir[];
+    (hsym `$wd, "/test_exit.q") 0: (
+        ".tst.desc[\"ends early\"]{";
+        "  should[\"is fine\"]{ 1 musteq 1; };";
+        "  should[\"quits\"]{ exit 0; };";
+        "  should[\"never runs\"]{ 1 musteq 1; };";
+        " };");
+    cmd: "cd ", .resq.util.shellQuote[wd], " && ", .resq.util.shellQuote[.resq.HOME, "/bin/resq"],
+        " test . -state-file out/s.json -flake-history out/f.json -flake-proposal-file out/p.json",
+        " < /dev/null > run.log 2>&1; echo exit=$?";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    (last out) musteq "exit=1";
+    shown: read0 hsym `$wd, "/run.log";
+    said: first shown where shown like "resQ: the run ended while running*";
+    (0 < count ss[said; "'ends early :: quits'"]) musteq 1b;
+    (0 < count ss[said; "in test_exit.q"]) musteq 1b;
+  };
+  should["say nothing of the kind after a run that finished"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    wd: .tst.testState.interrupt.workDir[];
+    (hsym `$wd, "/test_ok.q") 0: enlist ".tst.desc[\"fine\"]{ should[\"passes\"]{ 1 musteq 1; }; };";
+    cmd: "cd ", .resq.util.shellQuote[wd], " && ", .resq.util.shellQuote[.resq.HOME, "/bin/resq"],
+        " test . -state-file out/s.json -flake-history out/f.json -flake-proposal-file out/p.json",
+        " < /dev/null > run.log 2>&1; echo exit=$?";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    (last out) musteq "exit=0";
+    shown: read0 hsym `$wd, "/run.log";
+    (any shown like "resQ: the run ended*") musteq 0b;
+  };
+ };
+

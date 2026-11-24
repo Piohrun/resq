@@ -186,4 +186,19 @@ if [ "$q_status" -eq 0 ] && [ -f "$guard_dir/armed" ] &&
   q_status=1
 fi
 
+# A q that ends in the middle of a run (out of memory under -w, a crash, an
+# exit in a test) writes no report and names no test. The run notes each test
+# as it starts and ends; say where it had got to.
+if [ -f "$guard_dir/armed" ] && [ ! -f "$guard_dir/complete" ] && [ -s "$guard_dir/running" ]; then
+  last_note="$(tail -n 1 -- "$guard_dir/running" 2>/dev/null)"
+  # A separator that is not white space keeps an empty field in its place.
+  last_note="${last_note//$'\t'/$'\x1f'}"
+  note_tag="" note_status="" note_suite="" note_test="" note_file=""
+  IFS=$'\x1f' read -r note_tag note_status note_suite note_test note_file <<< "$last_note" || true
+  case "$note_tag" in
+    S) echo "resQ: the run ended while running '$note_suite :: $note_test'${note_file:+ in $note_file}. No report was written; -isolate keeps the results of the other files." >&2 ;;
+    F) echo "resQ: the run ended after '$note_suite :: $note_test' had finished${note_file:+ in $note_file}, before the next test started. No report was written." >&2 ;;
+  esac
+fi
+
 exit "$q_status"

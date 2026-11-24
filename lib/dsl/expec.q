@@ -414,17 +414,23 @@ callExpec:{[expec];
 / parent names the test that was running and counts what had finished. The
 / file is opened and closed per line: a handle held across tests would be
 / closed by the leaked-handle guard, and its number then reused by test code.
+/ .
+/ A run in process keeps the same log in the launcher's guard directory, for
+/ the same reason: q that runs out of memory under -w, crashes or exits in
+/ the middle of a test named no test at all. A line costs two microseconds.
 .tst.noteTestProgress:{[tag;status;expec]
-    if[not 1b ~ @[get; `.tst.app.isolateChild; 0b]; :()];
-    @[{[fields]
-        path: hsym `$(.tst.toString .tst.runOutputDir[]), "/progress.txt";
+    child: 1b ~ @[get; `.tst.app.isolateChild; 0b];
+    if[(not child) and null .resq.runningMarker; :()];
+    @[{[child;fields]
+        path: $[child; hsym `$(.tst.toString .tst.runOutputDir[]), "/progress.txt"; .resq.runningMarker];
         line: "\t" sv {[text] text: (),text; @[text; where text in "\t\n\r"; :; " "]} each fields;
         h: hopen path;
         neg[h] line;
         hclose h;
-      };
+      }[child];
       (tag; .tst.toString status; .tst.toString .tst.currentContext`suite;
-       $[`desc in key expec; .tst.toString expec`desc; ""]);
+       $[`desc in key expec; .tst.toString expec`desc; ""];
+       .tst.repoRelativePath .resq.util.pathToString .tst.currentContext`file);
       {[err] }];
  };
 

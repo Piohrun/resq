@@ -218,9 +218,23 @@
     (count .tst.isolate.checkpointRows wd) musteq 0;
   };
 
-  should["write nothing outside an isolated child"]{
+  should["write nothing outside an isolated child when no launcher started the run"]{
     `.tst.app.isolateChild mock 0b;
+    `.resq.runningMarker mock `;
     .tst.noteTestProgress["S"; ""; enlist[`desc]!enlist "x"] mustmatch ();
+  };
+
+  should["note each test for the launcher in a run in process"]{
+    wd: .resq.util.ensureDir .tst.isotest.workDir[];
+    `.tst.app.isolateChild mock 0b;
+    `.resq.runningMarker mock hsym `$wd, "/running";
+    `.tst.currentContext mock `file`suite`test!("tests/test_x.q"; "the suite"; "");
+    .tst.noteTestProgress["S"; ""; enlist[`desc]!enlist "first test"];
+    .tst.noteTestProgress["F"; `pass; enlist[`desc]!enlist "first test"];
+    noted: "\t" vs/: read0 hsym `$wd, "/running";
+    (count noted) musteq 2;
+    (noted 0) musteq (enlist "S"; ""; "the suite"; "first test"; "tests/test_x.q");
+    ((noted 1) 0 1) musteq (enlist "F"; "pass");
   };
  };
 

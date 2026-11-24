@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- When q dies in the middle of an in-process run (out of memory under `-w`,
+  a crash, an `exit` in a test), the launcher says which test was running and
+  in which file. It said only that q had exited, or nothing at all.
 - A value that no longer matches its snapshot (`mustmatchs`, `mustmatchst`)
   is a failed assertion with the difference in its message, in every report.
   It was an error with a backtrace into resQ, the difference was printed to

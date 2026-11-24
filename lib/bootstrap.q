@@ -211,6 +211,11 @@ $[.resq.hasQutil; .utl.require: .resq.requireOrQutil; .resq.offerUtl[`require; .
 / runs with an empty RESQ_RUN_GUARD_DIR, so only the run the launcher started
 / looks for it; without a launcher there is nothing to look for.
 .resq.interruptMarker: {[dir] $[count dir; hsym `$dir, "/interrupted"; `]} getenv `RESQ_RUN_GUARD_DIR;
+/ Beside it, the run notes each test as it starts and ends. A q that dies in
+/ the middle of a test (out of memory under -w, a crash, an exit) leaves no
+/ report and says nothing; the launcher reads the last line and names the
+/ test. See .tst.noteTestProgress.
+.resq.runningMarker: {[dir] $[count dir; hsym `$dir, "/running"; `]} getenv `RESQ_RUN_GUARD_DIR;
 .resq.util.runInterrupted:{[]
     $[null .resq.interruptMarker; 0b; not () ~ @[key; .resq.interruptMarker; {[e] ()}]]
  };
