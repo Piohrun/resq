@@ -1026,7 +1026,14 @@
     / Self-contained on purpose. This runs when something in the framework is
     / already wrong, outside the phase trap: if it relied on a helper that
     / was the thing broken, q died here and the run ended with no report.
-    plain: {[v] $[10h = type v; v; -10h = type v; enlist v; -11h = type v; string v; @[.Q.s1; v; {[e] "?"}]]};
+    / Strings and symbols need no helper. Anything else goes through the
+    / framework's renderer, trapped, and must come back as text.
+    plain: {[v]
+        if[10h = type v; :v];
+        if[-10h = type v; :enlist v];
+        if[-11h = type v; :string v];
+        shown: @[.tst.toString; v; {[e] "?"}];
+        $[10h = type shown; shown; "?"]};
     phaseText: plain phase;
     errText: plain err;
     messageText: "Framework phase '",phaseText,"' failed: ",errText;
