@@ -579,6 +579,29 @@
     txt
  };
 
+/ Is the resQ word at `at` used as the framework's function? Assertions and
+/ mock always are: they are reserved words in qspec too. Every other word
+/ (it, skip, pending, retry, before, after, fixture, ...) is an ordinary q
+/ identifier that an application may use for a global or a table column, so
+/ it is the framework's only where it is applied:
+/   should["x"]{..}   before{..}   before ({..})   fixture `name
+/   tempFile ".csv"   fixture each names           fixture'[names]
+/ Anything else (`retry mustne 0`, `exec max retry from t`, `where pending`,
+/ `delete skip from t`, `after-before`) is left for q to resolve.
+.tst.dslWordUsedAsCall:{[masked;at;name]
+    if[name in (string key .tst.asserts), enlist "mock"; :1b];
+    rest: (at + count name) _ masked;
+    if[0 = count rest; :0b];
+    c: first rest;
+    if[c in "[{'"; :1b];
+    if[any (2 sublist rest) ~/: ("/:";"\\:"); :1b];
+    if[not c in " \t\n"; :0b];
+    tail: ((rest in " \t\n") ? 0b) _ rest;
+    if[0 = count tail; :0b];
+    if[first[tail] in "[{(`\""; :1b];
+    (((tail in .Q.an) ? 0b) # tail) in ("each";"peach")
+ };
+
 / Qualify only bare, executable DSL tokens. Symbols, strings, comments,
 / already-qualified names, and file-declared shadows are left byte-for-byte.
 / Candidate offsets come from native `ss`. The previous walk tested every DSL
@@ -594,8 +617,9 @@
     hits: raze {[masked;shadowed;name]
         ps: "j"$masked ss name;
         ps where {[masked;shadowed;name;at]
-            .tst.bareTokenAt[masked;at;name] and
-                not .tst.dslNameShadowed[shadowed;`$name;at]
+            $[not .tst.bareTokenAt[masked;at;name]; 0b;
+              .tst.dslNameShadowed[shadowed;`$name;at]; 0b;
+              .tst.dslWordUsedAsCall[masked;at;name]]
           }[masked;shadowed;name] each ps
       }[masked;shadowed] each names;
     if[0 = count hits; :txt];

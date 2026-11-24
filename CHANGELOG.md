@@ -9,6 +9,14 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A resQ word is the framework's only where it is applied. `it`, `skip`,
+  `pending`, `retry`, `before`, `after`, `fixture` and the other non-assertion
+  words were replaced wherever they appeared, so a qSQL column named `pending`
+  or `retry` broke (`exec max retry from orders` returned a function), and an
+  application variable `retry` read in a test became the resQ function, which
+  let `retry mustne 0` pass. They are now qualified only in applied form
+  (`should[..]{..}`, `before{..}`, `` fixture `name ``); elsewhere q resolves
+  them. Assertions and `mock` are unchanged.
 - A symbol that contains a resQ word is left alone. `` `:out/after set x ``
   wrote to `out/.tst.dsl.after`, and `` read0 `:data/fixture/trades.csv ``
   looked for `data/.tst.dsl.fixture/trades.csv`.

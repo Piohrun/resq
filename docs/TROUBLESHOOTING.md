@@ -843,10 +843,30 @@ limit and cannot be raised. Two fixes, both verified:
 same 150 directly in the `desc` does not.)
 
 
-### A local name collides with a DSL name
+### A name collides with a DSL name
 
-resQ does not reserve DSL spellings in `.q`. A bare assignment or explicit
-lambda parameter in a test file therefore shadows the matching DSL alias:
+resQ does not reserve DSL spellings in `.q`. Words such as `it`, `skip`,
+`pending`, `retry`, `before`, `after` and `fixture` are the framework's only
+where they are applied: `should["..."]{...}`, `before{...}`, `` fixture `name ``,
+`tempFile ".csv"`, `fixture each names`. Anywhere else they are ordinary q
+names, so a table column or an application variable with one of these names
+works as it does in q:
+
+```q
+(exec max retry from orders) musteq 5;
+(select from orders where pending, not skip) musteq expected;
+retry mustne 0;            / reads the application's retry
+```
+
+Two limits follow from reading source text. An application *function* with
+one of these names cannot be called from a test body in applied form
+(`after[x]` is the hook); call it as `` (`. `after)[x] ``. And a variable with
+one of these names that is indexed in applied form (`pending[0]`) must be
+declared in the test file, as below. Assertions (`must`, `musteq`, ...) and
+`mock` are the framework's everywhere, as they are in qspec.
+
+A bare assignment or explicit lambda parameter in a test file shadows the
+matching DSL alias:
 
 ```q
 should["indexes a local named it"]{
@@ -862,7 +882,7 @@ in a parent or sibling scope remain available. This means an enclosing
 when both appear on the same source line.
 
 For deliberately ambiguous or dynamically constructed source, call the helper
-explicitly (for example `.tst.should[...]` or `.tst.musteq[...]`). If q still
+explicitly (for example `.tst.should[...]` or `.tst.dsl.musteq[...]`). If q still
 reports a bare DSL-name lookup, the loader adds a hint naming the colliding
 local and the explicit `.tst` spelling. The deprecated `qNamespaceExports`
 setting does not change this behavior and never authorizes writes to `.q`.
