@@ -1022,10 +1022,22 @@
 / contract as a test error. The runner must never print an exception and then
 / leave machine reporters (or the process exit status) green.
 .tst.runAllPhase.recordFrameworkError:{[phase;err]
-    phaseText: .tst.toString phase;
-    errText: .tst.toString err;
+    / Self-contained on purpose. This runs when something in the framework is
+    / already wrong, outside the phase trap: if it relied on a helper that
+    / was the thing broken, q died here and the run ended with no report.
+    plain: {[v] $[10h = type v; v; -10h = type v; enlist v; -11h = type v; string v; @[.Q.s1; v; {[e] "?"}]]};
+    phaseText: plain phase;
+    errText: plain err;
     messageText: "Framework phase '",phaseText,"' failed: ",errText;
     -1 "ERROR: ",messageText;
+    .tst.app.passed: 0b;
+    recorded: @[.tst.runAllPhase.recordFrameworkErrorRow; (phase;phaseText;errText;messageText); {[e] 0b}];
+    if[not 1b ~ recorded;
+        -1 "ERROR: the framework error above could not be added to the results; the run fails without it."];
+ };
+
+.tst.runAllPhase.recordFrameworkErrorRow:{[args]
+    phase: args 0; phaseText: args 1; errText: args 2; messageText: args 3;
     .tst.recordDiagnostic[`framework;`error;phase;messageText;
         enlist[`error]!enlist errText];
     baseRow:`suite`description`status`message`time`failures`assertsRun`kind`diagnostics!(
@@ -1035,7 +1047,8 @@
     toInsert:.tst.oneResultTable baseRow;
     `.resq.state.results upsert toInsert;
     .tst.app.passed: 0b;
-    .tst.app.executionIncompleteReason:.tst.toString phase;
+    .tst.app.executionIncompleteReason:phaseText;
+    1b
  };
 
 / Aggregate per-spec results into the global pass/fail bit. Any load error

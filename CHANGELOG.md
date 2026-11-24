@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A test file that replaces a resQ function by accident fails by name. A
+  helper called `.tst.toString` (qspec-era suites keep helpers in `.tst`)
+  ended the whole run with a raw `'type` and no report, because the code that
+  reports errors used the function it had replaced. The definition is put
+  back before anything is reported, the file fails with "redefines resQ
+  internal ...", and the other files run. A native suite that replaces an
+  internal on purpose, and still loads, is left alone as before.
 - `resq-merge` writes consistent branch coverage. Each branch site is
   recorded under its file and under its function; after adding up the edges
   of several shards only the file copy got new totals, so a merged coverage

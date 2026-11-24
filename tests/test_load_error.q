@@ -85,3 +85,45 @@
     (any out like "*.tst.dsl.musteq?1;? 1;*") musteq 1b;
   };
  };
+
+/ A test file that replaces a resQ function by accident (a helper named like
+/ an internal) used to end the run with a raw q error and no report, because
+/ the code that reports errors went through the function it had replaced.
+.tst.testState.clobber.canRun:
+    (0 < count @[system; "which q 2>/dev/null"; {()}]) and
+    (0 < count @[system; "which timeout 2>/dev/null"; {()}]);
+
+.tst.testState.clobber.run:{[]
+    wd: .resq.util.tempRoot[], "/resq_clobber_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd;
+    (hsym `$wd, "/test_a.q") 0: (
+        ".tst.toString:{[x] string x};";
+        ".tst.desc[\"uses a helper named like a resQ internal\"]{ should[\"a\"]{ 1 musteq 1; }; };");
+    (hsym `$wd, "/test_b.q") 0: enlist
+        ".tst.desc[\"an ordinary suite\"]{ should[\"still runs\"]{ 1 musteq 1; }; };";
+    cmd: "true && timeout -k 2 60 q ", (.resq.util.shellQuote .resq.HOME, "/resq.q"),
+         " test ", (.resq.util.shellQuote wd), " -json -outDir ", (.resq.util.shellQuote wd, "/out"),
+         " -state-file ", .resq.util.shellQuote[wd, "/out/state.json"],
+         " -flake-history ", .resq.util.shellQuote[wd, "/out/flake.json"],
+         " -quarantine-file ", .resq.util.shellQuote[wd, "/out/quarantine.json"],
+         " -flake-proposal-file ", .resq.util.shellQuote[wd, "/out/proposals.json"],
+         " > ", (.resq.util.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    output: "\n" sv @[read0; hsym `$wd, "/out.txt"; {()}];
+    rawJson: @[read0; hsym `$wd, "/out/test-results.json"; {()}];
+    payload: $[count rawJson; .j.k raze rawJson; ()!()];
+    if[wd like "*/resq_clobber_*"; system "rm -rf -- ", .resq.util.shellQuote wd];
+    `code`output`rows!("J"$last exitLines; output; $[`tests in key payload; payload`tests; ()])
+ };
+
+.tst.desc["a test file that replaces a resQ function by accident #slow"]{
+  should["fail that file by name, keep the report, and run the other files"]{
+    if[not .tst.testState.clobber.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.clobber.run[];
+    r[`code] musteq 4;
+    (0 < count r[`output] ss "redefines resQ internal .tst.toString") musteq 1b;
+    (0 < count r[`output] ss "rename the helper") musteq 1b;
+    statuses: {x`status} each r[`rows] where {x[`description] like "still runs"} each r`rows;
+    statuses musteq enlist "pass";
+  };
+ };

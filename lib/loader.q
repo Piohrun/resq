@@ -920,11 +920,14 @@
 
     / qspec suites often keep helpers in .tst (qspec's own .tst is small).
     / resQ's is not: a helper named like an internal (.tst.toString,
-    / .tst.config, ...) silently broke the runner with an unrelated error.
-    / On the qspec path, snapshot the framework's functions and check after
-    / every file. Native suites may monkeypatch internals deliberately.
-    qspecPath: any 1b~/:@[get;;0b] each `.tst.app.qspecCompat`.tst.app.qspecDiscovery;
-    fwNames: $[qspecPath; {` sv' x,'key[x] except `} `.tst; `symbol$()];
+    / .tst.config, ...) broke the runner with an unrelated error, or with no
+    / report at all when the function it replaced was one the error path
+    / needs. Snapshot the framework's functions and check after every file.
+    / On the qspec path any such assignment is a name clash: the definition is
+    / put back and the file fails. A native suite may replace an internal on
+    / purpose (resQ's own tests do), so there the definition is put back only
+    / when the file then failed to load, which is the accidental case.
+    fwNames: {` sv' x,'key[x] except `} `.tst;
     fwNames: fwNames where {(type @[get;x;{::}]) within 100 104h} each fwNames;
     .tst.frameworkFunctionSnapshot: fwNames!get each fwNames;
 
@@ -1033,6 +1036,12 @@
                content;
                {[err] (1b; err)}];
         .tst.app.numberingTests: 0b;
+        / Before anything is formatted or reported: put back any resQ
+        / function this file replaced. The messages below go through them.
+        qspecPath: any 1b~/:@[get;;0b] each `.tst.app.qspecCompat`.tst.app.qspecDiscovery;
+        overridden: $[qspecPath or 1b ~ first res;
+            .tst.restoreFrameworkOverrides[p;content];
+            `symbol$()];
         loadFailures: .tst.toString each .tst.assertState.failures;
         .tst.assertState: .tst.defaultAssertState;
         if[(not 1b ~ first res) and count loadFailures;
@@ -1066,7 +1075,7 @@
         / Restore root namespace
         @[system; "d ."; {}];
 
-        .tst.restoreFrameworkOverrides[p;content];
+        .tst.reportFrameworkOverrides[p;overridden];
 
         / Warn if no tests loaded. On the qspec path a spec-free file is a
         / helper (qspec loads every .q file), so it is only counted.
@@ -1091,13 +1100,25 @@
 / while a file loads (coverage) and stores user hooks in function slots.
 .tst.restoreFrameworkOverrides:{[p;content]
     snapshot: @[get; `.tst.frameworkFunctionSnapshot; {()!()}];
-    if[0 = count snapshot; :()];
+    if[0 = count snapshot; :`symbol$()];
     names: key snapshot;
     changed: names where not snapshot[names] ~' @[get;;{::}] each names;
-    if[0 = count changed; :()];
-    changed: changed inter .tst.sourceAssignedTstNames content;
-    if[0 = count changed; :()];
+    if[0 = count changed; :`symbol$()];
+    / sourceAssignedTstNames is itself a resQ function the file may have
+    / replaced; the snapshot holds the real one.
+    finder: $[`.tst.sourceAssignedTstNames in names;
+        snapshot `.tst.sourceAssignedTstNames;
+        .tst.sourceAssignedTstNames];
+    assigned: @[finder; content; {[e] `symbol$()}];
+    changed: changed inter assigned;
+    if[0 = count changed; :`symbol$()];
     {[snapshot;name] name set snapshot name}[snapshot] each changed;
+    changed
+ };
+
+/ Fail the file whose source replaced resQ functions, naming them.
+.tst.reportFrameworkOverrides:{[p;changed]
+    if[0 = count changed; :()];
     shown: ", " sv string changed;
     msg: "redefines resQ internal ", shown, " (resQ's .tst namespace is larger than ",
         "qspec's). The framework definition was restored; rename the helper, e.g. ",

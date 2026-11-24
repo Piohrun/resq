@@ -153,8 +153,12 @@
     `.tst.dropinProbeFn mock {[x] `framework};
     `.tst.frameworkFunctionSnapshot mock (enlist `.tst.dropinProbeFn)!enlist .tst.dropinProbeFn;
     .tst.dropinProbeFn: {[x] `userHelper};
-    .tst.restoreFrameworkOverrides["tests/helpers.q";enlist ".tst.dropinProbeFn:{[x] `userHelper};"];
+    put: .tst.restoreFrameworkOverrides["tests/helpers.q";enlist ".tst.dropinProbeFn:{[x] `userHelper};"];
+    / the definition is back before anything is reported
     (.tst.dropinProbeFn 0) musteq `framework;
+    put musteq enlist `.tst.dropinProbeFn;
+    (count .tst.app.loadErrors) musteq 0;
+    .tst.reportFrameworkOverrides["tests/helpers.q";put];
     (count .tst.app.loadErrors) musteq 1;
     (first .tst.app.loadErrors`type) musteq `frameworkOverride;
     message: first .tst.app.loadErrors`error;
@@ -166,7 +170,9 @@
     `.tst.app.loadErrors mock flip `file`error`type!(`symbol$(); (); `symbol$());
     `.tst.dropinProbeFn mock {[x] `framework};
     `.tst.frameworkFunctionSnapshot mock (enlist `.tst.dropinProbeFn)!enlist .tst.dropinProbeFn;
-    .tst.restoreFrameworkOverrides["tests/plain.q";enlist "x:1;"];
+    put: .tst.restoreFrameworkOverrides["tests/plain.q";enlist "x:1;"];
+    .tst.reportFrameworkOverrides["tests/plain.q";put];
+    (count put) musteq 0;
     (count .tst.app.loadErrors) musteq 0;
   };
 
@@ -175,7 +181,8 @@
     `.tst.dropinProbeFn mock {[x] `framework};
     `.tst.frameworkFunctionSnapshot mock (enlist `.tst.dropinProbeFn)!enlist .tst.dropinProbeFn;
     .tst.dropinProbeFn: {[x] `swappedByFramework};
-    .tst.restoreFrameworkOverrides["tests/plain.q";("beforeAll{ 1 };";"s:\".tst.dropinProbeFn:1\";")];
+    put: .tst.restoreFrameworkOverrides["tests/plain.q";("beforeAll{ 1 };";"s:\".tst.dropinProbeFn:1\";")];
+    .tst.reportFrameworkOverrides["tests/plain.q";put];
     (count .tst.app.loadErrors) musteq 0;
     (.tst.dropinProbeFn 0) musteq `swappedByFramework;
   };
