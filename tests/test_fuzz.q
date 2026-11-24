@@ -23,6 +23,27 @@
   ran musteq 40;
   };
 
+ / The runner turns the per-assertion diff off while it runs. A generator
+ / that signalled left it off for the rest of the run: every later failure,
+ / in any suite, came without a diff.
+ should["put the diff setting and the assertion state back when the generator signals"]{
+  `.tst.suppressAssertionDiff mock 0b;
+  holds["generator error"; `runs`vars!(5;{'"gen boom"})]{[x] x musteq x};
+  e:getExpec[];
+  before1:.tst.assertState;
+  outcome:@[{[e] .tst.runners[`fuzz][e]; "no error"}; e; {[err] err}];
+  after1:.tst.assertState;
+  outcome musteq "gen boom";
+  .tst.suppressAssertionDiff musteq 0b;
+  after1 mustmatch before1;
+  / and it is still off inside a property that runs
+  `.tst.testState.fuzzSeen mock ();
+  holds["looks at the setting"; `runs!3]{[x] .tst.testState.fuzzSeen,: .tst.suppressAssertionDiff};
+  .tst.runners[`fuzz][getExpec[]];
+  .tst.testState.fuzzSeen musteq 111b;
+  .tst.suppressAssertionDiff musteq 0b;
+  };
+
  should["fail when the percentage of failures exceeds the maximum percentage of failures"]{
   `ran mock 0;
   / 20 runs, maxFailRate 0.5. The comparison is strict (>), so we must EXCEED

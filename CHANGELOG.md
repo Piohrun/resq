@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- After a property test whose generator signalled, every later failure in
+  the run came without its diff. The property runner turns the diff off while
+  it runs and now turns it back on however it ends.
 - When q dies in the middle of an in-process run (out of memory under `-w`,
   a crash, an `exit` in a test), the launcher says which test was running and
   in which file. It said only that q had exited, or nothing at all.

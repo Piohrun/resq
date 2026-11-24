@@ -287,7 +287,22 @@ shrink:{[code;typeCode;val]
     `steps`candidates`timeMs!(100j;1000j;1000f)])`minimal
  }
 
+/ The property runner turns the per-assertion diff off while it runs, and
+/ puts the test's assertion state back when it is done. It did both only on
+/ the way out of a run that got that far: a generator that signalled left
+/ the diff off for the rest of the run, and every later failure, in any
+/ suite, came without one. Both are now put back whatever happens.
 runners[`fuzz]:{[expec]
+  origState: .tst.assertState;
+  origSuppress: .tst.suppressAssertionDiff;
+  outcome: @[{[e] (1b; .tst.runFuzzExpectation e)}; expec; {[err] (0b; err)}];
+  .tst.suppressAssertionDiff: origSuppress;
+  if[first outcome; :last outcome];
+  .tst.assertState: origState;
+  ' last outcome
+ }
+
+runFuzzExpectation:{[expec]
   / A holds body receives exactly ONE argument: the generated value (a dict
   / for multi-variable specs). Any other arity previously surfaced as a bare
   / 'type from deep inside the collector; name the actual contract instead.
