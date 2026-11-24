@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A symbol that contains a resQ word is left alone. `` `:out/after set x ``
+  wrote to `out/.tst.dsl.after`, and `` read0 `:data/fixture/trades.csv ``
+  looked for `data/.tst.dsl.fixture/trades.csv`.
 - Block comments nest, as they do in q. A commented-out region that contained
   a block comment of its own was closed early: the disabled code ran, and the
   code after the region was dropped without a word. Watch mode's load graph

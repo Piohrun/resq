@@ -158,7 +158,32 @@
     if[0 = count txt; :""];
     lex: .tst.qLexStates txt;
     keep: (raze .tst.maskKeeps) (5 * lex 0) + lex 1;
-    ?[keep; txt; count[txt] # " "]
+    .tst.maskSymbolBodies ?[keep; txt; count[txt] # " "]
+ };
+
+/ Blank the body of every symbol literal, keeping its backtick, in text whose
+/ strings and comments are already blanked. A symbol is data: a resQ word
+/ inside one (`:data/fixture/x.csv, `:out/after, `:host:5010:user:must) is
+/ not a call. q's rule, checked against its tokenizer: after the backtick come
+/ letters, digits, "_", "." and ":"; a "/" belongs to the symbol only once a
+/ ":" has appeared in it (`:a/b is one symbol, `a/b is `a then an adverb).
+/ Vector operations only: the loader masks whole desc blocks many times.
+.tst.symbolBodyChars: .Q.an, ".:/";
+.tst.maskSymbolBodies:{[txt]
+    if[not "`" in txt; :txt];
+    ok: txt in .tst.symbolBodyChars;
+    first1: ok and not 0b, -1 _ ok;
+    starts: where first1;                        / first character of each run
+    anchored: "`" = txt starts - 1;             / runs that directly follow a backtick
+    if[not any anchored; :txt];
+    run: -1 + sums first1;                       / run index of each character
+    inSymbol: ok and anchored run;
+    colons: sums txt = ":";
+    seenColon: colons > ((0, colons) starts) run;
+    breaking: inSymbol and (txt = "/") and not seenColon;
+    breaks: sums breaking;
+    body: inSymbol and breaks = ((0, breaks) starts) run;
+    ?[body; " "; txt]
  };
 
 .tst.bareTokenAt:{[txt;at;name]
