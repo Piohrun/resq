@@ -267,7 +267,9 @@ following checked-in contracts; the final release gate invokes all of them:
   in random order.
 - [x] Require the interrupt, worker-pool, output-cap, directory-fixture,
   manifest and `resq.json` lookup tests in the release gate.
-- [ ] Complete the clean-clone v2.4.0 release qualification.
+- [x] Complete the clean-clone v2.4.0 release qualification and archive the
+  exact candidate evidence; the certification commit is requalified before the
+  annotated tag is pushed.
 - [ ] Run `resq mutate` mutants through the worker pool.
 
 ## Post-2.0 ecosystem ideas — not implemented

@@ -60,6 +60,7 @@ REQUIRED = {
     "tools/verify_trap_handlers.py",
     "docs/RELEASE_CHECKLIST.md",
     "docs/RELEASE_NOTES_2_4_0.md",
+    "docs/PRODUCTION_AUDIT_2_4_0.md",
     "docs/RELEASE_NOTES_2_3_0.md",
     "docs/PRODUCTION_AUDIT_2_3_0.md",
     "docs/RELEASE_NOTES_2_2_2.md",
