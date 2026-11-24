@@ -715,3 +715,57 @@
     (.tst.output.jsonSafeValue 1.5 2.5) musteq 1.5 2.5;
   };
  };
+
+/ What a CI server reads from the JUnit report.
+.tst.testState.junitNames.canRun: 0 < count @[system; "which q 2>/dev/null"; {()}];
+
+.tst.desc["JUnit: what a CI server tells tests apart by #slow"]{
+  before{
+    wd: .resq.util.tempRoot[], "/resq_junit_names_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd, "/a";
+    .resq.util.ensureDir wd, "/b";
+    .resq.util.ensureDir wd, "/none";
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist wd];
+    (hsym `$wd, "/a/test_x.q") 0: enlist ".tst.desc[\"pricing\"]{ should[\"rounds\"]{ 1 musteq 1; }; should[\"only in a\"]{ 1 musteq 1; }; };";
+    (hsym `$wd, "/b/test_x.q") 0: enlist ".tst.desc[\"pricing\"]{ should[\"rounds\"]{ 1 musteq 1; }; };";
+    (hsym `$wd, "/test_bad.q") 0: enlist ".tst.desc[\"broken\"]{ should[\"x\"]{ 1 musteq 1; };";
+    `junitRun mock {[wd;words]
+        cmd: "cd ", .resq.util.shellQuote[wd], " && ", (.resq.util.shellQuote .resq.HOME, "/bin/resq"),
+            " test ", words, " -junit -outDir out -state-file out/s.json -flake-history out/f.json",
+            " -flake-proposal-file out/p.json < /dev/null > run.log 2>&1; true";
+        @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] ()}];
+        read0 hsym `$wd, "/out/test-results.xml"}[wd];
+    `attribute mock {[line;name]
+        at: ss[line; " ", name, "=\""];
+        if[0 = count at; :""];
+        rest: (3 + (count name) + first at) _ line;
+        (rest ? "\"") # rest};
+  };
+
+  should["give tests of the same suite and name in two files different classnames"]{
+    if[not .tst.testState.junitNames.canRun; :must[1b; "q unavailable"]];
+    xml: junitRun "a b";
+    cases: xml where xml like "*<testcase *";
+    named: cases where {[attribute;line] "rounds" ~ attribute[line; "name"]}[attribute] each cases;
+    (asc attribute[;"classname"] each named) musteq ("pricing (a/test_x)"; "pricing (b/test_x)");
+    / a test whose name is in one file only keeps the plain classname
+    alone: first cases where {[attribute;line] "only in a" ~ attribute[line; "name"]}[attribute] each cases;
+    attribute[alone; "classname"] musteq "pricing";
+  };
+
+  should["name a file that failed to load from the run's directory, not from the root of the disk"]{
+    if[not .tst.testState.junitNames.canRun; :must[1b; "q unavailable"]];
+    xml: junitRun "test_bad.q";
+    bad: first xml where xml like "*<testcase *";
+    attribute[bad; "name"] musteq "test_bad.q";
+    attribute[bad; "classname"] musteq "FILE_LOAD_ERROR";
+  };
+
+  should["count to zero in a report of no tests"]{
+    if[not .tst.testState.junitNames.canRun; :must[1b; "q unavailable"]];
+    xml: junitRun "none";
+    root: first xml where xml like "<testsuites*";
+    (attribute[root;] each ("tests"; "failures"; "errors"; "skipped")) musteq 4 # enlist enlist "0";
+  };
+ };
+

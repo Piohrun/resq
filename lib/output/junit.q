@@ -46,6 +46,21 @@
     $[count body;"<properties>",body,"</properties>";""]
  };
 
+/ Two files may each hold a suite and a test of the same names. Their
+/ testcases then had the same classname and name, which is all a CI server
+/ tells tests apart by. Rows that share both with a row of another file get
+/ the file in their classname; every other row is as it was.
+.tst.output.junitClassSuffixes:{[t]
+    n: count t;
+    if[(0 = n) or not `file in cols t; :n # enlist ""];
+    files: .tst.toString each t`file;
+    names: (.tst.toString each t`suite),'"\001",/:.tst.toString each t`description;
+    groups: group names;
+    shared: raze {[files;idx] $[1 < count distinct files idx; idx; `long$()]}[files] each value groups;
+    suffix: {[file] $[0 = count file; ""; " (", $[file like "*.q"; -2 _ file; file], ")"]} each files;
+    @[n # enlist ""; shared; :; suffix shared]
+ };
+
 .tst.output.buildJUnitCase:{[rec]
     recStatus: .tst.normalizeResultStatus $[`status in key rec; rec`status; `pass];
     / classname fallback chain: suite name -> namespace -> "resq". The suite name
@@ -61,8 +76,8 @@
                  0 < count recNs; recNs;
                  "resq"];
     name: .tst.output.escapeXml rec`description;
-    statusDesc: $[0=count rec`description; "unspecified"; .tst.toString rec`description];
-    suite: .tst.output.escapeXml recSuite;
+    statusDesc: $[0=count rec`description; "unspecified"; .tst.output.caseName rec`description];
+    suite: .tst.output.escapeXml recSuite, $[`junitClassSuffix in key rec; .tst.toString rec`junitClassSuffix; ""];
     / The message column carries the raw failures LIST (a list of strings) built
     / upstream. Render it to a single plain char vector (joined with "\n", capped
     / at reportLimit) so escapeXml never emits the q literal form (`,"..."` ->
@@ -118,7 +133,10 @@
 / otherwise leave .tst.output.top pointing at whichever loaded first.
 .tst.output.junitTop:{[results]
     rows: .tst.output.normalizeRows results;
-    if[0=count rows; :"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuites></testsuites>"];
+    / A report of no tests still says how many: a reader that sums the
+    / attributes of the root found none to sum.
+    if[0=count rows; :"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+        "<testsuites tests=\"0\" failures=\"0\" errors=\"0\" skipped=\"0\" time=\"0.000000000\"></testsuites>"];
     / normalizeRows may hand back either a list of row dicts or an already
     / assembled table; .tst.resultTable canonicalises both to a 98h table.
     t: .tst.resultTable results;
@@ -136,6 +154,7 @@
         "\"/><property name=\"q.version\" value=\"",
         .tst.output.escapeXml[.tst.formatQVersion .z.K],"\"/></properties>";""];
     suites: distinct t`suite;
+    t: update junitClassSuffix: .tst.output.junitClassSuffixes[t] from t;
     / q lambdas do not close over outer locals, so the per-suite table t is
     / passed in explicitly as the first projected argument.
     suiteBlocks: raze {[t;stamp;host; x]

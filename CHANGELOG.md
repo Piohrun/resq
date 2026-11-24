@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- JUnit: two files that each hold a suite and a test of the same names gave
+  testcases with the same `classname` and `name`, which is all a CI server
+  tells tests apart by; those testcases now carry the file in their
+  classname (`pricing (a/test_x)`), and no other testcase changes. A file
+  that failed to load is named from the run's directory, not by its absolute
+  path. A report of no tests has `tests="0"` and the other counts on its
+  root element.
 - The benchmark table is printed on a run that failed too; it was shown only
   when every test passed. `benchPrint` shows figures under 100 microseconds
   with decimals instead of rounding them to `0us`. No colour is written when

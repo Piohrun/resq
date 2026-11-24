@@ -53,7 +53,7 @@
     recSuite:  $[0 < count recSuiteName; recSuiteName;
                  0 < count recNs; recNs;
                  "resq"];
-    statusDesc: $[0<count rec`description; .tst.toString rec`description; "unspecified"];
+    statusDesc: $[0<count rec`description; .tst.output.caseName rec`description; "unspecified"];
     suite: .tst.output.escapeXml recSuite;
     / The message column carries the raw failures LIST (a list of strings) built
     / upstream. Render it to a single plain char vector (joined with "\n", capped
@@ -190,7 +190,7 @@
 
 .tst.output.xunitQspecCase:{[rec]
     status:.tst.normalizeResultStatus $[`status in key rec;rec`status;`pass];
-    description:.tst.toString rec`description;
+    description:.tst.output.caseName rec`description;
     failures:$[`failures in key rec;(),rec`failures;()];
     failures:$[10h=type failures;enlist failures;.tst.toString each failures];
     asserts:"j"$$[`assertsRun in key rec;rec`assertsRun;0];

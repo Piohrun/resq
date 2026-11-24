@@ -692,6 +692,17 @@
 / qspec's name for a test case: the declaration verb plus the description
 / ("should add two numbers"). Used by -junit-names qspec, where CI servers key
 / test history on it, and by -xunit-format qspec's label attribute.
+/ A row that stands for a file (one that failed to load, an isolated child
+/ that died) is named by the file's path, in full: the testcase name then
+/ changed with the checkout directory, and CI history keyed on it never
+/ matched. Named as the report names every other file: from the run's
+/ directory.
+.tst.output.caseName:{[description]
+    text: .tst.toString description;
+    root: (.resq.util.normalizePath @[get; `.tst.app.baseDir; {system "cd"}]), "/";
+    $[(count text) > count root; $[root ~ (count root) # text; (count root) _ text; text]; text]
+ };
+
 .tst.output.qspecCaseName:{[rec;description]
     kind: $[`kind in key rec; `$.tst.toString rec`kind; `test];
     verb: $[kind ~ `fuzz; "it holds that"; kind ~ `perf; "performs";
