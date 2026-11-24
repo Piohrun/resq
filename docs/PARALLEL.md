@@ -43,9 +43,12 @@ processes, each holding its own workspace and consuming a q runtime/licence
 allocation. A group is reported after all of its children finish, so one slow
 file can delay display of earlier completed files in that group.
 
-Hang termination requires GNU coreutils `timeout` with `--verbose` support on
-`PATH`; on hosts with a non-GNU `timeout` (busybox, BSD userlands) isolation
-runs without a supervisor cap and a hung file must be stopped externally.
+Isolation needs a `timeout` command on `PATH` that takes `-k` (kill after a
+grace period): GNU coreutils of any age, or a recent busybox. resQ checks that
+it can stop a busy process before it starts, and refuses to run with a message
+if it cannot. Where `timeout` also has `--verbose` (coreutils 8.29 and later)
+resQ uses it to tell its own timeout from any other death of the child;
+without it, exit status 124 is taken as the timeout.
 `-isolateTimeout N` caps each whole file, not each test; timing out abandons any
 later tests in that file. The failure names the test that was running, and
 tests that had already finished keep their results; the same applies to a child

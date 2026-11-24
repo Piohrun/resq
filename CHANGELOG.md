@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `-isolate` and `resq mutate` no longer need `timeout --verbose`. They
+  refused to run where `timeout` lacks that option (GNU coreutils before 8.29,
+  as on RHEL 7, and busybox), with a message that asked for "-k support". The
+  option is used when present; otherwise exit status 124 is taken as the
+  timeout.
 - The Python tools that read reports work on Python 3.8 to 3.10. Report
   validation, the converters, ingestion and `resq-merge` refused every valid
   report there ("Invalid isoformat string"), because timestamps carry

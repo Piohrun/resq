@@ -34,11 +34,18 @@
     -1 message
  };
 
+/ Whether this timeout announces the signals it sends (--verbose, GNU
+/ coreutils 8.29 and later). Set by probeTimeout.
+.tst.isolate.timeoutVerbose: 1b;
+
 / Require timeout's kill-after form and prove it can preempt a busy process.
+/ --verbose is used when the command has it and is not required: it used to
+/ be, which ruled out coreutils before 8.29 (RHEL 7 ships 8.22) and busybox
+/ with a message that named a different requirement.
 .tst.isolate.probeTimeout:{[exe]
     if[(0 = count exe) or 0 = count .tst.isolate.shExe; :0b];
     help: @[system; "LC_ALL=C ",.resq.util.shellQuote[exe], " --help 2>/dev/null"; {[e] ()}];
-    if[not any help like "*--verbose*"; :0b];
+    .tst.isolate.timeoutVerbose: any help like "*--verbose*";
     busy: .resq.util.shellQuote "while :; do :; done";
     cmd:"LC_ALL=C ",.resq.util.shellQuote[exe], " -k 1 0.05 ",
          .resq.util.shellQuote[.tst.isolate.shExe], " -c ", busy, " 2>&1; echo $?";
@@ -244,9 +251,21 @@
 / GNU timeout's verbose line is evidence that the supervisor actually sent a
 / deadline signal. Exit 124/137 alone is ambiguous: a child may return 124
 / itself, and SIGKILL/OOM conventionally appears as 137 without any timeout.
+/ A timeout without --verbose leaves only the exit status and the clock.
+/ 124 is then taken as a timeout. 137 is the kill after the grace period, or
+/ a kill from outside: it counts as a timeout only when the child was still
+/ there at the deadline processCommand wrote down.
 .tst.isolate.supervisorTimedOut:{[wd]
     captured:.tst.isolate.readCaptured wd;
-    0 < count ss[captured; "timeout: sending signal "]
+    if[0 < count ss[captured; "timeout: sending signal "]; :1b];
+    if[.tst.isolate.timeoutVerbose; :0b];
+    code: .tst.isolate.readExitCode wd;
+    if[124 = code; :1b];
+    if[not 137 = code; :0b];
+    stamp: {[wd;name] "J"$first @[read0; hsym `$wd, "/", name; {[e] enlist ""}]}[wd];
+    deadline: stamp "deadline.txt";
+    ended: stamp "end.txt";
+    $[(null deadline) or null ended; 0b; ended >= deadline]
  };
 
 / Read at most reportLimit bytes from a child's combined stdout/stderr. For a
@@ -525,8 +544,15 @@
 / complete child tree if the foreground run is interrupted.
 .tst.isolate.processCommand:{[wd; file; timeoutSecs]
     childArgv: .tst.isolate.childArgv[file; wd];
-    timedArgv: (.tst.isolate.timeoutExe; "--verbose"; "-k";
-        .tst.toString .tst.isolate.killAfter; string timeoutSecs), childArgv;
+    timedArgv: (enlist .tst.isolate.timeoutExe),
+        $[.tst.isolate.timeoutVerbose; enlist "--verbose"; ()],
+        ("-k"; .tst.toString .tst.isolate.killAfter; string timeoutSecs), childArgv;
+    / When the supervisor would stop this child, in Unix seconds, for a
+    / timeout command that cannot say so itself (see supervisorTimedOut).
+    if[not .tst.isolate.timeoutVerbose;
+        .[{[wd;at] (hsym `$wd, "/deadline.txt") 0: enlist string at};
+          (wd; timeoutSecs + "j"$(.z.p - 1970.01.01D00:00:00) % 1000000000);
+          {[e] ::}]];
     / The parent launcher owns its completion marker. Isolated q children are
     / already supervised by this module and must not complete the parent's run.
     "LC_ALL=C RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
@@ -543,6 +569,7 @@
 .tst.isolate.fileCommand:{[wd; file; timeoutSecs]
     .tst.isolate.processCommand[wd;file;timeoutSecs]," & p0=$!; ",
         "wait \"$p0\"; echo $? > ", .resq.util.shellQuote[wd, "/rc.txt"], "; ",
+        "date +%s > ", .resq.util.shellQuote[wd, "/end.txt"], " 2>/dev/null; ",
         .tst.isolate.reapLeftovers["p0";wd], " true"
  };
 
@@ -567,6 +594,7 @@
 .tst.isolate.groupWait:{[index;wd]
     name:"p",string index;
     "wait \"$",name,"\"; echo $? > ",.resq.util.shellQuote[wd,"/rc.txt"],"; ",
+        "date +%s > ",.resq.util.shellQuote[wd,"/end.txt"]," 2>/dev/null; ",
         .tst.isolate.reapLeftovers[name;wd]
  };
 

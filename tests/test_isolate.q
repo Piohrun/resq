@@ -778,3 +778,62 @@
     musteq[0; count leftovers where (string leftovers) like "resq_isolate.*"];
   };
  };
+
+/ Isolation needs a timeout command that can kill after a grace period. It
+/ used to demand --verbose as well, which older GNU coreutils (RHEL 7) and
+/ busybox do not have.
+.tst.desc["isolation with a timeout command that has no --verbose"]{
+  before{
+    dir: .resq.util.tempRoot[], "/resq_oldtimeout_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir dir;
+    real: first @[system; "command -v timeout"; {[e] enlist ""}];
+    (hsym `$dir, "/timeout") 0: (
+        "#!/bin/sh";
+        "case \"$1\" in";
+        "  --help) ", real, " --help | grep -v -- --verbose; exit 0 ;;";
+        "  -v|--verbose) echo \"timeout: unrecognized option\" >&2; exit 125 ;;";
+        "esac";
+        "exec ", real, " \"$@\"");
+    system "chmod +x ", .resq.util.shellQuote dir, "/timeout";
+    `.tst.testState.oldTimeout set dir, "/timeout";
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist dir];
+  };
+  should["accept it, and leave --verbose out of the command"]{
+    if[0 = count first @[system; "command -v timeout"; {[e] enlist ""}]; :must[1b; "no timeout command here"]];
+    `.tst.isolate.timeoutVerbose mock 1b;
+    `.tst.isolate.timeoutExe mock .tst.testState.oldTimeout;
+    .tst.isolate.probeTimeout[.tst.testState.oldTimeout] musteq 1b;
+    .tst.isolate.timeoutVerbose musteq 0b;
+    scratch: .resq.util.tempRoot[], "/resq_oldtimeout_cmd_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir scratch;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist scratch];
+    command: .tst.isolate.processCommand[scratch; "tests/test_x.q"; 30];
+    (0 < count command ss "--verbose") musteq 0b;
+    (0 < count command ss "-k") musteq 1b;
+    / and it wrote down when the supervisor would stop the child
+    .resq.util.isFile[scratch, "/deadline.txt"] musteq 1b;
+  };
+  should["take exit status 124 as the timeout when nothing else says so"]{
+    wd: .resq.util.tempRoot[], "/resq_oldtimeout_wd_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist wd];
+    (hsym `$wd, "/out.txt") 0: enlist "some output";
+    (hsym `$wd, "/rc.txt") 0: enlist "124";
+    `.tst.isolate.timeoutVerbose mock 0b;
+    .tst.isolate.supervisorTimedOut[wd] musteq 1b;
+    / 137 is the kill after the grace period only if the child was still
+    / there at the deadline; before it, the kill came from somewhere else
+    (hsym `$wd, "/rc.txt") 0: enlist "137";
+    (hsym `$wd, "/deadline.txt") 0: enlist "1000";
+    (hsym `$wd, "/end.txt") 0: enlist "1005";
+    .tst.isolate.supervisorTimedOut[wd] musteq 1b;
+    (hsym `$wd, "/end.txt") 0: enlist "999";
+    .tst.isolate.supervisorTimedOut[wd] musteq 0b;
+    (hsym `$wd, "/rc.txt") 0: enlist "124";
+    / with --verbose the supervisor's own line is the evidence, not the status
+    `.tst.isolate.timeoutVerbose mock 1b;
+    .tst.isolate.supervisorTimedOut[wd] musteq 0b;
+    (hsym `$wd, "/out.txt") 0: ("some output"; "timeout: sending signal TERM to command 'q'");
+    .tst.isolate.supervisorTimedOut[wd] musteq 1b;
+  };
+ };

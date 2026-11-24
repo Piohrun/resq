@@ -194,7 +194,7 @@ resq mutate src/ -tests tests/ -qspec-compat -qspec-discovery
 - **Equivalent mutants.** Some changes cannot alter behaviour. Starting a sum at index 1 instead of 0 gives the same total, and no test can tell. These survive, and you have to recognise them. Expect a few per file; do not chase 100%.
 - **Unstable tests.** A test that fails at random can kill a mutant it never touched. The mutant was in place, so resQ cannot tell the difference. Fix or quarantine unstable tests before trusting a score.
 - **Time.** Each mutant costs one process start plus the tests that call its function, about a quarter of a second for a small test file. A mutant that hangs costs five seconds or more. Use line ranges, `-since`, `-max-mutants` and `-isolateWorkers` to keep runs short.
-- **Tools.** The same as `-isolate`: a `timeout` command that supports `-k` and `--verbose`, plus `mktemp`, `chmod`, `rm` and `sh`.
+- **Tools.** The same as `-isolate`: a `timeout` command that supports `-k`, plus `mktemp`, `chmod`, `rm` and `sh`.
 
 ---
 

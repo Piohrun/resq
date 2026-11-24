@@ -605,7 +605,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         / The supervisor says when it is the one that stopped the child. Exit
         / 137 alone (SIGKILL) can also come from outside: the kernel's
         / out-of-memory killer or a CI agent. That is not a timeout.
-        (code = 124) or 0<count ss[captured; "timeout: sending signal "];
+        (code = 124) or .tst.isolate.supervisorTimedOut wd;
         / q reports this on a line of its own that starts with a quote. Looking
         / for that, rather than the phrase anywhere, keeps test output that
         / merely mentions it from being taken for a licence failure.
