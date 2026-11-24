@@ -127,3 +127,58 @@
     statuses musteq enlist "pass";
   };
  };
+
+/ Tests must not disappear from a run without a word: an empty test file, a
+/ test file that has gone by the time it is loaded, and a `should` written
+/ inside another test's body.
+.tst.testState.dropped.run:{[files;flags]
+    wd: .resq.util.tempRoot[], "/resq_dropped_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd;
+    {[wd;name;lines] (hsym `$wd, "/", string name) 0: lines}[wd]'[key files; value files];
+    cmd: "true && cd ", (.resq.util.shellQuote wd), " && timeout -k 2 60 q ",
+         (.resq.util.shellQuote .resq.HOME, "/resq.q"), " test . ", flags, " -outDir out",
+         " -state-file out/state.json -flake-history out/flake.json",
+         " -quarantine-file out/quarantine.json -flake-proposal-file out/proposals.json",
+         " > out.txt 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    output: "\n" sv @[read0; hsym `$wd, "/out.txt"; {()}];
+    if[wd like "*/resq_dropped_*"; system "rm -rf -- ", .resq.util.shellQuote wd];
+    `code`output!("J"$last exitLines; output)
+ };
+
+.tst.desc["tests do not disappear from a run without a word #slow"]{
+  should["warn about an empty test file, and fail it under -strict"]{
+    if[not .tst.testState.clobber.canRun; :must[1b; "q or timeout unavailable"]];
+    files: `test_ok.q`test_truncated.q!(enlist ".tst.desc[\"ok\"]{ should[\"a\"]{ 1 musteq 1; }; };"; ());
+    plain: .tst.testState.dropped.run[files; ""];
+    plain[`code] musteq 0;
+    (0 < count plain[`output] ss "test_truncated.q is empty and added no tests") musteq 1b;
+    (0 < count plain[`output] ss "Files with no tests:   1") musteq 1b;
+    strict: .tst.testState.dropped.run[files; "-strict"];
+    strict[`code] musteq 4;
+  };
+  should["fail the run when a discovered test file has gone by the time it is loaded"]{
+    if[not .tst.testState.clobber.canRun; :must[1b; "q or timeout unavailable"]];
+    / the first file to load removes the second
+    files: `test_a.q`test_b.q!(
+        ("hdel `:test_b.q;"; ".tst.desc[\"a\"]{ should[\"a\"]{ 1 musteq 1; }; };");
+        enlist ".tst.desc[\"b\"]{ should[\"b\"]{ 1 musteq 1; }; };");
+    r: .tst.testState.dropped.run[files; ""];
+    r[`code] musteq 4;
+    (0 < count r[`output] ss "Test file not found") musteq 1b;
+    (0 < count r[`output] ss "disappeared between discovery and loading") musteq 1b;
+  };
+  should["point out a should written inside another test's body"]{
+    if[not .tst.testState.clobber.canRun; :must[1b; "q or timeout unavailable"]];
+    files: enlist[`test_nested.q]!enlist (
+        ".tst.desc[\"outer suite\"]{";
+        "  should[\"outer test\"]{";
+        "    1 musteq 1;";
+        "    should[\"inner never runs\"]{ 1 musteq 2; };";
+        "  };";
+        " };");
+    r: .tst.testState.dropped.run[files; ""];
+    (0 < count r[`output] ss "Declared inside a test: 1 test") musteq 1b;
+    (0 < count r[`output] ss "outer suite / outer test") musteq 1b;
+  };
+ };

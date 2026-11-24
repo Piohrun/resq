@@ -935,8 +935,12 @@
         / Normalize path
         p: .resq.util.pathToString x;
 
-        / Verify file exists
-        if[not .resq.util.pathExists p; -1 "ERROR: Test file not found: ", p; :()];
+        / Verify file exists. It was there when the tests were discovered:
+        / a file that has gone since is a failure of this run, not a note.
+        if[not .resq.util.pathExists p;
+            -1 "ERROR: Test file not found: ", p;
+            `.tst.app.loadErrors upsert `file`error`type!(`$p; "the test file disappeared between discovery and loading"; `load);
+            :()];
 
         if[not .tst.app.quiet; -1 "Loading Test: ", p];
         .tst.app.loadedFiles,: enlist p;
@@ -984,12 +988,25 @@
         .utl.FILELOADING: .resq.FILELOADING;
 
         / Read content
-        content: @[read0; .resq.FILELOADING; {[p;e] 
-            -1 "ERROR reading ", p, ": ", e; 
+        unreadable: 0b;
+        content: @[read0; .resq.FILELOADING; {[p;e]
+            -1 "ERROR reading ", p, ": ", e;
             `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `read);
-            ()
+            `resqUnreadable
         }[p]];
+        if[`resqUnreadable ~ content; unreadable: 1b; content: ()];
         if[0 = count content;
+            / An empty test file declares no tests, like one that holds only
+            / comments. It used to be skipped without the warning, and without
+            / the -strict failure, that such a file gets: a file truncated to
+            / nothing went unnoticed.
+            if[not unreadable;
+                helperFile: 1b~@[get;`.tst.app.qspecDiscovery;0b];
+                msg: "File ", p, " is empty and added no tests.";
+                .tst.app.emptyFiles,: enlist p;
+                if[not helperFile; -1 "WARNING: ", msg];
+                if[.tst.app.strict and not helperFile;
+                    `.tst.app.loadErrors upsert `file`error`type!(`$p; msg; `emptyFile)]];
             .tst.restoreRuntimeContext loadCtx;
             :()
         ];

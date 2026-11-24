@@ -582,8 +582,11 @@ runExpecAttempt:{[spec;expec];
      / The ordinary test runner catches body errors one level deeper so it can
      / unwind fixtures without losing the original frames; this outer trap owns
      / setup errors and the other expectation runner types.
+     bodyWasRunning: .tst.testBodyRunning;
+     .tst.testBodyRunning: 1b;
      res: .Q.trp[.tst.callExpec;expec;
          .tst.trapExpecError[expec;.tst.toString expec`type;;]];
+     .tst.testBodyRunning: bodyWasRunning;
      if[99h=type res;
         if[`currentParameterCases in key `.tst;res[`parameterCases]:.tst.currentParameterCases];
         if[`currentSnapshots in key `.tst;res[`snapshots]:.tst.currentSnapshots]];

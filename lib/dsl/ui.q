@@ -80,6 +80,13 @@ ensureExpecHookColumns:{[expecs]
 / `::` fill that `,:` used to give rows missing an alt block's before/after
 / columns is done explicitly (hookUnset reads `::` as "not yet set").
 appendExpecs:{[expecs;new]
+  / A declaration made while a test body runs, outside any desc block being
+  / read, is never run by the runner: a `should` written inside another test
+  / by mistake looks like a test and is not one. Code that builds an
+  / expectation to run it by hand (qspec's own suite does) looks the same, so
+  / this is counted for the run audit, not refused.
+  if[.tst.testBodyRunning and not .tst.dslDeclarationAuditActive;
+    .tst.app.declaredInsideTests,: enlist .tst.currentContext`file`suite`test];
   if[99h = type new; new: enlist new];
   if[0 = count new; :expecs];
   if[not 98h = type expecs; :expecs, new];

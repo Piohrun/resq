@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- Tests no longer disappear from a run without a word. An empty test file
+  was skipped silently, also under `-strict`; it now gets the warning and the
+  `-strict` failure that a file without tests gets. A test file that has gone
+  between discovery and loading printed an error and left the run green; it
+  is now a load error. A `should` written inside another test's body is never
+  run by the runner; the run audit now says which tests do that. (It is not
+  refused: code that builds an expectation to run it by hand looks the same.)
 - A test file that replaces a resQ function by accident fails by name. A
   helper called `.tst.toString` (qspec-era suites keep helpers in `.tst`)
   ended the whole run with a raw `'type` and no report, because the code that

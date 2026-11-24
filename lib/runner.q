@@ -692,6 +692,7 @@
     / First: relative paths below (a benchmark baseline, for one) resolve
     / against it.
     .tst.app.baseDir: system "cd";
+    .tst.app.declaredInsideTests: ();
     .tst.app.snapshotDeclarations:();
     .tst.app.snapshotInventory:.tst.emptySnapshotInventory 0b;
     .tst.app.benchmarkEnvironment:()!();

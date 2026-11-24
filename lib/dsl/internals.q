@@ -33,6 +33,8 @@ if[not `coverageBranchCompletenessMin in key `.tst.app;
 if[not `exit in key `.tst.app; .tst.app.exit: 0b];
 / 1b while the body of a property test (`holds`) runs on one generated value.
 if[not `propertyCase in key `.tst; .tst.propertyCase: 0b];
+/ 1b while the body of a test runs (not while a desc block is being read).
+if[not `testBodyRunning in key `.tst; .tst.testBodyRunning: 0b];
 / `resq mutate` options (lib/mutate.q); the defaults mean "not given".
 if[not `mutationTests in key `.tst.app; .tst.app.mutationTests: ()];
 if[not `mutators in key `.tst.app; .tst.app.mutators: ""];
@@ -226,7 +228,18 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
     -1 "Files with no tests:   ", string empty;
     -1 "Specs registered:      ", string specs;
     -1 "Expectations executed: ", string executed;
+    / Not on the qspec path: its suites build expectations by hand as a matter
+    / of course.
+    inside: distinct @[get; `.tst.app.declaredInsideTests; {()}];
+    qspecPath: any 1b~/:@[get;;0b] each `.tst.app.qspecCompat`.tst.app.qspecDiscovery;
+    if[(0 < count inside) and not qspecPath;
+        -1 "Declared inside a test: ", string[count inside], " test(s) declare a should/holds/perf in their own body.";
+        -1 "  The runner never runs those. If that is not intended, move them into the desc block:";
+        {[row] -1 "    ", .tst.repoRelativePath[row 0], ": ", .tst.toString[row 1], " / ", .tst.toString row 2;} each 5 sublist inside;
+        if[5 < count inside; -1 "    ... and ", string[(count inside) - 5], " more"]];
  };
+
+if[not `declaredInsideTests in key `.tst.app; .tst.app.declaredInsideTests: ()];
 
 .tst.snapshotNamespaceValues:{[ns]
     rootNs: ` sv (`; ns);
