@@ -1632,6 +1632,21 @@
     must[first known; "HEAD is a revision: ", .Q.s1 known];
     must[.tst.testState.mut.failed[unknown; "-since needs a git revision*no-such-revision"]; .Q.s1 unknown];
   };
+
+  skipIf[not .tst.testState.mut.hasGit; "read the same lines when git is set up with an external diff program"]{
+    / A diff driver (difftastic and the like) replaces git's own output. With
+    / one configured, -since saw no hunks and reported nothing to mutate.
+    root: .tst.testState.mut.gitProject[];
+    here: system "cd";
+    system "cd ", root;
+    previous: getenv `GIT_EXTERNAL_DIFF;
+    `GIT_EXTERNAL_DIFF setenv "/bin/true";
+    changed: .tst.testState.mut.try[.tst.mutate.changedLines["HEAD"]; "a.q"];
+    `GIT_EXTERNAL_DIFF setenv previous;
+    system "cd ", here;
+    system "rm -rf ", .utl.shellQuote root;
+    changed mustmatch (1b; (2 2; 4 4));
+  };
  };
 
 / ---------------------------------------------------------------------------

@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `resq mutate -since REV` reads the changed lines when git is configured
+  with an external diff program. It saw no hunks, printed "Nothing to
+  mutate" and exited 0, which also passed `-mutation-min`.
 - A quarantine entry with an empty `expiresAt` no longer quarantines for
   ever. The proposal file suggests entries with empty owner, reason, issue and
   expiry; pasted into the manifest unfinished, they were accepted and never

@@ -523,7 +523,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     quoted: .resq.util.shellQuote path;
     tracked: @[system; "(git ls-files --error-unmatch -- ",quoted," >/dev/null 2>&1 && echo ok; true)"; {[e] ()}];
     if[not any tracked~\:"ok"; :enlist 1 0W];
-    .tst.mutate.hunkRanges @[system; "(git diff -U0 --no-color ",.resq.util.shellQuote[ref]," -- ",quoted," 2>&1; true)"; {[e] ()}]
+    .tst.mutate.hunkRanges @[system; "(git diff -U0 --no-color --no-ext-diff --no-textconv ",.resq.util.shellQuote[ref]," -- ",quoted," 2>&1; true)"; {[e] ()}]
  };
 
 / New-side line ranges of the hunks in `git diff -U0` output. A hunk header
