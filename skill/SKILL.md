@@ -134,7 +134,7 @@ discovery globs via `resq.json` (`"testFilePatterns": ["*_spec.q"]`).
 / Load the code under test relative to THIS file (survives any CWD).
 .t.root: "/" sv -2 _ "/" vs $[":" = first f: string .utl.FILELOADING;
                               1 _ f; f];
-.utl.require .t.root, "/src/calculator.q";
+.utl.require .t.root, "/src/calculator.q";   / qspec's spelling; resQ provides it
 
 .tst.desc["Calculator"]{
 
@@ -171,7 +171,11 @@ For source paths containing spaces, use `.utl.require path` once resQ is
 initialized; existing files load through resQ's path-safe loader and retain
 coverage/dependency tracking. `.resq.util.loadQFile path` is the lower-level native
 load helper (without that instrumentation). Raw native loading splits spaced
-paths. Source loads and load errors restore the caller's directory.
+paths. Source loads and load errors restore the caller's directory. A file
+that `.utl.require` cannot load is a load error for the test file (exit 4).
+If the codebase defines its own `.utl.require` before resQ loads (qutil, or a
+team's `.utl` namespace), that one is used and resQ leaves it alone; see
+`docs/MIGRATION.md`.
 
 ## 5. Block keywords (inside a desc body)
 
@@ -185,6 +189,7 @@ paths. Source loads and load errors restore the caller's directory.
 | `skipIf` | `skipIf[cond; reason; {body}]` | runs body unless `cond` |
 | `retry` | `retry[n; desc; {body}]` | up to n+1 attempts; before/after re-run each attempt; a late pass is noted |
 | `testOnly` | `testOnly[desc; {body}]` | per-suite focus: if any test in a suite is `testOnly`, only those run; siblings reported **skipped** + a `NOTE: testOnly active …` line. Focus is per-suite; other suites run normally |
+| `shouldEach` | `shouldEach[desc; table]{[col1;col2...] body}` | one test case per table row, each with its own stable case ID (§8) |
 | `holds` | `holds[desc; props; {[x] body}]` | property/fuzz test (§8) |
 | `perf` | `perf[desc; props; {body}]` | performance test |
 | `alt` | `alt[{ ...should... }]` | groups expectations sharing the surrounding before/after |
@@ -336,6 +341,30 @@ holds["typed inputs"; `runs`vars!(20; `a`b!(`symbol; 1 2 3))]{[x]
 };
 ```
 
+For bounded or structured inputs use the `.resq.gen.*` generators
+(`scalar`, `list`, `dictionary`, `tuple`, `table`, `boundary`, `nullable`,
+`map`, `filter`, `custom`; see `docs/PBT.md`). A failing input is shrunk to
+a minimal one, so keep the failure message free of the generated value
+(`must[cond; "text"]`): a message that changes with the input stops shrinking.
+
+```q
+holds["a sorted list stays sorted";
+    `runs`vars!(50; enlist[`xs]!enlist .resq.gen.list[.resq.gen.scalar[`long;-1000;1000];0;20])]{[x]
+    (asc asc x`xs) musteq asc x`xs;
+};
+```
+
+Table-driven cases are `shouldEach`: the table's columns bind the leading
+body parameters in order, and each row is a separate test in reports and
+`-desc` listings.
+
+```q
+shouldEach["adds tax to each band";
+    ([] net:100 250f; expected:120 300f)]{[net;expected]
+    (net * 1.2) musteq expected;
+};
+```
+
 ## 9. Mock vs spy — decide by what you assert
 
 | You need to… | Use | Records calls? |
@@ -410,6 +439,10 @@ resq test tests/ -junit -outDir reports/   # JUnit -> reports/test-results.xml
 resq test tests/ -strict               # 0 EXECUTED tests, or any test that asserts nothing => failure
 resq test tests/ -desc                 # LIST tests, do not run them (exit 0)
 resq test tests/ -isolate              # each FILE in its own subprocess; -isolateTimeout N (s, default 300)
+resq test tests/ -isolate -isolateWorkers 4   # keep 4 files running at once
+resq test tests/ -last-failed          # only the tests that failed last run (-failed-first: those first)
+resq test tests/ -benchmark-baseline perf/baseline.json   # compare perf samples with a committed baseline
+resq cover tests/ --source src/ -cov-contexts   # also record which tests hit each function
 resq cover tests/ --source src/        # inventory source; LCOV/JSON/HTML
 resq watch src/ tests/                 # re-run the tests that load a changed file
 resq mutate src/pricing.q              # which bugs would the tests miss? (docs/MUTATION.md)
@@ -442,12 +475,22 @@ Other true facts:
 | **0** | all pass; also skips-with-passes, and `-desc` listing |
 | **1** | any failure or error; **also** `-strict` + 0 executed tests, and `-strict` + all-skipped |
 | **3** | no tests discovered (without `-strict`) |
-| **4** | load/syntax error, or an explicitly-passed path not found |
+| **4** | load/syntax error (also a `.utl.require` of a file that fails to load), or an explicitly-passed path not found |
+| **127** | the launcher found no q (`QBIN`, then `PATH`) |
+| **130 / 143 / 129 / 131** | stopped by INT / TERM / HUP / QUIT; no report or state is written |
+| **137** | the launcher itself was killed; q stopped its run and exited |
 
 There is no `2` or `5` — those were removed. Note: with `-strict`, a
 no-tests run inserts a synthetic error row and exits **1**, not 3.
 
 ## 12. Config (`resq.json`)
+
+resQ reads the nearest `resq.json` from the directory it starts in up to the
+top of the git checkout. When that file is further up, its directory is the
+project directory: its relative paths, `.resq/` and test IDs resolve there, so
+a run from `tests/` behaves like one from the top. A file that cannot be
+applied as written (invalid JSON, an unknown key, a wrong type) stops the run
+with `CONFIG ERROR` and exit 1.
 
 All keys optional; CLI flags win over the file. Common ones:
 `"testFilePatterns": ["*_spec.q"]`, `"strict": true`, `"failFast": true`,

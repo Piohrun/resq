@@ -91,6 +91,11 @@ fail: see "Runs that can now fail" in
   list of 19 numbers whose length was the problem now shrinks to `0 0 0 0 0`.
   Short lists also try each one-item-shorter form, and a bounded number
   shrinks toward zero, as the guide says, where it went to its lower bound.
+- `skill/SKILL.md`, the guide AI assistants follow, covers `shouldEach`, the
+  `.resq.gen` generators and how to keep failures shrinkable, `-isolateWorkers`,
+  `-last-failed`, `-benchmark-baseline` and `-cov-contexts`, the launcher's exit
+  codes, where `resq.json` is read from and that a bad one stops the run, and
+  when `.utl.require` is a codebase's own.
 - `mustmatchignoringorder` compares plain dictionaries (the same keys and
   values in any order). It signalled `'type` on one.
 - resQ says "needs q 4.0 or newer" when it is started on an older q, where
