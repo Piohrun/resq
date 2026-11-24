@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A quarantine entry with an empty `expiresAt` no longer quarantines for
+  ever. The proposal file suggests entries with empty owner, reason, issue and
+  expiry; pasted into the manifest unfinished, they were accepted and never
+  expired. A manifest with such an entry is now invalid, with a console
+  warning, and its quarantines do not apply.
 - `resq -v` prints the version, as the help says. It failed with q's
   `'v invalid`.
 - `mustmatchs`, `mustmatchst` and `mustbench` count as assertions. A test

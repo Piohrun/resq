@@ -414,3 +414,20 @@
     .resq.util.pathExists[.tst.identityArchivePath[wd,"/flake.json";.tst.IDENTITY_ALGORITHM,".q3.9-2001.01.01"]] musteq 1b;
   };
  };
+
+.tst.desc["a quarantine entry has to be filled in"]{
+  should["reject an entry whose owner, reason, issue or expiry is empty"]{
+    full:`testId`owner`reason`evidence`issue`createdAt`expiresAt!(
+      "test_abc";"team";"flaky vendor sandbox";(enlist `observations)!enlist 3;"Q-1";
+      "2026-11-24T00:00:00.000000000Z";"2099-01-01");
+    .tst.validQuarantineEntry[full] musteq 1b;
+    blanked:{[entry;field] entry[field]:""; .tst.validQuarantineEntry entry}[full] each `owner`reason`issue`createdAt`expiresAt`testId;
+    blanked musteq 6#0b;
+  };
+  should["not treat a missing expiry date as never expiring"]{
+    .tst.quarantineExpired[enlist[`expiresAt]!enlist ""] musteq 1b;
+    .tst.quarantineExpired[enlist[`expiresAt]!enlist "2099-01-01"] musteq 0b;
+    .tst.quarantineExpired[enlist[`expiresAt]!enlist "2001-01-01"] musteq 1b;
+    .tst.quarantineExpired[enlist[`expiresAt]!enlist "not a date"] musteq 1b;
+  };
+ };

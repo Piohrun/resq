@@ -155,7 +155,12 @@
     required:`testId`owner`reason`evidence`issue`createdAt`expiresAt;
     if[not all required in key entry;:0b];
     if[not all .tst.validJsonText each entry required except `evidence;:0b];
-    (0<count entry`testId) and 99h=type entry`evidence
+    / "Requires" means filled in. The proposal file suggests entries with
+    / empty owner, reason, issue and expiry for a person to complete; pasted
+    / into the manifest as they are, they were accepted, and the empty expiry
+    / never expired.
+    if[any 0=count each entry required except `evidence;:0b];
+    99h=type entry`evidence
  };
 
 .tst.loadFlakeState:{[]
@@ -216,7 +221,10 @@
                 `ok;"";$[`updatedAt in key mdoc;.tst.toString mdoc`updatedAt;""];mentries)];
         if[not manifestOk;
             manifest:.tst.emptyQuarantineManifest `invalid;
-            manifest[`diagnostic]:"manifest kind, row types, or test IDs are invalid"]];
+            manifest[`diagnostic]:"manifest kind, row types, or test IDs are invalid, or an entry has an empty owner, reason, issue, createdAt or expiresAt";
+            -1 "WARNING: quarantine manifest ",.tst.repoRelativePath[mpath],
+                " is not valid (",manifest[`diagnostic],
+                "). It is ignored: its quarantines do not apply."]];
     .tst.app.flakeHistory:history;
     .tst.app.quarantineManifest:manifest;
     .tst.app.flakeStateApplied:0b;
@@ -277,7 +285,8 @@
     if[not 99h=type entry;:0b];
     if[not `expiresAt in key entry;:0b];
     expires:.tst.toString entry`expiresAt;
-    if[0=count expires;:0b];
+    / No date is not "never": an entry without an expiry is not in force.
+    if[0=count expires;:1b];
     expiryDate:@[{"D"$x};expires;{0Nd}];
     if[null expiryDate;:1b];
     expiryDate<.z.D
