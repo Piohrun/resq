@@ -258,7 +258,7 @@ def check_documentation_scope(documents: dict[str, str] | None = None) -> None:
     require(
         "docs/PARALLEL.md",
         (
-            "This is a file-level group barrier",
+            "The unit of concurrency is the file",
             "does not run tests inside a file concurrently",
             "one q runtime/licence allocation",
         ),

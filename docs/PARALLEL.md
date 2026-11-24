@@ -22,26 +22,30 @@ run concurrently.
 resq test tests/ -isolate -isolateWorkers 8
 ```
 
-Files run in fixed-size groups. Children in a group start together; their results
-are interpreted — and printed — strictly in **file order** once the group
-finishes. So parallel and sequential runs produce the same verdicts, the same
-ordering, and the same exit code; only wall-clock changes. Durations, generated
-report IDs, and timestamps naturally vary between runs, so complete artifact
-bytes are not expected to be identical.
+Files run through a pool of N workers: the next file starts the moment a
+worker is free, so a slow file holds one worker and nothing else. Results are
+interpreted — and printed — strictly in **file order**, each as soon as that
+file and every file before it has finished. So parallel and sequential runs
+produce the same verdicts, the same ordering, and the same exit code; only
+wall-clock changes. Durations, generated report IDs, and timestamps naturally
+vary between runs, so complete artifact bytes are not expected to be identical.
 
-This is a file-level group barrier: resQ does not run tests inside a file
-concurrently, and it does not begin interpreting a group until every child in
-that group has exited. One slow file therefore holds the whole group at the
-barrier. Each active worker consumes one q process, its workspace and memory,
-and one q runtime/licence allocation; choose the worker count from the smaller
-of the machine-capacity and licence-capacity limits.
+The unit of concurrency is the file: resQ does not run tests inside a file
+concurrently. Each active worker consumes one q process, its workspace and
+memory, and one q runtime/licence allocation; choose the worker count from the
+smaller of the machine-capacity and licence-capacity limits.
 
 Speedup is bounded by the slowest single file, since no file is split. The
 default is 1, so the sequential behaviour everyone already relies on is unchanged
 unless you ask for more. Memory scales with worker count: N concurrent q
 processes, each holding its own workspace and consuming a q runtime/licence
-allocation. A group is reported after all of its children finish, so one slow
-file can delay display of earlier completed files in that group.
+allocation. Because output is in file order, a slow file delays the display,
+not the running, of the files after it.
+
+The pool needs a `sleep` that accepts fractions of a second (GNU, BSD and
+macOS do; some minimal busybox builds do not). Without one, files run in
+groups of N: the next group starts when the slowest file of the current one
+has finished. `resq mutate` runs its mutants in such groups everywhere.
 
 Isolation needs a `timeout` command on `PATH` that takes `-k` (kill after a
 grace period): GNU coreutils of any age, or a recent busybox. resQ checks that

@@ -803,6 +803,65 @@
   };
  };
 
+/ -isolateWorkers ran fixed groups of N and waited for the slowest file of
+/ each. The pool starts the next child the moment one ends.
+.tst.desc["Isolate: the worker pool #slow"]{
+  should["start the next child as soon as one ends, not when the slowest has"]{
+    if[not .tst.isolate.poolAvailable[]; :must[1b; "no fractional sleep on this machine"]];
+    base: .resq.util.ensureDir .tst.isotest.workDir[];
+    .tst.testState.pool.ended: `long$();
+    .tst.testState.pool.next: 0;
+    .tst.testState.pool.base: base;
+    / the first child is slow; four quick ones follow, on two workers
+    .tst.testState.pool.secs: ("3"; "0.3"; "0.3"; "0.3"; "0.3");
+    source: {[]
+        k: .tst.testState.pool.next;
+        if[k >= count .tst.testState.pool.secs; :()];
+        .tst.testState.pool.next: k + 1;
+        wd: .resq.util.ensureDir .tst.testState.pool.base, "/job", string k;
+        (k; wd; "sleep ", (.tst.testState.pool.secs k), " < /dev/null >> ", .utl.shellQuote[wd, "/out.txt"], " 2>&1")
+    };
+    ended: {[k;wd] .tst.testState.pool.ended,: k;};
+    .tst.isolate.pool[2; source; ended] musteq 1b;
+    / in groups of two, the third could not have started before the first ended
+    .tst.testState.pool.ended musteq 1 2 3 4 0;
+    / each child left its exit code and no PID behind
+    ({[d;k] first read0 hsym `$d, "/job", string[k], "/rc.txt"}[base] each til 5) musteq 5 # enlist enlist "0";
+    (any {[d;k] not () ~ key hsym `$d, "/job", string[k], "/pid.txt"}[base] each til 5) musteq 0b;
+  };
+  should["take a child that left nothing behind as ended, and one that is running as not"]{
+    wd: .resq.util.ensureDir .tst.isotest.workDir[];
+    long: .z.p - 0D00:01;
+    / just started: wait
+    .tst.isolate.childEnded[wd; .z.p] musteq 0b;
+    / its wrapper never got going
+    .tst.isolate.childEnded[wd; long] musteq 1b;
+    / a PID that is running
+    (hsym `$wd, "/pid.txt") 0: enlist string .z.i;
+    .tst.isolate.childEnded[wd; long] musteq 0b;
+    / the exit code is there
+    (hsym `$wd, "/rc.txt") 0: enlist "000";
+    .tst.isolate.childEnded[wd; .z.p] musteq 1b;
+  };
+  should["collect files in file order whatever order they end in"]{
+    if[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; :must[1b; "q or timeout unavailable"]];
+    wd: .tst.isotest.workDir[];
+    slow: enlist ".tst.desc[\"pool slow\"]{ should[\"waits\"]{ system \"sleep 2\"; 1 musteq 1; }; };";
+    fa: .tst.isotest.writeFixture[wd; "test_a.q"; slow];
+    fb: .tst.isotest.writeFixture[wd; "test_b.q"; .tst.isotest.fxPass2];
+    fc: .tst.isotest.writeFixture[wd; "test_c.q"; .tst.isotest.fxFail];
+    r: .tst.isotest.run[.utl.shellQuote[wd], " -isolateWorkers 2"];
+    musteq[r`code; 1];
+    progress: r[`out] where r[`out] like "[[]?/3] *";
+    (count progress) musteq 3;
+    has: {[line;part] 0 < count ss[line; part]};
+    (progress like\: "[[]1/3] *") musteq 100b;
+    has[progress 0; "test_a.q ... ok"] musteq 1b;
+    has[progress 1; "test_b.q ... ok"] musteq 1b;
+    has[progress 2; "test_c.q ... FAILED"] musteq 1b;
+  };
+ };
+
 / A child's output went to a scratch file with no limit: a test that printed
 / in a loop wrote gigabytes in seconds. The file is now cut down while the
 / child runs; its two ends, which are all that is read back, are kept.

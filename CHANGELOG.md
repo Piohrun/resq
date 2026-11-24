@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `-isolateWorkers N` keeps N files running. It ran fixed groups of N and
+  waited for the slowest file of each before starting the next: sixteen files,
+  four of them slow, took 13.2 s on four workers and now take 5.2 s. Output is
+  still in file order and identical to before. (`resq mutate` still runs its
+  mutants in groups.)
 - The output of an isolated test file no longer fills the disk. It went to a
   scratch file with no limit: a test that printed in a loop wrote 6.3 GB in
   four seconds, with the default 300 seconds to go and, by default, on `/tmp`.

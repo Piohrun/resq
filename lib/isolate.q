@@ -948,34 +948,190 @@
         {[wd] if[count wd; @[.tst.isolate.cleanupScratch; wd; {[err] 0b}]];} each wds;
         :()];
 
-    raze {[timeoutSecs; n; wd; file; k]
-        if[0 = count wd;
-            :enlist .tst.isolate.errorRow[`ISOLATED_SETUP_ERROR; file;
-                "unable to create private isolation scratch"]];
-        rows: .[
-            .tst.isolate.interpretFile;
-            (wd; file; timeoutSecs; k; n; .tst.isolate.readExitCode wd);
-            {[file; err]
-                enlist .tst.isolate.errorRow[`ISOLATED_HELPER_ERROR; file;
-                    "isolation helper failed: ", err]
-            }[file;]];
-        cleaned: @[.tst.isolate.cleanupScratch; wd;
-            {[file; err]
-                .tst.isolate.print "ERROR: isolation scratch cleanup failed for ", file, ": ", err;
-                0b
-            }[file;]];
-        if[not cleaned;
-            rows,: enlist .tst.isolate.errorRow[
-                `ISOLATED_CLEANUP_ERROR; file; "failed to remove private isolation scratch"]];
-        / A q licence-startup blip is transient and retryable. Rather than
-        / complicate the batch, hand that one file back to the sequential path,
-        / which already owns the retry loop. This is rare enough that losing its
-        / parallelism costs nothing.
-        $[.tst.isolate.retryableStartupFailure rows;
-            [ .tst.isolate.print "  transient q license startup failure; re-running file serially";
-              .tst.isolate.runFile[file; timeoutSecs; k; n] ];
-            rows]
-    }[timeoutSecs; n]'[wds; files; ks]
+    raze .tst.isolate.collectFile[timeoutSecs; n]'[wds; files; ks]
+ };
+
+/ The rows of one child that has ended, read from its scratch directory,
+/ which is then removed. Prints the file's progress line.
+.tst.isolate.collectFile:{[timeoutSecs; n; wd; file; k]
+    if[0 = count wd;
+        :enlist .tst.isolate.errorRow[`ISOLATED_SETUP_ERROR; file;
+            "unable to create private isolation scratch"]];
+    rows: .[
+        .tst.isolate.interpretFile;
+        (wd; file; timeoutSecs; k; n; .tst.isolate.readExitCode wd);
+        {[file; err]
+            enlist .tst.isolate.errorRow[`ISOLATED_HELPER_ERROR; file;
+                "isolation helper failed: ", err]
+        }[file;]];
+    cleaned: @[.tst.isolate.cleanupScratch; wd;
+        {[file; err]
+            .tst.isolate.print "ERROR: isolation scratch cleanup failed for ", file, ": ", err;
+            0b
+        }[file;]];
+    if[not cleaned;
+        rows,: enlist .tst.isolate.errorRow[
+            `ISOLATED_CLEANUP_ERROR; file; "failed to remove private isolation scratch"]];
+    / A q licence-startup blip is transient and retryable. Rather than
+    / complicate the batch, hand that one file back to the sequential path,
+    / which already owns the retry loop. This is rare enough that losing its
+    / parallelism costs nothing.
+    $[.tst.isolate.retryableStartupFailure rows;
+        [ .tst.isolate.print "  transient q license startup failure; re-running file serially";
+          .tst.isolate.runFile[file; timeoutSecs; k; n] ];
+        rows]
+ };
+
+/ ----------------------------------------------------------------------------
+/ Worker pool
+/ ----------------------------------------------------------------------------
+/ -isolateWorkers ran fixed groups: N files were started together and the next
+/ N had to wait for the slowest of them. Sixteen files, four of them slow, on
+/ four workers took 13.5 s where 3.5 s would do. The pool starts the next
+/ child the moment one ends.
+/ .
+/ q cannot wait for "any child" itself: `system` blocks until its command
+/ ends. So each child is started in the background by a wrapper that leaves
+/ rc.txt as the last thing it does, and q looks for those files, sleeping a
+/ few hundredths of a second in between. That needs a `sleep` that takes
+/ fractions; where it does not, the groups above are used.
+
+/ Start one child in the background and return at once. The wrapper keeps the
+/ child's PID in pid.txt while it runs, so that an interrupted run (this
+/ process, or the launcher when this process is gone) can stop it: the
+/ wrapper outlives the shell that started it and is no longer below q.
+.tst.isolate.startChild:{[wd;command]
+    sq: .resq.util.shellQuote;
+    / `true;` first: q reads a command that starts with "(" as its own.
+    wrapper: "true; ( wdog=''; ", command, " & p0=$!; echo \"$p0\" > ", sq[wd, "/pid.txt"], "; ",
+        "trap 'kill -TERM -- \"-$p0\" 2>/dev/null; sleep 1; kill -KILL -- \"-$p0\" 2>/dev/null; exit 143' INT TERM HUP; ",
+        .tst.isolate.outputWatch[enlist wd], " ",
+        "wait \"$p0\"; echo $? > ", sq[wd, "/rc.tmp"], "; ",
+        "date +%s > ", sq[wd, "/end.txt"], " 2>/dev/null; ",
+        .tst.isolate.reapLeftovers["p0";wd], " ", .tst.isolate.outputWatchStop,
+        " rm -f ", sq[wd, "/pid.txt"], "; mv ", sq[wd, "/rc.tmp"], " ", sq[wd, "/rc.txt"],
+        "; ) < /dev/null > /dev/null 2>&1 &";
+    @[system; wrapper; {[e] ()}];
+ };
+
+/ A child has ended when its wrapper has left rc.txt. A wrapper that never
+/ got going leaves neither that nor pid.txt, and one that was killed leaves
+/ pid.txt behind with nothing running under it: both count as ended, with no
+/ exit code, rather than being waited for until the end of time.
+.tst.isolate.childEnded:{[wd;started]
+    has: {[wd;name] not () ~ @[key; hsym `$wd, "/", name; {[e] ()}]}[wd];
+    if[has "rc.txt"; :1b];
+    waited: .z.p - started;
+    if[waited < 0D00:00:05; :0b];
+    if[not has "pid.txt"; :not has "rc.tmp"];
+    pid: @[read0; hsym `$wd, "/pid.txt"; {[e] ()}];
+    if[(0 = count pid) or not .tst.cli.isIntegerText first pid; :0b];
+    / kill -0 asks whether the process is there, and changes nothing
+    alive: "0" ~ first last @[system; "sh -c 'kill -0 ", (first pid), " 2>/dev/null; echo $?'"; {[e] enlist "0"}];
+    (not alive) and not has "rc.txt"
+ };
+
+/ Stop children that are still running: their process groups, by the PIDs
+/ the wrappers wrote down.
+.tst.isolate.stopChildren:{[wds]
+    pids: raze {[wd] @[read0; hsym `$wd, "/pid.txt"; {[e] ()}]} each wds;
+    pids: pids where .tst.cli.isIntegerText each pids;
+    if[0 = count pids; :()];
+    each1: {[sig;pid] "kill -", sig, " -- -", pid, " 2>/dev/null; kill -", sig, " -- ", pid, " 2>/dev/null;"};
+    cmd: (" " sv each1["TERM"] each pids), " sleep 1; ", (" " sv each1["KILL"] each pids), " true";
+    @[system; cmd; {[e] ()}];
+ };
+
+.tst.isolate.poolPause: 0.01 0.02 0.04 0.08;
+.tst.isolate.poolAvailable:{[] not "1" ~ .tst.isolate.outputWatchInterval[]};
+
+/ Run children with at most `workers` at a time. `source[]` hands out the
+/ next job to start as (id; scratch directory; command), or () when there is
+/ none to start now; it is asked again whenever a child has ended. `ended`
+/ is called with (id; scratch directory) for each child that has ended, in
+/ the order they end. Returns 0b when the run was interrupted, with the
+/ children stopped.
+.tst.isolate.pool:{[workers;source;ended]
+    ids: `long$();
+    wds: ();
+    started: `timestamp$();
+    idle: 0;
+    checked: .z.p;
+    while[1b;
+        if[.resq.util.runInterrupted[]; .tst.isolate.stopChildren wds; :0b];
+        filling: 1b;
+        while[filling and workers > count ids;
+            job: source[];
+            $[0 = count job;
+                filling: 0b;
+                [ .tst.isolate.startChild[job 1; job 2];
+                  ids,: job 0;
+                  wds,: enlist job 1;
+                  started,: .z.p ]]];
+        if[0 = count ids; :1b];
+        / The exit code file is looked for every time round. Whether a child
+        / that left none is still there is asked once a second at most.
+        thorough: 0D00:00:01 < .z.p - checked;
+        if[thorough; checked: .z.p];
+        done: where $[thorough;
+            .tst.isolate.childEnded'[wds; started];
+            {[wd] not () ~ @[key; hsym `$wd, "/rc.txt"; {[e] ()}]} each wds];
+        $[count done;
+            [ doneIds: ids done;
+              doneWds: wds done;
+              keep: (til count ids) except done;
+              ids: ids keep;
+              wds: wds keep;
+              started: started keep;
+              ended'[doneIds; doneWds];
+              idle: 0 ];
+            [ @[system; "sleep ", string .tst.isolate.poolPause idle; {[e] ::}];
+              idle: (idle + 1) & -1 + count .tst.isolate.poolPause ]];
+    ];
+ };
+
+/ Every file through the pool. Children end in any order; their rows are
+/ collected, and their progress lines printed, strictly in file order, each
+/ as soon as it and every file before it has ended. Two runs of one suite
+/ print the same thing.
+.tst.isolate.runPooled:{[files; timeoutSecs; workers]
+    n: count files;
+    .tst.isolate.pooled: `files`timeout`next`flushed`wds`done!(
+        files; timeoutSecs; 0; 0; n # enlist ""; n # 0b);
+    source: {[]
+        st: .tst.isolate.pooled;
+        n: count st`files;
+        job: ();
+        while[(0 = count job) and st[`next] < n;
+            k: st`next;
+            .tst.isolate.pooled[`next]: st[`next]: k + 1;
+            wd: @[{[i] .tst.isolate.createScratch[]}; 0; {[err] ""}];
+            ready: 0 < count wd;
+            if[ready;
+                .tst.isolate.resetScratch wd;
+                ready: 1b ~ @[.tst.isolate.preparePrivateRerunState; wd; {[err] 0b}]];
+            .tst.isolate.pooled[`wds; k]: wd;
+            $[ready;
+                job: (k; wd; .tst.isolate.processCommand[wd; st[`files] k; st`timeout]);
+                / Nothing to start: collectFile reports what went wrong.
+                [ .tst.isolate.pooled[`done; k]: 1b; .tst.isolate.flushPooled[] ]]];
+        job
+    };
+    ended: {[k;wd] .tst.isolate.pooled[`done; k]: 1b; .tst.isolate.flushPooled[];};
+    finished: .tst.isolate.pool[workers; source; ended];
+    if[not finished;
+        {[wd] if[count wd; @[.tst.isolate.cleanupScratch; wd; {[err] 0b}]];} each
+            .tst.isolate.pooled[`wds] where not (til n) < .tst.isolate.pooled`flushed];
+    finished
+ };
+
+.tst.isolate.flushPooled:{[]
+    n: count .tst.isolate.pooled`files;
+    while[(.tst.isolate.pooled[`flushed] < n) and .tst.isolate.pooled[`done] .tst.isolate.pooled`flushed;
+        k: .tst.isolate.pooled`flushed;
+        .tst.isolate.pooled[`flushed]: k + 1;
+        .tst.isolate.upsertRows .tst.isolate.collectFile[
+            .tst.isolate.pooled`timeout; n; .tst.isolate.pooled[`wds] k; .tst.isolate.pooled[`files] k; k + 1]];
  };
 
 / Effective worker count: >= 1, and never more than the number of files.
@@ -1028,14 +1184,15 @@
         .tst.isolate.print "Running ", string[n], " test file(s) in isolated subprocesses (timeout ",
             string[timeoutSecs], "s each",
             $[workers > 1; ", ", string[workers], " at a time"; ""], ")";
-        / Fixed-size groups are also used for a one-worker run, so sequential
-        / and concurrent isolation share the same interrupt/reaping boundary.
-        fileGroups: workers cut files;
-        kGroups: workers cut 1 + til n;
-        {[timeoutSecs; n; fg; kg]
-            if[.resq.util.runInterrupted[]; :()];
-            .tst.isolate.upsertRows .tst.isolate.runGroup[fg; kg; timeoutSecs; n]
-        }[timeoutSecs; n]'[fileGroups; kGroups];
+        $[(workers > 1) and .tst.isolate.poolAvailable[];
+            .tst.isolate.runPooled[files; timeoutSecs; workers];
+            / One at a time, or no pool on this machine: groups of `workers`.
+            [ fileGroups: workers cut files;
+              kGroups: workers cut 1 + til n;
+              {[timeoutSecs; n; fg; kg]
+                  if[.resq.util.runInterrupted[]; :()];
+                  .tst.isolate.upsertRows .tst.isolate.runGroup[fg; kg; timeoutSecs; n]
+              }[timeoutSecs; n]'[fileGroups; kGroups] ]];
     ];
 
     / An interrupted run writes no report and no state: see .tst.noteInterrupted.

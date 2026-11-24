@@ -107,6 +107,18 @@ signal_run() {
   for pid in $(processes_below "$child_pid") "$child_pid"; do
     kill -s "$signal_name" -- "$pid" 2>/dev/null || true
   done
+  # A pooled isolated child is started by a wrapper that outlives the shell
+  # q started it from, so it is not below q any more. Each wrapper keeps the
+  # child's PID, which leads its own process group, while the child runs.
+  local pid_file
+  for pid_file in "$isolate_root"/*/pid.txt; do
+    [ -f "$pid_file" ] || continue
+    pid=""
+    read -r pid < "$pid_file" 2>/dev/null || true
+    case "$pid" in ''|*[!0-9]*) continue ;; esac
+    kill -s "$signal_name" -- "-$pid" 2>/dev/null || true
+    kill -s "$signal_name" -- "$pid" 2>/dev/null || true
+  done
 }
 
 terminate_for_signal() {
