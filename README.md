@@ -296,8 +296,9 @@ force exit-on-completion even if `resq.json` has `"exit": false`.
 resq test tests/ -strict -isolate -isolateTimeout 120 \
   -junit -json -outDir artifacts/tests
 
-# Hard stop on first failure (requires -exit for the process to actually stop)
-q resq.q test tests/ -ff -exit
+# Stop at the first failure: no further test starts, cleanup runs, and the
+# reports cover what ran
+resq test tests/ -ff
 ```
 
 Run coverage separately because coverage instrumentation and process isolation

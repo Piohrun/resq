@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `-ff -exit` stops at the first failure as `-ff` does: cleanup runs and the
+  reports are written. It ended q on the spot, with no report, and the
+  launcher reported a premature exit. The README, troubleshooting guide and
+  reference described `-ff` the wrong way round (that without `-exit` it
+  runs the remaining tests).
 - resQ no longer draws from q's random stream: a temporary file's name and
   the rows a huge-table diff samples took a random number each, which moved
   the sequence a test that had seeded q (`\S 42`) went on to see.

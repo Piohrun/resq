@@ -1916,7 +1916,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `--source PATHS` / `--coverage-source PATHS` | Comma-separated source files/directories forming the coverage inventory; unloaded functions are counted at zero |
 | `-cov-include PATS` | Comma-separated source-path patterns to include in coverage |
 | `-cov-exclude PATS` | Comma-separated source-path patterns to exclude from coverage |
-| `-ff` / `--fail-fast` | Stop scheduling remaining expectations after the first failure while still running mandatory cleanup; `-exit` additionally terminates the process at completion |
+| `-ff` / `--fail-fast` | Stop scheduling remaining expectations after the first failure; mandatory cleanup still runs and the reports cover what ran |
 | `-fh` / `--fail-hard` | Halt remaining expectations and suites on first failure; mandatory cleanup still runs |
 | `-random-order` / `--randomOrder` | Deterministically permute files, suites, and expectations with resQ's private PRNG |
 | `-seed N` | Non-negative replay seed for `-random-order` (default `0`); recorded in report metadata |
@@ -2062,8 +2062,8 @@ q resq.q test tests/ -tag fast
 # List all suites and tests without running
 q resq.q test tests/ -desc
 
-# Hard-stop on first failure
-q resq.q test tests/ -ff -exit
+# Stop at the first failure (the reports cover what ran)
+q resq.q test tests/ -ff
 ```
 
 Tags are `#word` tokens in the suite title string:

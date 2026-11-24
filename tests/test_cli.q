@@ -741,3 +741,24 @@
   };
  };
 
+/ -ff stops at the first failure and reports what ran. With -exit it ended
+/ q on the spot: no report, no cleanup, and the launcher's "q exited before
+/ resQ completed".
+.tst.desc["fail-fast with -exit #slow"]{
+  should["stop at the first failure, write the report and exit 1"]{
+    if[not .tst.testState.cliEdge.canRun; :must[1b; "q unavailable"]];
+    dir: .resq.util.tempRoot[], "/resq_ff_exit_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir dir;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist dir];
+    (hsym `$dir, "/test_ff.q") 0: (
+        ".tst.desc[\"a\"]{ should[\"first fails\"]{ 1 musteq 2; }; should[\"second\"]{ -1 \"SECOND RAN\"; 1 musteq 1; }; };";
+        ".tst.desc[\"b\"]{ should[\"third\"]{ -1 \"THIRD RAN\"; 1 musteq 1; }; };");
+    out: .tst.testState.cliEdge.run[dir; "test test_ff.q -ff -exit -json -outDir rep -state-file out/s.json -flake-history out/f.json -flake-proposal-file out/p.json"];
+    (last out) musteq "exit=1";
+    (any out like "*RAN*") musteq 0b;
+    (any out like "resQ ERROR*") musteq 0b;
+    doc: .j.k "\n" sv read0 hsym `$dir, "/rep/test-results.json";
+    (count doc`tests) musteq 1;
+  };
+ };
+

@@ -705,11 +705,12 @@
             -1 "Suite: ", .tst.toString s[`title];
             -1 "Desc:  ", .tst.toString e[`desc];
             -1 "Error: ", .tst.toString messageText;
-            / Both modes stop scheduling further expectations. failHard retains
-            / its stronger staging/exit behavior elsewhere; failFast is the
-            / graceful variant and must still halt when -exit is absent.
+            / Both modes stop scheduling further expectations; cleanup runs,
+            / and the run reports what it did. failHard also stages the
+            / failing test again for a person to debug (stageBadExpec). With
+            / -exit, fail-fast used to end q here: no report, no cleanup, and
+            / the launcher took it for an exit behind resQ's back.
             .tst.halt:1b;
-            if[(1b ~ @[get; `.tst.app.exitImmediately; 0b]) and not 1b ~ .tst.app.failHard; .tst.die 1];
         ];
     };
     (s;e);

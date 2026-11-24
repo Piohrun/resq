@@ -763,8 +763,9 @@ reported as a diagnostic until completeness-aware line thresholds are available.
 
 **Solutions:**
 1. Increase CI timeout
-2. Use `-ff -exit` (fail-fast) to stop on first failure and exit immediately.
-   Note: `-ff` alone prints `!!! HALTING FAILURE !!!` but still runs remaining tests unless `-exit` is also present — the hard stop requires the exit call.
+2. Use `-ff` (fail-fast) to stop at the first failure. It prints
+   `!!! HALTING FAILURE !!!`, starts no further test, runs cleanup, and writes
+   the reports for what ran; the run exits 1.
 3. Use `-isolate -isolateWorkers N` for bounded local process concurrency, or
    run subsets in parallel CI jobs. Each worker consumes memory and a q
    runtime/licence allocation.
