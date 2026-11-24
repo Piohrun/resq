@@ -183,3 +183,36 @@
     .resq.util.pathExists[wd, "/coverage_report.html"] musteq 0b;
   };
  };
+
+/ A linked directory that points at an ancestor made the walk recurse until
+/ the OS refused the path: `resq watch` and `resq mutate <dir>` died with
+/ "Too many levels of symbolic links".
+.tst.desc["findSources and symbolic links"]{
+  before{
+    dir: .resq.util.tempRoot[], "/resq_srclinks_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir dir, "/src/sub";
+    (hsym `$dir, "/src/a.q") 0: enlist ".lnk.a:{x}";
+    (hsym `$dir, "/src/sub/b.q") 0: enlist ".lnk.b:{x}";
+    system "ln -s .. ", .resq.util.shellQuote dir, "/src/loop";
+    system "ln -s sub ", .resq.util.shellQuote dir, "/src/alias";
+    `srcDir mock dir, "/src";
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist dir];
+  };
+  should["list each file once and not follow a linked directory"]{
+    found: .tst.static.findSources srcDir;
+    (asc found) musteq asc `$(srcDir, "/a.q"; srcDir, "/sub/b.q");
+  };
+  should["give the same answer for a root written with a trailing slash"]{
+    found: .tst.static.findSources srcDir, "/";
+    (asc found) musteq asc `$(srcDir, "/a.q"; srcDir, "/sub/b.q");
+  };
+  should["stay safe when the one search for links cannot run"]{
+    `.tst.static.symlinksUnder mock {[p] (0b; `symbol$())};
+    found: .tst.static.findSources srcDir;
+    (asc found) musteq asc `$(srcDir, "/a.q"; srcDir, "/sub/b.q");
+  };
+  should["treat doubled slashes as one when matching a link"]{
+    .tst.static.squeezeSlashes["src//loop"] musteq "src/loop";
+    .tst.static.squeezeSlashes["/abs/path"] musteq "/abs/path";
+  };
+ };

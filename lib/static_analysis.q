@@ -153,20 +153,42 @@
   ];
 
   if[(count p) and not "/"=last p; p,: "/"];
-  h: hsym `$p;
-  if[() ~ key h; :`symbol$()];
-  pts: key h;
+  found: .tst.static.symlinksUnder p;
+  .tst.static.findSourcesUnder[first found; last found; 0; p]
+ }
+
+/ "a//b" and "a/b" are one path. BSD find prints the first for a root given
+/ with a trailing slash.
+.tst.static.squeezeSlashes:{[s] s where not (s = "/") and "/" = prev s}
+
+/ Symbolic links under a root, found with one subprocess: (found; paths).
+/ `found` is 0b when the search could not run.
+.tst.static.symlinksUnder:{[p]
+  @[{[p] (1b; `$.tst.static.squeezeSlashes each system "find ", .resq.util.shellQuote[p], " -type l 2>/dev/null")};
+    p; {[e] (0b; `symbol$())}]
+ }
+
+/ A linked directory is not descended into, as in test discovery. One that
+/ points at an ancestor (`ln -s .. src/loop`) otherwise recurses until the OS
+/ gives up, which ended `resq watch` and `resq mutate <dir>` with "Too many
+/ levels of symbolic links". When the one search for links could not run, each
+/ directory is checked on its own; the depth limit is the backstop for both.
+.tst.static.findSourcesUnder:{[known;links;depth;p]
+  if[depth > 32; :`symbol$()];
+  pts: @[key; hsym `$p; {[e] ()}];
+  if[() ~ pts; :`symbol$()];
   pts: pts where not (string pts) like ".*";
   if[not count pts; :`symbol$()];
-  raze { [p;f] 
+  raze {[known;links;depth;p;f]
     full: p, string f;
-    h: hsym `$full;
-    if[() ~ key h; :`symbol$()];
-    itemType: type key h;
-    $[itemType=11h; .tst.static.findSources[full]; 
-      (itemType<0) and full like "*.q"; enlist `$full; 
-      `symbol$()]
-  }[p] each pts
+    listing: @[key; hsym `$full; {[e] ()}];
+    if[() ~ listing; :`symbol$()];
+    itemType: type listing;
+    if[(itemType < 0) and full like "*.q"; :enlist `$full];
+    if[not itemType = 11h; :`symbol$()];
+    linked: $[known; (`$.tst.static.squeezeSlashes full) in links; .tst.isSymlink full];
+    $[linked; `symbol$(); .tst.static.findSourcesUnder[known; links; depth + 1; full, "/"]]
+  }[known;links;depth;p] each pts
  }
 
 .tst.static.findDeps:{[body;selfName]
