@@ -239,8 +239,15 @@
     pState[`inStr]: inStr;
     pState[`esc]: esc;
     maskedL: res;
-    if[(braceDepth=0) and (not pState`inStr) and cleanL like "\\d *";
-      newNs: trim 3 _ cleanL;
+    / A namespace is entered with `\d .ns` or with `system "d .ns"`. Only
+    / the first form was followed, so a source file written with the second
+    / (resQ's own example project is) had every function recorded without its
+    / namespace, matched no test, and was reported as 0% referenced.
+    systemNs: $[cleanL like "system \"d *";
+        [body: (count "system \"d ") _ cleanL; trim (body ? "\"") # body];
+        ""];
+    if[(braceDepth=0) and (not pState`inStr) and (cleanL like "\\d *") or 0 < count systemNs;
+      newNs: $[count systemNs; systemNs; trim 3 _ cleanL];
       / `\d .` resets to the root namespace. newNs is a 1-char string ".",
       / so compare against `enlist "."` -- comparing to the char atom "."
       / never matches and leaves a stale "." prefix on later globals.

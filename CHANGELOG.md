@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `resq discover` follows `system "d .ns"`. It only followed `\d .ns`, so
+  a source file that enters its namespace the other way had its functions
+  recorded without the namespace and matched no test: resQ's own example
+  project, and the command in the README, reported 0% for every directory.
 - `-isolate` and `resq mutate` no longer need `timeout --verbose`. They
   refused to run where `timeout` lacks that option (GNU coreutils before 8.29,
   as on RHEL 7, and busybox), with a message that asked for "-k support". The

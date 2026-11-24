@@ -144,3 +144,16 @@
     (out where 0 < count each out) musteq ("a:1;"; "c:3;");
   };
  };
+
+.tst.desc["discover follows both ways of entering a namespace"]{
+  should["qualify functions defined after system \"d .ns\", as after \\d .ns"]{
+    dir: .resq.util.tempRoot[], "/resq_discover_ns_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir dir;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist dir];
+    (hsym `$dir, "/a.q") 0: ("system \"d .orders\";"; "create:{[x] x+1};"; "system \"d .\";"; "top:{[x] x};");
+    (hsym `$dir, "/b.q") 0: ("\\d .users"; "add:{[x] x+1};"; "\\d ."; "plain:{[x] x};");
+    names: {[f] exec name from .tst.exploreFile hsym `$f};
+    (asc names dir, "/a.q") musteq asc `.orders.create`top;
+    (asc names dir, "/b.q") musteq asc `.users.add`plain;
+  };
+ };
