@@ -130,7 +130,10 @@
     if[not inventory`complete;
         -1 "  incomplete because: ",", " sv inventory`completenessReasons];
     if[1b~inventory[`gate;`enabled];
-        -1 "  gate: ",$[inventory[`gate;`passed];"PASS";"FAIL (",", " sv inventory[`gate;`reasons],")"]];
+        / Parenthesised: q reads right to left, so without them ")" joined the
+        / list of reasons before sv saw it and the reporter died with 'type.
+        -1 "  gate: ",$[inventory[`gate;`passed];"PASS";
+            "FAIL (",(", " sv inventory[`gate;`reasons]),")"]];
  };
 
 .resq.reportBenchmarkAnalysis:{[analysis]

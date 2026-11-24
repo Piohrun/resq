@@ -336,5 +336,12 @@
     r[`code] musteq 0;
     (0 < count r[`output] ss "gate: PASS") musteq 1b;
   };
- };
+  should["print why the gate failed, and the verdict"]{
+    if[not .tst.testState.snapcli.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.snapcli.run[1b; "-snapshot-gate"];
+    r[`code] musteq 1;
+    (0 < count r[`output] ss "REPORTER_FAILURE") musteq 0b;
+    (0 < count r[`output] ss "gate: FAIL (obsolete-snapshots)") musteq 1b;
+    (0 < count r[`output] ss "Tests FAILED") musteq 1b;
+  };
  };

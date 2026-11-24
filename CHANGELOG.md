@@ -12,6 +12,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - `-snapshot-audit` and `-snapshot-gate` work in a project that has no
   snapshots yet. They failed with "Framework phase 'snapshotAudit' failed:
   type".
+- The console report prints why the snapshot gate failed. It crashed on that
+  line ("REPORTER_FAILURE: text: type"), so neither the reason nor the verdict
+  appeared.
 - `-benchmark-baseline` accepts a relative path. The documented command
   stopped the run before any test loaded ("Framework phase 'initRun' failed:
   .tst.app.baseDir"); only an absolute path worked.
