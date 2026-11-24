@@ -92,6 +92,16 @@
     / q rejects anything else after the path; resQ keeps it, for paths with spaces
     (first .tst.preprocessScript enlist "\\l my dir/dep.q") musteq ".tst.sysl \"my dir/dep.q\";";
   };
+  should["see a load written as one string literal, so coverage instruments it"]{
+    .tst.rewriteSystemLoad["system \"l src/p.q\";"] musteq ".tst.sysl \"src/p.q\";";
+    .tst.rewriteSystemLoad["  system \"l src/p.q\""] musteq "  .tst.sysl \"src/p.q\"";
+    .tst.rewriteSystemLoad["system \"l dep.q / code under test\";"] musteq ".tst.sysl \"dep.q\";";
+    / not a load statement on its own: left exactly as written
+    same: {[line] line ~ .tst.rewriteSystemLoad line};
+    same["system \"l src/p.q\"; loaded: 1b;"] musteq 1b;
+    same["r: system \"l src/p.q\";"] musteq 1b;
+    same["system \"ls -l\";"] musteq 1b;
+  };
   should["wrap a computed load only when it is the whole statement"]{
     .tst.rewriteSystemLoad["  system \"l \", root, \"/src/x.q\";"] musteq "  .tst.sysl (root, \"/src/x.q\");";
     .tst.rewriteSystemLoad["  system \"l \", path[`src;\"x.q\"];"] musteq "  .tst.sysl (path[`src;\"x.q\"]);";

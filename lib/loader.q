@@ -738,6 +738,27 @@
     $[(0 < count rest) and "/" = first rest; cut1 # arg; arg]
  };
 
+/ `system "l src/x.q";` with the path inside the one string literal. It is the
+/ same load as `\l src/x.q`, and coverage has to see it the same way: left as
+/ a bare system call, the file was loaded but never instrumented, and its
+/ functions were reported as 0% covered. Returns "" when the line is not
+/ exactly that statement.
+.tst.rewriteLiteralSystemLoad:{[ln;lt]
+    pfx: "system \"l ";
+    if[not lt like pfx, "*"; :""];
+    body: (count pfx) _ lt;
+    / first quote that is not escaped ends the literal
+    escaped: 0b, -1 _ body = "\\";
+    closing: first (where (body = "\"") and not escaped), count body;
+    if[closing = count body; :""];
+    if[any (closing # body) = "\\"; :""];
+    rest: trim (closing + 1) _ body;
+    if[not any rest ~/: ("";enlist ";"); :""];
+    path: .tst.loadCommandPath closing # body;
+    if[0 = count path; :""];
+    (((count ln) - count lt) # ln), ".tst.sysl \"", path, "\"", rest
+ };
+
 / Rewrite a runtime `system "l ", <expr>` load (the form real suites use to load
 / their code-under-test, e.g. `system "l ", root, "/src/x.q"`) into an
 / equivalent `.tst.sysl (<expr>)` so coverage can instrument it. `system "l "`
@@ -750,6 +771,8 @@
 / verbatim when it does not match.
 .tst.rewriteSystemLoad:{[ln]
     lt: .tst.lstrip ln;
+    literal: .tst.rewriteLiteralSystemLoad[ln;lt];
+    if[count literal; :literal];
     pfx: "system \"l \", ";
     if[not lt like pfx, "*"; :ln];
     rt: .tst.rstrip lt;

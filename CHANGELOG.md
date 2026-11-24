@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- Coverage sees source loaded with `system "l src/x.q"`. A test file that
+  loaded its source that way was reported at 0%, because only `\l` and the
+  computed form `system "l ", path` were instrumented.
 - `coverageFunctionMin`, `coverageLineMin` and `coverageCompletenessMin` in
   `resq.json` are enforced under `resq test`. They were stored and never
   checked unless coverage was switched on some other way, so a configured gate
