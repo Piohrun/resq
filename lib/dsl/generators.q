@@ -319,10 +319,19 @@
     }[original]/[(out;seen);candidates]) 0
  };
 
+/ Where a bounded scalar shrinks to: zero, as for any number, unless the bounds
+/ leave it out, then the bound nearest to it; in the value's own type. It was
+/ the lower bound, so a value in -1000..1000 shrank to -1000.
+.resq.gen.scalarTarget:{[options;item]
+  if[not (type item) within -9 -4h;:options`lower];
+  cast:.Q.t abs type item;
+  cast$$[0>options`upper;options`upper;0<options`lower;options`lower;0]
+ };
+
 .resq.gen.atomCandidates:{[generator;item]
   kind:generator`kind;
   options:generator`options;
-  target:$[`scalar~kind;options`lower;
+  target:$[`scalar~kind;.resq.gen.scalarTarget[options;item];
     `type~kind;.tst.typeFuzzN options`typeName;
     0];
   tc:type item;
@@ -336,6 +345,9 @@
   .resq.gen.distinctCandidates[candidates;item]
  };
 
+/ Lists up to this length also try every one-item-shorter form.
+.resq.gen.DROP_ONE_MAX:32;
+
 .resq.gen.listCandidates:{[generator;item]
   if[0=count item;:()];
   minimum:generator[`options;`minLength];
@@ -344,6 +356,11 @@
   if[half<count item;
     candidates,:enlist half#item;
     candidates,:enlist (count[item]-half)_item];
+  / One item fewer, for a short list: halving alone could not take a failing
+  / list of 9 down to the 5 that still fail, and the steps then went on
+  / simplifying items that did not matter.
+  if[(minimum<count item) and (count item)<=.resq.gen.DROP_ONE_MAX;
+    candidates,:{[item;i] item _ i}[item] each til count item];
   child:generator[`options;`generator];
   i:0;
   while[i<count item;
@@ -356,15 +373,15 @@
   .resq.gen.distinctCandidates[candidates;item]
  };
 
+/ Every candidate of every field, one field changed at a time. Only the first
+/ candidate of each field was offered: for a list field that is its shortest
+/ form, which usually passes, so a property over `vars` given as a dictionary
+/ stopped after one candidate and called the original input minimal.
 .resq.gen.dictCandidates:{[generator;item]
   generators:generator[`options;`generators];
-  out:();
   {[generators;original;name]
-    shrinks:.resq.gen.shrinkCandidates[generators name;original name];
-    if[not count shrinks;:()];
-    changed:original;
-    changed[name]:first shrinks;
-    enlist changed
+    {[original;name;shrunk] changed:original; changed[name]:shrunk; changed}[original;name] each
+      .resq.gen.shrinkCandidates[generators name;original name]
   }[generators;item;] each key generators
  };
 
@@ -373,10 +390,7 @@
   out:();i:0;
   while[i<count generators;
     shrinks:.resq.gen.shrinkCandidates[generators i;item i];
-    if[count shrinks;
-      changed:item;
-      changed[i]:first shrinks;
-      out,:enlist changed];
+    out,:{[original;i;shrunk] changed:original; changed[i]:shrunk; changed}[item;i] each shrinks;
     i+:1];
   out
  };

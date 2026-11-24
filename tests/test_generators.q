@@ -225,3 +225,37 @@
     ((x`left)+(x`right)) musteq ((x`right)+(x`left));
   };
 };
+
+/ A property over `vars` given as a dictionary did not shrink a list field:
+/ only the field's first candidate, its shortest form, was offered, and that
+/ usually passes. Halving alone could not reach the shortest failing list, and
+/ a bounded number shrank to its lower bound instead of zero.
+.tst.desc["Shrinking inside a vars dictionary"]{
+  should["shrink a list field to the shortest failing list, of zeros"]{
+    .tst.currentContext:`file`suite`test!(
+      "tests/test_generators.q";"Shrinking inside a vars dictionary";"dict");
+    expec:.tst.internals.fuzzObj;
+    expec[`runs]:30;
+    expec[`vars]:(enlist `xs)!enlist .resq.gen.list[.resq.gen.scalar[`long;-1000;1000];0;20];
+    expec[`props]:`seed`shrinkSteps`shrinkCandidates`shrinkTimeMs!(7j;100j;1000j;5000f);
+    expec[`code]:{[x] .tst.asserts[`must][5>count x`xs;"list too long"]};
+    result:.tst.runners[`fuzz] expec;
+    (result[`shrunkFailure]`xs) musteq 5#0;
+    (result`shrinkTermination) musteq `minimal;
+  };
+  should["offer every candidate of each field, one field at a time"]{
+    gen:.resq.gen.dictionary `a`b!(.resq.gen.scalar[`long;-10;10];.resq.gen.list[.resq.gen.scalar[`long;0;9];0;5]);
+    item:`a`b!(8;3 4 5);
+    candidates:.resq.gen.shrinkCandidates[gen;item];
+    (`a`b!(0;3 4 5)) mustin candidates;
+    (`a`b!(4;3 4 5)) mustin candidates;
+    (`a`b!(8;3 5)) mustin candidates;
+  };
+  should["shrink a bounded number toward zero, or the bound nearest it"]{
+    .resq.gen.scalarTarget[`lower`upper!(-1000;1000);-829] musteq 0;
+    .resq.gen.scalarTarget[`lower`upper!(5;100);42] musteq 5;
+    .resq.gen.scalarTarget[`lower`upper!(-100;-5);-42] musteq -5;
+    .resq.gen.scalarTarget[`lower`upper!(0;100);42i] musteq 0i;
+    .resq.gen.scalarTarget[`lower`upper!(1.5;9.5);4.2] musteq 1.5;
+  };
+ };

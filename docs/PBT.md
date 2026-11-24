@@ -104,7 +104,8 @@ sample covers every declared edge while remaining exactly replayable.
 | temporal types | deterministic values within the type-specific bounded calendar/time window, shrinking to the documented type default |
 
 The scalar shrink target is zero (or the type default), followed by halving
-toward it. If a property cannot accept nulls or infinities, use a finite bounded
+toward it. A bounded `.resq.gen.scalar` whose bounds leave zero out shrinks to
+the bound nearest zero. If a property cannot accept nulls or infinities, use a finite bounded
 `.resq.gen.scalar`, or a bounded `.resq.gen.filter` with an explicit attempt
 ceiling; do not assume the typed numeric defaults are finite.
 
@@ -156,7 +157,10 @@ noisy. resQ includes an automated **Shrinker**.
 
 1. **Failure Found**: A list of 1,000 integers causes a crash.
 2. **Shrinking**: The engine walks a deterministic type-aware candidate tree:
-   collection removal, scalar simplification, and field/element/row shrinking.
+   collection removal (halves, and for lists of up to 32 items each list one
+   item shorter), scalar simplification, and field/element/row shrinking.
+   Every simplification of each dictionary field or tuple position is tried,
+   one field at a time.
 3. **Minimal Case**: The engine presents you with the simplest possible failing
    input (e.g., a list with just `0` and `-1`).
 

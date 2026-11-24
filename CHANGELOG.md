@@ -84,6 +84,13 @@ fail: see "Runs that can now fail" in
   when every test passed. `benchPrint` shows figures under 100 microseconds
   with decimals instead of rounding them to `0us`. No colour is written when
   `TERM=dumb`. `-desc` with `-json` or `-junit` says that it writes no report.
+- Property tests shrink inputs given as a dictionary of generators, which is
+  how `vars` is usually written. Only the first simplification of each field
+  was tried; for a list field that is its shortest form, which usually
+  passes, so the "minimal" input reported was the original one. A failing
+  list of 19 numbers whose length was the problem now shrinks to `0 0 0 0 0`.
+  Short lists also try each one-item-shorter form, and a bounded number
+  shrinks toward zero, as the guide says, where it went to its lower bound.
 - `mustmatchignoringorder` compares plain dictionaries (the same keys and
   values in any order). It signalled `'type` on one.
 - resQ says "needs q 4.0 or newer" when it is started on an older q, where
