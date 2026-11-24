@@ -399,3 +399,58 @@
 };
 
 ::
+
+/ A threshold in resq.json must gate `resq test` exactly as its flag does.
+/ coverageFunctionMin, coverageLineMin and coverageCompletenessMin used to be
+/ stored and never enforced unless coverage was switched on some other way.
+.tst.testState.covgate.runConfig:{[configJson]
+    wd: .utl.tempRoot[], "/resq_covcfg_", string[.z.i], "_", string `long$.z.p;
+    .utl.ensureDir wd, "/src";
+    .utl.ensureDir wd, "/tests";
+    (hsym `$wd, "/src/m.q") 0: (".cfggate.a:{x+1};"; ".cfggate.b:{x+2};"; ".cfggate.c:{x+3};"; ".cfggate.d:{x+4};");
+    (hsym `$wd, "/tests/test_m.q") 0: (
+        "\\l src/m.q";
+        ".tst.desc[\"m\"]{ should[\"calls one of four\"]{ .cfggate.a[1] musteq 2; }; };");
+    (hsym `$wd, "/resq.json") 0: enlist configJson;
+    / "true &&" first: q itself takes a command that starts with "cd".
+    cmd: "true && cd ", (.utl.shellQuote wd), " && timeout -k 2 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
+         " test tests -outDir ", (.utl.shellQuote wd, "/out"),
+         .tst.testState.covgate.stateFlags[wd], " > ", (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    output: "\n" sv @[read0; hsym `$wd, "/out.txt"; {()}];
+    if[wd like "*/resq_covcfg_*"; system "rm -rf -- ", .utl.shellQuote wd];
+    `code`output!("J"$last exitLines; output)
+ };
+
+.tst.desc["Coverage thresholds from resq.json are enforced #slow"]{
+  should["fail a run below coverageFunctionMin"]{
+    if[not .tst.testState.covgate.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.covgate.runConfig "{\"coverageFunctionMin\": 90, \"coverageSources\": [\"src\"]}";
+    r[`code] musteq 1;
+    (0 < count r[`output] ss "Function coverage 25% is below required minimum 90%") musteq 1b;
+  };
+  should["pass a run at or above coverageFunctionMin"]{
+    if[not .tst.testState.covgate.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.covgate.runConfig "{\"coverageFunctionMin\": 20, \"coverageSources\": [\"src\"]}";
+    r[`code] musteq 0;
+  };
+  should["measure statements and gate on coverageLineMin"]{
+    if[not .tst.testState.covgate.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.covgate.runConfig "{\"coverageLineMin\": 90, \"coverageSources\": [\"src\"]}";
+    r[`code] musteq 1;
+    (0 < count r[`output] ss "is below required minimum 90%") musteq 1b;
+  };
+  should["gate on coverageCompletenessMin"]{
+    if[not .tst.testState.covgate.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.covgate.runConfig "{\"coverageCompletenessMin\": 100, \"coverageLineMin\": 1, \"coverageSources\": [\"src\"]}";
+    / every function is instrumented, one of four statements runs: the
+    / completeness gate passes and the 1% line gate passes with it
+    r[`code] musteq 0;
+  };
+  should["run no coverage when no threshold is set"]{
+    if[not .tst.testState.covgate.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.covgate.runConfig "{\"coverageSources\": [\"src\"]}";
+    r[`code] musteq 0;
+    (0 < count r[`output] ss "Coverage:") musteq 0b;
+  };
+ };

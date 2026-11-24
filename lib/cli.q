@@ -525,6 +525,10 @@ initCLI:{[parsed]
         .tst.app.coverageMin: options`coverageMin;
         .tst.app.runCoverage: 1b];
     if[0 < @[get; `.tst.app.coverageMin; 0]; .tst.app.runCoverage: 1b];
+    / A threshold set in resq.json turns coverage on, as its flag does. These
+    / three were stored and then never enforced under `resq test`.
+    if[any 0 < @[get;;0] each `.tst.app.coverageFunctionMin`.tst.app.coverageLineMin`.tst.app.coverageCompletenessMin;
+        .tst.app.runCoverage: 1b];
     if[not 10h=type options`coverageFunctionMin;
         .tst.app.coverageFunctionMin:options`coverageFunctionMin;
         .tst.app.runCoverage:1b];

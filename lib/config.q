@@ -901,9 +901,14 @@ applyConfig:{[cfg]
     if[ok`reportListLimit; .tst.output.reportListLimit: cfg`reportListLimit];
     if[ok`coverageMin; .tst.app.coverageMin: cfg`coverageMin];
     if[ok`coverageFunctionMin; .tst.app.coverageFunctionMin: cfg`coverageFunctionMin];
-    if[ok`coverageLineMin; .tst.app.coverageLineMin: cfg`coverageLineMin];
+    / A positive line or completeness threshold needs statement coverage, as
+    / the -cov-lines-min and -cov-completeness-min flags do.
+    if[ok`coverageLineMin;
+        .tst.app.coverageLineMin: cfg`coverageLineMin;
+        if[0 < cfg`coverageLineMin; .tst.coverageStatements: 1b]];
     if[ok`coverageCompletenessMin;
-        .tst.app.coverageCompletenessMin: cfg`coverageCompletenessMin];
+        .tst.app.coverageCompletenessMin: cfg`coverageCompletenessMin;
+        if[0 < cfg`coverageCompletenessMin; .tst.coverageStatements: 1b]];
     if[ok`covBranches;.tst.coverageBranches:cfg`covBranches];
     if[ok`covContexts;.tst.coverageContexts:cfg`covContexts];
     if[ok`covAttemptContexts;

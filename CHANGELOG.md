@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `coverageFunctionMin`, `coverageLineMin` and `coverageCompletenessMin` in
+  `resq.json` are enforced under `resq test`. They were stored and never
+  checked unless coverage was switched on some other way, so a configured gate
+  could be off without a word. A positive threshold now turns coverage on, and
+  the line and completeness thresholds turn statement coverage on, as their
+  command-line flags do.
 - `.utl.require` fails when the file cannot be loaded. It printed a warning
   and carried on, so a test file could run without the code it asked for and
   pass. It now signals as `\l` does, which makes it a load error for the test
