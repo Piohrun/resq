@@ -131,6 +131,11 @@ directory, stay relative to where you are.
   in `beforeAll` last for the suite; mocking a view is refused.
 - `resq mutate` no longer counts an outside SIGKILL as a kill, and
   `-mutation-min` counts unassessed mutants as undetected.
+- Property tests shrink inputs given as a dictionary of generators (the usual
+  `vars` form); the reported "minimal" input used to be the original one.
+  Short lists also try each one-item-shorter form, and bounded numbers shrink
+  toward zero.
+- `skill/SKILL.md`, the guide AI assistants follow, is current for 2.4.0.
 - The Python report tools work on Python 3.8 to 3.10.
 - resQ's own suite passes in any order, and the release gate runs its
   isolated lane in random order.
