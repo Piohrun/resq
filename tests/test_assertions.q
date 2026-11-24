@@ -437,6 +437,37 @@
   .tst.renderValueHuman[enlist 2f] musteq "enlist 2f";
   .tst.renderValueHuman[([] p:1 2f)] musteq "([] p:1 2f)";
   };
+ / `string 0N` is "": a failure read "Got 1  3 - expected 1 2 3".
+ should["write a null as the literal that makes it"]{
+  .tst.renderValueHuman[1 0N 3] musteq "1 0N 3";
+  .tst.renderValueHuman[0Ni] musteq "0Ni";
+  .tst.renderValueHuman[0N] musteq "0N";
+  .tst.renderValueHuman[0Nh] musteq "0Nh";
+  .tst.renderValueHuman[2020.01.01 0Nd] musteq "2020.01.01 0Nd";
+  .tst.renderValueHuman[0Np] musteq "0Np";
+  .tst.renderValueHuman[0Nt] musteq "0Nt";
+  .tst.renderValueHuman[0Ng] musteq "0Ng";
+  .tst.renderValueHuman[([] qty:10 0N)] musteq "([] qty:10 0N)";
+  .tst.renderValueHuman[`a`b!(0Np;1)] musteq "`a`b!(0Np; 1)";
+  .tst.renderValueHuman[enlist 0Nd] musteq "enlist 0Nd";
+  / a vector without a null reads as before, and identities are untouched
+  .tst.renderValueHuman[1 2 3] musteq "1 2 3";
+  .tst.renderValueFull[1 0N 3] musteq "1  3";
+  };
+ should["say what was got and expected when one side is null, without an empty diff"]{
+  probe:{[check]
+    saved:.tst.assertState;
+    outcome:@[{[c] c[]; (.tst.assertState`failures)}; check; {[e] enlist "ERR ",e}];
+    .tst.assertState:saved;
+    outcome};
+  first1:{[messages] first "\n" vs last messages};
+  messages:probe {0Ni musteq 5i};
+  (first1 messages) musteq "Got 0Ni — expected 5";
+  / the diff under it names the null too
+  (last "\n" vs last messages) musteq "  Actual:   0Ni";
+  messages:probe {7 musteq 5};
+  (first1 messages) like "Got 7 — expected 5 (diff: 2)*";
+  };
  should["keep the exact evidence form for a float the short form cannot reproduce"]{
   rendered:.tst.renderValueHuman 0.1+0.2;
   must[rendered like "*ipc=*"; "an inexact short form must fall back, got ",rendered];

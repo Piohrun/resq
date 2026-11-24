@@ -157,8 +157,21 @@
     text, suffix
  };
 
+/ A null prints as nothing: `string 0N` is "", so a failure read
+/ "Got 1  3 - expected 1 2 3" and "Got  - expected 5". In a message for
+/ people each null is written as the literal that makes it.
+.tst.NULL_LITERALS:2 5 6 7 12 13 14 15 16 17 18 19h!(
+    "0Ng";"0Nh";"0Ni";"0N";"0Np";"0Nm";"0Nd";"0Nz";"0Nn";"0Nu";"0Nv";"0Nt");
+.tst.renderAtomHuman:{[raw]
+    $[null raw;.tst.NULL_LITERALS abs type raw;.tst.renderAtomFull raw]
+ };
+
 .tst.renderValueHumanWithin:{[raw;budget]
     valueType:type raw;
+    if[(abs valueType) in 2 5 6 7 12 13 14 15 16 17 18 19h;
+        if[valueType<0h;:.tst.renderAtomHuman raw];
+        if[(1<count raw) and any null raw;
+            :" " sv .tst.renderAtomHuman each .tst.leadingItems[raw;budget]]];
     / An enumerated value (a sym column of a splayed or partitioned table)
     / reads as the symbols it stands for.
     if[(abs valueType) within 20 76h;

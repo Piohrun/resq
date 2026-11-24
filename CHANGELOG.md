@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A null in a failure message is written as its literal: `Got 1 0N 3 —
+  expected 1 2 3` and `Got 0Ni — expected 5`, where it read `Got 1  3` and
+  `Got  — expected 5 (diff: )`.
 - The flake history no longer slows every run down as it grows. It holds
   every observation in the window for every known test, and each run parsed,
   rebuilt and rewrote all of it: with 9,000 tests (25.7 MB) a run of one file

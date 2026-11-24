@@ -39,7 +39,8 @@ fmt.color:{[c;txt]
 / format Value for diff (colorized)
 fmtVal:{[v;color]
     limit:$[`reportLimit in key `.tst.output;.tst.output.reportLimit;50000];
-    s:.tst.renderValueBounded[v;"j"$limit%2];
+    / as the line above the diff shows it: the way a person would type it
+    s:.tst.renderValueHumanBounded[v;"j"$limit%2];
     if[count s; :.tst.fmt.color[color; s]];
     s
  };

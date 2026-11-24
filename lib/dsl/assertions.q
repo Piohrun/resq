@@ -184,7 +184,8 @@ asserts[`musteq]:{[l;r];
     if[not (type l) = type r; m,: " (Type mismatch: ", string[type l], " vs ", string[type r], ")"];
     / Show numeric diff for numbers
     if[(type l) within (-9h;-6h); if[(type r) within (-9h;-6h);
-        m,: " (diff: ", string[l - r], ")"
+        / no difference to show when one side is null
+        if[not null l - r; m,: " (diff: ", string[l - r], ")"]
     ]];
     / Show length diff for lists
     if[(type l) >= 0h; if[(type r) >= 0h;
