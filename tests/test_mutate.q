@@ -1837,17 +1837,18 @@
   };
 
   should["not pass the gate on the few mutants that could be assessed"]{
-    / One killed, three not assessed: the score is 100% of one mutant.
+    / The project has seven mutants and the statuses repeat: two killed and
+    / five not assessed. The score is 100% of the two that were assessed.
     root: .tst.testState.mut.runSetup `killed`unmatched`unmatched`unmatched;
     `.tst.app.mutationMin mock 80;
     gated: .tst.mutate.run enlist root, "/src/calc.q";
     said: last .tst.testState.mut.printed;
-    / Counted as undetected they give 25%: a minimum at or below that passes.
+    / Counted as undetected they give 2 of 7, 28.6%: a minimum below that passes.
     `.tst.app.mutationMin mock 25;
     allowed: .tst.mutate.run enlist root, "/src/calc.q";
     system "rm -rf ", .utl.shellQuote root;
     gated musteq 1;
-    said mustmatch "Mutation score 100.0% leaves out 3 mutant(s) that could not be assessed. Counting them as undetected gives 25.0%, below the required 80%.";
+    said mustmatch "Mutation score 100.0% leaves out 5 mutant(s) that could not be assessed. Counting them as undetected gives 28.6%, below the required 80%.";
     allowed musteq 0;
   };
 
