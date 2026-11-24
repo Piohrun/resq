@@ -129,13 +129,18 @@ mustmatchTxtSnap:{[actual;name]
     stored:parsed`document;
     if[not (actualDocument`canonicalPayload)~stored`canonicalPayload;
         .tst.recordSnapshotEvent[`text;n;`mismatch;validatedPath];
-        -1 "SNAPSHOT MISMATCH for '",n,"'";
-        -1 "----------------------------------------------------------------";
-        -1 "Expected (Stored):";
-        -1 stored`rendering;
-        -1 "Actual (Current):";
-        -1 actualDocument`rendering;
-        -1 "----------------------------------------------------------------";
+        / For the assertion, which reports the mismatch as a failure with
+        / this in it. Called on its own, the comparison prints it.
+        .tst.snapshotMismatch: `name`lines!(n;
+            ("Expected (Stored):"; stored`rendering; "Actual (Current):"; actualDocument`rendering));
+        if[not 1b ~ @[get; `.tst.snapshotAssertionActive; 0b];
+            -1 "SNAPSHOT MISMATCH for '",n,"'";
+            -1 "----------------------------------------------------------------";
+            -1 "Expected (Stored):";
+            -1 stored`rendering;
+            -1 "Actual (Current):";
+            -1 actualDocument`rendering;
+            -1 "----------------------------------------------------------------"];
         'snapshotTxtMismatch
     ];
 

@@ -215,8 +215,34 @@ asserts[`mustmatch]:{[l;r]; .tst.asserts[`musteq][l;r]}
 / a test whose only check was `x mustmatchst "name"` was listed under "tests
 / that asserted nothing" and failed under -strict, which the snapshot guide
 / recommends.
-asserts[`mustmatchs]:{[l;r]; .tst.assertState.assertsRun+:1; .tst.mustmatchSnap[l;r]}
-asserts[`mustmatchst]:{[l;r]; .tst.assertState.assertsRun+:1; .tst.mustmatchTxtSnap[l;r]}
+asserts[`mustmatchs]:{[l;r]; .tst.snapshotAssertion[.tst.mustmatchSnap;l;r]}
+asserts[`mustmatchst]:{[l;r]; .tst.snapshotAssertion[.tst.mustmatchTxtSnap;l;r]}
+
+/ A value that no longer matches its snapshot is a failed assertion, like a
+/ value that no longer matches an expected one. It was signalled instead: the
+/ test was an error with a backtrace into resQ, the diff went to the console
+/ and never reached the report, and the assertions after it did not run.
+/ Everything else stays an error: no snapshot under -strict, a snapshot that
+/ has to be migrated, a name that is refused.
+.tst.snapshotMismatch: ();
+.tst.snapshotAssertionActive: 0b;
+.tst.snapshotAssertion:{[compare;actual;name]
+    .tst.snapshotMismatch: ();
+    .tst.snapshotAssertionActive: 1b;
+    outcome: .[{[compare;actual;name] (1b; compare[actual;name])}; (compare;actual;name); {[err] (0b; err)}];
+    .tst.snapshotAssertionActive: 0b;
+    found: .tst.snapshotMismatch;
+    .tst.snapshotMismatch: ();
+    if[first outcome; .tst.assertState.assertsRun+:1; :last outcome];
+    if[0 = count found; .tst.assertState.assertsRun+:1; ' last outcome];
+    m: "Snapshot mismatch for '", (found`name), "'";
+    if[not .tst.suppressAssertionDiff;
+        diffText: "\n" sv found`lines;
+        .tst.printDiffText diffText;
+        if[count diffText; m,: .tst.diffDetailMarker, diffText]];
+    .tst.assertCondition[0b; m];
+    0b
+ };
 asserts[`mustnmatch]:{[l;r]; .tst.assertCondition[not l~r;
   .tst.deferAssertionMessage[{[a;b] "Got ",.tst.assertValueText[a],
     " — expected it NOT to match ",.tst.assertValueText[b]};(l;r)]]}

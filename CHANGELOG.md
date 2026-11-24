@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A value that no longer matches its snapshot (`mustmatchs`, `mustmatchst`)
+  is a failed assertion with the difference in its message, in every report.
+  It was an error with a backtrace into resQ, the difference was printed to
+  the console only, and the assertions after it did not run.
 - A float that q's display precision cannot say exactly is shown with the
   fewest digits that read back to the same number, `0.30000000000000004`,
   where it was shown with its serialized bytes, `0.3[ipc=0100...]`.

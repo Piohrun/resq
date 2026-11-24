@@ -136,10 +136,15 @@ mustmatchSnap:{[actual;name]
 
     if[not actual~stored;
         .tst.recordSnapshotEvent[`binary;n;`mismatch;validatedPath];
-        -1 "Snapshot mismatch for '",n,"'";
-        / .tst.diff returns a flat list of plain strings; print each line, but a
-        / rendering failure must not mask the snapshot mismatch signal below.
-        @[{ -1 each .tst.diff[x 0; x 1] }; (stored;actual); {[err] -1 "  (diff rendering failed: ", err, ")" }];
+        / .tst.diff returns a flat list of plain strings. A rendering failure
+        / must not mask the snapshot mismatch signal below.
+        detail: @[{.tst.diff[x 0; x 1]}; (stored;actual); {[err] enlist "  (diff rendering failed: ", err, ")"}];
+        / For the assertion, which reports the mismatch as a failure with
+        / this in it. Called on its own, the comparison prints it.
+        .tst.snapshotMismatch: `name`lines!(n; detail);
+        if[not 1b ~ @[get; `.tst.snapshotAssertionActive; 0b];
+            -1 "Snapshot mismatch for '",n,"'";
+            -1 each detail];
         errSym: `$"Snapshot mismatch for '",n,"'";
         ' errSym
     ];

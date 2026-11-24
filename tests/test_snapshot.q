@@ -20,7 +20,7 @@
         .tst.mustmatchs[data; snapName] musteq 1b;
         
         mustthrow["*Snapshot mismatch*"]{
-            .tst.mustmatchs[`a`b`c!1 2 4; "tmp_resq_snapshot_test"];
+            .tst.mustmatchSnap[`a`b`c!1 2 4; "tmp_resq_snapshot_test"];
         };
     };
 
@@ -55,15 +55,15 @@
         .tst.testState.emptySnapSetup[(); "tmp_resq_emptysnap_list"];
         / A different value must fail the comparison (proves it validated and did
         / not silently re-create a fresh snapshot of the new value).
-        mustthrow["*Snapshot mismatch*"]{ .tst.mustmatchs[enlist 1; "tmp_resq_emptysnap_list"] };
+        mustthrow["*Snapshot mismatch*"]{ .tst.mustmatchSnap[enlist 1; "tmp_resq_emptysnap_list"] };
     };
     should["validate an empty-DICT snapshot without re-creating"]{
         .tst.testState.emptySnapSetup[()!(); "tmp_resq_emptysnap_dict"];
-        mustthrow["*Snapshot mismatch*"]{ .tst.mustmatchs[(enlist `x)!enlist 1; "tmp_resq_emptysnap_dict"] };
+        mustthrow["*Snapshot mismatch*"]{ .tst.mustmatchSnap[(enlist `x)!enlist 1; "tmp_resq_emptysnap_dict"] };
     };
     should["validate an empty-TABLE snapshot without re-creating"]{
         .tst.testState.emptySnapSetup[([] x:`long$()); "tmp_resq_emptysnap_table"];
-        mustthrow["*Snapshot mismatch*"]{ .tst.mustmatchs[([] x:enlist 1); "tmp_resq_emptysnap_table"] };
+        mustthrow["*Snapshot mismatch*"]{ .tst.mustmatchSnap[([] x:enlist 1); "tmp_resq_emptysnap_table"] };
     };
 };
 
@@ -93,7 +93,7 @@
 
         / A different value must throw the mismatch signal.
         mustthrow["*snapshotTxtMismatch*"]{
-            .tst.mustmatchst[`a`b`c!1 2 4; "tmp_resq_txtsnap_test"];
+            .tst.mustmatchTxtSnap[`a`b`c!1 2 4; "tmp_resq_txtsnap_test"];
         };
     };
 
@@ -138,7 +138,7 @@
              "canonical snapshot evidence must not stop at console width"];
         must[0<count ss[document`rendering;"tail-left"];
              "full rendering must retain distinguishing tail data"];
-        mustthrow["*snapshotTxtMismatch*";(.tst.mustmatchst;changed;snapName)];
+        mustthrow["*snapshotTxtMismatch*";(.tst.mustmatchTxtSnap;changed;snapName)];
     };
 
     should["canonical values and full rendering ignore console geometry"]{
@@ -187,7 +187,7 @@
         .tst.mustmatchst[1.0000001;snapName] musteq 1b;
         .tst.setUpdateSnaps 0b;
         mustthrow["*snapshotTxtMismatch*";
-            (.tst.mustmatchst;1.0000002;snapName)];
+            (.tst.mustmatchTxtSnap;1.0000002;snapName)];
     };
 
     should["legacy text snapshots require explicit migration to v2"]{
@@ -369,3 +369,68 @@
     (0 < count r[`output] ss "Tests FAILED") musteq 1b;
   };
  };
+
+/ A value that no longer matches its snapshot was signalled: the test was an
+/ error with a backtrace into resQ and the diff never reached the report.
+.tst.desc["a snapshot mismatch is a failed assertion"]{
+    before{
+        `probe mock {[check]
+            saved:.tst.assertState;
+            `.tst.printDiffText set {[text] ::};
+            outcome:@[{[c;ran;failed] res:c[];
+                (res; failed _ .tst.assertState`failures; (.tst.assertState`assertsRun)-ran)
+              }[;saved`assertsRun;count saved`failures]; check; {[e] ("ERR ",e; (); 0)}];
+            .tst.assertState:saved;
+            outcome};
+        `.tst.printDiffText mock .tst.printDiffText;
+        `.tst.suppressAssertionDiff mock 0b;
+    };
+
+    should["record a binary mismatch as a failure with the diff, and carry on"]{
+        snapName:"tmp_resq_snapfail_bin";
+        snapFile:.utl.pathToHsym .tst.snapDir,"/",snapName,".snap";
+        @[hdel;snapFile;{}];
+        .tst.registerCleanup[{[p] @[hdel;p;{}]};enlist snapFile];
+        .tst.setUpdateSnaps[1b];
+        .tst.mustmatchs[`a`b`c!1 2 3;snapName];
+        .tst.setUpdateSnaps[0b];
+        r:probe {(`a`b`c!1 2 4) mustmatchs "tmp_resq_snapfail_bin"};
+        / it returned, it did not signal
+        (r 0) musteq 0b;
+        (count r 1) musteq 1;
+        message:first r 1;
+        (message like "Snapshot mismatch for 'tmp_resq_snapfail_bin'*") musteq 1b;
+        / the stored and the current value are both in the message
+        (0<count ss[message;"Expected: 3"]) musteq 1b;
+        (0<count ss[message;"Actual:   4"]) musteq 1b;
+        / one assertion ran, and a matching one still counts as one
+        (r 2) musteq 1;
+        ok:probe {(`a`b`c!1 2 3) mustmatchs "tmp_resq_snapfail_bin"};
+        (ok 0) musteq 1b;
+        (count ok 1) musteq 0;
+        (ok 2) musteq 1;
+    };
+
+    should["record a text mismatch as a failure with both renderings"]{
+        snapName:"tmp_resq_snapfail_txt";
+        .tst.registerCleanup[{[n] @[hdel;.utl.pathToHsym .tst.snapTxtPath n;{}]};enlist snapName];
+        @[hdel;.utl.pathToHsym .tst.snapTxtPath snapName;{}];
+        .tst.setUpdateSnaps[1b];
+        .tst.mustmatchst[`a`b!1 2;snapName];
+        .tst.setUpdateSnaps[0b];
+        r:probe {(`a`b!1 9) mustmatchst "tmp_resq_snapfail_txt"};
+        (r 0) musteq 0b;
+        (count r 1) musteq 1;
+        message:first r 1;
+        (message like "Snapshot mismatch for 'tmp_resq_snapfail_txt'*") musteq 1b;
+        (0<count ss[message;"Expected (Stored):"]) musteq 1b;
+        (0<count ss[message;"Actual (Current):"]) musteq 1b;
+    };
+
+    should["still signal what is not a mismatch"]{
+        `.tst.app.strict mock 1b;
+        r:probe {1 2 3 mustmatchs "tmp_resq_snapfail_missing_under_strict"};
+        ((r 0) like "ERR Snapshot missing under -strict*") musteq 1b;
+    };
+};
+

@@ -149,6 +149,12 @@ When a snapshot match fails, resQ provides a **Semantic Diff**:
 - **Table Diffs**: Highlights specific rows and columns that differ.
 - **Order Agnostic**: Use `mustmatchignoringorder` if row order is irrelevant.
 
+A mismatch is a failed assertion, like a failed `musteq`: the test is reported
+as failed, the diff is part of the failure message in the console, JSON and
+JUnit reports, and the assertions after it still run. A snapshot that is
+missing under `-strict`, one that needs migrating, or a name that is refused
+is an error instead.
+
 ## Best Practices
 - **Avoid Dynamic Data**: Don't snapshot values containing timestamps or random
   IDs unless they are masked/mocked.
