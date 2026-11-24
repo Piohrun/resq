@@ -83,6 +83,22 @@ if[not .resq.hasQutil; .resq.offerUtl[`PKGLOADING; .resq.PKGLOADING]];
     .resq.exitGuardArmed: 0b;
     .resq.util.leaveInterrupted[]
  };
+/ Run f[x], ending the run as interrupted when it fails because it was told
+/ to stop. The launcher marks the run interrupted and then signals q; a SIGINT
+/ that reaches q while it runs q code (not a `system` call) is a 'stop error
+/ raised wherever q is, which nothing below catches. Any other error is
+/ re-signalled after its backtrace is printed, as an uncaught one would be.
+.resq.interruptible:{[f;x]
+    .Q.trp[f; x; {[e;bt]
+        if[.resq.util.runInterrupted[];
+            .tst.noteInterrupted[];
+            / a report that was being written when the signal came
+            @[.tst.removeStaleReports; @[get; `.tst.app.activeReportFormats; {`symbol$()}]; {[err] ::}];
+            .resq.endInterruptedRun[];
+            .resq.util.leaveInterrupted[]];
+        -2 "'", e, "\n", .Q.sbt bt;
+        'e}]
+ };
 .resq.onProcessExit:{[code]
     if[.resq.exitGuardArmed;
         -2 "resQ ERROR: q exited before resQ completed the test run (requested exit ",
@@ -245,7 +261,7 @@ if[.resq.mode ~ `test;
     / subprocess and the parent aggregates. runAll reports once and returns the
     / granular status; this entry point alone owns process exit policy.
     if[1b ~ @[get; `.tst.app.isolate; 0b];
-        .resq.isolateExitCode: .tst.isolate.runAll .tst.app.args;
+        .resq.isolateExitCode: .resq.interruptible[.tst.isolate.runAll; .tst.app.args];
         .resq.endInterruptedRun[];
         .resq.recordVerdict .resq.isolateExitCode;
         .resq.completeExitGuard[];
@@ -261,7 +277,7 @@ if[.resq.mode ~ `test;
         if[1b ~ @[get; `.tst.app.describeOnly; 0b];
             .resq.report: .tst.describeReport;
         ];
-        .resq.runAllWithOptionalSelfCoverage[];
+        .resq.interruptible[.resq.runAllWithOptionalSelfCoverage; ::];
         .resq.endInterruptedRun[];
         / -desc exits cleanly (0) when files loaded without error; a load error
         / still surfaces as LOAD_ERROR so a broken file is never silently listed.
@@ -301,7 +317,7 @@ if[.resq.mode ~ `discover;
 / Mutation testing runs each mutant in a child `resq test` process and prints
 / its own report, so no reporter is initialised here. See lib/mutate.q.
 if[.resq.mode ~ `mutate;
-    .resq.mutateExitCode: .tst.mutate.main .tst.app.args;
+    .resq.mutateExitCode: .resq.interruptible[.tst.mutate.main; .tst.app.args];
     if[.resq.util.runInterrupted[]; .resq.util.leaveInterrupted[]];
     exit .resq.mutateExitCode];
 

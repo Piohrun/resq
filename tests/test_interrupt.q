@@ -225,3 +225,42 @@
   };
  };
 
+
+/ The launcher marks the run interrupted and then signals q. A SIGINT that
+/ reached q while it ran q code, not a `system` call, was a 'stop error raised
+/ wherever q was; in the isolated parent's own loop nothing caught it, and the
+/ run ended with q's trace instead of as an interrupted run (about one in 40
+/ signals). A plugin stands in for that moment here: it marks the run and
+/ raises 'stop from the isolated run itself.
+.tst.testState.interrupt.fromRun:{[wd;body]
+    (hsym `$wd, "/test_x.q") 0: enlist ".tst.desc[\"x\"]{ should[\"y\"]{ 1 musteq 1 }; };";
+    (hsym `$wd, "/stop.q") 0: enlist ".tst.isolate.runAll:{[paths] ", body, "};";
+    cmd: "cd ", .resq.util.shellQuote[wd], " && timeout -k 2 60 ",
+        .resq.util.shellQuote[.resq.HOME, "/bin/resq"], " test test_x.q -isolate -plugin stop.q",
+        " -json -outDir out -state-file out/s.json -flake-history out/f.json",
+        " -flake-proposal-file out/p.json < /dev/null > run.log 2>&1; echo exit=$?";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    `status`log`written!(last out;
+        "\n" sv @[read0; hsym `$wd, "/run.log"; {[e] ()}];
+        @[key; hsym `$wd, "/out"; {[e] ()}])
+ };
+
+.tst.desc["a signal that reaches q while it runs q code"]{
+  should["end the run as interrupted, not with q's trace"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.interrupt.fromRun[.tst.testState.interrupt.workDir[];
+        ".resq.interruptMarker 0: enlist \"130\"; 'stop"];
+    r[`status] musteq "exit=130";
+    (0 < count r[`log] ss "resQ: interrupted.") musteq 1b;
+    (0 < count r[`log] ss "'stop") musteq 0b;
+    (0 < count r[`log] ss "q exited before resQ completed") musteq 0b;
+    ((`$"test-results.json") in r`written) musteq 0b;
+  };
+  should["still report any other error, with its trace"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.interrupt.fromRun[.tst.testState.interrupt.workDir[]; "'boom"];
+    r[`status] musteq "exit=1";
+    (0 < count r[`log] ss "boom") musteq 1b;
+    (0 < count r[`log] ss "resQ: interrupted") musteq 0b;
+  };
+ };

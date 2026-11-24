@@ -186,7 +186,10 @@ fail: see "Runs that can now fail" in
   `-last-failed`. The launcher now tells the run first. It starts nothing
   new, writes no report and no state, prints `resQ: interrupted.` and leaves
   with the signal's status; `resq mutate` and `resq watch` do the same, and
-  watch no longer prints an error trace on Ctrl+C.
+  watch no longer prints an error trace on Ctrl+C. This holds also when the
+  signal reaches q while it runs its own code rather than waiting: q's
+  `'stop` error used to end such a run with a trace (about one signal in 40
+  under `-isolate`).
 - On a machine without `setsid` and `pkill`, an interrupted `-isolate` run
   left its children running. The launcher now signals every process below q.
 - `resq watch`, `resq mutate <dir>`, `resq discover` and coverage no longer
