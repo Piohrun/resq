@@ -307,8 +307,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - State written by another q runtime no longer costs the quarantine manifest.
   In a workspace used by both q 4.0 and q 4.1, one run under the other build
   renamed `.resq/quarantine.json` to a `.bak` file without a console message,
-  and every later run failed. The manifest is now never moved: one from
-  another runtime is ignored where it is, with a warning. Flake history and
+  and every later run failed. The manifest is now never moved, and it is no
+  longer tied to the q build: test IDs are the same under every runtime, so
+  one committed manifest applies under q 4.0 and q 4.1 alike, and
+  `tools/update_quarantine.py` adds proposals from either. Only a manifest for
+  another test-ID algorithm or value codec is ignored, where it is, with a
+  warning. Flake history and
   last-run state are archived under a name that says which runtime wrote them
   (one archive per runtime, where a new time-stamped file used to be left on
   every switch), and each runtime takes up its own copy again.

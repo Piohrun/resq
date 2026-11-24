@@ -108,9 +108,14 @@ a workspace is used by two q runtimes, each finds the copy it archived
 earlier and takes it up again, so each runtime keeps its own history.
 
 The quarantine manifest is policy that people write and commit. resQ never
-moves or changes it. A manifest written for another generation is ignored
-where it is, with a console warning, and its quarantines do not apply: the
-run stays blocking until the manifest is migrated or reviewed.
+moves or changes it, and it is not tied to the q build: test IDs are the same
+under every q runtime, so one manifest serves a team on q 4.0 and q 4.1. Its
+`identityCodec` records the build that wrote it, and only the other fields
+(the ID algorithm and resQ's value codec name and version) are compared. A
+manifest written for another ID algorithm or value codec is ignored where it
+is, with a console warning, and its quarantines do not apply: the run stays
+blocking until the manifest is migrated or reviewed. `tools/update_quarantine.py`
+follows the same rule.
 
 When old and new full reports describe the same inventory, migrate a state file
 with an independently written destination:

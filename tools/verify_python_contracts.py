@@ -39,6 +39,7 @@ SUITES = {
         "tools.tests.test_qspec_parity",
         "tools.tests.test_python_floor",
         "tools.tests.test_launcher_syntax",
+        "tools.tests.test_update_quarantine",
     ],
 }
 

@@ -42,7 +42,9 @@ carried over as the text they were. A history in any other layout, such as
 one written by an earlier version or by a tool, is read whole and written
 back in lines.
 History, proposal, and manifest documents use state schema v2 and carry the
-exact identity algorithm and canonical-value codec envelope.
+exact identity algorithm and canonical-value codec envelope. History is kept
+per q build; the manifest is not tied to one, so the same committed manifest
+applies under q 4.0 and q 4.1 (see [IDENTITY.md](IDENTITY.md)).
 
 Filtered, rerun-selected, sharded, interrupted, fail-fast, and describe-only
 runs update IDs they actually observe but never erase or age unrelated IDs.

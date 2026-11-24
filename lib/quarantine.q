@@ -80,17 +80,42 @@
     result[`ok;doc;""]
  };
 
-.tst.requireIdentityDocument:{[raw]
+.tst.requireIdentityDocument:{[raw] .tst.requireIdentityDocumentExcept[raw;`symbol$()]};
+
+/ As requireIdentityDocument, without comparing the codec fields in `ignored`.
+.tst.requireIdentityDocumentExcept:{[raw;ignored]
     if[not `ok~raw`status;:raw];
     doc:raw`document;
     if[not all `identityAlgorithm`identityCodec in key doc;
         raw[`status]:`unsupported;
         raw[`diagnostic]:"identity metadata is missing; migrate or rebuild the state";
         :raw];
-    if[not .tst.identityDocumentMatches doc;
+    if[not .tst.identityDocumentMatchesExcept[doc;ignored];
         raw[`status]:`unsupported;
         raw[`diagnostic]:"identity algorithm or codec does not match this runtime"];
     raw
+ };
+
+/ The test-ID generation a manifest was written for, without the q build,
+/ which a manifest is not pinned to: "resq-test-case-id-v3, value codec
+/ resq-value-v1+q-ipc-leaves v1".
+.tst.manifestGenerationText:{[doc]
+    if[not 99h=type doc;:"unknown"];
+    text:$[`identityAlgorithm in key doc;.tst.toString doc`identityAlgorithm;"unknown"];
+    codec:$[`identityCodec in key doc;doc`identityCodec;()];
+    if[99h=type codec;
+        if[all `name`version in key codec;
+            text,:", value codec ",.tst.toString[codec`name]," v",.tst.toString codec`version]];
+    text
+ };
+
+.tst.foreignManifestWarning:{[path;doc]
+    "WARNING: quarantine manifest ",.tst.repoRelativePath[path],
+        " names test IDs of another generation (",.tst.manifestGenerationText[doc],
+        "); this run uses ",.tst.manifestGenerationText[`identityAlgorithm`identityCodec!(
+            .tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[])],
+        ". It is left unchanged and ignored: its quarantines do not apply.",
+        " See docs/IDENTITY.md to migrate it."
  };
 
 .tst.archiveUnsupportedIdentityState:{[raw;path]
@@ -186,7 +211,10 @@
     history:.tst.flakeStateFromRaw rawHistory;
     mpath:.tst.quarantineManifestPath[];
     rawManifest:.tst.readVersionedJson[mpath;.tst.QUARANTINE_MANIFEST_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`entries];
-    rawManifest:.tst.requireIdentityDocument rawManifest;
+    / A manifest written under another q build applies as it is: the test IDs
+    / it names do not depend on the build. Only another test-ID algorithm or
+    / value codec makes it foreign.
+    rawManifest:.tst.requireIdentityDocumentExcept[rawManifest;.tst.IDENTITY_BUILD_FIELDS];
     / The manifest is policy that people write and commit. It is never moved
     / or changed here: one run under another q runtime used to rename it away,
     / and every later run then failed without a word on the console. A
@@ -194,11 +222,7 @@
     / its quarantines do not apply (the run stays blocking), and said so.
     if[`unsupported~rawManifest`status;
         rawManifest[`diagnostic]:rawManifest[`diagnostic],"; left in place and ignored";
-        -1 "WARNING: quarantine manifest ",.tst.repoRelativePath[mpath],
-            " was written for ",.tst.identityGenerationLabel[rawManifest`document],
-            "; this run is ",.tst.currentIdentityGenerationLabel[],
-            ". It is left unchanged and ignored: its quarantines do not apply.",
-            " See docs/IDENTITY.md to migrate it."];
+        -1 .tst.foreignManifestWarning[mpath;rawManifest`document]];
     manifest:.tst.emptyQuarantineManifest rawManifest`status;
     manifest[`diagnostic]:rawManifest`diagnostic;
     if[`ok~rawManifest`status;

@@ -370,10 +370,27 @@
     `.tst.testState.twoRuntimes.other set other;
     .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.resq.util.shellQuote d;{}]};enlist wd];
   };
-  should["leave the quarantine manifest where it is, and ignore it"]{
+  should["apply a quarantine manifest written under another q build"]{
+    / One committed manifest serves a team on q 4.0 and q 4.1: the test IDs
+    / it names are the same under both.
     wd:.tst.testState.twoRuntimes.wd;
+    entry:`testId`owner`reason`evidence`issue`createdAt`expiresAt!(
+      "test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";"team";"flaky vendor sandbox";
+      (enlist `observations)!enlist 3;"Q-1";"2026-11-24T00:00:00.000000000Z";"2099-01-01");
     manifest:`schemaVersion`identityAlgorithm`identityCodec`kind`entries!(
       2j;.tst.IDENTITY_ALGORITHM;.tst.testState.twoRuntimes.other;
+      "resq-quarantine-manifest";enlist entry);
+    text:enlist .j.j manifest;
+    (hsym `$wd,"/quarantine.json") 0:text;
+    .tst.loadFlakeState[];
+    .tst.app.quarantineManifest[`status] musteq `ok;
+    .tst.activeQuarantine["test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] musteq 1b;
+    (read0 hsym `$wd,"/quarantine.json") musteq text;
+  };
+  should["leave a manifest of another test-ID algorithm where it is, and ignore it"]{
+    wd:.tst.testState.twoRuntimes.wd;
+    manifest:`schemaVersion`identityAlgorithm`identityCodec`kind`entries!(
+      2j;"resq-test-case-id-v2";.tst.identityCodecMetadata[];
       "resq-quarantine-manifest";());
     text:enlist .j.j manifest;
     (hsym `$wd,"/quarantine.json") 0:text;
@@ -383,6 +400,19 @@
     names:string key hsym `$wd;
     (count names where names like "quarantine.json.identity-mismatch.*") musteq 0;
     (0<count .tst.app.quarantineManifest[`diagnostic] ss "left in place and ignored") musteq 1b;
+    shown:.tst.foreignManifestWarning[wd,"/quarantine.json";manifest];
+    (0<count shown ss "names test IDs of another generation (resq-test-case-id-v2, value codec resq-value-v1+q-ipc-leaves v1); this run uses resq-test-case-id-v3,") musteq 1b;
+    (0<count shown ss "its quarantines do not apply") musteq 1b;
+  };
+  should["still not accept a manifest whose value codec differs"]{
+    wd:.tst.testState.twoRuntimes.wd;
+    codec:.tst.identityCodecMetadata[];
+    codec[`version]:99j;
+    manifest:`schemaVersion`identityAlgorithm`identityCodec`kind`entries!(
+      2j;.tst.IDENTITY_ALGORITHM;codec;"resq-quarantine-manifest";());
+    (hsym `$wd,"/quarantine.json") 0:enlist .j.j manifest;
+    .tst.loadFlakeState[];
+    .tst.app.quarantineManifest[`status] musteq `unsupported;
   };
   should["keep one archive per runtime however often they take turns"]{
     wd:.tst.testState.twoRuntimes.wd;

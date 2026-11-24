@@ -411,10 +411,19 @@
 .tst.identityCodecMetadata:{[].tst.valueCodecMetadata[]};
 
 / Persistent state that contains identity keys is valid only for the exact
-/ algorithm and q serialization envelope that produced those keys.  The IPC
-/ leaf codec is deliberately pinned to the q build: a q upgrade is a migration
-/ event, never an implicit cache rewrite.
-.tst.identityCodecMatches:{[codec]
+/ algorithm and q serialization envelope that produced those keys.  resQ's own
+/ caches (flake history, last-run state) are pinned to the q build as well: a
+/ q upgrade is a migration event for them, never an implicit cache rewrite.
+.tst.identityCodecMatches:{[codec] .tst.identityCodecMatchesExcept[codec;`symbol$()]};
+
+/ The codec fields that name the q build. The quarantine manifest is not pinned
+/ to them: it is policy people commit and share, test IDs are the same under
+/ q 4.0 and 4.1, and a team on two q builds needs the one manifest to apply.
+.tst.IDENTITY_BUILD_FIELDS:`qVersion`qRelease;
+
+/ As identityCodecMatches, without comparing the fields in `ignored` (they must
+/ still be present).
+.tst.identityCodecMatchesExcept:{[codec;ignored]
     if[not 99h=type codec;:0b];
     expected:.tst.identityCodecMetadata[];
     required:key expected;
@@ -424,19 +433,17 @@
     converted:@["j"$;codec`version;{0Nj}];
     if[null converted;:0b];
     if[not ("f"$converted)="f"$codec`version;:0b];
-    all (converted=expected`version;
-        (codec`name)~expected`name;
-        (codec`qVersion)~expected`qVersion;
-        (codec`qRelease)~expected`qRelease;
-        (codec`ipcSerialization)~expected`ipcSerialization;
-        (codec`capabilityLevel)~expected`capabilityLevel)
+    compared:required except `version,ignored;
+    (converted=expected`version) and all (codec compared)~'expected compared
  };
 
-.tst.identityDocumentMatches:{[doc]
+.tst.identityDocumentMatches:{[doc] .tst.identityDocumentMatchesExcept[doc;`symbol$()]};
+
+.tst.identityDocumentMatchesExcept:{[doc;ignored]
     if[not 99h=type doc;:0b];
     if[not all `identityAlgorithm`identityCodec in key doc;:0b];
     if[not .tst.IDENTITY_ALGORITHM~doc`identityAlgorithm;:0b];
-    .tst.identityCodecMatches doc`identityCodec
+    .tst.identityCodecMatchesExcept[doc`identityCodec;ignored]
  };
 
 / Which identity generation wrote a state document, as text that is safe in a

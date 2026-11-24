@@ -19,6 +19,20 @@ from typing import Any
 
 SCHEMA_VERSION = 2
 
+# Codec fields naming the q build. A manifest is not pinned to them: the test
+# IDs it names are the same under q 4.0 and 4.1, so proposals from one build
+# may be added to a manifest written under another.
+BUILD_FIELDS = ("qVersion", "qRelease")
+
+
+def same_generation(codec: Any, other: Any) -> bool:
+    """True when two identity codec envelopes differ at most in the q build."""
+    if not isinstance(codec, dict) or not isinstance(other, dict):
+        return False
+    if codec.keys() != other.keys():
+        return False
+    return all(codec[key] == other[key] for key in codec if key not in BUILD_FIELDS)
+
 
 def load_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
@@ -59,7 +73,9 @@ def load_manifest(path: Path, algorithm: str, codec: dict[str, Any]) -> dict[str
     document = load_json(path)
     if document.get("schemaVersion") != SCHEMA_VERSION or document.get("kind") != "resq-quarantine-manifest":
         raise ValueError(f"{path}: expected resQ quarantine manifest v2; migrate legacy identity state first")
-    if document.get("identityAlgorithm") != algorithm or document.get("identityCodec") != codec:
+    if document.get("identityAlgorithm") != algorithm or not same_generation(
+        document.get("identityCodec"), codec
+    ):
         raise ValueError(f"{path}: manifest identity algorithm/codec differs from the proposals")
     if not isinstance(document.get("entries"), list):
         raise ValueError(f"{path}: entries must be an array")
