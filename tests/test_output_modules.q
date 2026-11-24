@@ -602,3 +602,24 @@
          }[junitXml; "junit"];
     };
  };
+
+.tst.desc["JSON evidence for values q's JSON writer cannot represent"]{
+  should["record a dictionary with char, string or list keys in the canonical envelope"]{
+    / .j.j writes {""B"":1} for char keys and signals for string or list keys
+    kinds: {[v] (.j.k .tst.output.evidenceJson v)`kind} each ("BS"!1 -1; ("ab";"cd")!1 2; (1 2;3 4)!1 2);
+    kinds musteq 3#enlist "resq-canonical-value";
+  };
+  should["find one nested inside a symbol-keyed dictionary or a table"]{
+    doc: .j.k .tst.output.evidenceJson `side`qty!("BS"!1 -1; 100);
+    doc[`side;`kind] musteq "resq-canonical-value";
+    doc[`qty] musteq 100f;
+    rows: .j.k .tst.output.evidenceJson ([] sign:("BS"!1 -1; "BS"!1 -1); n:1 2);
+    (rows[0;`sign;`kind]) musteq "resq-canonical-value";
+    (rows[1;`n]) musteq 2f;
+  };
+  should["leave dictionaries it can write as they are"]{
+    (.tst.output.evidenceJson 1 2!3 4) musteq "{\"1\":3,\"2\":4}";
+    (.tst.output.evidenceJson `a`b!1 2) musteq "{\"a\":1,\"b\":2}";
+    (.tst.output.evidenceJson ([k:`a`b] v:3 4)) musteq "[{\"k\":\"a\",\"v\":3},{\"k\":\"b\",\"v\":4}]";
+  };
+ };

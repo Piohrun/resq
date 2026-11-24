@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- The JSON report is valid whatever values a test uses. A parameter that was
+  a dictionary with char keys (`"BS"!1 -1`) was written as `{""B"":1}`, which
+  no parser accepts, on a run that passed. String or list keys made the JSON
+  reporter fail instead: every test passed, the run exited 1, and no JSON was
+  written. Such a dictionary is now recorded in the canonical value envelope.
 - resQ's start-up no longer leaves `config`, `args` and
   `textReporterLoaded` in the root namespace. An application that sets
   `config` only when it is undefined took resQ's settings dictionary.

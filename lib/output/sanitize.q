@@ -143,10 +143,23 @@
     if[98h=valueType;
         :{[table;i].tst.output.jsonSafeValue table i}[raw;] each til count raw];
     if[99h=valueType;
-        :(key raw)!.tst.output.jsonSafeValue each value raw];
+        if[11h=type key raw;
+            :(key raw)!.tst.output.jsonSafeValue each value raw];
+        / .j.j writes a JSON object for symbol keys, and for atoms such as
+        / longs and dates, which it turns into text. For char keys it writes
+        / {""B"":1}, which is not JSON, and for string or list keys it
+        / signals 'type. A dictionary it cannot write faithfully is recorded
+        / whole in the canonical envelope, like a non-finite float.
+        :$[.tst.output.jsonWritable raw;raw;.tst.output.jsonValueEnvelope raw]];
     if[0h=valueType;
         :.tst.output.jsonSafeValue each raw];
     raw
+ };
+
+/ 1b when .j.j turns the value into text that parses as JSON.
+.tst.output.jsonWritable:{[raw]
+    if[.tst.output.hasJsonInfinity raw;:0b];
+    @[{[v] .j.k .j.j v;1b};raw;{[e]0b}]
  };
 
 .tst.output.strictJson:{[raw]
