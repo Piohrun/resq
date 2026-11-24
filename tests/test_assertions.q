@@ -513,3 +513,31 @@
     .tst.assertState.assertsRun musteq 7;
   };
  };
+
+/ mustmatchignoringorder took any dictionary for a keyed table and unkeyed
+/ it: a plain dictionary signalled 'type.
+.tst.desc["mustmatchignoringorder on dictionaries"]{
+ before{
+  `probe mock {[check]
+    saved:.tst.assertState;
+    outcome:@[{[c;failed] c[]; count failed _ .tst.assertState`failures}[;count saved`failures]; check; {[e] "ERR ",e}];
+    .tst.assertState:saved;
+    outcome};
+  `.tst.suppressAssertionDiff mock 1b;
+  };
+ should["match dictionaries with the same keys and values in any order"]{
+  probe[{(`b`a`c!2 1 3) mustmatchignoringorder `a`b`c!1 2 3}] musteq 0;
+  probe[{(`b`a!2 1) mustmatchignoringorder `a`b!1 3}] musteq 1;
+  probe[{(`a`b!1 2) mustmatchignoringorder `a`c!1 2}] musteq 1;
+  / dictionaries of lists, and string keys
+  probe[{(`y`x!(1 2;`p)) mustmatchignoringorder `x`y!(`p;1 2)}] musteq 0;
+  probe[{(("b";"a")!2 1) mustmatchignoringorder ("a";"b")!1 2}] musteq 0;
+  };
+ should["still match keyed tables and tables with their rows in any order"]{
+  probe[{([k:`b`a] v:2 1) mustmatchignoringorder ([k:`a`b] v:1 2)}] musteq 0;
+  probe[{([] k:`b`a; v:2 1) mustmatchignoringorder ([] k:`a`b; v:1 2)}] musteq 0;
+  probe[{([k:`b`a] v:2 1) mustmatchignoringorder ([k:`a`b] v:1 9)}] musteq 1;
+  probe[{3 1 2 mustmatchignoringorder 1 2 3}] musteq 0;
+  };
+ };
+

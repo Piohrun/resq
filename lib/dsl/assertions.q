@@ -378,7 +378,12 @@ asserts[`mustnotthrow]:{[e;c];
 asserts[`mustmatchignoringorder]:{[l;r];
   norm:{[x]
     if[98h=type x; t:0!x; :(cols t) xasc t];
-    if[99h=type x; t:0!x; :(cols t) xasc t];
+    / A keyed table is unkeyed and its rows sorted. A plain dictionary is
+    / not a table: `0!` on one signalled 'type. It matches another with the
+    / same keys and values in any order, so it is put in key order.
+    if[99h=type x;
+      if[(98h=type key x) and 98h=type value x; t:0!x; :(cols t) xasc t];
+      :@[{[d] i:iasc key d; (key[d] i)!value[d] i}; x; {[d;err] d}[x]]];
     if[(t:type x) within 0 19h; :asc x];
     x
   };

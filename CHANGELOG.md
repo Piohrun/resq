@@ -9,6 +9,8 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `mustmatchignoringorder` compares plain dictionaries (the same keys and
+  values in any order). It signalled `'type` on one.
 - resQ says "needs q 4.0 or newer" when it is started on an older q, where
   it used to fail somewhere in the middle of loading.
 - A test that starts `q resq.q ...` itself no longer lets that second run
