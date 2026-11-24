@@ -181,12 +181,26 @@ export RESQ_ISOLATE_ROOT="$isolate_root"
 # q treats a leading flag as an option/value pair, so flag-only runtime options
 # belong after the script path. Quiet startup keeps the banner out of the
 # framework-output contract; runtime and application diagnostics may remain.
+# A command started with & reads from /dev/null. discover -interactive asks
+# questions, so it is handed this script's own standard input.
+wants_input=0
+for a in "${args[@]}"; do
+  case "$a" in -args|--args) break ;; -interactive|--interactive) wants_input=1 ;; esac
+done
 if command -v setsid >/dev/null 2>&1; then
-  setsid "$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1 &
+  if [ "$wants_input" = 1 ]; then
+    setsid "$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1 <&0 &
+  else
+    setsid "$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1 &
+  fi
   child_pid=$!
   child_pgid=$child_pid
 else
-  "$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1 &
+  if [ "$wants_input" = 1 ]; then
+    "$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1 <&0 &
+  else
+    "$q_bin" "$RESQ_HOME/resq.q" -q "${args[@]}" -e 1 &
+  fi
   child_pid=$!
 fi
 wait "$child_pid"

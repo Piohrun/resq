@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `resq discover -interactive` works through the launcher. It read its
+  answers from an input that was closed, so each one was empty, and its
+  defaults were paths inside the resQ checkout. It now reads the terminal or
+  piped answers, defaults to `src` and `tests`, and names a path that is not
+  there.
 - A run started below the project root says when it is not reading the
   project's `resq.json`. The file is read only from the directory resQ is
   started in, so the same suite was strict from the root and not from

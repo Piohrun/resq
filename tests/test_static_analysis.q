@@ -216,3 +216,38 @@
     .tst.static.squeezeSlashes["/abs/path"] musteq "/abs/path";
   };
  };
+
+/ discover -interactive asks its questions on standard input. Through the
+/ launcher there was none, so every answer was empty and the defaults were
+/ paths inside the resQ checkout.
+.tst.desc["discover -interactive reads its answers #slow"]{
+  before{
+    wd: .resq.util.tempRoot[], "/resq_discover_int_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd, "/src";
+    .resq.util.ensureDir wd, "/tests";
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist wd];
+    (hsym `$wd, "/src/a.q") 0: ("f:{x+1}"; "g:{x*2}");
+    (hsym `$wd, "/tests/test_a.q") 0: enlist ".tst.desc[\"a\"]{ should[\"f\"]{ f[1] musteq 2; }; };";
+    `ask mock {[wd;answers]
+        cmd: "cd ", .resq.util.shellQuote[wd], " && printf ", .resq.util.shellQuote[answers], " | ",
+            (.resq.util.shellQuote .resq.HOME, "/bin/resq"), " discover -interactive 2>&1; echo exit=$?";
+        @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}]}[wd];
+  };
+  should["take the paths it is given, one answer to a line"]{
+    out: ask "src\\ntests\\nn\\n";
+    (last out) musteq "exit=0";
+    (any out like "Found 1 untested functions.") musteq 1b;
+    (any out like "Discovery process complete.") musteq 1b;
+  };
+  should["use src and tests when the answers are empty"]{
+    out: ask "\\n\\nn\\n";
+    (last out) musteq "exit=0";
+    (any out like "Found 1 untested functions.") musteq 1b;
+  };
+  should["say which path is not there"]{
+    out: ask "nowhere\\ntests\\n";
+    (last out) musteq "exit=1";
+    (any out like "resQ ERROR: discover: path not found: nowhere") musteq 1b;
+  };
+ };
+

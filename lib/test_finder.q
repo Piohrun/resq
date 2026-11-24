@@ -249,12 +249,33 @@
 
 / --- Interactive Flow ---
 
+/ The questions are read from standard input. Through the launcher there was
+/ none to read (q was started with it closed), so every answer was empty and
+/ the defaults, the example project inside the resQ checkout, did not exist
+/ in the caller's directory. The launcher now hands its input on for this
+/ mode, the defaults are the caller's src and tests, and a path that is not
+/ there is said to be so.
+/ One answer. A terminal gives a line at a time; a pipe gives whatever has
+/ arrived, several lines at once, so what is read is kept and dealt out.
+.tst.answers: ();
+.tst.ask:{[]
+  if[0 = count .tst.answers; .tst.answers: "\n" vs read0 0];
+  answer: first .tst.answers;
+  .tst.answers: 1 _ .tst.answers;
+  answer except "\r"
+ };
+
 .tst.start:{[]
   -1 "\n=== RESQ DISCOVERY ENGINE ===";
-  -1 "Enter Source Directory (default: examples/quickstart/src):";
-  src: first read0 0; if[not count src; src: "examples/quickstart/src"];
-  -1 "Enter Test Directory (default: examples/quickstart/test):";
-  tst: first read0 0; if[not count tst; tst: "examples/quickstart/test"];
+  -1 "Enter Source Directory (default: src):";
+  src: .tst.ask[]; if[not count src; src: "src"];
+  -1 "Enter Test Directory (default: tests):";
+  tst: .tst.ask[]; if[not count tst; tst: "tests"];
+  missing: (src; tst) where not .resq.util.pathExists each (src; tst);
+  if[count missing;
+    -2 "resQ ERROR: discover: path not found: ", ", " sv missing;
+    -2 "  -interactive reads its answers from the terminal or from standard input; without either, give the paths: resq discover <src> <tests>";
+    exit 1];
   
   -1 "\nScanning codebase...";
   f: .tst.findSources src;
@@ -270,10 +291,10 @@
   
   -1 "\nFound ",(string count u)," untested functions.";
   -1 "Generate mirrored boilerplate and directory structure? (y/n)";
-  ans: first first read0 0;
+  ans: first .tst.ask[];
   if[ans in "yY";
     -1 "Target directory (default: missingTests):";
-    out: first read0 0; if[not count out; out: "missingTests"];
+    out: .tst.ask[]; if[not count out; out: "missingTests"];
     .tst.genMirror[u; src; out];
     -1 "\nBoilerplate generated.";
   ];
