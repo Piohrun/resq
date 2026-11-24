@@ -669,9 +669,9 @@ Without `-strict`, an all-skipped suite exits 0 — this is intentional.
 
 **Symptom:** CI doesn't fail even when tests fail.
 
-**Cause:** The `-noquit` flag is being passed (or `"exit": false` is set in `resq.json`), which suppresses the `exit` call so q falls through to EOF with exit 0.
+**Cause:** resQ is being started as `q resq.q ... -noquit` (or with `"exit": false` in `resq.json`), which suppresses the `exit` call so q falls through to the end of its input with exit 0. Through `bin/resq` and `bin/qspec` this no longer happens: the launcher returns the run's verdict whether or not resQ called `exit`.
 
-**Solution:** Remove `-noquit` (or set `"exit": true` in `resq.json`). The default behaviour already exits with the correct code — no extra flag is required:
+**Solution:** Use the launcher, or remove `-noquit` (or set `"exit": true` in `resq.json`). The default behaviour already exits with the correct code — no extra flag is required:
 ```bash
 resq test tests/
 # Exits 0 on pass, 1 on failure, 3 if no tests found, 4 on load error.

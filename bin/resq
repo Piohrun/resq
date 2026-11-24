@@ -132,6 +132,18 @@ q_status=$?
 child_pid=""
 child_pgid=""
 
+# With -noquit or "exit": false resQ does not call exit, and q, whose input
+# is empty here, then ends with status 0 whatever the tests did. Take the
+# run's own verdict when it left one.
+if [ "$q_status" -eq 0 ] && [ -f "$guard_dir/verdict" ]; then
+  verdict=""
+  read -r verdict < "$guard_dir/verdict" 2>/dev/null || true
+  case "$verdict" in
+    ''|*[!0-9]*) ;;
+    *) q_status="$verdict" ;;
+  esac
+fi
+
 if [ "$q_status" -eq 0 ] && [ -f "$guard_dir/armed" ] &&
    { [ -f "$guard_dir/premature" ] || [ ! -f "$guard_dir/complete" ]; }; then
   echo "resQ ERROR: q exited before resQ completed; forcing a failing status." >&2

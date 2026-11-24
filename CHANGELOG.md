@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `-noquit` and `"exit": false` no longer turn a failing run green. Through
+  the launcher q has no input, so without the `exit` call it ended with status
+  0 whatever the tests did, and one committed config key disabled CI. The
+  launcher now returns the run's verdict either way. Started directly as
+  `q resq.q ... -noquit`, q stays open as before.
 - A `resq.json` that cannot be applied as written stops the run with
   `CONFIG ERROR` and exit 1. It was a warning: the affected key kept its
   default and the run went on, so `{"strict": true,}` (a trailing comma), a

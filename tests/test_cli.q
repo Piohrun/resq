@@ -636,3 +636,28 @@
     (any out like "USAGE*") musteq 1b;
   };
  };
+
+/ -noquit (or "exit": false) tells resQ not to call exit, so an interactive q
+/ session stays open. Under the launcher q has no input and simply ended with
+/ status 0, whatever the tests did: a failing run came out green.
+.tst.desc["the launcher's exit status with -noquit #slow"]{
+  should["be the run's verdict"]{
+    wd: .resq.util.tempRoot[], "/resq_noquit_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist wd];
+    (hsym `$wd, "/test_red.q") 0: enlist ".tst.desc[\"red\"]{ should[\"fails\"]{ 1 musteq 2; }; };";
+    (hsym `$wd, "/test_green.q") 0: enlist ".tst.desc[\"green\"]{ should[\"passes\"]{ 1 musteq 1; }; };";
+    (hsym `$wd, "/resq.json") 0: enlist "{\"exit\": false}";
+    status: {[wd;file;flags]
+        cmd: "cd ", .resq.util.shellQuote[wd], " && ", .resq.util.shellQuote[.resq.HOME, "/bin/resq"],
+            " test ", file, " ", flags, " -outDir out -state-file out/s.json -flake-history out/f.json",
+            " -flake-proposal-file out/p.json >/dev/null 2>&1; echo $?";
+        "J"$last @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "-1"}]}[wd];
+    status["test_red.q"; "-noquit"] musteq 1;
+    status["test_green.q"; "-noquit"] musteq 0;
+    status["test_red.q"; "-noquit -isolate"] musteq 1;
+    / the same through the config file alone
+    status["test_red.q"; ""] musteq 1;
+    status["missing.q"; "-noquit"] musteq 4;
+  };
+ };

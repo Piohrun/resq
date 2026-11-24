@@ -57,6 +57,14 @@ if[not .resq.hasQutil; .resq.offerUtl[`PKGLOADING; .resq.PKGLOADING]];
     .resq.exitGuardArmed: 0b;
     ::
  };
+/ The run's verdict, for the launcher. With -noquit or "exit": false this
+/ script does not call exit, and under the launcher q then ends at the end of
+/ its input with status 0, whatever the tests did. The launcher takes the
+/ status from here instead.
+.resq.recordVerdict:{[code]
+    .resq.exitGuardWrite["verdict";string code];
+    ::
+ };
 .resq.onProcessExit:{[code]
     if[.resq.exitGuardArmed;
         -2 "resQ ERROR: q exited before resQ completed the test run (requested exit ",
@@ -176,6 +184,7 @@ if[.resq.mode ~ `test;
     / granular status; this entry point alone owns process exit policy.
     if[1b ~ @[get; `.tst.app.isolate; 0b];
         .resq.isolateExitCode: .tst.isolate.runAll .tst.app.args;
+        .resq.recordVerdict .resq.isolateExitCode;
         .resq.completeExitGuard[];
         if[1b ~ .tst.app.exit;
             exit .resq.isolateExitCode];
@@ -190,22 +199,20 @@ if[.resq.mode ~ `test;
             .resq.report: .tst.describeReport;
         ];
         .resq.runAllWithOptionalSelfCoverage[];
+        / -desc exits cleanly (0) when files loaded without error; a load error
+        / still surfaces as LOAD_ERROR so a broken file is never silently listed.
+        / Otherwise granular exit codes for CI/CD.
+        .resq.noTestsFound: (not 1b~@[get;`.tst.app.emptyShard;0b]) and
+            (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
+        .resq.exitCode: $[1b ~ @[get; `.tst.app.describeOnly; 0b];
+                $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR; .resq.EXIT.PASS];
+            0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
+            .resq.noTestsFound; .resq.EXIT.NO_TESTS;
+            not .tst.app.passed; .resq.EXIT.FAIL;
+            .resq.EXIT.PASS];
+        .resq.recordVerdict .resq.exitCode;
         .resq.completeExitGuard[];
-        if[1b ~ .tst.app.exit;
-            / -desc exits cleanly (0) when files loaded without error; a load error
-            / still surfaces as LOAD_ERROR so a broken file is never silently listed.
-            if[1b ~ @[get; `.tst.app.describeOnly; 0b];
-                exit $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR; .resq.EXIT.PASS];
-            ];
-            / Granular exit codes for CI/CD
-            .resq.noTestsFound: (not 1b~@[get;`.tst.app.emptyShard;0b]) and
-                (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
-            .resq.exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
-                        .resq.noTestsFound; .resq.EXIT.NO_TESTS;
-                        not .tst.app.passed; .resq.EXIT.FAIL;
-                        .resq.EXIT.PASS];
-            exit .resq.exitCode
-        ];
+        if[1b ~ .tst.app.exit; exit .resq.exitCode];
     ];
  ];
 
