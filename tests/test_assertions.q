@@ -468,10 +468,18 @@
   messages:probe {7 musteq 5};
   (first1 messages) like "Got 7 — expected 5 (diff: 2)*";
   };
- should["keep the exact evidence form for a float the short form cannot reproduce"]{
-  rendered:.tst.renderValueHuman 0.1+0.2;
-  must[rendered like "*ipc=*"; "an inexact short form must fall back, got ",rendered];
+ / It read 0.3[ipc=0100...] next to an expected 0.3: exact and unreadable.
+ should["use the fewest digits that read back exactly when the short form cannot"]{
+  .tst.renderValueHuman[0.1+0.2] musteq "0.30000000000000004";
+  .tst.renderValueHuman[1%3] musteq "0.3333333333333333";
+  .tst.renderValueHuman[0.3 0.25,1%3] musteq "0.3 0.25 0.3333333333333333";
+  / no more digits than it takes
+  .tst.renderValueHuman[1.00000001] musteq "1.00000001";
+  .tst.renderValueHuman["e"$1%3] musteq "0.33333334e";
+  must[not (.tst.renderValueHuman 0.1+0.2) like "*ipc=*"; "no serialized bytes in a message for people"];
+  / the evidence form is unchanged, and so is the display precision
   .tst.renderValueFull[2f] musteq "2.000000000000000";
+  (system "P") musteq 7i;
   };
  should["render an enumerated value as its symbols"]{
   `.tst.testState.enumDomain mock `a`b`c;

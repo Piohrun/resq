@@ -140,10 +140,34 @@
 / that form, so it stays as it is and only failure messages use this one.
 .tst.renderFloatHuman:{[raw]
     if[null raw; :$[-8h = type raw; "0Ne"; "0n"]];
+    exact: {[raw;text]
+        back: @[{"F"$x}; text; {[e] 0n}];
+        if[-8h = type raw; back: "e"$back];
+        (-8!back) ~ -8!raw};
     short: string raw;
-    back: @[{"F"$x}; short; {[e] 0n}];
-    if[-8h = type raw; back: "e"$back];
-    $[(-8!back) ~ -8!raw; short; .tst.renderAtomFull raw]
+    if[exact[raw; short]; :short];
+    / The display precision in force cannot say this number. It read
+    / 0.3[ipc=0100...] next to an expected 0.3: exact, and unreadable. The
+    / fewest digits that read back to the same bits say it as well, and 17
+    / always do for a float.
+    longer: .tst.shortestExactFloat[raw; exact];
+    $[count longer; longer; .tst.renderAtomFull raw]
+ };
+
+/ `string` under a display precision that is put back, whatever happens.
+.tst.shortestExactFloat:{[raw;exact]
+    saved: system "P";
+    found: @[{[raw;exact]
+        digits: 8;
+        text: "";
+        while[(0 = count text) and digits <= 17;
+            system "P ", string digits;
+            candidate: string raw;
+            if[exact[raw; candidate]; text: candidate];
+            digits+: 1];
+        text}[raw]; exact; {[e] ""}];
+    system "P ", string saved;
+    found
  };
 
 .tst.renderFloatsHuman:{[raw;budget]

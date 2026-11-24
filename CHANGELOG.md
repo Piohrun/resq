@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A float that q's display precision cannot say exactly is shown with the
+  fewest digits that read back to the same number, `0.30000000000000004`,
+  where it was shown with its serialized bytes, `0.3[ipc=0100...]`.
 - A null in a failure message is written as its literal: `Got 1 0N 3 —
   expected 1 2 3` and `Got 0Ni — expected 5`, where it read `Got 1  3` and
   `Got  — expected 5 (diff: )`.
