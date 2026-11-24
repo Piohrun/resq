@@ -229,8 +229,8 @@
 / The launcher marks the run interrupted and then signals q. A SIGINT that
 / reached q while it ran q code, not a `system` call, was a 'stop error raised
 / wherever q was; in the isolated parent's own loop nothing caught it, and the
-/ run ended with q's trace instead of as an interrupted run (about one in 40
-/ signals). A plugin stands in for that moment here: it marks the run and
+/ run ended with q's trace instead of as an interrupted run (rarely: 1 of 140
+/ signals in a stress test). A plugin stands in for that moment here: it marks the run and
 / raises 'stop from the isolated run itself.
 .tst.testState.interrupt.fromRun:{[wd;body]
     (hsym `$wd, "/test_x.q") 0: enlist ".tst.desc[\"x\"]{ should[\"y\"]{ 1 musteq 1 }; };";
