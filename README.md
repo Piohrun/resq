@@ -126,12 +126,15 @@ resq discover ~/.local/share/resq/examples/quickstart/src \
   ~/.local/share/resq/examples/quickstart/test -outDir artifacts/discovery
 ```
 
-Paths are read from the directory you start resQ in, and so are `resq.json`
-and the `.resq/` directory where resQ keeps what it learns between runs: the
-tests that failed last time (for `-last-failed`) and the flake history. The
-directory ignores itself in git; `.resq/quarantine.json` is the one file in it
-meant to be committed. `-state-file` and `-flake-history` put the state
-elsewhere.
+Paths are read from the directory you start resQ in. `resq.json` is the
+nearest one from there up to the top of the checkout, and the directory that
+holds it is the project directory: the `.resq/` directory where resQ keeps
+what it learns between runs (the tests that failed last time, for
+`-last-failed`, and the flake history) is there, so a run from `tests/` and a
+run from the top share it. Without a `resq.json` further up, the project
+directory is the one you start in. `.resq/` ignores itself in git;
+`.resq/quarantine.json` is the one file in it meant to be committed.
+`-state-file` and `-flake-history` put the state elsewhere.
 
 `QBIN` names the q executable to use (`QBIN=/opt/kx/q/l64/q resq test tests/`);
 without it `q` is looked up on `PATH`. Isolated children use the same one.

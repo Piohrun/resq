@@ -85,10 +85,17 @@ All notable changes to the **resQ** project will be documented in this file.
   defaults were paths inside the resQ checkout. It now reads the terminal or
   piped answers, defaults to `src` and `tests`, and names a path that is not
   there.
-- A run started below the project root says when it is not reading the
-  project's `resq.json`. The file is read only from the directory resQ is
-  started in, so the same suite was strict from the root and not from
-  `tests/`, without a word.
+- A run started below the project root reads the project's `resq.json`. The
+  file was read only from the directory resQ is started in, so the same suite
+  was strict from the root and not from `tests/`, without a word. resQ now
+  reads the nearest `resq.json` from the start directory up to the top of the
+  checkout. When that file is further up, its directory is the project
+  directory: the file's own paths, `.resq/` (last-run state, flake history,
+  quarantine manifest), the default snapshot directories and test IDs are
+  relative to it, so `-last-failed` and the flake history are the same from
+  anywhere in the project, and resQ says which file it read. Paths typed on
+  the command line, and the default report directory, stay relative to where
+  resQ was started.
 - Command-line mistakes that ended in a q error are named in one line: a
   single-letter option q does not know (`-x`, also after `-args`), q not
   found (`QBIN` or `PATH`), a `-plugin` file that is not there, an empty path

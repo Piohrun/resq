@@ -1179,7 +1179,7 @@
 .tst.isolate.runAll:{[paths]
     timeoutSecs: @[get; `.tst.app.isolateTimeout; 300];
     .resq.state.results: .resq.state.emptyResults[];
-    .tst.app.baseDir: system "cd";
+    .tst.app.baseDir: .tst.projectDir[];
     .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
     .tst.app.executionIncompleteReason:"";
     .tst.app.canonicalRunSnapshot:()!();

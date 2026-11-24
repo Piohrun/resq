@@ -36,7 +36,8 @@ review that rewrite as its own commit. Binary snapshots are unaffected.
 
 ### Storage
 Text snapshots are stored as `<name>.snap.txt` in `tests/__snapshots__/`
-(relative to the current working directory — run from your project root).
+(relative to the directory resQ starts in, or to the directory of the
+`resq.json` it reads when that is further up).
 Override with `.tst.setSnapTxtDir["path/to/dir"]`.
 
 ### First Run and CI Safety

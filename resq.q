@@ -159,7 +159,24 @@ if[not .resq.cli`ok;
     -2 "CLI ERROR: ", .resq.cli`error;
     exit .resq.EXIT.FAIL];
 
+/ resq.json was found above the start directory, so the project directory is
+/ that file's directory (.tst.projectDir). A relative path typed on the
+/ command line is still relative to where it was typed, and reports still go
+/ to the start directory unless told otherwise.
+.resq.underProject: 0 < count .tst.configProjectDir;
+.resq.fromStart: {[p] $[(10h = type p) and (count p) and not "/" = first p;
+    .resq.util.normalizePath .resq.startCwd, "/", p; p]};
+if[.resq.underProject;
+    .resq.cliPathNames: `outDir`stateFile`flakeHistoryFile`quarantineFile`flakeProposalFile`benchmarkBaseline;
+    .resq.cliPathNames: .resq.cliPathNames where .resq.cliPathNames in key .resq.cli`options;
+    .resq.cli[`options]: (.resq.cli`options), .resq.cliPathNames!.resq.fromStart each (.resq.cli`options) .resq.cliPathNames];
+
 .tst.initCLI .resq.cli;
+if[.resq.underProject;
+    .resq.config.outDir: .resq.fromStart .tst.toString .resq.config.outDir;
+    / the default snapshot directories are the project's
+    .tst.snapDir: .tst.configProjectDir, "/tests/snapshots";
+    .tst.snapTxtDir: .tst.configProjectDir, "/tests/__snapshots__"];
 / qspec's app/spec.q loads qutil's option parser before any test file, so
 / qspec-era code can call .utl.addOpt without requiring it. bin/qspec keeps
 / that when qutil is installed.
@@ -173,12 +190,17 @@ if[.resq.hasQutil and 1b~@[get;`.tst.app.qspecDiscovery;0b];
     exit .resq.EXIT.FAIL}];
 .resq.mode: .resq.cli`mode;
 .tst.app.args: .resq.cli`args;
-/ A resq.json further up is not read; see .tst.unreadConfigAbove.
-.resq.configAbove: @[.tst.unreadConfigAbove; system "cd"; {[e] ""}];
-if[(count .resq.configAbove) and (.resq.mode in `test`cover`mutate`watch`discover) and
+/ Test paths are made absolute when the project directory is above the start
+/ directory: file paths in reports and test IDs are relative to the project
+/ directory, and a path relative to the start directory would be read as one
+/ relative to the project.
+if[.resq.underProject; .tst.app.args: .resq.fromStart each .tst.app.args];
+/ Say which resq.json is read when it is not the one in the start directory:
+/ the project directory, and so .resq/ and test IDs, follow it.
+if[.resq.underProject and (.resq.mode in `test`cover`mutate`watch`discover) and
    not 1b ~ @[get; `.tst.app.passOnly; 0b];
-    -2 "resQ: note: ", .resq.configAbove, " is not read. resq.json is read from the directory resQ is started in;",
-       " its settings (strict, thresholds, paths) do not apply to this run."];
+    -2 "resQ: using ", .tst.configProjectDir, "/resq.json; .resq/ and test IDs are relative to ",
+       .tst.configProjectDir, "."];
 / An empty path, as from an unset shell variable (resq test "$DIR"), was
 / dropped without a word, and the run tested the default directory instead.
 if[any 0 = count each .resq.util.pathToString each .tst.app.args;
@@ -202,7 +224,7 @@ if[.resq.mode ~ `test;
     / Convention: if no path is given and a local tests/ directory exists,
     / use it. Keeps `resq test` useful without making the path mandatory.
     if[(0 = count .tst.app.args) and .resq.util.isDir "tests";
-        .tst.app.args: enlist "tests";
+        .tst.app.args: enlist .resq.fromStart "tests";
         -1 "No path specified; defaulting to tests/";
     ];
     / Isolation cannot compose truthfully with coverage instrumentation or

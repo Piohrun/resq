@@ -316,25 +316,62 @@ defaultConfig:defaultConfig,enlist[`watchLoaders]!enlist ();
     cfg
  };
 
-/ resq.json is read from the directory resQ is started in, and from nowhere
-/ else. Started one level down, in tests/, the project's resq.json is not
-/ read: a suite that is strict from the project root is not strict from
-/ there, and nothing said so. This finds such a file: the nearest resq.json
-/ above the given directory, up to the top of the checkout, or "" when the
-/ directory has its own or there is none.
-unreadConfigAbove:{[dir]
+/ The resq.json a run reads: the nearest one in the given directory or above
+/ it, up to the top of the checkout (a directory holding .git) and at most 12
+/ levels up; "" when there is none. resq.json used to be read from the start
+/ directory only: started one level down, in tests/, a suite that is strict
+/ from the project root was not strict, and nothing said so.
+findConfigFile:{[dir]
     here: .resq.util.normalizePath dir;
-    if[.resq.util.pathExists here, "/resq.json"; :""];
-    found: "";
     levels: 0;
-    while[(0 = count found) and (levels < 12) and 1 < count here;
+    while[(levels < 13) and 0 < count here;
+        if[.resq.util.pathExists here, "/resq.json"; :here, "/resq.json"];
         / the top of a checkout is as far as a project goes
         if[.resq.util.pathExists here, "/.git"; :""];
+        if[here ~ enlist "/"; :""];
         slash: where here = "/";
         here: $[0 = count slash; ""; 0 = last slash; enlist "/"; (last slash) # here];
-        if[(count here) and .resq.util.pathExists here, "/resq.json"; found: here, "/resq.json"];
         levels+: 1];
-    found
+    ""
+ };
+
+/ The project directory, when resq.json was found above the start directory:
+/ that file's directory. "" otherwise, and then the start directory is the
+/ project directory, as before. Set by loadConfig when it looks for the file.
+configProjectDir: "";
+
+/ Where defaults (.resq/, snapshots) and test IDs resolve.
+.tst.projectDir:{[]
+    dir: @[get; `.tst.configProjectDir; {""}];
+    $[count dir; dir; system "cd"]
+ };
+
+/ The settings in resq.json that name files or directories. Read from a
+/ resq.json further up, they are relative to that file, not to the directory
+/ resQ was started in, so they are made absolute when the file is read.
+CONFIG_PATH_KEYS: `outDir`stateFile`flakeHistoryFile`quarantineFile`flakeProposalFile`benchmarkBaseline`pluginFiles`coverageSources;
+
+/ One path setting, relative to `dir`, keeping its JSON shape (a string, a
+/ symbol, or a list of them) so that validation sees what the file said. An
+/ empty string stays empty; a value of another type is left for validation.
+.tst.anchorConfigPath:{[dir;setting]
+    anchor: {[dir;p] $[(0 = count p) or "/" = first p; p; .resq.util.normalizePath dir, "/", p]}[dir];
+    $[10h = type setting; anchor setting;
+      -11h = type setting; `$anchor string setting;
+      11h = type setting; `$anchor each string setting;
+      0h = type setting; {[anchor;v] $[10h = type v; anchor v; -11h = type v; `$anchor string v; v]}[anchor] each setting;
+      setting]
+ };
+
+.tst.anchorConfigPaths:{[dir;cfg]
+    names: .tst.CONFIG_PATH_KEYS where .tst.CONFIG_PATH_KEYS in key cfg;
+    if[0 = count names; :cfg];
+    / pluginFiles may be one comma-separated string
+    if[`pluginFiles in names;
+        if[10h = type cfg`pluginFiles;
+            cfg[`pluginFiles]: "," sv .tst.anchorConfigPath[dir] each "," vs cfg`pluginFiles;
+            names: names except `pluginFiles]];
+    cfg, names!.tst.anchorConfigPath[dir] each cfg names
  };
 
 / Load configuration from JSON file
@@ -348,7 +385,15 @@ loadConfig:{[path]
     / What kept the file from being read as written. The command line treats
     / any entry as fatal; see resq.q.
     .tst.configLoadProblems:();
-    p:$[10h = type path; path; "resq.json"];
+    / The run's own file: the nearest resq.json from here up. A caller naming a
+    / file gets that file, and the project directory is left alone.
+    if[not 10h = type path;
+        here: .resq.util.normalizePath system "cd";
+        found: .tst.findConfigFile here;
+        slash: $[count found; last where found = "/"; 0N];
+        dir: $[null slash; ""; 0 = slash; enlist "/"; slash # found];
+        .tst.configProjectDir: $[(count dir) and not dir ~ here; dir; ""]];
+    p:$[10h = type path; path; count .tst.configProjectDir; .tst.configProjectDir, "/resq.json"; "resq.json"];
     source:@[.tst.readConfigSource;hsym `$p;{[e]
         `state`value!(`error;e)
     }];
@@ -380,6 +425,8 @@ loadConfig:{[path]
             cfg:cfg,(enlist `seed)!enlist exactSeed`seed]];
     .tst.configTestFilePatternsExplicit:`testFilePatterns in key cfg;
     cfg:.tst.normalizeConfigDocument cfg;
+    if[(not 10h = type path) and count .tst.configProjectDir;
+        cfg:.tst.anchorConfigPaths[.tst.configProjectDir;cfg]];
     / A supported format is normalised here (xml -> junit, console -> text).
     / Anything else keeps the value the file gave, for validation to reject:
     / normalising it too turned every unknown format into `text, so

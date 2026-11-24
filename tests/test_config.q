@@ -676,10 +676,10 @@
   };
  };
 
-/ resq.json is read from the directory resQ is started in. Started in
-/ tests/, a suite that is strict from the project root was not strict, and
-/ nothing said so.
-.tst.desc["a resq.json further up that is not read"]{
+/ resq.json used to be read from the start directory only. Started in tests/,
+/ a suite that is strict from the project root was not strict, and nothing
+/ said so. The nearest one from the start directory up is read now.
+.tst.desc["the resq.json a run reads"]{
   before{
     root: .resq.util.tempRoot[], "/resq_cfg_above_", string[.z.i], "_", string `long$.z.p;
     .resq.util.ensureDir root, "/proj/tests/unit";
@@ -687,22 +687,74 @@
     (hsym `$root, "/proj/resq.json") 0: enlist "{\"strict\": true}";
     `proj mock root, "/proj";
   };
-  should["be found from a directory below it"]{
-    .tst.unreadConfigAbove[proj, "/tests"] musteq proj, "/resq.json";
-    .tst.unreadConfigAbove[proj, "/tests/unit"] musteq proj, "/resq.json";
-  };
-  should["not be reported from its own directory, or from one with its own"]{
-    .tst.unreadConfigAbove[proj] musteq "";
+  should["be the one in the start directory, or the nearest above it"]{
+    .tst.findConfigFile[proj] musteq proj, "/resq.json";
+    .tst.findConfigFile[proj, "/tests"] musteq proj, "/resq.json";
+    .tst.findConfigFile[proj, "/tests/unit"] musteq proj, "/resq.json";
     (hsym `$proj, "/tests/resq.json") 0: enlist "{}";
-    .tst.unreadConfigAbove[proj, "/tests"] musteq "";
-    / the nearest one above is the one named
-    .tst.unreadConfigAbove[proj, "/tests/unit"] musteq proj, "/tests/resq.json";
+    .tst.findConfigFile[proj, "/tests/unit"] musteq proj, "/tests/resq.json";
   };
   should["not be looked for above the top of a checkout"]{
     .resq.util.ensureDir proj, "/tests/.git";
-    / tests/ is the top of a checkout here: the project's file above it is another project's
-    .tst.unreadConfigAbove[proj, "/tests/unit"] musteq "";
-    .tst.unreadConfigAbove[proj, "/tests"] musteq "";
+    / tests/ is the top of a checkout here: the file above it is another project's
+    .tst.findConfigFile[proj, "/tests/unit"] musteq "";
+    .tst.findConfigFile[proj, "/tests"] musteq "";
+  };
+  should["have its paths read relative to itself"]{
+    cfg: `outDir`stateFile`pluginFiles`coverageSources`benchmarkBaseline`strict!(
+      "reports"; "/abs/state.json"; "p/a.q,/abs/b.q"; ("src"; `lib); `base.json; 1b);
+    anchored: .tst.anchorConfigPaths["/proj"; cfg];
+    anchored[`outDir] musteq "/proj/reports";
+    anchored[`stateFile] musteq "/abs/state.json";
+    anchored[`pluginFiles] musteq "/proj/p/a.q,/abs/b.q";
+    anchored[`coverageSources] musteq ("/proj/src"; `$"/proj/lib");
+    anchored[`benchmarkBaseline] musteq `$"/proj/base.json";
+    anchored[`strict] musteq 1b;
+    / a value of the wrong type is left for validation to reject
+    .tst.anchorConfigPaths["/proj"; enlist[`outDir]!enlist 5] musteq enlist[`outDir]!enlist 5;
+  };
+ };
+
+/ Started below the project directory, a run reads the project's resq.json
+/ and keeps its state and test IDs where a run from the project would.
+.tst.testState.cfgAbove.canRun: (0 < count @[system; "command -v q 2>/dev/null"; {()}]) and
+    0 < count @[system; "command -v timeout 2>/dev/null"; {()}];
+.tst.desc["a run started below the project directory #slow"]{
+  should["read the project's resq.json and keep state and test IDs with the project"]{
+    if[not .tst.testState.cfgAbove.canRun; :must[1b; "q or timeout unavailable"]];
+    root: .resq.util.tempRoot[], "/resq_cfg_run_", string[.z.i], "_", string `long$.z.p;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist root];
+    .resq.util.ensureDir root, "/proj/tests/unit";
+    .resq.util.ensureDir root, "/proj/.git";
+    (hsym `$root, "/proj/resq.json") 0: enlist "{\"strict\": true, \"outDir\": \"reports\"}";
+    / with strict applied, the test that asserts nothing fails
+    (hsym `$root, "/proj/tests/unit/test_a.q") 0: enlist
+      ".tst.desc[\"a\"]{ should[\"assert nothing\"]{ 1+1; }; should[\"pass\"]{ 1 musteq 1 }; };";
+    run: {[dir; args]
+      cmd: "true && cd ", (.resq.util.shellQuote dir), " && timeout -k 2 60 q ",
+           (.resq.util.shellQuote .resq.HOME, "/resq.q"), " test ", args, " -json > out.txt 2>&1; echo $?";
+      code: "J"$last @[system; cmd; {[err] enlist "-1"}];
+      `code`output!(code; "\n" sv @[read0; hsym `$dir, "/out.txt"; {()}])};
+    proj: root, "/proj";
+    fromRoot: run[proj; "tests"];
+    fromRoot[`code] musteq 1;
+    rootRows: (.j.k raze read0 hsym `$proj, "/reports/test-results.json")`tests;
+    fromBelow: run[proj, "/tests/unit"; "."];
+    fromBelow[`code] musteq 1;
+    (0 < count fromBelow[`output] ss "resQ: using ", proj, "/resq.json") musteq 1b;
+    belowRows: (.j.k raze read0 hsym `$proj, "/reports/test-results.json")`tests;
+    ({x`file} each belowRows) musteq 2#enlist "tests/unit/test_a.q";
+    ({x`testId} each belowRows) musteq {x`testId} each rootRows;
+    ({x`status} each belowRows) musteq ("fail"; "pass");
+    / one .resq/, the project's
+    (.resq.util.pathExists proj, "/.resq/last-run.json") musteq 1b;
+    (.resq.util.pathExists proj, "/tests/unit/.resq") musteq 0b;
+    / a path typed on the command line is relative to where it was typed
+    typed: run[proj, "/tests/unit"; "test_a.q -outDir here -last-failed"];
+    typed[`code] musteq 1;
+    hereRows: (.j.k raze read0 hsym `$proj, "/tests/unit/here/test-results.json")`tests;
+    / -last-failed found the project's state: only the failing test ran
+    ({x`testId} each hereRows) musteq enlist first {x`testId} each rootRows;
   };
  };
 

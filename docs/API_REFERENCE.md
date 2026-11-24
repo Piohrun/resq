@@ -2102,7 +2102,10 @@ resq mutate src/ -since main -isolateWorkers 4
 
 ## Configuration File
 
-Create `resq.json` in project root:
+Create `resq.json` in project root. resQ reads the nearest `resq.json` from
+the directory it starts in up to the top of the checkout; when that file is
+further up, its relative paths, `.resq/` and test IDs resolve against its
+directory, while command-line paths stay relative to the start directory.
 
 ```json
 {

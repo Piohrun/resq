@@ -763,8 +763,9 @@
     .tst.app.executionIncompleteReason:"";
     .tst.app.canonicalRunSnapshot:()!();
     / First: relative paths below (a benchmark baseline, for one) resolve
-    / against it.
-    .tst.app.baseDir: system "cd";
+    / against it. It is the start directory, or the directory of a resq.json
+    / found above it.
+    .tst.app.baseDir: .tst.projectDir[];
     .tst.app.declaredInsideTests: ();
     .tst.app.snapshotDeclarations:();
     .tst.app.snapshotInventory:.tst.emptySnapshotInventory 0b;

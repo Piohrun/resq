@@ -370,7 +370,8 @@
  };
 
 / Portable path used by every reporter and by the stable test identity. A path
-/ beneath the invocation directory is emitted relative to it; paths outside the
+/ beneath the project directory (.tst.app.baseDir) is emitted relative to it, so
+/ a test has the same ID whether resQ starts there or below it; paths outside the
 / repository remain absolute because fabricating a relative path would be
 / misleading. Literal prefix comparison avoids q `like metacharacters in paths.
 .tst.repoRelativePath:{[path]

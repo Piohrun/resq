@@ -163,10 +163,14 @@ resQ keeps what it learns between runs (the tests that failed last time, for
 The directory ignores itself in git; `.resq/quarantine.json`, the reviewed
 quarantine list, is the file in it to commit.
 
-Put `resq.json` in the directory where you invoke resQ. It is read from
-there and from nowhere else: started one level down, in `tests/`, a run does
-not pick up the project's `resq.json`, and says so in a note when there is
-one further up in the checkout.
+Put `resq.json` at the top of your project. resQ reads the nearest
+`resq.json` from the directory it starts in, up to the top of the checkout.
+Started below it, in `tests/` for example, a run uses the project's file and
+says so, and that file's directory is the project directory: the paths in
+the file, `.resq/` and test IDs are relative to it, so a run from `tests/`
+shares `-last-failed` and the flake history with a run from the top. Paths
+you type on the command line, and the default report directory, stay
+relative to where you are.
 
 ```json
 {
