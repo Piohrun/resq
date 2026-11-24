@@ -296,6 +296,30 @@
     };
  };
 
+.tst.desc["a snapshot or benchmark assertion counts as an assertion"]{
+  should["count mustmatchst and mustmatchs"]{
+    textName: "tmp_resq_count_text";
+    binName: "tmp_resq_count_bin";
+    textFile: .resq.util.pathToHsym .tst.snapTxtDir, "/", textName, ".snap.txt";
+    binFile: .resq.util.pathToHsym .tst.snapDir, "/", binName, ".snap";
+    .tst.registerCleanup[{[p] @[hdel; p; {}]}; enlist textFile];
+    .tst.registerCleanup[{[p] @[hdel; p; {}]}; enlist binFile];
+    / these two snapshots do not exist yet: let them be created
+    `.tst.app.strict mock 0b;
+    ran: .tst.assertState.assertsRun;
+    (`a`b!1 2) mustmatchst textName;
+    (.tst.assertState.assertsRun - ran) musteq 1;
+    ran: .tst.assertState.assertsRun;
+    (1 2 3) mustmatchs binName;
+    (.tst.assertState.assertsRun - ran) musteq 1;
+  };
+  should["count mustbench"]{
+    ran: .tst.assertState.assertsRun;
+    .tst.mustbench[{1+1}; 1000000; `iterations`warmup!(5;1)];
+    (.tst.assertState.assertsRun - ran) musteq 1;
+  };
+ };
+
 / Snapshot audit and gate from the command line. Two cases that used to end
 / in a framework error: a project that has no snapshots yet, and a gate that
 / fails (the console reporter died while printing the reason).

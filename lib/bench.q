@@ -99,6 +99,8 @@ bench:{[func;opts]
 
 / Assertion: function average time must be under threshold
 mustbench:{[func;thresholdUs;opts]
+  / Counted as an assertion: a test whose only check is this one asserts.
+  .tst.assertState.assertsRun+:1;
   stats: bench[func; opts];
   if[stats[`avg_us] > thresholdUs; '"Benchmark failed: avg above threshold: ",(string stats`avg_us)];
   stats

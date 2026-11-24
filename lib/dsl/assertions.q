@@ -210,8 +210,12 @@ asserts[`musteq]:{[l;r];
 / mustmatch shares musteq's ~-equality semantics; route it through the same body
 / so a mismatch renders the rich FAILURE DIFF instead of a bare -3! message.
 asserts[`mustmatch]:{[l;r]; .tst.asserts[`musteq][l;r]}
-asserts[`mustmatchs]:{[l;r]; .tst.mustmatchSnap[l;r]}
-asserts[`mustmatchst]:{[l;r]; .tst.mustmatchTxtSnap[l;r]}
+/ A snapshot comparison is an assertion and is counted as one. It was not, so
+/ a test whose only check was `x mustmatchst "name"` was listed under "tests
+/ that asserted nothing" and failed under -strict, which the snapshot guide
+/ recommends.
+asserts[`mustmatchs]:{[l;r]; .tst.assertState.assertsRun+:1; .tst.mustmatchSnap[l;r]}
+asserts[`mustmatchst]:{[l;r]; .tst.assertState.assertsRun+:1; .tst.mustmatchTxtSnap[l;r]}
 asserts[`mustnmatch]:{[l;r]; .tst.assertCondition[not l~r;
   .tst.deferAssertionMessage[{[a;b] "Got ",.tst.assertValueText[a],
     " — expected it NOT to match ",.tst.assertValueText[b]};(l;r)]]}
