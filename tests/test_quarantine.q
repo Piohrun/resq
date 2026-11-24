@@ -529,3 +529,74 @@
   };
  };
 
+/ The lock around the flake history was reclaimed only when its PID was not
+/ running. In a container the PID a killed run left behind is running again,
+/ as something else: every run then waited five seconds and saved nothing.
+.tst.desc["a flake-history lock that nobody holds is reclaimed"]{
+  before{
+    dir:.utl.tempRoot[],"/resq_flake_lock_",string[.z.i],"_",string `long$.z.p;
+    .utl.ensureDir dir;
+    .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.utl.shellQuote d;{}]};enlist dir];
+    `historyPath mock dir,"/flake.json";
+    / do not wait five seconds for a lock that is held
+    `.tst.FLAKE_LOCK_TRIES mock 2;
+    `hold mock {[path;lines]
+      system "mkdir ",.utl.shellQuote path,".lock";
+      if[count lines;(hsym `$path,".lock/pid") 0: lines];};
+    `started mock {[pid] first system "ps -o lstart= -p ",string pid};
+  };
+
+  should["take a free lock, write down who holds it, and give it back"]{
+    .tst.acquireFlakeHistoryLock[historyPath] musteq 0j;
+    owner:read0 hsym `$historyPath,".lock/pid";
+    (first owner) musteq string .z.i;
+    (count owner) musteq 2;
+    .tst.releaseFlakeHistoryLock historyPath;
+    (() ~ key hsym `$historyPath,".lock") musteq 1b;
+  };
+
+  should["honour a lock held by a process that is running"]{
+    hold[historyPath;(string .z.i;started .z.i)];
+    .tst.acquireFlakeHistoryLock[historyPath] musteq 75j;
+  };
+
+  should["reclaim a lock whose process is gone"]{
+    hold[historyPath;enlist "999999999"];
+    .tst.acquireFlakeHistoryLock[historyPath] musteq 0j;
+  };
+
+  should["reclaim a lock whose PID now belongs to another process"]{
+    / this process's PID, with a start time that is not this process's
+    hold[historyPath;(string .z.i;"Thu Jan  1 00:00:00 1970")];
+    .tst.acquireFlakeHistoryLock[historyPath] musteq 0j;
+    (first read0 hsym `$historyPath,".lock/pid") musteq string .z.i;
+  };
+
+  should["reclaim a lock that is older than any writer needs, with or without a PID"]{
+    hold[historyPath;enlist string .z.i];
+    / fresh, and its PID is running: honoured
+    .tst.acquireFlakeHistoryLock[historyPath] musteq 75j;
+    system "touch -d '10 minutes ago' ",.utl.shellQuote historyPath,".lock";
+    .tst.acquireFlakeHistoryLock[historyPath] musteq 0j;
+    .tst.releaseFlakeHistoryLock historyPath;
+    hold[historyPath;()];
+    system "touch -d '10 minutes ago' ",.utl.shellQuote historyPath,".lock";
+    .tst.acquireFlakeHistoryLock[historyPath] musteq 0j;
+  };
+
+  should["say on the console when a run could not save its evidence"]{
+    hold[historyPath;(string .z.i;started .z.i)];
+    `.tst.flakeHistoryPath mock {[] historyPath};
+    `.tst.app.isolateChild mock 0b;
+    `.tst.app.describeOnly mock 0b;
+    `.tst.app.passOnly mock 0b;
+    `.resq.state.results mock .tst.oneResultTable .tst.quarantineTest.rowId["test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";`pass];
+    `.tst.testState.lockNotes mock ();
+    `.tst.noteIdentityState mock {[text] .tst.testState.lockNotes,: enlist text;};
+    `.tst.recordDiagnostic mock {[a;b;c;d;e] ::};
+    .tst.persistFlakeState[] musteq 0b;
+    (count .tst.testState.lockNotes) musteq 1;
+    ((first .tst.testState.lockNotes) like "the flake history is locked by another run*") musteq 1b;
+  };
+ };
+

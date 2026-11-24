@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A flake-history lock that a killed run left behind is reclaimed. It was
+  kept as long as its PID was running, and in a container that PID is running
+  again in the next one, as another process: every run then waited five
+  seconds and saved no evidence, without a word on the console. A lock is now
+  also stale when the process with its PID is not the one that took it, or
+  when it is more than two minutes old; and a run that cannot save says so.
 - A run of some of the test files no longer wears away what is known about
   the others. A complete run of one file aged the flake history of every test
   it had not seen, so 21 such runs erased it, and one such run emptied the

@@ -620,8 +620,19 @@
  };
 
 / A short-lived directory lock makes the read/merge/atomic-publish sequence a
-/ single-writer operation. The bounded wait reclaims only a lock whose recorded
-/ PID no longer exists; otherwise this run leaves the cache untouched.
+/ single-writer operation. The bounded wait reclaims a lock that nobody
+/ holds; otherwise this run leaves the cache untouched.
+/ .
+/ "Nobody holds it" was "its PID is not running". In a container PIDs start
+/ again from 1, so the PID a killed run left behind is running in the next
+/ container too, as something else: the lock was never reclaimed, and every
+/ run waited five seconds and saved nothing. A lock is now also stale when
+/ the process with that PID is not the one that took it (its start time is
+/ recorded beside the PID), and when it is older than any writer needs,
+/ which also covers a lock with no PID in it.
+.tst.FLAKE_LOCK_STALE_MINUTES:2;
+/ How often a held lock is tried, a twentieth of a second apart.
+.tst.FLAKE_LOCK_TRIES:100;
 .tst.acquireFlakeHistoryLock:{[path]
     slash:where path="/";
     dir:$[count slash;(last slash)#path;"."];
@@ -636,10 +647,17 @@
     cmd:"lock=",quoted,"; i=0; while ! mkdir \"$lock\" 2>/dev/null; do ",
         "if [ ! -d \"$lock\" ]; then mkdir \"$lock\" 2>/dev/null && break; ",
         "if [ ! -d \"$lock\" ]; then echo 73; exit 0; fi; fi; ",
-        "owner=''; if [ -f \"$lock/pid\" ]; then read owner < \"$lock/pid\" || true; fi; ",
-        "if [ -n \"$owner\" ] && ! kill -0 \"$owner\" 2>/dev/null; then rm -rf -- \"$lock\"; continue; fi; ",
-        "i=$((i+1)); if [ \"$i\" -ge 100 ]; then echo 75; exit 0; fi; sleep 0.05; done; ",
-        "echo ",string[.z.i]," > \"$lock/pid\"; echo 0";
+        "owner=''; began=''; if [ -f \"$lock/pid\" ]; then { read owner; read began; } < \"$lock/pid\" || true; fi; ",
+        "stale=0; ",
+        "if [ -n \"$owner\" ] && ! kill -0 \"$owner\" 2>/dev/null; then stale=1; fi; ",
+        "if [ \"$stale\" = 0 ] && [ -n \"$owner\" ] && [ -n \"$began\" ]; then ",
+        "now=$(ps -o lstart= -p \"$owner\" 2>/dev/null) || now=''; ",
+        "if [ -n \"$now\" ] && [ \"$now\" != \"$began\" ]; then stale=1; fi; fi; ",
+        "if [ \"$stale\" = 0 ] && [ -n \"$(find \"$lock\" -prune -mmin +",
+            string[.tst.FLAKE_LOCK_STALE_MINUTES]," 2>/dev/null)\" ]; then stale=1; fi; ",
+        "if [ \"$stale\" = 1 ]; then rm -rf -- \"$lock\"; continue; fi; ",
+        "i=$((i+1)); if [ \"$i\" -ge ",string[.tst.FLAKE_LOCK_TRIES]," ]; then echo 75; exit 0; fi; sleep 0.05; done; ",
+        "{ echo ",string[.z.i],"; ps -o lstart= -p ",string[.z.i]," 2>/dev/null; } > \"$lock/pid\"; echo 0";
     lines:@[system;"sh -c ",.resq.util.shellQuote cmd;{[err]enlist "75"}];
     $[count lines;"j"$"J"$last lines;75j]
  };
@@ -648,7 +666,7 @@
     lock:path,".lock";
     ownerPath:lock,"/pid";
     owner:@[read0;hsym `$ownerPath;{()}];
-    if[(count owner) and (last owner)~string .z.i;
+    if[(count owner) and (first owner)~string .z.i;
         @[hdel;hsym `$ownerPath;{()}];
         @[system;"rmdir ",.resq.util.shellQuote lock;{[err]()}]];
     ::
@@ -668,6 +686,11 @@
                 "Unable to create the flake history lock (is the state directory writable?); current evidence was not published";
                 "Flake history is locked by another live writer; current evidence was not published"];
             enlist[`path]!enlist .tst.repoRelativePath path];
+        / The run waited for the lock and saved nothing: say so where it is
+        / read, not only in the report.
+        if[not 73j~lockStatus;
+            .tst.noteIdentityState "the flake history is locked by another run (",
+                .tst.repoRelativePath[path],".lock); this run's evidence was not saved"];
         :0b];
     outcome:.[{[eligible;path]
         latest:.tst.readFlakeHistoryAt path;
