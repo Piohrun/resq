@@ -68,3 +68,34 @@
     (exec sum it from orders where not skip) musteq 40;
   };
  };
+
+.tst.desc["loading the code under test, as \\l does"]{
+  should["keep the working directory while a file loads"]{
+    / An application whose entry file loads its own files by paths relative
+    / to the project root, which is how it is started in production.
+    root: .utl.tempRoot[], "/resq_load_", string[.z.i], "_", string `long$.z.p;
+    system "mkdir -p ", .utl.shellQuote root, "/src";
+    (hsym `$root, "/src/util.q") 0: enlist ".loadprobe.util: 1b;";
+    (hsym `$root, "/src/app.q") 0: (
+        "\\l src/util.q";
+        ".loadprobe.cwd: system \"cd\";");
+    .tst.registerCleanup[{[d] @[system; "rm -rf ", .utl.shellQuote d; {}]; @[system; "x .loadprobe"; {}]}; enlist root];
+    system "cd ", root;
+    .tst.sysl "src/app.q";
+    .loadprobe.util musteq 1b;
+    .loadprobe.cwd musteq root;
+    (system "cd") musteq root;
+  };
+  should["accept a comment after the path"]{
+    (first .tst.preprocessScript enlist "\\l dep.q / code under test") musteq ".tst.sysl \"dep.q\";";
+    (first .tst.preprocessScript enlist "\\l /abs/dir/dep.q") musteq ".tst.sysl \"/abs/dir/dep.q\";";
+    / q rejects anything else after the path; resQ keeps it, for paths with spaces
+    (first .tst.preprocessScript enlist "\\l my dir/dep.q") musteq ".tst.sysl \"my dir/dep.q\";";
+  };
+  should["wrap a computed load only when it is the whole statement"]{
+    .tst.rewriteSystemLoad["  system \"l \", root, \"/src/x.q\";"] musteq "  .tst.sysl (root, \"/src/x.q\");";
+    .tst.rewriteSystemLoad["  system \"l \", path[`src;\"x.q\"];"] musteq "  .tst.sysl (path[`src;\"x.q\"]);";
+    line: "  system \"l \", f; loaded: 1b;";
+    .tst.rewriteSystemLoad[line] musteq line;
+  };
+ };

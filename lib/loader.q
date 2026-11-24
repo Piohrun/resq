@@ -714,7 +714,7 @@
                   / commands fall through unchanged.
                   $[(body ~ "l") or body like "l *";
                       / strip the leading "l" + following whitespace to get the path
-                      [ pathArg: $[body ~ "l"; ""; trim 2 _ body];
+                      [ pathArg: $[body ~ "l"; ""; .tst.loadCommandPath 2 _ body];
                         pEsc: ssr[ssr[pathArg; "\\"; "\\\\"]; "\""; "\\\""];
                         out,: enlist ".tst.sysl \"", pEsc, "\";" ];
                       out,: enlist "system \"", esc, "\";" ] ] ];
@@ -725,6 +725,17 @@
         i +: 1;
     ];
     .tst.bindDslLines[rootShadowed;1 _ out]
+ };
+
+/ The path of a `\l` line. q takes the first word as the path and accepts a
+/ comment after it (`\l dep.q / code under test`). Anything else after the
+/ first word is kept as part of the path: q would reject it, and resQ loads
+/ paths that contain spaces.
+.tst.loadCommandPath:{[arg]
+    arg: trim arg;
+    cut1: (arg in " \t") ? 1b;
+    rest: trim cut1 _ arg;
+    $[(0 < count rest) and "/" = first rest; cut1 # arg; arg]
  };
 
 / Rewrite a runtime `system "l ", <expr>` load (the form real suites use to load
@@ -747,6 +758,11 @@
     / left verbatim rather than risk a malformed rewrite - coverage is
     / best-effort, correctness of the load is not.
     if[(0 = count rt) or ";" <> last rt; :ln];
+    / A second statement on the line (`system "l ", f; b:2;`) would end up
+    / inside the call. Count semicolons outside strings and brackets.
+    body: .tst.maskQLine -1 _ (count pfx) _ rt;
+    depth: sums (body in "([{") - body in ")]}";
+    if[any (body = ";") and depth = 0; :ln];
     / Preserve leading indentation so column-sensitive checks elsewhere are
     / unaffected, then swap the prefix for the .tst.sysl call. Drop the trailing
     / ";" before wrapping in parens (".tst.sysl (expr;)" would not parse) and

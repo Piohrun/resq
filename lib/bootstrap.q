@@ -117,16 +117,22 @@ if[not `DEBUG in key `.utl; .utl.DEBUG: 0b];
 / Convert any path to hsym (file handle symbol)
 .utl.pathToHsym:{[p] hsym `$.utl.pathToString p};
 
-/ Load a q file/directory through its basename while visiting its parent.
-/ q's `system "l <path>"` splits an absolute path containing spaces, whereas
-/ `system "cd <dir>"` accepts the rest of the command as one directory. Module
-/ and application filenames still follow the normal no-newline q convention.
+/ Load a q file or directory as `\l <path>` does. A path without whitespace
+/ goes straight to q, so the working directory stays where it is while the
+/ file loads: an application that loads its own files by paths relative to
+/ the project root (`\l src/util.q` inside src/app.q) keeps working, as it
+/ does under plain q.
+/ q's `system "l <path>"` splits a path containing spaces, whereas
+/ `system "cd <dir>"` accepts the rest of the command as one directory. Only
+/ such a path is loaded through its basename while visiting its parent, and
+/ the working directory is that parent for the duration of the load.
 / q source-file loads leave cwd unchanged; directory/database loads deliberately
 / change it to the loaded root. Preserve that native distinction, and always
 / restore cwd on error.
 .utl.loadQFile:{[path]
     s:.utl.pathToString path;
     if[0=count s;'"cannot load an empty q path"];
+    if[not any s in " \t"; :system "l ",s];
     if[not "/"=first s;s:(system "cd"),"/",s];
     slashes:where s="/";
     at:last slashes;

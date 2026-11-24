@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `\l src/app.q` in a test file no longer changes directory while the file
+  loads. An application that loads its own files by paths relative to the
+  project root failed with "No such file"; it now loads as it does under
+  plain q. The same holds for `.utl.require` and `.tst.sysl`. Only a path
+  that contains whitespace is still loaded from its own directory.
+  `\l dep.q / comment` is accepted, as in q.
 - A resQ word is the framework's only where it is applied. `it`, `skip`,
   `pending`, `retry`, `before`, `after`, `fixture` and the other non-assertion
   words were replaced wherever they appeared, so a qSQL column named `pending`
