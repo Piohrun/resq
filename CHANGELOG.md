@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A run whose launcher is killed outright (SIGKILL, the OOM killer) stops.
+  q runs in a session of its own and was told nothing: it ran on to the end
+  with its isolated children, and the launcher's guard directory stayed in
+  `TMPDIR` for good. q now notices the launcher is gone, stops its children,
+  writes no report or state, removes the guard directory and exits 137; and
+  each launcher removes guard directories whose processes are all gone.
 - A run in a git checkout no longer rewrites `.git/index`. Reading the
   commit for the report ran `git status`, which refreshes the index and
   writes it back, racing an editor's own git.

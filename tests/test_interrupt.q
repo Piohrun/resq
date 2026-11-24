@@ -164,3 +164,64 @@
   };
  };
 
+/ q runs in a session of its own. A launcher killed outright (SIGKILL, the
+/ OOM killer) told it nothing: the run went on to the end, with its isolated
+/ children, and its guard directory stayed in TMPDIR for good.
+.tst.testState.interrupt.killLauncher:{[wd;flags]
+    tmp: wd, "/tmp";
+    .resq.util.ensureDir tmp;
+    (hsym `$wd, "/test_slow.q") 0: (enlist ".tst.desc[\"slow\"]{"),
+        ({"  should[\"step ", string[x], "\"]{ system \"sleep 0.3\"; 1 musteq 1; };"} each 1 + til 40),
+        enlist " };";
+    script: "cd ", .resq.util.shellQuote[wd], " && export TMPDIR=", .resq.util.shellQuote[tmp], "; ",
+        .resq.util.shellQuote[.resq.HOME, "/bin/resq"], " test test_slow.q ", flags,
+        " -json -outDir out -state-file out/s.json -flake-history out/f.json < /dev/null > run.log 2>&1 & ",
+        "lp=$!; sleep 2.5; ",
+        "qp=$(for g in \"$TMPDIR\"/resq-run-guard.*; do head -n 1 \"$g/armed\"; done 2>/dev/null | head -n 1); ",
+        "kill -KILL \"$lp\"; wait \"$lp\" 2>/dev/null; ",
+        "i=0; while [ -n \"$qp\" ] && kill -0 \"$qp\" 2>/dev/null && [ \"$i\" -lt 100 ]; do sleep 0.1; i=$((i+1)); done; ",
+        "sleep 2; echo \"waited=$i\"; ",
+        "if [ -n \"$qp\" ] && kill -0 \"$qp\" 2>/dev/null; then echo q=alive; else echo q=gone; fi; ",
+        "echo guards=$(find \"$TMPDIR\" -maxdepth 1 -name 'resq-run-guard.*' | wc -l); ",
+        / the children are given the file by its full path; this script is not
+        "echo left=$(ps -eo args | grep -c '[/]test_slow[.]q')";
+    out: @[system; "sh -c ", .resq.util.shellQuote script; {[e] enlist "failed"}];
+    `out`report!(out; not () ~ key hsym `$wd, "/out/test-results.json")
+ };
+
+.tst.desc["a run whose launcher is killed outright stops #slow"]{
+  should["stop in process, write nothing, and take its guard directory away"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.interrupt.killLauncher[.tst.testState.interrupt.workDir[]; ""];
+    (r[`out] where r[`out] like "q=*") musteq enlist "q=gone";
+    / it stopped well before the 12 seconds the file takes
+    waited: "J"$5 _ first r[`out] where r[`out] like "waited=*";
+    must[waited < 30; "q stopped within three seconds, waited ", string[waited], " tenths"];
+    (r[`out] where r[`out] like "guards=*") musteq enlist "guards=0";
+    r[`report] musteq 0b;
+  };
+  should["stop the isolated children too"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.interrupt.killLauncher[.tst.testState.interrupt.workDir[]; "-isolate"];
+    (r[`out] where r[`out] like "q=*") musteq enlist "q=gone";
+    waited: "J"$5 _ first r[`out] where r[`out] like "waited=*";
+    must[waited < 40; "q stopped within four seconds, waited ", string[waited], " tenths"];
+    (r[`out] where r[`out] like "guards=*") musteq enlist "guards=0";
+    (r[`out] where r[`out] like "left=*") musteq enlist "left=0";
+    r[`report] musteq 0b;
+  };
+  should["have the next launcher remove a guard directory nobody owns any more"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    tmp: .resq.util.ensureDir (.tst.testState.interrupt.workDir[]), "/tmp";
+    .resq.util.ensureDir each tmp,/:("/resq-run-guard.DEADLNCH"; "/resq-run-guard.LIVELNCH"; "/resq-run-guard.JUSTMADE");
+    (hsym `$tmp, "/resq-run-guard.DEADLNCH/launcher") 0: enlist "999999999";
+    (hsym `$tmp, "/resq-run-guard.LIVELNCH/launcher") 0: enlist string .z.i;
+    cmd: "TMPDIR=", .resq.util.shellQuote[tmp], " ", .resq.util.shellQuote[.resq.HOME, "/bin/resq"], " --version > /dev/null 2>&1; true";
+    @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] ()}];
+    left: asc string key hsym `$tmp;
+    / a launcher that is running keeps its own; one with no PID yet may be
+    / one that has only just made it
+    left musteq ("resq-run-guard.JUSTMADE"; "resq-run-guard.LIVELNCH");
+  };
+ };
+

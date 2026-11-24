@@ -75,6 +75,35 @@ case "$guard_root" in
   *) guard_root="/tmp" ;;
 esac
 guard_root="${guard_root%/}"
+
+# A launcher that was killed outright (SIGKILL, the OOM killer) could not
+# take its guard directory away. Each records the launcher's PID, and q's
+# once it has started; a directory of ours whose processes are all gone is
+# removed here. One from before PIDs were recorded goes after a day. Only
+# directories this user owns, by their fixed prefix, and never a link.
+sweep_stale_guards() {
+  local d launcher owner pid live
+  for d in "$guard_root"/resq-run-guard.*; do
+    [ -d "$d" ] && [ ! -L "$d" ] && [ -O "$d" ] || continue
+    launcher="" owner=""
+    [ -f "$d/launcher" ] && read -r launcher < "$d/launcher" 2>/dev/null
+    [ -f "$d/armed" ] && read -r owner < "$d/armed" 2>/dev/null
+    live=0
+    for pid in $launcher $owner; do
+      case "$pid" in ''|*[!0-9]*) continue ;; esac
+      if kill -0 "$pid" 2>/dev/null; then live=1; fi
+    done
+    [ "$live" = 0 ] || continue
+    if [ -z "$launcher" ]; then
+      # Not ours to judge yet: a launcher writes its PID right after
+      # creating the directory.
+      [ -n "$(find "$d" -prune -mmin +1440 2>/dev/null)" ] || continue
+    fi
+    rm -rf -- "$d"
+  done
+}
+sweep_stale_guards
+
 guard_dir="$(mktemp -d "$guard_root/resq-run-guard.XXXXXXXX")" || {
   echo "resQ ERROR: unable to create process guard directory" >&2
   exit 1
@@ -84,6 +113,7 @@ chmod 700 "$guard_dir" || {
   rmdir -- "$guard_dir" 2>/dev/null
   exit 1
 }
+echo "$$" > "$guard_dir/launcher" 2>/dev/null || true
 isolate_root="$guard_dir/isolate"
 mkdir -m 700 -- "$isolate_root" || {
   echo "resQ ERROR: unable to create private isolation root" >&2

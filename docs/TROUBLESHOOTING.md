@@ -625,6 +625,7 @@ chmod 755 tests/snapshots
 | 4 | `EXIT.LOAD_ERROR` | A test file failed to load, or an explicitly-passed path was not found |
 
 | 129, 130, 131, 143 | — | The launcher was told to stop: hangup, Ctrl+C (INT), quit, SIGTERM |
+| 137 | — | The launcher was killed outright (SIGKILL); q noticed and stopped |
 
 Codes 2 (`CONFIG_ERROR`) and 5 (`PARTIAL`) were removed — no code path emits them.
 

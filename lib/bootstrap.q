@@ -230,13 +230,49 @@ $[.resq.hasQutil; .utl.require: .resq.requireOrQutil; .resq.offerUtl[`require; .
 / report and says nothing; the launcher reads the last line and names the
 / test. See .tst.noteTestProgress.
 .resq.runningMarker: {[dir] $[count dir; hsym `$dir, "/running"; `]} .resq.guardDir;
+/ The launcher writes its own PID there too. q runs in a session of its own,
+/ so when the launcher is killed outright (SIGKILL, the OOM killer) nothing
+/ reaches q: it ran on to the end, its isolated children with it, for a
+/ caller that had gone. Without its launcher the run stops as if told to.
+.resq.launcherPid: {[dir]
+    if[0 = count dir; :0Nj];
+    text: @[read0; hsym `$dir, "/launcher"; {[e] ()}];
+    $[count text; "J"$first text; 0Nj]
+  } .resq.guardDir;
+.resq.launcherCheckedAt: 0Np;
+.resq.launcherWasGone: 0b;
+/ From /proc where there is one, every time it is asked: a look costs about
+/ a microsecond. Elsewhere with `kill -0`, which changes nothing but costs a
+/ process, so at most once a second.
+.resq.util.launcherGone:{[]
+    if[null .resq.launcherPid; :0b];
+    if[.resq.launcherWasGone; :1b];
+    pid: string .resq.launcherPid;
+    if[.resq.util.isLinux;
+        :.resq.launcherWasGone: () ~ @[key; hsym `$"/proc/", pid, "/stat"; {[e] ()}]];
+    if[(not null .resq.launcherCheckedAt) and 0D00:00:01 > .z.p - .resq.launcherCheckedAt; :0b];
+    .resq.launcherCheckedAt: .z.p;
+    .resq.launcherWasGone: "1" ~ last @[system; "sh -c 'kill -0 ", pid, " 2>/dev/null; echo $?'"; {[e] enlist "0"}]
+ };
 .resq.util.runInterrupted:{[]
-    $[null .resq.interruptMarker; 0b; not () ~ @[key; .resq.interruptMarker; {[e] ()}]]
+    if[null .resq.interruptMarker; :0b];
+    if[not () ~ @[key; .resq.interruptMarker; {[e] ()}]; :1b];
+    .resq.util.launcherGone[]
  };
 .resq.util.interruptExitCode:{[]
     text: @[read0; .resq.interruptMarker; {[e] ()}];
     code: $[count text; "J"$first text; 0Nj];
-    $[null code; 130; code]
+    / no word from the launcher: it was killed
+    $[not null code; code; .resq.launcherWasGone; 137; 130]
+ };
+/ Leave a run that was stopped. A launcher that is gone left its guard
+/ directory, and the scratch of any isolated children in it, behind: q
+/ takes it away, the children being stopped by then.
+.resq.util.leaveInterrupted:{[]
+    code: .resq.util.interruptExitCode[];
+    if[.resq.launcherWasGone and count .resq.guardDir;
+        @[system; "rm -rf -- ", .resq.util.shellQuote[.resq.guardDir], " 2>/dev/null; true"; {[e] ::}]];
+    exit code
  };
 
 / Root directory for scratch files, honouring TMPDIR. On many systems /tmp is

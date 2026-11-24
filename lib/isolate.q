@@ -601,8 +601,22 @@
         "[ -f \"$1.head\" ] || head -c ", keep, " \"$1\" > \"$1.head\"; ",
         "tail -c ", keep, " \"$1\" > \"$1.keep\"; : > \"$1\"; ",
         "cat \"$1.keep\" >> \"$1\"; rm -f \"$1.keep\"; }; ",
-        "while sleep ", .tst.isolate.outputWatchInterval[], "; do ", files,
+        "while sleep ", .tst.isolate.outputWatchInterval[], "; do ",
+        .tst.isolate.launcherWatch[], files,
         " done ) > /dev/null 2>&1 & wdog=$!;"
+ };
+
+/ While q waits for a batch, it cannot look for anything. A launcher that
+/ was killed outright left the children of the batch running to their
+/ timeout, for nobody. The watch looks for the launcher as well and, when it
+/ is gone, stops the children; q then finds the run interrupted. `pids`
+/ (a batch) and `p0` (one file) are the children's process groups.
+.tst.isolate.launcherWatch:{[]
+    pid: @[get; `.resq.launcherPid; {[e] 0Nj}];
+    if[null pid; :""];
+    "if ! kill -0 ", string[pid], " 2>/dev/null; then ",
+        "for p in $pids $p0; do kill -TERM -- \"-$p\" 2>/dev/null; done; sleep 1; ",
+        "for p in $pids $p0; do kill -KILL -- \"-$p\" 2>/dev/null; done; exit 0; fi; "
  };
 
 / How often the watch looks, in seconds. A child can write a gigabyte a

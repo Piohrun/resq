@@ -81,7 +81,7 @@ if[not .resq.hasQutil; .resq.offerUtl[`PKGLOADING; .resq.PKGLOADING]];
     if[not 1b ~ @[get; `.tst.app.interrupted; 0b]; :(::)];
     -2 "resQ: interrupted. The run stopped early; no report or state file was written.";
     .resq.exitGuardArmed: 0b;
-    exit .resq.util.interruptExitCode[]
+    .resq.util.leaveInterrupted[]
  };
 .resq.onProcessExit:{[code]
     if[.resq.exitGuardArmed;
@@ -279,7 +279,9 @@ if[.resq.mode ~ `discover;
 / Mutation testing runs each mutant in a child `resq test` process and prints
 / its own report, so no reporter is initialised here. See lib/mutate.q.
 if[.resq.mode ~ `mutate;
-    exit .tst.mutate.main .tst.app.args];
+    .resq.mutateExitCode: .tst.mutate.main .tst.app.args;
+    if[.resq.util.runInterrupted[]; .resq.util.leaveInterrupted[]];
+    exit .resq.mutateExitCode];
 
 / MODE: WATCH
 if[.resq.mode ~ `watch;
@@ -308,10 +310,10 @@ if[.resq.mode ~ `watch;
         / signal while this loop runs, and every command it then started
         / failed, which printed an error trace on the way out.
         .resq.watchSlept: @[{system x; 1b}; "sleep ", string .tst.watch.interval; {[e] 0b}];
-        if[.resq.util.runInterrupted[]; exit .resq.util.interruptExitCode[]];
+        if[.resq.util.runInterrupted[]; .resq.util.leaveInterrupted[]];
         if[not .resq.watchSlept; '"watch: the sleep command failed"];
         .resq.watchChanges: .tst.watch.check[];
-        if[.resq.util.runInterrupted[]; exit .resq.util.interruptExitCode[]];
+        if[.resq.util.runInterrupted[]; .resq.util.leaveInterrupted[]];
         if[0 < count .resq.watchChanges; .tst.watch.onChanges[.resq.watchChanges]];
     ];
  ];
