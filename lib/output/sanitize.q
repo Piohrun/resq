@@ -78,9 +78,52 @@
 / Shared reporter primitives live here because sanitize.q is loaded before any
 / selectable reporter. Loading JSON/JUnit/xUnit in a different order must not
 / redefine their escaping or numeric presentation contracts.
+/ Which bytes of a string are not part of a well-formed UTF-8 sequence. A
+/ test name read from a Latin-1 source file, a compared value, error text or
+/ captured output can hold any byte, and one bad byte makes a whole XML or
+/ JSON report unreadable. Follows the Unicode table of well-formed sequences
+/ (no overlong forms, no surrogates, nothing above U+10FFFF). Vector
+/ operations only. Sequences cannot overlap: every byte after a lead byte is
+/ a continuation byte, and a continuation byte never starts a sequence.
+.tst.output.invalidUtf8:{[s]
+    / Nearly every report is plain ASCII: decide that on the bytes, before
+    / widening a multi-megabyte report to integers.
+    n:count s;
+    if[all 0x80>`byte$s;:n#0b];
+    b:`int$`byte$s;
+    len:?[b<128;1;?[b within 194 223;2;?[b within 224 239;3;?[b within 240 244;4;0]]]];
+    cont:b within 128 191;
+    c1:n#(1_cont),n#0b;
+    c2:n#(2_cont),n#0b;
+    c3:n#(3_cont),n#0b;
+    next1:n#(1_b),n#0;
+    ok3:c1 and c2 and (not (b=224) and next1<160) and not (b=237) and next1>159;
+    ok4:c1 and c2 and c3 and (not (b=240) and next1<144) and not (b=244) and next1>143;
+    start:((len=2) and c1) or ((len=3) and ok3) or (len=4) and ok4;
+    covered:(b<128) or start or (n#0b,start) or (n#00b,start and len>=3) or n#000b,start and len=4;
+    not covered
+ };
+
+/ Replace every byte that is not well-formed UTF-8 with `prefix` and its two
+/ hex digits ("caf\xE9"), so the byte can still be read off the report.
+.tst.output.cleanUtf8:{[s;prefix]
+    if[-10h=type s;s:enlist s];
+    if[not 10h=type s;:s];
+    bad:.tst.output.invalidUtf8 s;
+    if[not any bad;:s];
+    pieces:enlist each s;
+    pieces[where bad]:prefix,/:upper string `byte$s where bad;
+    raze pieces
+ };
+
 .tst.output.escapeXml:{[val]
     s:.tst.toString val;
     if[0=count s;:""];
+    s:.tst.output.cleanUtf8[s;"\\x"];
+    / U+FFFE and U+FFFF are well-formed UTF-8 that XML 1.0 does not allow.
+    if[any s="\357";
+        s:ssr[s;"\357\277\276";"\\uFFFE"];
+        s:ssr[s;"\357\277\277";"\\uFFFF"]];
     s:ssr[s;"&";"&amp;"];
     s:ssr[s;"<";"&lt;"];
     s:ssr[s;">";"&gt;"];
@@ -162,10 +205,13 @@
     @[{[v] .j.k .j.j v;1b};raw;{[e]0b}]
  };
 
+/ .j.j copies string bytes as they are. Everything it writes outside a string
+/ is ASCII, so a byte that is not well-formed UTF-8 is inside a string, where
+/ the literal text \xNN is spelled with a doubled backslash.
 .tst.output.strictJson:{[raw]
     if[.tst.output.hasJsonInfinity raw;
         '"non-finite number is not valid JSON evidence"];
-    .j.j raw
+    .tst.output.cleanUtf8[.j.j raw;"\\\\x"]
  };
 
 .tst.output.evidenceJson:{[raw]

@@ -623,3 +623,30 @@
     (.tst.output.evidenceJson ([k:`a`b] v:3 4)) musteq "[{\"k\":\"a\",\"v\":3},{\"k\":\"b\",\"v\":4}]";
   };
  };
+
+.tst.desc["Reports stay well-formed whatever bytes a suite contains"]{
+  should["leave well-formed UTF-8 alone"]{
+    text: "caf\303\251 \342\202\254 \360\237\230\200";
+    .tst.output.cleanUtf8[text; "\\x"] musteq text;
+    .tst.output.escapeXml[text] musteq text;
+  };
+  should["replace each byte that is not UTF-8 with its hex value"]{
+    .tst.output.escapeXml["caf\351 latin-1"] musteq "caf\\xE9 latin-1";
+    / a lone lead byte, a truncated sequence, an overlong form, a surrogate,
+    / a code point above U+10FFFF and stray continuation bytes
+    .tst.output.escapeXml["\351"] musteq "\\xE9";
+    .tst.output.escapeXml["a\342\202"] musteq "a\\xE2\\x82";
+    .tst.output.escapeXml["\300\257"] musteq "\\xC0\\xAF";
+    .tst.output.escapeXml["\355\240\200"] musteq "\\xED\\xA0\\x80";
+    .tst.output.escapeXml["\364\220\200\200"] musteq "\\xF4\\x90\\x80\\x80";
+    .tst.output.escapeXml["\200\277"] musteq "\\x80\\xBF";
+  };
+  should["replace the two code points XML does not allow"]{
+    .tst.output.escapeXml["a\357\277\276b\357\277\277c"] musteq "a\\uFFFEb\\uFFFFc";
+  };
+  should["write JSON that is UTF-8 and keeps the byte readable"]{
+    doc: .tst.output.strictJson enlist[`name]!enlist "caf\351";
+    (.tst.output.invalidUtf8 doc) musteq (count doc)#0b;
+    ((.j.k doc)`name) musteq "caf\\xE9";
+  };
+ };

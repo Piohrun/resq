@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- JUnit, xUnit and JSON reports stay well-formed whatever bytes a suite
+  contains. A single byte that is not UTF-8 (a test name in a Latin-1 source
+  file, a compared value, error text, an environment variable, captured
+  output) made the XML unparseable and the JSON non-UTF-8, also on a passing
+  run. Such a byte is now written as `\xNN`, and the two code points XML does
+  not allow as `\uFFFE` and `\uFFFF`.
 - The JSON report is valid whatever values a test uses. A parameter that was
   a dictionary with char keys (`"BS"!1 -1`) was written as `{""B"":1}`, which
   no parser accepts, on a run that passed. String or list keys made the JSON
