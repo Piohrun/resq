@@ -431,3 +431,101 @@
     .tst.quarantineExpired[enlist[`expiresAt]!enlist "not a date"] musteq 1b;
   };
  };
+
+/ A complete run of one file says nothing about tests in another. Entries
+/ name their test file, and a run ages only the entries it can speak for.
+.tst.quarantineTest.scopeRow:{[testId;file]
+  row:.tst.quarantineTest.rowId[testId;`pass];
+  row[`file]:file;
+  row
+ };
+
+.tst.quarantineTest.placedEntry:{[testId;file;occurredAt]
+  `testId`file`observations`unseenCompleteRuns!(
+    testId;file;
+    enlist `runId`occurredAt`status`attempts`flaky!(
+      "run_0123456789abcdef0123456789abcdef";occurredAt;"pass";1j;0b);
+    0j)
+ };
+
+.tst.desc["a run ages only the flake history it can speak for"]{
+  before{
+    `.tst.app.executionState mock `completed;
+    `.tst.app.executionIncompleteReason mock "";
+    `.tst.app.describeOnly mock 0b;
+    `.tst.app.isolateChild mock 0b;
+    `.tst.app.shardCount mock 1j;
+    `.tst.app.rerunMode mock `all;
+    `.tst.app.runSpecs mock ();
+    `.tst.app.excludeSpecs mock ();
+    `.tst.app.tagFilter mock ();
+    `.tst.app.excludeTagFilter mock ();
+    `.tst.app.flakeWindow mock 20j;
+    base:.utl.tempRoot[],"/resq_flake_scope_",string[.z.i],"_",string `long$.z.p;
+    .utl.ensureDir base,"/tests";
+    (hsym `$base,"/tests/test_a.q") 0: enlist "/ a";
+    (hsym `$base,"/tests/test_b.q") 0: enlist "/ b";
+    .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.utl.shellQuote d;{}]};enlist base];
+    `.tst.app.baseDir mock base;
+    / the run looked at test_a.q only
+    `.tst.app.allDiscoveredFiles mock enlist base,"/tests/test_a.q";
+    `scopeBase mock base;
+  };
+
+  should["record the file of every test it observes"]{
+    a:"test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    `.tst.app.flakeHistory mock .tst.emptyFlakeHistory `missing;
+    `.tst.app.selectedExecutionIds mock enlist a;
+    entries:.tst.appendFlakeObservations enlist .tst.quarantineTest.scopeRow[a;scopeBase,"/tests/test_a.q"];
+    ((first entries)`file) musteq "tests/test_a.q";
+  };
+
+  should["leave a test in a file it did not look at exactly as it was"]{
+    a:"test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    b:"test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    now:.tst.isoTimestamp .z.p;
+    `.tst.app.flakeHistory mock `status`diagnostic`updatedAt`tests!(
+      `ok;"";"";(.tst.quarantineTest.placedEntry[a;"tests/test_a.q";now];
+                 .tst.quarantineTest.placedEntry[b;"tests/test_b.q";now]));
+    `.tst.app.selectedExecutionIds mock enlist a;
+    entries:.tst.appendFlakeObservations enlist .tst.quarantineTest.scopeRow[a;scopeBase,"/tests/test_a.q"];
+    kept:.tst.flakeFindById[entries;b];
+    kept[`unseenCompleteRuns] musteq 0j;
+    kept[`file] musteq "tests/test_b.q";
+    count[kept`observations] musteq 1;
+  };
+
+  should["age a test that is gone from a file it looked at, or whose file is gone"]{
+    a:"test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    removed:"test_cccccccccccccccccccccccccccccccc";
+    orphan:"test_dddddddddddddddddddddddddddddddd";
+    now:.tst.isoTimestamp .z.p;
+    `.tst.app.flakeHistory mock `status`diagnostic`updatedAt`tests!(
+      `ok;"";"";(.tst.quarantineTest.placedEntry[a;"tests/test_a.q";now];
+                 .tst.quarantineTest.placedEntry[removed;"tests/test_a.q";now];
+                 .tst.quarantineTest.placedEntry[orphan;"tests/test_deleted.q";now]));
+    `.tst.app.selectedExecutionIds mock enlist a;
+    entries:.tst.appendFlakeObservations enlist .tst.quarantineTest.scopeRow[a;scopeBase,"/tests/test_a.q"];
+    ((.tst.flakeFindById[entries;removed])`unseenCompleteRuns) musteq 1j;
+    ((.tst.flakeFindById[entries;orphan])`unseenCompleteRuns) musteq 1j;
+    ((.tst.flakeFindById[entries;a])`unseenCompleteRuns) musteq 0j;
+  };
+
+  should["keep an entry with no file on record until it has not been seen for a month"]{
+    a:"test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    recent:"test_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    old:"test_ffffffffffffffffffffffffffffffff";
+    entry:{[id;at] (.tst.quarantineTest.placedEntry[id;"";at]) _ `file};
+    `.tst.app.flakeHistory mock `status`diagnostic`updatedAt`tests!(
+      `ok;"";"";(entry[recent;.tst.isoTimestamp .z.p-5D];
+                 entry[old;.tst.isoTimestamp .z.p-40D]));
+    `.tst.app.selectedExecutionIds mock enlist a;
+    entries:.tst.appendFlakeObservations enlist .tst.quarantineTest.scopeRow[a;scopeBase,"/tests/test_a.q"];
+    ids:{.tst.toString x`testId} each entries;
+    (recent in ids) musteq 1b;
+    (old in ids) musteq 0b;
+    / not placed, so not aged either
+    ((.tst.flakeFindById[entries;recent])`unseenCompleteRuns) musteq 0j;
+  };
+ };
+

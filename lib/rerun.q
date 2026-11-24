@@ -21,7 +21,22 @@
  };
 
 .tst.emptyRerunState:{[statusName]
-    `status`diagnostic`failedTestIds`runId`updatedAt!(statusName;"";();"";"")
+    `status`diagnostic`failedTestIds`failedTests`runId`updatedAt!(statusName;"";();();"";"")
+ };
+
+/ The failed tests of a state document with the file each is in, as a list
+/ of (testId; file; carried). A document from before files were recorded
+/ has only IDs: the file is then "".
+.tst.rerunFailedTests:{[doc;ids]
+    listed:$[`failedTests in key doc;@[.tst.jsonObjectRows;doc`failedTests;{[err]()}];()];
+    usable:listed where {[entry]
+        (99h=type entry) and $[all `testId`file in key entry;
+            all (type each entry`testId`file) in 10 -10h;0b]} each listed;
+    known:{[entry]
+        (.tst.toString entry`testId;.tst.toString entry`file;
+         $[`carried in key entry;"j"$entry`carried;0j])} each usable;
+    knownIds:known[;0];
+    known,{[id](id;"";0j)} each ids where not ids in knownIds
  };
 
 .tst.validFailedIds:{[ids]
@@ -67,8 +82,8 @@
         :state];
     ids:doc`failedTestIds;
     ids:distinct .tst.toString each ids;
-    `status`diagnostic`failedTestIds`runId`updatedAt!(
-        `ok;"";ids;
+    `status`diagnostic`failedTestIds`failedTests`runId`updatedAt!(
+        `ok;"";ids;.tst.rerunFailedTests[doc;ids];
         $[`runId in key doc;.tst.toString doc`runId;""];
         $[`updatedAt in key doc;.tst.toString doc`updatedAt;""])
  };
@@ -206,6 +221,27 @@
     ::
  };
 
+/ How many runs a failure with no known file is carried for.
+.tst.RERUN_UNPLACED_RUNS:20j;
+
+/ The earlier failures (testId; file; carried) that stay on the list after
+/ a run that executed `executedIds`.
+.tst.rerunCarriedFailures:{[previous;executedIds;complete]
+    previous:previous where not previous[;0] in executedIds;
+    if[0=count previous;:()];
+    files:previous[;1];
+    looked:.tst.runScopeFiles[];
+    keep:{[looked;complete;entry]
+        file:entry 1;
+        / no file on record: carried for a limited number of runs
+        if[0=count file;:.tst.RERUN_UNPLACED_RUNS>entry 2];
+        / its file was run: gone from it if the run saw the whole file
+        if[any file~/:looked;:not complete];
+        .tst.stateFileExists file
+    }[looked;complete] each previous;
+    {[entry](entry 0;entry 1;1+entry 2)} each previous where keep
+ };
+
 .tst.persistRerunState:{[]
     if[1b~@[get;`.tst.app.isolateChild;0b];:1b];
     if[1b~@[get;`.tst.app.describeOnly;0b];:1b];
@@ -239,13 +275,27 @@
                     `path`archive!(.tst.repoRelativePath path;.tst.repoRelativePath archive)]]]];
     statuses:.tst.normalizeResultStatus each {x`status} each eligible;
     failedRows:eligible where statuses in `fail`error;
-    ids:distinct {.tst.toString x`testId} each failedRows;
+    failed:{[row](.tst.toString row`testId;.tst.stateRowFile row;0j)} each failedRows;
+    failed:failed (failed[;0])?distinct failed[;0];
+    / A test that failed before and was not run this time is still on the
+    / list: this run says nothing about it. It used to be dropped, so one
+    / run of another file, or a watch-mode rerun, made -last-failed forget a
+    / test that still fails. It goes when a complete run of its file no
+    / longer has it, or when its file is gone.
+    previous:@[get;`.tst.app.rerunState;{.tst.emptyRerunState `missing}];
+    carried:.tst.rerunCarriedFailures[
+        $[`ok~previous`status;previous`failedTests;()];
+        distinct {.tst.toString x`testId} each eligible;
+        .tst.flakeCompleteInventoryRun rows where .tst.flakeEligibleRow each rows];
+    failed:failed,carried;
+    ids:failed[;0];
     runMeta:@[get;`.tst.app.runMetadata;{()!()}];
-    doc:`schemaVersion`identityAlgorithm`identityCodec`framework`runId`updatedAt`testCount`failedCount`failedTestIds!(
+    doc:`schemaVersion`identityAlgorithm`identityCodec`framework`runId`updatedAt`testCount`failedCount`failedTestIds`failedTests!(
         .tst.rerunStateVersion;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];"resQ";
         $[`id in key runMeta;runMeta`id;""];
         .tst.isoTimestamp .z.p;
-        count eligible;count ids;ids);
+        count eligible;count ids;ids;
+        {[entry]`testId`file`carried!entry} each failed);
     tmp:path,".tmp.",string .z.i;
     written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[err]0b}];
     if[not written;

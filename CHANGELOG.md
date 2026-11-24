@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A run of some of the test files no longer wears away what is known about
+  the others. A complete run of one file aged the flake history of every test
+  it had not seen, so 21 such runs erased it, and one such run emptied the
+  failed list, so `-last-failed` forgot a test that still failed. Watch mode
+  did both on every rerun. State entries now record their test file, and a
+  run speaks only for the files it looked at and for files that are gone.
 - `-isolateWorkers N` keeps N files running. It ran fixed groups of N and
   waited for the slowest file of each before starting the next: sixteen files,
   four of them slow, took 13.2 s on four workers and now take 5.2 s. Output is

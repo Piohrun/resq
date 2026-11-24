@@ -7,6 +7,7 @@
 .tst.FLAKE_PROPOSAL_VERSION:2;
 .tst.FLAKE_HISTORY_MAX_TESTS:100000j;
 .tst.FLAKE_HISTORY_UNSEEN_LIMIT:20j;
+.tst.FLAKE_HISTORY_UNPLACED_AGE:30D;
 
 .tst.flakeConfiguredPath:{[setting;fallback;sharded]
     configured:.tst.toString @[get;` sv (`.tst.app;setting);{fallback}];
@@ -147,6 +148,8 @@
     if[not .tst.validJsonObjectRows entry`observations;:0b];
     if[`unseenCompleteRuns in key entry;
         if[not .tst.validJsonLong[entry`unseenCompleteRuns;0j];:0b]];
+    if[`file in key entry;
+        if[not type[entry`file] in 10 -10h;:0b]];
     .tst.validObservationRows entry`observations
  };
 
@@ -436,6 +439,45 @@
     not .tst.rowIsNonBlockingQuarantine row
  };
 
+/ What a run may conclude from not seeing a test. A complete run of
+/ tests/test_a.q says nothing about a test in tests/test_b.q: it used to age
+/ every test it did not see, 21 runs of one file erased the history of all
+/ the others, and one such run emptied the failed list -last-failed reads.
+/ State entries therefore name their test file, and a run speaks only for the
+/ files it looked at, and for files that are no longer there.
+
+/ The files this run looked at, as state entries name them.
+.tst.runScopeFiles:{[]
+    distinct .tst.repoRelativePath each @[get;`.tst.app.allDiscoveredFiles;{()}]
+ };
+
+.tst.stateFileExists:{[file]
+    if[0=count file;:1b];
+    root:.resq.util.normalizePath @[get;`.tst.app.baseDir;{system "cd"}];
+    .resq.util.pathExists $["/"=first file;file;root,"/",file]
+ };
+
+/ The files, of those named, that this run can speak for.
+.tst.stateFilesInScope:{[files]
+    files:distinct files where 0<count each files;
+    looked:.tst.runScopeFiles[];
+    seen:files where files in looked;
+    other:files where not files in looked;
+    seen,other where not .tst.stateFileExists each other
+ };
+
+.tst.stateRowFile:{[row]
+    .tst.repoRelativePath $[`file in key row;.tst.toString row`file;""]
+ };
+
+/ When an entry was last observed; null when that cannot be read.
+.tst.flakeLastObserved:{[observations]
+    obs:.tst.jsonObjectRows observations;
+    if[0=count obs;:0Np];
+    text:.tst.toString (last obs)`occurredAt;
+    "P"$text where text in "0123456789-:.T"
+ };
+
 / Only an unfiltered, unsharded, completed inventory may age entries that were
 / not observed. Partial evidence is merge-only and can never erase history.
 .tst.flakeCompleteInventoryRun:{[rows]
@@ -475,25 +517,38 @@
             obs:.tst.appendObservation[obs;.tst.observationFromRow current ci];
             ci+:1];
         if[count[obs]>limit;obs:(neg limit)#obs];
-        `testId`observations`unseenCompleteRuns!(id;obs;0j)
+        `testId`file`observations`unseenCompleteRuns!(id;.tst.stateRowFile first current;obs;0j)
       }[entries;eligible;positions;window;] each ids;
     priorIds:$[count entries;{.tst.toString x`testId} each entries;()];
     unseenIds:priorIds except ids;
     complete:.tst.flakeCompleteInventoryRun eligible;
-    preserved:{[historyEntries;limit;age;id]
+    preserved:{[historyEntries;limit;id]
         entry:.tst.flakeFindById[historyEntries;id];
         obs:.tst.jsonObjectRows entry`observations;
         if[count[obs]>limit;obs:(neg limit)#obs];
         missed:"j"$$[`unseenCompleteRuns in key entry;entry`unseenCompleteRuns;0j];
-        if[age;missed+:1];
-        `testId`observations`unseenCompleteRuns!(id;obs;missed)
-      }[entries;window;complete;] each unseenIds;
+        `testId`file`observations`unseenCompleteRuns!(
+            id;$[`file in key entry;.tst.toString entry`file;""];obs;missed)
+      }[entries;window;] each unseenIds;
     updated:.tst.eventRows updated;
     preserved:.tst.eventRows preserved;
-    if[complete;
+    if[complete and count preserved;
+        / Not seen in a complete run: one more step towards being dropped,
+        / for a test whose file this run can speak for.
+        files:{x`file} each preserved;
+        aged:files in .tst.stateFilesInScope files;
+        preserved:{[row;age] if[age;row[`unseenCompleteRuns]+:1];row}'[preserved;aged];
         preserved:preserved where {
             (x`unseenCompleteRuns)<=.tst.FLAKE_HISTORY_UNSEEN_LIMIT
-        } each preserved];
+        } each preserved;
+        / An entry from before files were recorded cannot be placed. It is
+        / kept until it has not been observed for a month.
+        cutoff:.z.p-.tst.FLAKE_HISTORY_UNPLACED_AGE;
+        preserved:preserved where {[cutoff;row]
+            if[count row`file;:1b];
+            seen:.tst.flakeLastObserved row`observations;
+            (null seen) or seen>=cutoff
+        }[cutoff] each preserved];
     sortRows:{[items]
         rows:.tst.eventRows items;
         $[0=count rows;rows;rows iasc {.tst.toString x`testId} each rows]};

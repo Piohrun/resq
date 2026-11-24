@@ -36,10 +36,21 @@ exact identity algorithm and canonical-value codec envelope.
 
 Filtered, rerun-selected, sharded, interrupted, fail-fast, and describe-only
 runs update IDs they actually observe but never erase or age unrelated IDs.
-Only a completed, unfiltered, unsharded full inventory increments
-`unseenCompleteRuns`; a deleted or renamed identity is removed after 20 such
-complete runs. This grace period distinguishes real deletion from temporarily
-partial evidence while keeping the cache bounded.
+Only a completed, unfiltered, unsharded inventory increments
+`unseenCompleteRuns`, and only for the test files it looked at: every entry
+records its test file, and a complete run of `tests/test_a.q` says nothing
+about a test in `tests/test_b.q`. An entry is aged when its file was part of
+the run and the test was not seen there, or when its file no longer exists. A
+deleted or renamed identity is removed after 20 such runs. This grace period
+distinguishes real deletion from temporarily partial evidence while keeping
+the cache bounded. An entry written before files were recorded cannot be
+placed: it is never aged, and is dropped once it has not been observed for 30
+days.
+
+The last-run state that `-last-failed` and `-failed-first` read follows the
+same rule. A test that failed earlier and was not run this time stays on the
+list; it leaves when it passes, when a complete run of its file no longer
+contains it, or when its file is gone.
 
 In process-isolation mode, children remain raw execution workers: each receives
 an immutable private copy of the parent's rerun selection state plus private

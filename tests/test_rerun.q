@@ -190,4 +190,72 @@
   };
  };
 
+/ A run of one file, or a watch-mode rerun, wrote the failed list from what
+/ it had run alone: -last-failed forgot a test that still failed elsewhere.
+.tst.desc["a failure this run did not run stays on the last-failed list"]{
+  before{
+    base:.utl.tempRoot[],"/resq_rerun_scope_",string[.z.i],"_",string `long$.z.p;
+    .utl.ensureDir base,"/tests";
+    (hsym `$base,"/tests/test_a.q") 0: enlist "/ a";
+    (hsym `$base,"/tests/test_b.q") 0: enlist "/ b";
+    .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.utl.shellQuote d;{}]};enlist base];
+    `.tst.app.baseDir mock base;
+    / the run looked at test_a.q only
+    `.tst.app.allDiscoveredFiles mock enlist base,"/tests/test_a.q";
+    `earlier mock (
+      ("id_ran";"tests/test_a.q";0j);
+      ("id_elsewhere";"tests/test_b.q";2j);
+      ("id_gone_from_a";"tests/test_a.q";0j);
+      ("id_file_deleted";"tests/test_deleted.q";0j);
+      ("id_no_file";"";0j);
+      ("id_no_file_old";"";.tst.RERUN_UNPLACED_RUNS));
+  };
+
+  should["carry what the run cannot speak for, and count the runs"]{
+    kept:.tst.rerunCarriedFailures[earlier;enlist "id_ran";1b];
+    (kept[;0]) musteq ("id_elsewhere";"id_no_file");
+    (kept[;1]) musteq ("tests/test_b.q";"");
+    (kept[;2]) musteq 3 1j;
+  };
+
+  should["keep a test of a file it ran when it did not run the whole file"]{
+    kept:.tst.rerunCarriedFailures[earlier;enlist "id_ran";0b];
+    ("id_gone_from_a" in kept[;0]) musteq 1b;
+  };
+
+  should["read a state file from before files were recorded"]{
+    doc:`schemaVersion`failedTestIds!(2j;("id_one";"id_two"));
+    (.tst.rerunFailedTests[doc;doc`failedTestIds]) musteq (("id_one";"";0j);("id_two";"";0j));
+    listed:doc,enlist[`failedTests]!enlist enlist `testId`file`carried!("id_one";"tests/test_a.q";4j);
+    (.tst.rerunFailedTests[listed;doc`failedTestIds]) musteq (("id_one";"tests/test_a.q";4j);("id_two";"";0j));
+  };
+
+  skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];
+         "still select the failing test after a run of another file #slow"]{
+    wd:.tst.reruntest.base,"/scope_e2e";
+    .utl.ensureDir wd,"/tests";
+    (hsym `$wd,"/tests/test_red.q") 0: enlist ".tst.desc[\"red\"]{ should[\"still fails\"]{ 1 musteq 2 }; };";
+    (hsym `$wd,"/tests/test_green.q") 0: enlist ".tst.desc[\"green\"]{ should[\"passes\"]{ 1 musteq 1 }; };";
+    qexe:first @[system;"command -v q 2>/dev/null";{enlist (getenv[`QHOME]),"/l64/q"}];
+    run:{[wd;qexe;args]
+      cmd:"cd ",.utl.shellQuote[wd]," && timeout -k 5 30 ",.utl.shellQuote[qexe]," ",
+          .utl.shellQuote[.resq.HOME,"/resq.q"]," test ",args,
+          " -state-file state/last-run.json -flake-history state/flake.json",
+          " -flake-proposal-file state/proposals.json -json -quiet -outDir report",
+          " < /dev/null > out.txt 2>&1; echo $?";
+      code:"J"$last @[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "-1"}];
+      doc:.j.k "\n" sv read0 hsym `$wd,"/report/test-results.json";
+      (code;{.tst.toString x`description} each doc`tests)
+    }[wd;qexe];
+    (first run "tests") musteq 1;
+    / a run of the other file, as watch mode does after an edit
+    (first run "tests/test_green.q") musteq 0;
+    again:run "tests -last-failed";
+    (again 0) musteq 1;
+    (again 1) musteq enlist "still fails";
+    state:.j.k "\n" sv read0 hsym `$wd,"/state/last-run.json";
+    ({.tst.toString x`file} each state`failedTests) musteq enlist "tests/test_red.q";
+  };
+ };
+
 ::
