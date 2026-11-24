@@ -87,10 +87,6 @@
         '"XML reporter failed: ", last buildOutcome];
      };
 
-    .resq.reportXml:{[results]
-        .resq.writeXmlReport[results;.tst.output.top;"test-results.xml"]
-     };
-
     requested: @[get; `.tst.app.reportFormats; `symbol$()];
     formats: $[count requested; requested;
                .tst.app.xmlOutput and reportFmt ~ `text; enlist `junit;

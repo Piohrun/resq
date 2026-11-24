@@ -47,56 +47,6 @@
   -1 "HTML Report written to: ", outFile;
  };
 
-/ Drop the commented-out part of ONE line. Tracks string state so a "/" inside a
-/ literal is not mistaken for a comment, and requires the "/" to start the line or
-/ follow whitespace -- q's actual trailing-comment rule, which also keeps paths
-/ like `:/tmp/x` and expressions like `a%b/c` intact.
-.tst.stripLineComment:{[line]
-  n: count line;
-  if[0 = n; :line];
-  inStr: 0b;
-  i: 0;
-  / NOT named `cut`: that is a q keyword, and assigning to it fails the load.
-  stopAt: n;
-  while[i < n;
-    ch: line i;
-    $[inStr;
-        $[ch = "\\"; i+: 1;                       / escaped char: consume both
-          ch = "\""; inStr: 0b;
-          ::];
-        $[ch = "\""; inStr: 1b;
-          (ch = "/") and ((i = 0) or ((i > 0) and (line[i - 1] in " \t")));
-              [stopAt: i; i: n];
-          ::]];
-    i+: 1;
-  ];
-  stopAt # line
- };
-
-/ Strip comments from a list of source lines: q's block form (a lone "/" opens,
-/ a lone "\" closes) and the per-line trailing form. Discovery's "covered" test is
-/ a substring search over test source, so without this a function that appears
-/ only in a comment -- including a whole commented-out test -- counts as covered.
-/ That is the difference between "this name is written down somewhere" and "this
-/ function is exercised", and it is the one the report is read as making.
-.tst.stripQComments:{[lines]
-  inBlock: 0b;
-  out: ();
-  i: 0;
-  do[count lines;
-    raw: lines i;
-    trimmed: raw where not raw in " \t";
-    $[inBlock;
-        [ if[trimmed ~ enlist "\\"; inBlock: 0b];
-          out,: enlist "" ];
-        [ $[trimmed ~ enlist "/";
-              [ inBlock: 1b; out,: enlist "" ];
-              out,: enlist .tst.stripLineComment raw ] ]];
-    i+: 1;
-  ];
-  out
- };
-
 / Scan tests for coverage.
 / NOTE: this is a NAME-PRESENCE scan over test source, not execution coverage --
 / a function referenced anywhere in a test file counts, even if it is never called.

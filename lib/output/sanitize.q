@@ -104,6 +104,12 @@
     not covered
  };
 
+/ The result rows of a report, as a list of row dictionaries. Used by the
+/ JUnit and xUnit reporters, which each defined it.
+.tst.output.normalizeRows:{[rows]
+    .tst.resultRows rows
+ };
+
 / Replace every byte that is not well-formed UTF-8 with `prefix` and its two
 / hex digits ("caf\xE9"), so the byte can still be read off the report.
 .tst.output.cleanUtf8:{[s;prefix]
@@ -130,11 +136,6 @@
     s:ssr[s;"\"";"&quot;"];
     s:ssr[s;"'";"&apos;"];
     s where (s in "\t\n\r") or not s within ("\000";"\037")
- };
-
-.tst.output.toSeconds:{[v]
-    raw:$[0h=type v;0N;98h=type v;first v;v];
-    $[null raw;0f;-16h=type raw;raw%1e9;0f]
  };
 
 / XML Schema decimal has no exponent form. Render durations from integral

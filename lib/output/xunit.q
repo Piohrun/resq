@@ -1,7 +1,3 @@
-.tst.output.normalizeRows:{[rows]
-    .tst.resultRows rows
- };
-
 .tst.output.xunitPropertyNode:{[rec]
     body:"";
     prop:$[`property in key rec;rec`property;()!()];

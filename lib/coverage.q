@@ -812,21 +812,6 @@ if[not `coverageRecording in key `.tst;.tst.coverageRecording:0b];
     -1 "Coverage tracking initialized.";
  };
 
-/ Lines that carry executable code, as a boolean per source line. Masking blanks
-/ out comments, strings and block comments first, so a comment-only or blank line
-/ is never counted as coverable.
-.tst.coverableLines:{[srcLines]
-    if[0 = count srcLines; :`boolean$()];
-    / Fall back to the raw lines if masking is unavailable or changes the line
-    / count; a comment-only line then still fails the trim test below only if it
-    / is genuinely blank, which is the safe direction (over-counting coverable
-    / lines understates coverage rather than overstating it).
-    masked: @[.tst.static.maskLines; srcLines; {[e] `maskFailed}];
-    if[not (0h = type masked) and (count masked) = count srcLines;
-        masked: srcLines];
-    {0 < count trim x} each masked
- };
-
 / Source lines a function spans: (startLine; endLine). exploreFile flattens a
 / function's body to a single line, so height cannot come from there -- a
 / function instead runs to the line before the next function starts, and the

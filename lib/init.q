@@ -85,11 +85,6 @@ if[not `fmt in key .resq.config; .resq.config.fmt: `text; .resq.config.outDir: "
 .resq.require .resq.PKGLOADING,"/isolate.q"
 .resq.require .resq.PKGLOADING,"/mutate.q"
 
-/ Alias .resq expansion functions to .tst for backward compatibility with example tests
-if[`resq in key `;
-    / Fix: Use key `.resq to get symbols in namespace
-    { if[not x in key `.tst; .[`.tst; (enlist x); :; get ` sv `.resq, x]] } each key `.resq;
- ];
 
 / The text reporter (lib/output/text.q, loaded above) defines .resq.reportText
 / and aliases .resq.report to it. We just need the bookkeeping state here.
@@ -152,10 +147,6 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
     ];
     if[`originalQ in key `.tst; delete originalQ from `.tst];
     ::
- };
-
-.tst.die:{[x] 
-    exit x
  };
 
 / Canonical public DSL table. Test-source preprocessing binds these names to

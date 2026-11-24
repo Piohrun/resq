@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A qspec suite may keep helpers in `.tst` under names resQ does not use.
+  Loading copied all 52 `.resq` names into `.tst` (unused there), and a
+  suite's own `.tst.color` or `.tst.state` then failed as a clash with a
+  "resQ internal". Seven unused functions and two duplicate definitions are
+  gone too.
 - CI's syntax check of the launchers checked only `bin/resq`:
   `bash -n a b c` takes `b` and `c` as arguments. Each launcher is checked on
   its own, in CI and in `tools/verify_static.py`.

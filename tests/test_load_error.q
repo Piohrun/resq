@@ -217,3 +217,23 @@
   };
  };
 
+/ init.q copied every .resq name into .tst at load (52 of them: helpers, a
+/ colour function, run state). None was used there, and each became a
+/ "resQ internal" that a qspec suite's own .tst helper clashed with.
+.tst.desc["a qspec suite may keep helpers in .tst under names resQ does not use #slow"]{
+  should["load a file that defines .tst.color and .tst.state"]{
+    if[not .tst.testState.clobber.canRun; :must[1b; "q or timeout unavailable"]];
+    files: enlist[`test_helpers.q]!enlist (
+        ".tst.color:{[c] c};";
+        ".tst.state:`mine;";
+        ".tst.desc[\"helpers\"]{ should[\"use them\"]{ (.tst.color 3) musteq 3; .tst.state musteq `mine; }; };");
+    r: .tst.testState.dropped.run[files; "-qspec-compat -qspec-discovery"];
+    r[`code] musteq 0;
+    (0 = count r[`output] ss "redefines resQ internal") musteq 1b;
+  };
+  should["have no copies of .resq names in .tst"]{
+    copied: {[n] (n in key `.tst) and @[{[n] (get ` sv `.tst,n) ~ get ` sv `.resq,n}; n; {[e] 0b}]} each (key `.resq) except `;
+    (sum copied) musteq 0i;
+  };
+ };
+

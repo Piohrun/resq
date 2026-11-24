@@ -341,11 +341,6 @@
     distinct ranges`name
  };
 
-.tst.dslRootShadowedNames:{[lines]
-    ranges:.tst.dslScopeArgument[lines]`ranges;
-    distinct ranges[`name] where ranges[`scope]=0j
- };
-
 .tst.dslScopeWithGlobals:{[text;globals]
     ctx:.tst.dslScopeArgument "\n" vs text;
     ctx[`globals]:distinct (`symbol$()),ctx`globals,(`symbol$()),globals;

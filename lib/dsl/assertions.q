@@ -44,11 +44,6 @@ printDiffText:{[text]
     -1 "----------------------------------------------------------------";
  };
 
-/ Print expected-vs-actual diff; rendering problems must never mask the assertion failure itself.
-printDiffSafe:{[expected;actual]
-    .tst.printDiffText .tst.renderDiffText[expected;actual]
- };
-
 / Append "(assertion #N in this test)" to the SUMMARY line, not to the end of a
 / message that already carries a diff section -- the locator belongs beside the
 / claim it locates, and the diff must stay the last thing in the string so a

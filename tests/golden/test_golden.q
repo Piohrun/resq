@@ -516,7 +516,7 @@
   };
 
   / beforeAll-throwing fixture with -junit: the runner synthesizes a single
-  / error row whose time is a NULL timespan (0Nn). toSeconds must coerce that to
+  / error row whose time is a NULL timespan (0Nn). decimalSeconds must render that as
   / 0f so the XML carries the fixed xsd:decimal spelling time="0.000000000",
   / never time="" (invalid).
   / Generated at runtime per this file's existing fixture-generation pattern.
