@@ -592,11 +592,49 @@
     `.tst.app.passOnly mock 0b;
     `.resq.state.results mock .tst.oneResultTable .tst.quarantineTest.rowId["test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";`pass];
     `.tst.testState.lockNotes mock ();
-    `.tst.noteIdentityState mock {[text] .tst.testState.lockNotes,: enlist text;};
+    `.tst.noteStateProblem mock {[text] .tst.testState.lockNotes,: enlist text;};
     `.tst.recordDiagnostic mock {[a;b;c;d;e] ::};
     .tst.persistFlakeState[] musteq 0b;
     (count .tst.testState.lockNotes) musteq 1;
     ((first .tst.testState.lockNotes) like "the flake history is locked by another run*") musteq 1b;
+  };
+ };
+
+/ State problems reached the report's diagnostics and nothing else: a run
+/ that ignored a corrupt state file, or could not save its own, looked like
+/ any other on the console.
+.tst.desc["state problems are said on the console, once"]{
+  before{
+    `.tst.app.stateNotes mock ();
+    `.tst.app.passOnly mock 1b;
+    `.tst.app.diagnostics mock ();
+  };
+
+  should["say a problem once however often it is met"]{
+    .tst.noteStateProblem "the same thing";
+    .tst.noteStateProblem "the same thing";
+    .tst.noteStateProblem "another thing";
+    .tst.app.stateNotes musteq ("the same thing";"another thing");
+  };
+
+  should["record the diagnostic and say it with its path"]{
+    .tst.recordStateWarning[`rerun;`persistence;"Unable to write rerun state";enlist[`path]!enlist "out/s.json"];
+    (count .tst.app.diagnostics) musteq 1;
+    ((first .tst.app.diagnostics)`severity) musteq `warning;
+    .tst.app.stateNotes musteq enlist "Unable to write rerun state (out/s.json)";
+  };
+
+  should["say once that a state directory cannot be made, and not try again loudly"]{
+    / nothing can be made under /dev/null, whoever runs this
+    .tst.stateDirReady["/dev/null/resq"] musteq 0b;
+    .tst.stateDirReady["/dev/null/resq"] musteq 0b;
+    (count .tst.app.stateNotes) musteq 1;
+    ((first .tst.app.stateNotes) like "cannot create the state directory /dev/null/resq;*") musteq 1b;
+    .resq.util.tryEnsureDir["/dev/null/resq"] musteq 0b;
+    dir:.utl.tempRoot[],"/resq_state_dir_",string[.z.i],"_",string `long$.z.p;
+    .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.utl.shellQuote d;{}]};enlist dir];
+    .tst.stateDirReady[dir,"/a/b"] musteq 1b;
+    (.utl.pathExists dir,"/a/b") musteq 1b;
   };
  };
 

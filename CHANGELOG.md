@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- State problems are said on the console, once and in one line: a corrupt
+  last-run or flake-history file that is ignored, state that cannot be
+  written, a history that is locked. They reached only the JSON report's
+  diagnostics. A project directory that cannot be written to printed
+  `mkdir: ... Permission denied` and a warning twice a run; it is now one
+  line that says what is not saved and how to point the state elsewhere.
 - A statement that signals while a test file loads is reported with its
   line: `test_x.q near line 8: undefinedThing (near line 8: b: a + ...)`.
   Only a syntax error had one, and a line inside a block comment could be

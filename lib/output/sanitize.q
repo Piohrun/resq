@@ -1054,6 +1054,7 @@
         .tst.vcsContext root;.tst.ciContext[];.tst.selectedConfig[];ordering;
         .tst.selectionMetadata[];.tst.shardMetadata[]);
     .tst.app.diagnostics:();
+    .tst.app.stateNotes:();
     ::
  };
 

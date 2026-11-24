@@ -119,8 +119,11 @@
                     state:own;
                     .tst.app.rerunState:state;
                     .tst.app.rerunStateStatus:state`status]]]];
+    / State from another identity generation was archived and said so
+    / above; a malformed file was ignored without a word.
     if[(state`status) in `invalid`unsupported;
-        .tst.recordDiagnostic[`rerun;`warning;`selection;
+        $[`invalid~state`status;.tst.recordStateWarning[`rerun;`selection];
+            .tst.recordDiagnostic[`rerun;`warning;`selection]][
             "Ignoring malformed or unsupported rerun state; running the full selection: ",state`diagnostic;
             `path`status`diagnostic!(.tst.repoRelativePath path;state`status;state`diagnostic)]];
     state
@@ -256,6 +259,11 @@
     / to load used to leave an empty .resq/ behind in the caller's directory.
     if[0=count eligible;:1b];
     .tst.ensureStateDir dir;
+    / A directory that cannot be made has been said; nothing to try.
+    if[not .resq.util.isDir dir;
+        .tst.recordDiagnostic[`rerun;`warning;`persistence;
+            "Unable to write rerun state";enlist[`path]!enlist .tst.repoRelativePath path];
+        :0b];
     / Re-check immediately before publication: another process or operator may
     / have replaced the path after init. Never overwrite a different identity
     / generation merely because this run already loaded its selection state.
@@ -299,7 +307,7 @@
     tmp:path,".tmp.",string .z.i;
     written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[err]0b}];
     if[not written;
-        .tst.recordDiagnostic[`rerun;`warning;`persistence;
+        .tst.recordStateWarning[`rerun;`persistence;
             "Unable to write rerun state";enlist[`path]!enlist .tst.repoRelativePath path];
         :0b];
     moved:.[{[src;dst]system "mv -f -- ",.resq.util.shellQuote[src]," ",.resq.util.shellQuote dst;1b};

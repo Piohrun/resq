@@ -222,8 +222,11 @@
     .tst.app.flakeHistory:history;
     .tst.app.quarantineManifest:manifest;
     .tst.app.flakeStateApplied:0b;
+    / A history from another identity generation was archived and said so
+    / above; a malformed one was ignored without a word.
     if[(history`status) in `invalid`unsupported;
-            .tst.recordDiagnostic[`flake;`warning;`history;
+        $[`invalid~history`status;.tst.recordStateWarning[`flake;`history];
+            .tst.recordDiagnostic[`flake;`warning;`history]][
             "Ignoring malformed or unsupported flake history: ",history`diagnostic;
             `path`status`diagnostic!(.tst.repoRelativePath hpath;history`status;history`diagnostic)]];
     if[(manifest`status) in `invalid`unsupported;
@@ -737,8 +740,36 @@
     "# quarantine.json is the reviewed quarantine manifest; commit it.";
     enlist "*";
     "!quarantine.json");
+/ State problems reach the report's diagnostics. They did not reach the
+/ console: a run that ignored a corrupt state file, or could not save its
+/ own, looked like any other. Each is now also said once, in one line.
+.tst.noteStateProblem:{[text]
+    said:@[get;`.tst.app.stateNotes;{()}];
+    if[any text~/:said;:()];
+    .tst.app.stateNotes:said,enlist text;
+    if[not 1b~@[get;`.tst.app.passOnly;0b];-1 "resQ: ",text];
+ };
+
+/ A state diagnostic that is also said on the console.
+.tst.recordStateWarning:{[typeName;phase;message;data]
+    .tst.recordDiagnostic[typeName;`warning;phase;message;data];
+    .tst.noteStateProblem .tst.toString[message],
+        $[`path in key data;" (",.tst.toString[data`path],")";""];
+ };
+
+/ Is the directory a state file goes in there, made if need be? A read-only
+/ project directory printed mkdir's "Permission denied" and a warning, twice
+/ a run. It is said once, and the files that would go there are not tried.
+.tst.stateDirReady:{[dir]
+    if[.resq.util.tryEnsureDir dir;:1b];
+    .tst.noteStateProblem "cannot create the state directory ",.tst.repoRelativePath[dir],
+        "; the last-failed list and the flake history are not saved for this run",
+        " (-state-file and -flake-history can point somewhere writable)";
+    0b
+ };
+
 .tst.ensureStateDir:{[dir]
-    .resq.util.ensureDir dir;
+    if[not .tst.stateDirReady dir;:dir];
     if[not ".resq"~last "/" vs .resq.util.normalizePath dir;:dir];
     ignore:dir,"/.gitignore";
     if[.resq.util.pathExists ignore;:dir];
@@ -802,6 +833,7 @@
     dir:$[count slash;(last slash)#path;"."];
     if[0=count dir;dir:"/"];
     .tst.ensureStateDir dir;
+    if[not .resq.util.isDir dir;:73j];
     lock:path,".lock";
     quoted:.resq.util.shellQuote lock;
     / 0 = acquired, 75 = held by a live writer, 73 = cannot be created at all
@@ -843,18 +875,19 @@
     eligible:rows where .tst.flakeEligibleRow each rows;
     if[0=count eligible;:1b];
     path:.tst.flakeHistoryPath[];
+    dirOf:{[p] slash:where p="/"; $[count slash;$[0=last slash;"/";(last slash)#p];"."]};
     lockStatus:.tst.acquireFlakeHistoryLock path;
     if[not 0j~lockStatus;
-        .tst.recordDiagnostic[`flake;`warning;`persistence;
-            $[73j~lockStatus;
+        / A directory that cannot be made has been said already.
+        $[(73j~lockStatus) and not .resq.util.isDir dirOf path;
+            .tst.recordDiagnostic[`flake;`warning;`persistence;
                 "Unable to create the flake history lock (is the state directory writable?); current evidence was not published";
-                "Flake history is locked by another live writer; current evidence was not published"];
-            enlist[`path]!enlist .tst.repoRelativePath path];
-        / The run waited for the lock and saved nothing: say so where it is
-        / read, not only in the report.
-        if[not 73j~lockStatus;
-            .tst.noteIdentityState "the flake history is locked by another run (",
-                .tst.repoRelativePath[path],".lock); this run's evidence was not saved"];
+                enlist[`path]!enlist .tst.repoRelativePath path];
+            .tst.recordStateWarning[`flake;`persistence;
+                $[73j~lockStatus;
+                    "Unable to create the flake history lock (is the state directory writable?); current evidence was not published";
+                    "the flake history is locked by another run; this run's evidence was not saved"];
+                enlist[`path]!enlist .tst.repoRelativePath[path],".lock"]];
         :0b];
     outcome:.[{[eligible;path]
         latest:.tst.readFlakeHistoryAt path;
@@ -896,7 +929,7 @@
       };(eligible;path);{[err](1b;0b;.tst.toString err)}];
     .tst.releaseFlakeHistoryLock path;
     if[first outcome;
-        .tst.recordDiagnostic[`flake;`warning;`persistence;
+        .tst.recordStateWarning[`flake;`persistence;
             "Unable to merge flake history: ",last outcome;
             enlist[`path]!enlist .tst.repoRelativePath path]];
     outcome 1

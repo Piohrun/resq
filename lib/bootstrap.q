@@ -241,13 +241,22 @@ $[.resq.hasQutil; .utl.require: .resq.requireOrQutil; .resq.offerUtl[`require; .
 .resq.util.ensureDir:{[path]
     p: .resq.util.normalizePath path;
     if[0 = count p; p: "."];
-    if[.resq.util.isDir p; :p];
-    cmd: $[.resq.util.isWindows; "mkdir ", .resq.util.shellQuote p; "mkdir -p -- ", .resq.util.shellQuote p];
-    @[system; cmd; {[p;e]
-        -1 "WARNING: Failed to create directory ", p, ": ", e;
-        :()
-    }[p]];
+    if[not .resq.util.tryEnsureDir p;
+        -1 "WARNING: Failed to create directory ", p];
     p
+ };
+
+/ Make a directory, with its parents, and say whether it is there. Nothing
+/ is printed: mkdir's own "Permission denied" went straight to the terminal,
+/ beside the warning above, once for every file that wanted the directory.
+.resq.util.tryEnsureDir:{[path]
+    p: .resq.util.normalizePath path;
+    if[0 = count p; p: "."];
+    if[.resq.util.isDir p; :1b];
+    cmd: $[.resq.util.isWindows; "mkdir ", .resq.util.shellQuote p;
+        "mkdir -p -- ", .resq.util.shellQuote[p], " 2>/dev/null; true"];
+    @[system; cmd; {[e] ()}];
+    .resq.util.isDir p
  };
 
 / ============================================================================

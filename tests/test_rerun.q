@@ -148,6 +148,11 @@
     messages:{.tst.toString x`message} each doc`diagnostics;
     must[any messages like "Unable to write rerun state*";
          "the failed rerun-state write must surface as a diagnostic"];
+    / and on the console: once, in resQ's words, without mkdir's own
+    shown:read0 hsym `$wd,"/out.txt";
+    (sum shown like "resQ: cannot create the state directory /dev/null/resq;*") musteq 1i;
+    (any shown like "mkdir:*") musteq 0b;
+    (any shown like "WARNING: Failed to create directory*") musteq 0b;
     / An uncreatable lock is reported as such, not as a live writer after a
     / 5 s busy-wait.
     must[any messages like "Unable to create the flake history lock*";
