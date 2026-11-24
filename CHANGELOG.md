@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A `resq.json` that cannot be applied as written stops the run with
+  `CONFIG ERROR` and exit 1. It was a warning: the affected key kept its
+  default and the run went on, so `{"strict": true,}` (a trailing comma), a
+  misspelled key or a value of the wrong type silently removed `strict` and
+  every configured gate. `"fmt": "yaml"` is now rejected (it produced no
+  report and no message), and `"fmt": 5`, `"shardUnit": 5` and
+  `"reportProfile": true` give a message where they gave a raw q error.
 - Tests no longer disappear from a run without a word. An empty test file
   was skipped silently, also under `-strict`; it now gets the warning and the
   `-strict` failure that a file without tests gets. A test file that has gone

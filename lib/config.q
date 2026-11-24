@@ -284,10 +284,19 @@ defaultConfig:defaultConfig,enlist[`watchLoaders]!enlist ();
 / Pure value-layer normalization shared by file loading, validation, and
 / application. It returns a new dictionary and never weakens an invalid value
 / into a default; rejected values remain visible to validation diagnostics.
+/ The same dictionary with a general list of values. A document with one key,
+/ or with values all of one type, has a typed value list, and replacing one
+/ value with something of another type (fmt 5 with a symbol) signalled 'type.
+.tst.generalDict:{[d]
+    if[0h=type value d;:d];
+    (enlist `resqGeneral) _ d,(enlist `resqGeneral)!enlist (::)
+ };
+
 .tst.normalizeConfigDocument:{[document]
     cfg:document;
     if[(type cfg) in -20 20h;cfg:(enlist key cfg)!enlist value cfg];
     if[not 99h=type cfg;:cfg];
+    cfg:.tst.generalDict cfg;
     integerNames:.tst.configIntegerNames where .tst.configIntegerNames in key cfg;
     if[count integerNames;
         integerValues:{[doc;setting]
@@ -315,12 +324,16 @@ loadConfig:{[path]
     / user override.  bin/qspec adds pinned qspec filename conventions only in
     / the former case; an explicit testFilePatterns value remains authoritative.
     .tst.configTestFilePatternsExplicit:0b;
+    / What kept the file from being read as written. The command line treats
+    / any entry as fatal; see resq.q.
+    .tst.configLoadProblems:();
     p:$[10h = type path; path; "resq.json"];
     source:@[.tst.readConfigSource;hsym `$p;{[e]
         `state`value!(`error;e)
     }];
     if[`missing~source`state; :.tst.defaultConfig];
     if[`error~source`state;
+        .tst.configLoadProblems,:enlist "cannot read '",p,"': ",.tst.toString source`value;
         -1 "WARNING: Failed to read config '",p,"': ",
             .tst.toString[source`value],"; using defaults";
         :.tst.defaultConfig
@@ -329,12 +342,14 @@ loadConfig:{[path]
 
     cfg:()!();
     if[0 < count cfgText;
-        cfg: @[.j.k; cfgText; {[e]
+        cfg: @[.j.k; cfgText; {[p;e]
+            .tst.configLoadProblems,:enlist "'",p,"' is not valid JSON: ",e;
             -1 "WARNING: Failed to parse config JSON: ", e;
             ()!()
-        }];
+        }[p]];
     ];
     if[not 99h=type cfg;
+        .tst.configLoadProblems,:enlist "'",p,"' must hold a JSON object";
         -1 "WARNING: Config JSON root must be an object; using defaults";
         cfg:()!()
     ];
@@ -344,7 +359,13 @@ loadConfig:{[path]
             cfg:cfg,(enlist `seed)!enlist exactSeed`seed]];
     .tst.configTestFilePatternsExplicit:`testFilePatterns in key cfg;
     cfg:.tst.normalizeConfigDocument cfg;
-    if[`fmt in key cfg;cfg[`fmt]:.tst.normalizeFmt cfg`fmt];
+    / A supported format is normalised here (xml -> junit, console -> text).
+    / Anything else keeps the value the file gave, for validation to reject:
+    / normalising it too turned every unknown format into `text, so
+    / "fmt": "yaml" produced no report and no message.
+    if[`fmt in key cfg;
+        if[.tst.normalizeFmtInput[cfg`fmt] in `text`console`xml`junit`xunit`json;
+            cfg[`fmt]:.tst.normalizeFmt cfg`fmt]];
     $[0<count cfg;.tst.defaultConfig,cfg;.tst.defaultConfig]
  }
 
@@ -352,7 +373,7 @@ loadConfig:{[path]
     $[10h = type fmt; `$lower fmt;
       -11h = type fmt; `$lower string fmt;
       11h = type fmt; `$lower string first fmt;
-      0h = type fmt; `text;
+      0h = type fmt; `;                / a list of formats is not a format
       `$lower string fmt]
  }
 
@@ -620,7 +641,7 @@ validateConfig:{[cfg]
            cfg[`shardIndex]>=cfg`shardCount;
           warnings,:enlist "shardIndex must be less than shardCount"]]]];
   if[`reportProfile in key cfg;
-    if[(not -11h=type cfg`reportProfile) or not (cfg`reportProfile) in `full`results`telemetry;
+    if[not $[-11h=type cfg`reportProfile;(cfg`reportProfile) in `full`results`telemetry;0b];
       warnings,:enlist "reportProfile must be one of: full, results, telemetry"]];
   if[`labels in key cfg;
     if[not .tst.validLabels cfg`labels;
@@ -770,10 +791,10 @@ invalidConfigKeys:{[cfg]
   if[`benchmarkBaseline in key cfg;
     if[not (type cfg`benchmarkBaseline) in 10 -10h;invalid,:`benchmarkBaseline]];
   if[`shardUnit in key cfg;
-    if[(not -11h=type cfg`shardUnit) or not (cfg`shardUnit) in `file`test`case;
+    if[not $[-11h=type cfg`shardUnit;(cfg`shardUnit) in `file`test`case;0b];
       invalid,:`shardUnit]];
   if[`reportProfile in key cfg;
-    if[(not -11h=type cfg`reportProfile) or not (cfg`reportProfile) in `full`results`telemetry;
+    if[not $[-11h=type cfg`reportProfile;(cfg`reportProfile) in `full`results`telemetry;0b];
       invalid,:`reportProfile]];
   if[`labels in key cfg;
     if[not .tst.validLabels cfg`labels;invalid,:`labels]];
@@ -826,6 +847,8 @@ applyConfig:{[cfg]
     cfg:.tst.normalizeConfigDocument cfg;
 
     invalid: .tst.invalidConfigKeys cfg;
+    / For the command line, which stops on any of these; see resq.q.
+    .tst.configIgnoredKeys: invalid;
     if[0 < count invalid;
         -1 "CONFIG WARNING: ignoring invalid value(s) for: ", ", " sv string invalid;
     ];

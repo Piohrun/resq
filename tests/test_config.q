@@ -615,3 +615,63 @@
  };
 
 ::
+
+.tst.desc["a report format the config cannot mean"]{
+  should["be reported, not turned into text"]{
+    unsupported: {[v] any (.tst.validateConfig .tst.defaultConfig, enlist[`fmt]!enlist v) like "Unsupported format*"};
+    unsupported["yaml"] musteq 1b;
+    unsupported["junitxml"] musteq 1b;
+    unsupported[""] musteq 1b;
+    unsupported[5f] musteq 1b;
+    unsupported[("junit";"json")] musteq 1b;
+    unsupported["JSON"] musteq 0b;
+    unsupported["xml"] musteq 0b;
+  };
+  should["survive a document whose values are all of one type"]{
+    / fmt 5 alone used to signal 'type while the file was being read
+    doc: .tst.normalizeConfigDocument enlist[`fmt]!enlist 5f;
+    (doc`fmt) musteq 5f;
+    (`shardUnit in .tst.invalidConfigKeys .tst.defaultConfig, enlist[`shardUnit]!enlist 5f) musteq 1b;
+    (`reportProfile in .tst.invalidConfigKeys .tst.defaultConfig, enlist[`reportProfile]!enlist 1b) musteq 1b;
+  };
+ };
+
+/ From the command line a resq.json that cannot be applied as written stops
+/ the run. As a warning, one trailing comma or misspelled key removed
+/ `strict` and every configured gate from a pipeline that stayed green.
+.tst.testState.badcfg.canRun:
+    (0 < count @[system; "which q 2>/dev/null"; {()}]) and
+    (0 < count @[system; "which timeout 2>/dev/null"; {()}]);
+
+.tst.testState.badcfg.run:{[configText]
+    wd: .resq.util.tempRoot[], "/resq_badcfg_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd, "/tests";
+    (hsym `$wd, "/tests/test_s.q") 0: enlist ".tst.desc[\"s\"]{ should[\"asserts nothing\"]{ 1+1; }; };";
+    (hsym `$wd, "/resq.json") 0: enlist configText;
+    cmd: "true && cd ", (.resq.util.shellQuote wd), " && timeout -k 2 60 q ",
+         (.resq.util.shellQuote .resq.HOME, "/resq.q"), " test tests -outDir out",
+         " -state-file out/state.json -flake-history out/flake.json",
+         " -quarantine-file out/quarantine.json -flake-proposal-file out/proposals.json",
+         " > out.txt 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    output: "\n" sv @[read0; hsym `$wd, "/out.txt"; {()}];
+    if[wd like "*/resq_badcfg_*"; system "rm -rf -- ", .resq.util.shellQuote wd];
+    `code`output!("J"$last exitLines; output)
+ };
+
+.tst.desc["a resq.json that cannot be applied as written #slow"]{
+  should["stop the run instead of dropping the setting"]{
+    if[not .tst.testState.badcfg.canRun; :must[1b; "q or timeout unavailable"]];
+    / the fixture's one test asserts nothing: with strict applied it fails
+    good: .tst.testState.badcfg.run "{\"strict\": true}";
+    good[`code] musteq 1;
+    (0 < count good[`output] ss "CONFIG ERROR") musteq 0b;
+    cases: ("{\"strict\": true,}"; "{\"strct\": true}"; "{\"strict\": \"true\"}"; "[1,2]";
+            "{\"fmt\": 5}"; "{\"fmt\": \"yaml\"}"; "{\"shardUnit\": 5}"; "{\"reportProfile\": true}");
+    results: .tst.testState.badcfg.run each cases;
+    (results`code) musteq (count cases)#1;
+    ({0 < count x ss "CONFIG ERROR"} each results`output) musteq (count cases)#1b;
+    / stopped before any test ran
+    ({0 < count x ss "Tests:"} each results`output) musteq (count cases)#0b;
+  };
+ };

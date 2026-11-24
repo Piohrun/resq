@@ -2292,8 +2292,11 @@ Where a CLI option is supplied, it takes precedence over the corresponding
 configuration value. Boolean CLI flags enable behavior; there are no `--no-*`
 forms for disabling a configured feature.
 
-Unknown keys and invalid values produce `CONFIG WARNING` lines and are ignored;
-the valid/default value remains in effect.
+A `resq.json` that cannot be applied as written stops the run: invalid JSON,
+a root that is not an object, an unknown key, or a value of the wrong type or
+range prints `CONFIG ERROR` and exits 1 before any test is loaded. (When resQ
+is loaded as a library, the same conditions print `CONFIG WARNING` and the
+default stays in effect.)
 
 ---
 

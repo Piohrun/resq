@@ -88,11 +88,24 @@ if[not .resq.hasQutil; .resq.offerUtl[`PKGLOADING; .resq.PKGLOADING]];
 / assignment here is a global in the root namespace of the process under
 / test, where an application that sets `config` or `args` only when they are
 / undefined would take resQ's values for its own.
-.resq.bootConfig: .tst.loadConfig[::];
-/ Validate config early; keep warnings non-fatal so execution can continue.
-.resq.config.validationWarnings: .tst.validateConfig[.resq.bootConfig];
-.tst.printConfigWarnings .resq.config.validationWarnings;
-.tst.applyConfig[.resq.bootConfig];
+/ A resq.json that cannot be applied as written stops here. It used to be a
+/ warning: the bad key kept its default and the run went on, so one trailing
+/ comma or one misspelled key silently removed `strict`, a coverage threshold
+/ or a snapshot gate from a pipeline that then stayed green.
+.resq.configFailure:{[problems]
+    {-2 "CONFIG ERROR: ", x} each problems;
+    -2 "resq.json was not applied, so none of its settings can be relied on. Fix the file or remove it.";
+    exit .resq.EXIT.FAIL
+ };
+.resq.bootConfig: @[.tst.loadConfig; ::; {[e] .resq.configFailure enlist "resq.json could not be read: ", e}];
+if[count .tst.configLoadProblems; .resq.configFailure .tst.configLoadProblems];
+.resq.config.validationWarnings: @[.tst.validateConfig; .resq.bootConfig;
+    {[e] .resq.configFailure enlist "resq.json could not be checked: ", e}];
+if[count .resq.config.validationWarnings;
+    .resq.configFailure .tst.toString each .resq.config.validationWarnings];
+@[.tst.applyConfig; .resq.bootConfig; {[e] .resq.configFailure enlist "resq.json could not be applied: ", e}];
+if[count @[get; `.tst.configIgnoredKeys; {`symbol$()}];
+    .resq.configFailure enlist "invalid value for: ", ", " sv string .tst.configIgnoredKeys];
 .resq.labelEnvironmentError:.tst.applyEnvironmentLabels[];
 if[count .resq.labelEnvironmentError;
     -2 "LABEL ERROR: RESQ_LABELS_JSON: ",.resq.labelEnvironmentError;

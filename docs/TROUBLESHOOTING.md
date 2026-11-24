@@ -655,13 +655,13 @@ Without `-strict`, an all-skipped suite exits 0 — this is intentional.
 
 ---
 
-### `resq.json` value is ignored after a warning
+### The run stops with `CONFIG ERROR`
 
-**Symptom:** A config warning is printed but the run behaves as if the key was never set.
+**Symptom:** `resq` prints one or more `CONFIG ERROR` lines and exits 1 before any test runs.
 
-**Cause:** This is correct behaviour. Invalid `resq.json` values (wrong type, unparseable numbers, unknown keys) are warned **and ignored** — the default for that key stays in effect. Previously bad values were applied after the warning, which was a bug.
+**Cause:** `resq.json` could not be applied as written: it is not valid JSON, it is not a JSON object, it has a key resQ does not know (often a misspelling), or a value has the wrong type or range. resQ used to warn and carry on with the default for that key, so one typo could remove `strict` or a coverage gate from a pipeline that then stayed green.
 
-**Solution:** Correct the value in `resq.json` and re-run.
+**Solution:** Correct `resq.json` as the message says, or remove the file. A process that loads resQ as a library still only gets the warning.
 
 ---
 
