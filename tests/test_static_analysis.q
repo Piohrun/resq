@@ -157,3 +157,29 @@
     (asc names dir, "/b.q") musteq asc `.users.add`plain;
   };
  };
+
+/ discover from the command line: a path that is not there, and no paths.
+.tst.desc["discover refuses a command it cannot answer #slow"]{
+  should["fail when the source or the test path does not exist, and when no paths are given"]{
+    wd: .resq.util.tempRoot[], "/resq_discover_cli_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd, "/src";
+    .resq.util.ensureDir wd, "/tests";
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist wd];
+    (hsym `$wd, "/src/m.q") 0: enlist ".m.f:{[x] x+1};";
+    (hsym `$wd, "/tests/test_m.q") 0: enlist ".tst.desc[\"m\"]{ should[\"f\"]{ .m.f[1] musteq 2; }; };";
+    run: {[wd;args]
+        cmd: "cd ", .resq.util.shellQuote[wd], " && ", .resq.util.shellQuote[.resq.HOME, "/bin/resq"],
+            " discover ", args, " -outDir out 2>&1; echo exit=$?";
+        @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}]}[wd];
+    (last run "src tests") musteq "exit=0";
+    missing: run "nope tests";
+    (last missing) musteq "exit=1";
+    (any missing like "*the source path does not exist: nope*") musteq 1b;
+    (last run "src nope") musteq "exit=1";
+    none: run "";
+    (last none) musteq "exit=1";
+    (any none like "*discover needs a source path and a test path*") musteq 1b;
+    / nothing was written into the project for the commands that failed
+    .resq.util.pathExists[wd, "/coverage_report.html"] musteq 0b;
+  };
+ };

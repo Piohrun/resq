@@ -13,6 +13,10 @@ All notable changes to the **resQ** project will be documented in this file.
   a source file that enters its namespace the other way had its functions
   recorded without the namespace and matched no test: resQ's own example
   project, and the command in the README, reported 0% for every directory.
+- `resq discover` fails on a path that does not exist (it printed "Files
+  found: 0" and exited 0) and requires its two paths (with none it analysed
+  the example bundled with resQ and wrote the report into the caller's
+  directory).
 - `-isolate` and `resq mutate` no longer need `timeout --verbose`. They
   refused to run where `timeout` lacks that option (GNU coreutils before 8.29,
   as on RHEL 7, and busybox), with a message that asked for "-k support". The

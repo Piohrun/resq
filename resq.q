@@ -220,10 +220,14 @@ if[.resq.mode ~ `test;
 if[.resq.mode ~ `discover;
     / Defaults point at the bundled quickstart inside the install root,
     / since "examples/quickstart" is only meaningful relative to resq itself.
-    .resq.discoverSrc: .resq.HOME, "/examples/quickstart/src";
-    .resq.discoverTst: .resq.HOME, "/examples/quickstart/test";
-    if[0<count .tst.app.args; .resq.discoverSrc: .tst.app.args 0];
-    if[1 < count .tst.app.args; .resq.discoverTst: .tst.app.args 1];
+    / Both paths are required. With none, discover used to analyse the example
+    / project bundled with resQ and write its report into the caller's
+    / directory, which answers a question nobody asked.
+    if[(2 > count .tst.app.args) and not .resq.cli[`options; `interactive];
+        -2 "CLI ERROR: discover needs a source path and a test path: resq discover src tests";
+        exit .resq.EXIT.FAIL];
+    .resq.discoverSrc: $[0<count .tst.app.args; .tst.app.args 0; "src"];
+    .resq.discoverTst: $[1<count .tst.app.args; .tst.app.args 1; "tests"];
     if[.resq.cli[`options; `interactive]; .tst.start[]; exit 0];
     .tst.main[.resq.discoverSrc; .resq.discoverTst];
     exit 0;

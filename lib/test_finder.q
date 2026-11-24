@@ -283,9 +283,19 @@
 .tst.main:{[src;tst]
   -1 "--- [resQ Discovery] ---";
   -1 "Scanning: ", .tst.toStr src;
+  / A path that does not exist, or holds no q source, is a mistake in the
+  / command. It used to print "Files found: 0" and pass.
+  if[not .resq.util.pathExists .tst.toStr src;
+    -2 "resQ ERROR: discover: the source path does not exist: ", .tst.toStr src;
+    exit 1];
+  if[not .resq.util.pathExists .tst.toStr tst;
+    -2 "resQ ERROR: discover: the test path does not exist: ", .tst.toStr tst;
+    exit 1];
   f: .tst.findSources src;
   -1 "Files found: ",(string count f);
-  if[not count f; :()];
+  if[not count f;
+    -2 "resQ ERROR: discover: no q source files under ", .tst.toStr src;
+    exit 1];
   a: raze .tst.exploreFile each hsym each f;
   -1 "Functions: ",(string count a);
   c: .tst.checkCoverage[a; tst];
