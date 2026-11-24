@@ -34,6 +34,17 @@
   `code`rows!(code; rows)
  };
 
+/ A flaky test in this run itself: it passes on its second attempt whatever
+/ order the tests run in, as nothing else touches its counter. The report's
+/ attempt history for it is what the release gate checks.
+.tst.testState.retrychk.self: 0;
+.tst.desc["retry: a flaky test passes on a later attempt, in this run"]{
+  retry[3; "pass on its second attempt"]{
+    .tst.testState.retrychk.self+: 1;
+    must[.tst.testState.retrychk.self >= 2; "needs >= 2 attempts"];
+  };
+ };
+
 .tst.desc["retry: attempts and hooks, counted in declaration order #slow"]{
   skipIf[not .tst.testState.retrychk.canQ; "run each body and hook as often as the attempts say"]{
     r: .tst.testState.retrychk.inOrder "retry_counts.q";
