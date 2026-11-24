@@ -158,6 +158,11 @@ suite. See [Runtime code coverage](COVERAGE.md).
 
 ## 7. Optional project configuration
 
+resQ keeps what it learns between runs (the tests that failed last time, for
+`-last-failed`, and the flake history) in `.resq/` in that same directory.
+The directory ignores itself in git; `.resq/quarantine.json`, the reviewed
+quarantine list, is the file in it to commit.
+
 Put `resq.json` in the directory where you invoke resQ. It is read from
 there and from nowhere else: started one level down, in `tests/`, a run does
 not pick up the project's `resq.json`, and says so in a note when there is

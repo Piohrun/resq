@@ -114,17 +114,30 @@ resq test tests/
 # Run an existing qspec suite unchanged, with qspec assertion semantics
 qspec tests/
 
-# Run the bundled example
-resq test examples/quickstart/test
+# Run the bundled example, wherever you are (paths as installed above)
+resq test ~/.local/share/resq/examples/quickstart/test
 
 # Run with complete source inventory, statements, and conditional edges
-resq cover examples/quickstart/test --source examples/quickstart/src \
-  -cov-statements -cov-branches
+resq cover ~/.local/share/resq/examples/quickstart/test \
+  --source ~/.local/share/resq/examples/quickstart/src -cov-statements -cov-branches
 
 # Report source functions that are not referenced by tests
-resq discover examples/quickstart/src examples/quickstart/test \
-  -outDir artifacts/discovery
+resq discover ~/.local/share/resq/examples/quickstart/src \
+  ~/.local/share/resq/examples/quickstart/test -outDir artifacts/discovery
 ```
+
+Paths are read from the directory you start resQ in, and so are `resq.json`
+and the `.resq/` directory where resQ keeps what it learns between runs: the
+tests that failed last time (for `-last-failed`) and the flake history. The
+directory ignores itself in git; `.resq/quarantine.json` is the one file in it
+meant to be committed. `-state-file` and `-flake-history` put the state
+elsewhere.
+
+`QBIN` names the q executable to use (`QBIN=/opt/kx/q/l64/q resq test tests/`);
+without it `q` is looked up on `PATH`. Isolated children use the same one.
+q's own single-letter options go through to q, for example `-p 5000` to give
+the test process a port or `-s 4` for secondary threads; any other
+single-letter option is refused, since q would reject it.
 
 ---
 
@@ -136,10 +149,10 @@ function executed; use `resq cover` for runtime coverage.
 
 ### Usage
 ```bash
-q resq.q discover src/ tests/
+resq discover src/ tests/
 
 # Also write stubs under artifacts/discovery/missingTests/
-q resq.q discover src/ tests/ -scaffold -outDir artifacts/discovery
+resq discover src/ tests/ -scaffold -outDir artifacts/discovery
 ```
 
 **Features:**
@@ -226,42 +239,42 @@ Filter which suites or tests run without editing files:
 
 ```bash
 # Run only suites whose title matches a pattern (glob, case-sensitive)
-q resq.q test tests/ -only "Order*"
+resq test tests/ -only "Order*"
 
 # Exclude matching suites
-q resq.q test tests/ -exclude "*slow*"
+resq test tests/ -exclude "*slow*"
 
 # Run only suites tagged #fast (tags are #word tokens in the desc title)
-q resq.q test tests/ -tag fast
+resq test tests/ -tag fast
 
 # Exclude by tag
-q resq.q test tests/ -exclude-tag slow
+resq test tests/ -exclude-tag slow
 
 # List suites and tests without running them (exits 0)
-q resq.q test tests/ -desc
+resq test tests/ -desc
 
 # Run each test FILE in its own q subprocess (opt-in process isolation)
-q resq.q test tests/ -isolate
-q resq.q test tests/ -isolate -isolateTimeout 120   # per-file wall-clock cap (s)
-q resq.q test tests/ -isolate -isolateWorkers 4     # bounded concurrent children
+resq test tests/ -isolate
+resq test tests/ -isolate -isolateTimeout 120   # per-file wall-clock cap (s)
+resq test tests/ -isolate -isolateWorkers 4     # bounded concurrent children
 
 # Expose order-dependent tests reproducibly (does not touch q's global seed)
-q resq.q test tests/ -random-order -seed 4242
+resq test tests/ -random-order -seed 4242
 
 # Tighten the local feedback loop using stable test IDs
-q resq.q test tests/ -last-failed        # alias: -lf
-q resq.q test tests/ -failed-first
+resq test tests/ -last-failed        # alias: -lf
+resq test tests/ -failed-first
 
 # Generate suggestions without mutating policy; quarantines still block by default
-q resq.q test tests/ -flake-proposals
-q resq.q test tests/ -quarantine-non-blocking
+resq test tests/ -flake-proposals
+resq test tests/ -quarantine-non-blocking
 
 # Split files across three CI jobs (zero-based, backward-compatible default)
-q resq.q test tests/ -shard-index 0 -shard-count 3
+resq test tests/ -shard-index 0 -shard-count 3
 
 # Split discoverable tests or declarative cases more evenly
-q resq.q test tests/ -shard-unit test -shard-index 0 -shard-count 3 -json -outDir reports/0
-q resq.q test tests/ -shard-unit case -shard-index 1 -shard-count 3 -json -outDir reports/1
+resq test tests/ -shard-unit test -shard-index 0 -shard-count 3 -json -outDir reports/0
+resq test tests/ -shard-unit case -shard-index 1 -shard-count 3 -json -outDir reports/1
 
 # Fail-closed merge: validates topology/provenance and merges reports + coverage
 bin/resq-merge reports/*/test-results.json --out-dir reports/merged
@@ -283,10 +296,12 @@ resQ exits with a meaningful code by default — no extra flag is needed:
 | Code | Meaning |
 |------|---------|
 | 0 | All tests passed |
-| 1 | One or more tests failed or errored; also `-strict` with no executed tests, or `-strict` with a test that ran no assertions |
+| 1 | One or more tests failed or errored; also `-strict` with no executed tests, or `-strict` with a test that ran no assertions; also files were found but none declares a test |
 | 3 | No test files found (empty/missing directory) |
-| 4 | File load error or explicitly-passed path not found |
+| 4 | File load error or explicitly-passed path not found; also, under `-strict`, a test file that declares no tests |
+| 127 | The launcher could not find q (`PATH`, or `QBIN` when set) |
 | 129, 130, 131, 143 | The run was told to stop (hangup, Ctrl+C, quit, SIGTERM). It writes no report and no state file |
+| 137 | The launcher was killed outright; q noticed and stopped |
 
 Use `-noquit` to suppress the exit call (interactive sessions). Use `-exit` to
 force exit-on-completion even if `resq.json` has `"exit": false`.
@@ -321,7 +336,7 @@ licensing/prerequisites, and the checked-in GitHub Actions workflow.
 ### Strict Mode
 Prevent false positives in CI pipelines.
 ```bash
-q resq.q test -strict my_tests/
+resq test -strict my_tests/
 ```
 If no tests are found **or executed**, this flag forces a **non-zero exit code**.
 A suite where every test was skipped counts as no executed tests under `-strict`.
@@ -345,9 +360,9 @@ Run each discovered test **file** in its own `q` subprocess; the parent
 aggregates the per-file results and applies the normal summary, reporters
 (`-junit`/`-xunit`/`-json`), and exit codes.
 ```bash
-q resq.q test tests/ -isolate
-q resq.q test tests/ -isolate -isolateTimeout 120   # per-file timeout, default 300s
-q resq.q test tests/ -isolate -isolateWorkers 4     # default 1; preserves file order
+resq test tests/ -isolate
+resq test tests/ -isolate -isolateTimeout 120   # per-file timeout, default 300s
+resq test tests/ -isolate -isolateWorkers 4     # default 1; preserves file order
 ```
 Isolation converts three run-killers into per-file failures instead of letting
 one bad file corrupt the whole run: a test that calls `exit` (caught as
@@ -423,7 +438,7 @@ the incomplete-constructor audit for that run.
 Suppress per-file load lines, the RUN AUDIT block, and per-suite output for
 passing suites — failures still print fully:
 ```bash
-q resq.q test tests/ -quiet
+resq test tests/ -quiet
 ```
 
 Output written directly by test code or benchmark helpers is not intercepted.

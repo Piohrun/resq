@@ -69,9 +69,33 @@ class ReleaseGateContractTests(unittest.TestCase):
         "q is not installed; README q examples run in the licensed lanes",
     )
     def test_readme_examples_execute(self) -> None:
-        q_count, shell_count = verify_readme_examples(os.environ.get("QBIN", "q"))
+        q_count, shell_count, parsed = verify_readme_examples(os.environ.get("QBIN", "q"))
         self.assertGreater(q_count, 0)
         self.assertGreater(shell_count, 0)
+        self.assertGreater(parsed, 0)
+
+    @unittest.skipUnless(
+        shutil.which(os.environ.get("QBIN", "q")),
+        "q is not installed; the command check runs in the licensed lanes",
+    )
+    def test_readme_command_check_refuses_what_resq_would(self) -> None:
+        from tools.readme_examples import check_commands, launcher_argv
+        q_executable = os.environ.get("QBIN", "q")
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw)
+            good = [("resq", ["test", "tests/", "-only", "Order*", "-p", "5000"]),
+                    ("qspec", ["--junit", "tests/"])]
+            self.assertEqual(check_commands(good, home, q_executable), 2)
+            with self.assertRaisesRegex(RuntimeError, "-no-such-option"):
+                check_commands([("resq", ["test", "tests/", "-no-such-option"])], home, q_executable)
+            missing = str(home / ".local/share/resq/examples/not-there")
+            with self.assertRaisesRegex(RuntimeError, "does not exist"):
+                check_commands([("resq", ["test", missing])], home, q_executable)
+        # q's own options and the launcher's translations, as bin/resq makes them
+        self.assertEqual(launcher_argv("resq", ["-h"]), ["--help"])
+        self.assertEqual(launcher_argv("resq", ["test", "t", "-s", "4", "-q"]), ["test", "t"])
+        self.assertEqual(launcher_argv("resq", ["test", "t", "-args", "-p", "1"]),
+                         ["test", "t", "-args", "-p", "1"])
 
     @staticmethod
     def git(root: Path, *arguments: str) -> None:

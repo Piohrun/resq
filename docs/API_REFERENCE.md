@@ -2051,19 +2051,19 @@ can be deterministically merged by `.tst.mergeCoverageContexts`.
 **Filtering examples:**
 ```bash
 # Run only matching suites (glob on title)
-q resq.q test tests/ -only "Order*"
+resq test tests/ -only "Order*"
 
 # Exclude slow suites
-q resq.q test tests/ -exclude "*slow*"
+resq test tests/ -exclude "*slow*"
 
 # Run suites tagged #fast
-q resq.q test tests/ -tag fast
+resq test tests/ -tag fast
 
 # List all suites and tests without running
-q resq.q test tests/ -desc
+resq test tests/ -desc
 
 # Stop at the first failure (the reports cover what ran)
-q resq.q test tests/ -ff
+resq test tests/ -ff
 ```
 
 Tags are `#word` tokens in the suite title string:
@@ -2076,26 +2076,26 @@ Tags are `#word` tokens in the suite title string:
 **Examples:**
 ```bash
 # Run all tests
-q resq.q test tests/
+resq test tests/
 
 # Run with JUnit output
-q resq.q test tests/ -junit -outDir reports/
+resq test tests/ -junit -outDir reports/
 
 # Run only integration tests
-q resq.q test tests/ -only "*integration*"
+resq test tests/ -only "*integration*"
 
 # Run with coverage over a complete source inventory
-q resq.q cover tests/ --source src/ -cov-statements -cov-branches
+resq cover tests/ --source src/ -cov-statements -cov-branches
 
 # Watch mode
-q resq.q watch src/ tests/
+resq watch src/ tests/
 
 # Watch with a declared coverage inventory (fresh coverage per rerun)
-q resq.q watch tests/ -coverage --source src/
+resq watch tests/ -coverage --source src/
 
 # Mutation testing: one file, then only the lines changed since main
-q resq.q mutate src/pricing.q
-q resq.q mutate src/ -since main -isolateWorkers 4
+resq mutate src/pricing.q
+resq mutate src/ -since main -isolateWorkers 4
 ```
 
 ---

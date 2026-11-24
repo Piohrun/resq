@@ -116,6 +116,25 @@ use `bin/qspec`. See [Sandboxed Loading](MIGRATION.md#sandboxed-loading).
 
 ---
 
+### An application function named `after`, `skip`, `fixture`, ... is not called
+
+**Symptom:** A test calls an application function that has the name of a
+resQ word, `after[1]` or `skip[x]`, and gets `::` back or registers a hook.
+
+**Cause:** In a test file, these names followed by `[`, `{`, `(`, a quote, a
+backtick, an adverb, or `each` are resQ's: `after`, `afterAll`, `alt`,
+`before`, `beforeAll`, `describe`, `fixture`, `fixtureAs`, `holds`, `it`,
+`pending`, `perf`, `registerCleanup`, `registerSpecCleanup`, `retry`,
+`should`, `shouldEach`, `skip`, `skipIf`, `tempFile`, `testOnly`. The
+assertions (`musteq`, `must`, ...) and `mock` are resQ's in every position.
+
+**Solution:** Call the application's function by juxtaposition, which resQ
+leaves alone: `after 1`, `skip x`, `after . (a;b)` for several arguments,
+or by its qualified name (`.app.after[1]`). Used as a value, as in
+`f: after`, the name is the application's too.
+
+---
+
 ### Error: Test file not found
 
 **Symptom:**
@@ -620,9 +639,10 @@ chmod 755 tests/snapshots
 | Code | Constant | Meaning |
 |------|----------|---------|
 | 0 | `EXIT.PASS` | All tests passed |
-| 1 | `EXIT.FAIL` | One or more tests failed or errored; also `-strict` with no executed tests, or `-strict` with a test that ran no assertions |
+| 1 | `EXIT.FAIL` | One or more tests failed or errored; also `-strict` with no executed tests, or `-strict` with a test that ran no assertions; also files were found but none declares a test |
 | 3 | `EXIT.NO_TESTS` | No test files found (no `-strict`); with `-strict`, injects a FAIL and exits 1 |
-| 4 | `EXIT.LOAD_ERROR` | A test file failed to load, or an explicitly-passed path was not found |
+| 4 | `EXIT.LOAD_ERROR` | A test file failed to load, or an explicitly-passed path was not found; under `-strict` also a test file that declares no tests |
+| 127 | — | The launcher could not find q (`PATH`, or `QBIN` when set) |
 
 | 129, 130, 131, 143 | — | The launcher was told to stop: hangup, Ctrl+C (INT), quit, SIGTERM |
 | 137 | — | The launcher was killed outright (SIGKILL); q noticed and stopped |
@@ -792,7 +812,7 @@ reported as a diagnostic until completeness-aware line thresholds are available.
 **Diagnosis:**
 ```bash
 # Run with timing
-q resq.q test tests/ -perf
+resq test tests/ -perf
 ```
 
 **Solutions:**
@@ -969,7 +989,7 @@ sequences.
 
 **To disable color:**
 ```bash
-NO_COLOR=1 q resq.q test tests/   # env var (https://no-color.org)
+NO_COLOR=1 resq test tests/   # env var (https://no-color.org)
 ```
 
 Or in a test helper loaded before the run:
@@ -1016,7 +1036,7 @@ Enable debug output for more information:
 
 Or from command line:
 ```bash
-q resq.q test tests/ -debug
+resq test tests/ -debug
 ```
 
 ---

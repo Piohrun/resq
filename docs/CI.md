@@ -19,6 +19,26 @@ recovery and release ownership are in the
 [operations runbook](OPERATIONS_RUNBOOK.md). Public forks execute only the
 licence-free lane until a maintainer moves reviewed code to a trusted branch.
 
+## Exit codes
+
+A pipeline needs only the exit code of `resq test` (or `bin/qspec`); the
+reports carry the detail.
+
+| Code | Meaning |
+|------|---------|
+| 0 | All tests passed |
+| 1 | One or more tests failed or errored; also `-strict` with no executed tests, or `-strict` with a test that ran no assertions; also files were found but none declares a test |
+| 3 | No test files found (empty/missing directory) |
+| 4 | File load error or explicitly-passed path not found; also, under `-strict`, a test file that declares no tests |
+| 127 | The launcher could not find q (`PATH`, or `QBIN` when set) |
+| 129, 130, 131, 143 | The run was told to stop (hangup, Ctrl+C, quit, SIGTERM). It writes no report and no state file |
+| 137 | The launcher was killed outright; q noticed and stopped |
+
+`resq mutate` exits 0, or 1 when the score is below `-mutation-min` or no
+test file can be used; `resq discover` exits 1 when a source function is not
+referenced by any test. A run that was stopped (129-143) leaves no report
+behind, so a report that is present is from a run that finished.
+
 ## Licence-free gate
 
 The `static` CI job runs on GitHub-hosted Linux before the licensed q job. It

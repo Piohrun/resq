@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- Documentation: the README's commands use the launcher (`resq ...`) and
+  work from any directory, where `q resq.q ...` worked only inside the resQ
+  checkout; `QBIN`, the `.resq/` state directory and q's own single-letter
+  options are described; the exit-code tables include a run whose files
+  declare no tests and the launcher's 127, and the CI guide has its own; and
+  the troubleshooting guide says how to call an application function named
+  like a resQ word (`after 1`, not `after[1]`).
 - `-ff -exit` stops at the first failure as `-ff` does: cleanup runs and the
   reports are written. It ended q on the spot, with no report, and the
   launcher reported a premature exit. The README, troubleshooting guide and
