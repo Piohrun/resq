@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `-isolate` treats a test file that declares no tests as an in-process run
+  does: a warning, and a failure under `-strict`. A helper file that matches
+  the test pattern (or an empty `desc`) was reported as "PROCESS ERROR ...
+  refusing inconsistent success" and failed isolated runs of suites that pass
+  without `-isolate`.
 - More of what a suite changes is put back for the next one: a namespace
   member it deleted, every message handler it set (only `.z.ts` was watched,
   and it was "restored" to an identity function when it had not been set), the

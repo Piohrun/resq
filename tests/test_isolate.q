@@ -779,6 +779,30 @@
   };
  };
 
+/ A file that matches the test pattern and declares no tests: a helper kept
+/ next to the tests, or an empty desc. In process that is a warning, and a
+/ failure under -strict. Under -isolate it was a process error.
+.tst.desc["Isolate: a test file that declares no tests #slow"]{
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "is a warning, as it is in process"]{
+    wd: .tst.isotest.workDir[];
+    fh: .tst.isotest.writeFixture[wd; "test_helpers.q"; enlist ".isohelper.double:{2*x};"];
+    fb: .tst.isotest.writeFixture[wd; "test_b.q"; .tst.isotest.fxPass2];
+    r: .tst.isotest.run[.utl.shellQuote[fh], " ", .utl.shellQuote[fb]];
+    musteq[r`code; 0];
+    must[.tst.isotest.anyLike[r`out; "test_helpers.q ... no tests"]; "the file is shown as having no tests"];
+    must[.tst.isotest.anyLike[r`out; "loaded but added no tests"]; "with the same warning as in process"];
+    must[not .tst.isotest.anyLike[r`out; "PROCESS ERROR"]; "and not as a process error"];
+  };
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "fails under -strict with the load-error exit code, as it does in process"]{
+    wd: .tst.isotest.workDir[];
+    fh: .tst.isotest.writeFixture[wd; "test_helpers.q"; enlist ".isohelper.double:{2*x};"];
+    fb: .tst.isotest.writeFixture[wd; "test_b.q"; .tst.isotest.fxPass2];
+    r: .tst.isotest.run[.utl.shellQuote[fh], " ", .utl.shellQuote[fb], " -strict"];
+    musteq[r`code; 4];
+    must[.tst.isotest.anyLike[r`out; "loaded but added no tests"]; "and says why"];
+  };
+ };
+
 / Isolation needs a timeout command that can kill after a grace period. It
 / used to demand --verbose as well, which older GNU coreutils (RHEL 7) and
 / busybox do not have.

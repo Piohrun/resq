@@ -705,6 +705,21 @@
         if[(code = .resq.EXIT.FAIL) and hasFailingRows;
             .tst.isolate.print progress, "FAILED (", string[count rows], " tests)";
             :.tst.isolate.attachCaptured[wd;rows]];
+        / A file that declares no tests (a helper next to the tests, an empty
+        / desc). On its own that is a run with nothing in it, so the child
+        / exits 1 with an empty report. Here it is one file among others, and
+        / gets what it gets in process: a warning, and a failure under -strict.
+        / It used to be reported as a process error, which failed -isolate
+        / runs that pass without it.
+        if[(code = .resq.EXIT.FAIL) and 0 = count rows;
+            helperFile: 1b ~ @[get; `.tst.app.qspecDiscovery; 0b];
+            msg: "File ", file, " loaded but added no tests.";
+            .tst.app.emptyFiles: @[get; `.tst.app.emptyFiles; {()}], enlist file;
+            .tst.isolate.print progress, "no tests";
+            if[not helperFile; .tst.isolate.print "WARNING: ", msg];
+            if[(1b ~ @[get; `.tst.app.strict; 0b]) and not helperFile;
+                :rows, enlist .tst.isolate.errorRow[`FILE_LOAD_ERROR; file; msg]];
+            :rows];
         expectedCodes: (.resq.EXIT.PASS; .resq.EXIT.FAIL; .resq.EXIT.LOAD_ERROR);
         unexpected: not code in expectedCodes;
         processRow: .tst.isolate.processExitRow[file; code; unexpected];
