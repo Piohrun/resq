@@ -699,3 +699,19 @@
     (system "P") musteq was;
   };
  };
+
+.tst.desc["a float vector with a non-finite item keeps its length in JSON"]{
+  should["put only the item JSON cannot hold in the envelope"]{
+    safe: .tst.output.jsonSafeValue 1.5 0w 2.5 -0w;
+    (count safe) musteq 4;
+    (safe 0) musteq 1.5;
+    (safe 2) musteq 2.5;
+    ((safe 1)`kind) musteq "resq-canonical-value";
+    ((safe 3)`kind) musteq "resq-canonical-value";
+    doc: .j.k .tst.output.evidenceJson enlist[`failedInputs]!enlist 1.5 0w 2.5;
+    (count doc`failedInputs) musteq 3;
+  };
+  should["leave a finite vector as numbers"]{
+    (.tst.output.jsonSafeValue 1.5 2.5) musteq 1.5 2.5;
+  };
+ };

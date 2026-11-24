@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A report with a float property test passes resQ's own validation. When
+  the failing inputs of a `holds` test included an infinity, the whole list
+  was replaced by one envelope object, so the report no longer had one failed
+  input per failure, and `validate_report`, the converters, ingestion and
+  `resq-merge` refused it, also for a run that passed. Only the items JSON
+  cannot hold are put in the envelope now; the list keeps its length.
 - JSON reports hold numbers in full. They were written at q's display
   precision, 7 digits by default, so a parameter `1234567.891` was recorded as
   `1234568`, and a `\P 3` in test or application code coarsened every number

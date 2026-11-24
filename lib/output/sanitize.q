@@ -180,9 +180,16 @@
 / the canonical envelope; ordinary JSON-compatible values retain their shape.
 .tst.output.jsonSafeValue:{[raw]
     valueType:type raw;
-    if[valueType in -8 -9 8 9h;
+    if[valueType in -8 -9h;
         :$[.tst.output.hasJsonInfinity raw;
             .tst.output.jsonValueEnvelope raw;raw]];
+    / A vector keeps its length: only the items JSON cannot hold are put in
+    / the envelope. Wrapping the whole vector turned a list of n failed inputs
+    / into one object, and a report with a float property test then failed
+    / resQ's own validation ("failed input count must equal failCount").
+    if[valueType in 8 9h;
+        :$[.tst.output.hasJsonInfinity raw;
+            .tst.output.jsonSafeValue each raw;raw]];
     if[98h=valueType;
         :{[table;i].tst.output.jsonSafeValue table i}[raw;] each til count raw];
     if[99h=valueType;
