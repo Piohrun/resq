@@ -138,7 +138,9 @@ All notable changes to the **resQ** project will be documented in this file.
   failed list, so `-last-failed` forgot a test that still failed. Watch mode
   did both on every rerun. State entries now record their test file, and a
   run speaks only for the files it looked at and for files that are gone.
-- `-isolateWorkers N` keeps N files running. It ran fixed groups of N and
+- `-isolateWorkers N` keeps N files running. (A check that landed between
+  a child's end and its wrapper writing the exit code reported "exited with
+  unexpected code -1"; the pool now waits for the wrapper.) It ran fixed groups of N and
   waited for the slowest file of each before starting the next: sixteen files,
   four of them slow, took 13.2 s on four workers and now take 5.2 s. Output is
   still in file order and identical to before. (`resq mutate` still runs its

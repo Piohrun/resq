@@ -859,19 +859,27 @@
     ({[d;k] first read0 hsym `$d, "/job", string[k], "/rc.txt"}[base] each til 5) musteq 5 # enlist enlist "0";
     (any {[d;k] not () ~ key hsym `$d, "/job", string[k], "/pid.txt"}[base] each til 5) musteq 0b;
   };
-  should["take a child that left nothing behind as ended, and one that is running as not"]{
+  should["take a child as ended when its wrapper has, and not while the wrapper runs"]{
     wd: .resq.util.ensureDir .tst.isotest.workDir[];
     long: .z.p - 0D00:01;
     / just started: wait
     .tst.isolate.childEnded[wd; .z.p] musteq 0b;
-    / its wrapper never got going
+    / no wrapper on record after half a minute: it never got going
     .tst.isolate.childEnded[wd; long] musteq 1b;
-    / a PID that is running
-    (hsym `$wd, "/pid.txt") 0: enlist string .z.i;
+    .tst.isolate.childEnded[wd; .z.p - 0D00:00:10] musteq 0b;
+    / the child is gone but its wrapper, still writing the exit code, is not
+    (hsym `$wd, "/pid.txt") 0: ("999999999"; string .z.i);
     .tst.isolate.childEnded[wd; long] musteq 0b;
+    / the wrapper is gone too
+    (hsym `$wd, "/pid.txt") 0: ("999999999"; "999999998");
+    .tst.isolate.childEnded[wd; long] musteq 1b;
     / the exit code is there
+    (hsym `$wd, "/pid.txt") 0: ("999999999"; string .z.i);
     (hsym `$wd, "/rc.txt") 0: enlist "000";
     .tst.isolate.childEnded[wd; .z.p] musteq 1b;
+    / a process that is running, and one that is not
+    .tst.isolate.processAlive[string .z.i] musteq 1b;
+    .tst.isolate.processAlive["999999999"] musteq 0b;
   };
   should["collect files in file order whatever order they end in"]{
     if[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; :must[1b; "q or timeout unavailable"]];

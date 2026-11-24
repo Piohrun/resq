@@ -1023,18 +1023,27 @@
 / child's PID in pid.txt while it runs, so that an interrupted run (this
 / process, or the launcher when this process is gone) can stop it: the
 / wrapper outlives the shell that started it and is no longer below q.
+/ pid.txt holds the child's PID, which leads the child's process group, and
+/ on its second line the wrapper's own: the child has ended when the wrapper
+/ has, as the wrapper still writes the exit code after the child is gone.
 .tst.isolate.startChild:{[wd;command]
     sq: .resq.util.shellQuote;
-    / `true;` first: q reads a command that starts with "(" as its own.
-    wrapper: "true; ( wdog=''; ", command, " & p0=$!; echo \"$p0\" > ", sq[wd, "/pid.txt"], "; ",
+    script: "wdog=''; ", command, " & p0=$!; printf '%s\\n%s\\n' \"$p0\" \"$$\" > ", sq[wd, "/pid.txt"], "; ",
         "trap 'kill -TERM -- \"-$p0\" 2>/dev/null; sleep 1; kill -KILL -- \"-$p0\" 2>/dev/null; exit 143' INT TERM HUP; ",
         .tst.isolate.outputWatch[enlist wd], " ",
         "wait \"$p0\"; echo $? > ", sq[wd, "/rc.tmp"], "; ",
         "date +%s > ", sq[wd, "/end.txt"], " 2>/dev/null; ",
         .tst.isolate.reapLeftovers["p0";wd], " ", .tst.isolate.outputWatchStop,
-        " rm -f ", sq[wd, "/pid.txt"], "; mv ", sq[wd, "/rc.tmp"], " ", sq[wd, "/rc.txt"],
-        "; ) < /dev/null > /dev/null 2>&1 &";
-    @[system; wrapper; {[e] ()}];
+        " mv ", sq[wd, "/rc.tmp"], " ", sq[wd, "/rc.txt"], "; rm -f ", sq[wd, "/pid.txt"];
+    @[system; "sh -c ", sq[script], " < /dev/null > /dev/null 2>&1 &"; {[e] ()}];
+ };
+
+/ Is the process there? From /proc on Linux, else with `kill -0`, which
+/ changes nothing. A wrapper that has ended is an orphan, reaped at once, so
+/ it is not seen as a zombie for longer than a moment.
+.tst.isolate.processAlive:{[pid]
+    if[.resq.util.isLinux; :not () ~ @[key; hsym `$"/proc/", pid, "/stat"; {[e] ()}]];
+    "0" ~ first last @[system; "sh -c 'kill -0 ", pid, " 2>/dev/null; echo $?'"; {[e] enlist "0"}]
  };
 
 / A child has ended when its wrapper has left rc.txt. A wrapper that never
@@ -1046,12 +1055,14 @@
     if[has "rc.txt"; :1b];
     waited: .z.p - started;
     if[waited < 0D00:00:05; :0b];
-    if[not has "pid.txt"; :not has "rc.tmp"];
-    pid: @[read0; hsym `$wd, "/pid.txt"; {[e] ()}];
-    if[(0 = count pid) or not .tst.cli.isIntegerText first pid; :0b];
-    / kill -0 asks whether the process is there, and changes nothing
-    alive: "0" ~ first last @[system; "sh -c 'kill -0 ", (first pid), " 2>/dev/null; echo $?'"; {[e] enlist "0"}];
-    (not alive) and not has "rc.txt"
+    pids: @[read0; hsym `$wd, "/pid.txt"; {[e] ()}];
+    / no wrapper on record: one that never got going, given half a minute
+    if[2 > count pids; :(waited > 0D00:00:30) and not has "rc.tmp"];
+    wrapper: pids 1;
+    if[not .tst.cli.isIntegerText wrapper; :0b];
+    if[.tst.isolate.processAlive wrapper; :0b];
+    / the wrapper is gone; it may have finished just now
+    1b
  };
 
 / Stop children that are still running: their process groups, by the PIDs
