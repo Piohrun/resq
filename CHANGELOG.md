@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- JSON reports hold numbers in full. They were written at q's display
+  precision, 7 digits by default, so a parameter `1234567.891` was recorded as
+  `1234568`, and a `\P 3` in test or application code coarsened every number
+  in the report. All JSON output now uses 17 significant digits, which
+  identify every double. A value such as `0.1` therefore reads
+  `0.10000000000000001`.
 - A run that dies does not leave the previous run's report behind. After a
   green run, a run in which a test called `exit`, or whose JSON reporter
   failed, exited 1 but left the earlier, green `test-results.json` and JUnit

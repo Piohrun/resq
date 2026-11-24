@@ -208,10 +208,20 @@
 / .j.j copies string bytes as they are. Everything it writes outside a string
 / is ASCII, so a byte that is not well-formed UTF-8 is inside a string, where
 / the literal text \xNN is spelled with a doubled backslash.
+/ .j.j writes floats at the session's display precision: 7 digits unless a
+/ test or the application changed \P, so a parameter 1234567.891 was recorded
+/ as 1234568 and a duration could lose its meaning altogether under \P 3.
+/ Seventeen significant digits identify every double; the caller's precision
+/ is put back, also when serialisation fails.
 .tst.output.strictJson:{[raw]
     if[.tst.output.hasJsonInfinity raw;
         '"non-finite number is not valid JSON evidence"];
-    .tst.output.cleanUtf8[.j.j raw;"\\\\x"]
+    precision:system "P";
+    system "P 17";
+    outcome:@[{[v](0b;.j.j v)};raw;{[e](1b;e)}];
+    system "P ",string precision;
+    if[first outcome;'last outcome];
+    .tst.output.cleanUtf8[last outcome;"\\\\x"]
  };
 
 .tst.output.evidenceJson:{[raw]

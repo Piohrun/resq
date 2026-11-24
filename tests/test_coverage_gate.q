@@ -181,7 +181,8 @@
         s[`branchInstrumentationComplete] musteq 1b;
         s[`branchesFound] musteq 12f;
         s[`branchesHit] musteq 5f;
-        s[`branchPercent] musteq 41.66667f;
+        / 5 of 12 edges; the file holds the number in full, not at 7 digits
+        s[`branchPercent] musteq 500 % 12;
         lcovSummary:.tst.coverageSummaryFromLines r`lcov;
         lcovSummary[`branchesFound] musteq 12;
         lcovSummary[`branchesHit] musteq 5;

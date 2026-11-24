@@ -678,3 +678,24 @@
     reports[::] musteq ();
   };
  };
+
+.tst.desc["JSON numbers are written in full"]{
+  should["not depend on the display precision in force"]{
+    doc: enlist[`px]!enlist 1234567.891;
+    was: system "P";
+    (.j.k .tst.output.strictJson doc)[`px] musteq 1234567.891;
+    system "P 3";
+    low: .tst.output.strictJson doc;
+    during: system "P";
+    system "P ", string was;
+    (.j.k low)[`px] musteq 1234567.891;
+    / and the caller's setting is left as it was
+    during musteq 3i;
+  };
+  should["put the precision back when a value cannot be written"]{
+    was: system "P";
+    outcome: @[{.tst.output.strictJson x; `written}; ("ab";"cd")!1 2; {`signalled}];
+    outcome musteq `signalled;
+    (system "P") musteq was;
+  };
+ };
