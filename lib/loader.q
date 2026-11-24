@@ -997,9 +997,20 @@
         / code can then return any shape without impersonating a loader error.
         / Preprocessing runs inside the trap too. It signals on source it
         / cannot bind safely, and that must fail this file, not the whole run.
+        / An assertion written outside any test runs while the file loads.
+        / Start from a clean state so its failure is this file's, and take it
+        / out again so the first test to run is not blamed for it.
+        .tst.assertState: .tst.defaultAssertState;
         res: @[{[lines] (0b; .tst.evalPreprocessed .tst.preprocessScript lines)};
                content;
                {[err] (1b; err)}];
+        loadFailures: .tst.toString each .tst.assertState.failures;
+        .tst.assertState: .tst.defaultAssertState;
+        if[(not 1b ~ first res) and count loadFailures;
+            e: "an assertion outside any test failed while the file was loading: ",
+                "; " sv loadFailures;
+            -1 "CRITICAL LOAD ERROR in ", p, ": ", e;
+            `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load)];
         if[1b ~ first res;
             e: .tst.dslLoadErrorHint[last res;content];
             / q signals some malformed expressions with a blank error name.

@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- An assertion counts wherever it runs. One that failed in `after` was
+  printed and ignored; it now fails its test ("In after: ..."). One that
+  failed in `afterAll` or `beforeAll` is the hook's failure. One that failed
+  outside any test, while the file was loading, is a load error for that file
+  (exit 4). None of them is blamed on the next test any more.
 - `\l src/app.q` in a test file no longer changes directory while the file
   loads. An application that loads its own files by paths relative to the
   project root failed with "No such file"; it now loads as it does under

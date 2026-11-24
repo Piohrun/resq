@@ -226,9 +226,18 @@
 
 / Run a suite-level hook (beforeAll/afterAll). Returns `ok or (`failed;errText).
 / Hooks are trapped: a throwing hook must never crash the runner.
+/ A failed assertion in a suite hook belongs to no test. It is the hook's
+/ failure, and is taken out of the assertion state so the next test to run is
+/ not blamed for it.
 .tst.runHook:{[h]
     if[not (type h) within 100 104h; :`ok];
-    @[{x[]; `ok}; h; {[e] (`failed; e)}]
+    seen: count .tst.assertState.failures;
+    res: @[{x[]; `ok}; h; {[e] (`failed; e)}];
+    added: .tst.toString each seen _ .tst.assertState.failures;
+    .tst.assertState.failures: seen # .tst.assertState.failures;
+    if[(`ok ~ res) and count added;
+        res: (`failed; "assertion failed: ", "; " sv added)];
+    res
  };
 
 / testOnly focus filtering -- PER-SUITE, not global. If ANY expectation in this

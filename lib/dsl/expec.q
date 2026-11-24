@@ -179,7 +179,26 @@ runners:()!()
     expec: state`expec;
     code: state`code;
     expec[state`field]: code;
+    seen: count .tst.assertState.failures;
+    ran: .tst.assertState.assertsRun;
     code[];
+    / The test's result was taken when its body returned. An assertion that
+    / fails in `after` belongs to the same test and must fail it too.
+    if[`after ~ state`field; expec: .tst.addHookAssertions[expec;seen;ran;"after"]];
+    expec
+ };
+
+/ Add the assertions a hook ran after the body to the test they belong to.
+/ `seen` and `ran` are the failure and assertion counts before the hook.
+.tst.addHookAssertions:{[expec;seen;ran;hook]
+    added: .tst.toString each seen _ .tst.assertState.failures;
+    if[`assertsRun in key expec;
+        expec[`assertsRun]: expec[`assertsRun] + .tst.assertState.assertsRun - ran];
+    if[0 = count added; :expec];
+    existing: $[`failures in key expec; expec`failures; ()];
+    if[10h = type existing; existing: enlist existing];
+    expec[`failures]: existing, ("In ", hook, ": "),/: added;
+    if[`pass ~ expec`result; expec[`result]: `testFail];
     expec
  };
 
