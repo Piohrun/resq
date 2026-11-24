@@ -187,6 +187,9 @@ def verify(q_executable: str) -> None:
             (resq_launcher, signal.SIGINT, 130),
             (resq_launcher, signal.SIGTERM, 143),
             (resq_launcher, signal.SIGHUP, 129),
+            (qspec_launcher, signal.SIGINT, 130),
+            (qspec_launcher, signal.SIGTERM, 143),
+            (qspec_launcher, signal.SIGHUP, 129),
         )
         for launcher, signum, expected_status in signal_cases:
             pid_a.unlink(missing_ok=True)

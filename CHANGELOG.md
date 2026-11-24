@@ -13,6 +13,9 @@ All notable changes to the **resQ** project will be documented in this file.
   its own session, so closing the terminal or SSH session killed the launcher
   and left q and every child running. HUP and QUIT are now handled like TERM
   (exit 129 and 131).
+- `bin/qspec --junit`, `--xunit` and `--xml` pass signals on. They ran the
+  launcher as a child without forwarding anything: a TERM ended the wrapper
+  and left the run alive.
 - JUnit, xUnit and JSON reports stay well-formed whatever bytes a suite
   contains. A single byte that is not UTF-8 (a test name in a Latin-1 source
   file, a compared value, error text, an environment variable, captured
