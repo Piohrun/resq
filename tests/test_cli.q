@@ -615,3 +615,22 @@
         r[`loaded] musteq 0b;
     };
 };
+
+/ q rejects single-letter options it does not know before resq.q runs, so the
+/ launchers translate the two short flags the help advertises.
+.tst.desc["short flags through the launcher"]{
+  should["print the version for -v, as --version does"]{
+    launcher: .resq.util.shellQuote .resq.HOME, "/bin/resq";
+    short: @[system; launcher, " -v 2>&1; echo exit=$?"; {[e] enlist "failed: ", e}];
+    long: @[system; launcher, " --version 2>&1; echo exit=$?"; {[e] enlist "failed: ", e}];
+    short musteq long;
+    (last short) musteq "exit=0";
+    (first short) musteq "resQ version ", .resq.VERSION;
+  };
+  should["print the help for -h"]{
+    launcher: .resq.util.shellQuote .resq.HOME, "/bin/resq";
+    out: @[system; launcher, " -h 2>&1; echo exit=$?"; {[e] enlist "failed: ", e}];
+    (last out) musteq "exit=0";
+    (any out like "USAGE*") musteq 1b;
+  };
+ };

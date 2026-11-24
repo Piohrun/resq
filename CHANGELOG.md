@@ -9,6 +9,8 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `resq -v` prints the version, as the help says. It failed with q's
+  `'v invalid`.
 - `mustmatchs`, `mustmatchst` and `mustbench` count as assertions. A test
   whose only check was a snapshot comparison passed without `-strict` under
   "tests that asserted nothing" and failed with `-strict`, which the snapshot

@@ -14,6 +14,8 @@ RESQ_HOME="$(dirname "$DIR")"
 
 # q claims -h for itself and dies with '-h before the script can read .z.x, so
 # the short help flag has to be translated here rather than in the CLI parser.
+# The same goes for -v: q rejects any single-letter option it does not know
+# ('v invalid), so the documented short version flag never reached resQ.
 # q also rejects a bare "--" ('- invalid), so the path separator is passed as
 # -paths. Nothing after -args is touched: that part belongs to the application.
 args=()
@@ -23,6 +25,7 @@ for a in "$@"; do
   case "$a" in
     -args|--args) app_args=1; args+=("$a") ;;
     -h) args+=("--help") ;;
+    -v) args+=("--version") ;;
     --) args+=("-paths") ;;
     *) args+=("$a") ;;
   esac
