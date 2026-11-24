@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A run started below the project root says when it is not reading the
+  project's `resq.json`. The file is read only from the directory resQ is
+  started in, so the same suite was strict from the root and not from
+  `tests/`, without a word.
 - Command-line mistakes that ended in a q error are named in one line: a
   single-letter option q does not know (`-x`, also after `-args`), q not
   found (`QBIN` or `PATH`), a `-plugin` file that is not there, an empty path

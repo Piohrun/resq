@@ -675,3 +675,34 @@
     ({0 < count x ss "Tests:"} each results`output) musteq (count cases)#0b;
   };
  };
+
+/ resq.json is read from the directory resQ is started in. Started in
+/ tests/, a suite that is strict from the project root was not strict, and
+/ nothing said so.
+.tst.desc["a resq.json further up that is not read"]{
+  before{
+    root: .resq.util.tempRoot[], "/resq_cfg_above_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir root, "/proj/tests/unit";
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist root];
+    (hsym `$root, "/proj/resq.json") 0: enlist "{\"strict\": true}";
+    `proj mock root, "/proj";
+  };
+  should["be found from a directory below it"]{
+    .tst.unreadConfigAbove[proj, "/tests"] musteq proj, "/resq.json";
+    .tst.unreadConfigAbove[proj, "/tests/unit"] musteq proj, "/resq.json";
+  };
+  should["not be reported from its own directory, or from one with its own"]{
+    .tst.unreadConfigAbove[proj] musteq "";
+    (hsym `$proj, "/tests/resq.json") 0: enlist "{}";
+    .tst.unreadConfigAbove[proj, "/tests"] musteq "";
+    / the nearest one above is the one named
+    .tst.unreadConfigAbove[proj, "/tests/unit"] musteq proj, "/tests/resq.json";
+  };
+  should["not be looked for above the top of a checkout"]{
+    .resq.util.ensureDir proj, "/tests/.git";
+    / tests/ is the top of a checkout here: the project's file above it is another project's
+    .tst.unreadConfigAbove[proj, "/tests/unit"] musteq "";
+    .tst.unreadConfigAbove[proj, "/tests"] musteq "";
+  };
+ };
+

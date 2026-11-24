@@ -164,6 +164,12 @@ if[.resq.hasQutil and 1b~@[get;`.tst.app.qspecDiscovery;0b];
     exit .resq.EXIT.FAIL}];
 .resq.mode: .resq.cli`mode;
 .tst.app.args: .resq.cli`args;
+/ A resq.json further up is not read; see .tst.unreadConfigAbove.
+.resq.configAbove: @[.tst.unreadConfigAbove; system "cd"; {[e] ""}];
+if[(count .resq.configAbove) and (.resq.mode in `test`cover`mutate`watch`discover) and
+   not 1b ~ @[get; `.tst.app.passOnly; 0b];
+    -2 "resQ: note: ", .resq.configAbove, " is not read. resq.json is read from the directory resQ is started in;",
+       " its settings (strict, thresholds, paths) do not apply to this run."];
 / An empty path, as from an unset shell variable (resq test "$DIR"), was
 / dropped without a word, and the run tested the default directory instead.
 if[any 0 = count each .resq.util.pathToString each .tst.app.args;

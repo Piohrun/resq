@@ -158,7 +158,10 @@ suite. See [Runtime code coverage](COVERAGE.md).
 
 ## 7. Optional project configuration
 
-Put `resq.json` in the directory where you invoke resQ:
+Put `resq.json` in the directory where you invoke resQ. It is read from
+there and from nowhere else: started one level down, in `tests/`, a run does
+not pick up the project's `resq.json`, and says so in a note when there is
+one further up in the checkout.
 
 ```json
 {

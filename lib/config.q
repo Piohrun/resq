@@ -316,6 +316,27 @@ defaultConfig:defaultConfig,enlist[`watchLoaders]!enlist ();
     cfg
  };
 
+/ resq.json is read from the directory resQ is started in, and from nowhere
+/ else. Started one level down, in tests/, the project's resq.json is not
+/ read: a suite that is strict from the project root is not strict from
+/ there, and nothing said so. This finds such a file: the nearest resq.json
+/ above the given directory, up to the top of the checkout, or "" when the
+/ directory has its own or there is none.
+unreadConfigAbove:{[dir]
+    here: .resq.util.normalizePath dir;
+    if[.resq.util.pathExists here, "/resq.json"; :""];
+    found: "";
+    levels: 0;
+    while[(0 = count found) and (levels < 12) and 1 < count here;
+        / the top of a checkout is as far as a project goes
+        if[.resq.util.pathExists here, "/.git"; :""];
+        slash: where here = "/";
+        here: $[0 = count slash; ""; 0 = last slash; enlist "/"; (last slash) # here];
+        if[(count here) and .resq.util.pathExists here, "/resq.json"; found: here, "/resq.json"];
+        levels+: 1];
+    found
+ };
+
 / Load configuration from JSON file
 / @param path (string) Path to config file (default: "resq.json")
 / @return (dict) Configuration dictionary
