@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- An isolated file that had to be killed at its timeout is no longer also
+  reported as having "left background processes running". The killed child
+  is a zombie for a moment, and the check took it for a live process.
 - A run whose launcher is killed outright (SIGKILL, the OOM killer) stops.
   q runs in a session of its own and was told nothing: it ran on to the end
   with its isolated children, and the launcher's guard directory stayed in

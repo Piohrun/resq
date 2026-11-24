@@ -817,6 +817,22 @@
   };
  };
 
+/ A child killed at the hard timeout is a zombie for a moment, and signalling
+/ a group whose only member is a zombie succeeds: every such timeout was
+/ reported as having left background processes running.
+.tst.desc["Isolate: a hard timeout is not a leftover process #slow"]{
+  skipIf[(not .tst.isotest.canQ) or not .tst.isotest.canTimeout; "say only TIMEOUT for a child that had to be killed"]{
+    wd: .tst.isotest.workDir[];
+    fh: .tst.isotest.writeFixture[wd; "test_hard.q"; enlist
+        ".tst.desc[\"hard\"]{ should[\"will not stop\"]{ .z.exit:{[c] while[1b; ::]}; while[1b; ::]; }; };"];
+    fb: .tst.isotest.writeFixture[wd; "test_b.q"; .tst.isotest.fxPass2];
+    r: .tst.isotest.run[.utl.shellQuote[fh], " ", .utl.shellQuote[fb], " -isolateWorkers 2 -isolateTimeout 2"];
+    musteq[r`code; 1];
+    must[.tst.isotest.anyLike[r`out; "test_hard.q ... TIMEOUT"]; "the file timed out"];
+    must[not .tst.isotest.anyLike[r`out; "left background processes"]; "and left nothing behind"];
+  };
+ };
+
 / -isolateWorkers ran fixed groups of N and waited for the slowest file of
 / each. The pool starts the next child the moment one ends.
 .tst.desc["Isolate: the worker pool #slow"]{

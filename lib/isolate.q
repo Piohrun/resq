@@ -651,10 +651,19 @@
 / signal only succeeds when the group still has members; that is recorded for
 / interpretFile to report. A process that moved itself to another session
 / (setsid, a daemon) is out of reach, as it is for the timeout itself.
+/ Only a member that is alive counts. A child killed at the hard timeout is
+/ a zombie for a moment after `timeout` has gone, and a signal to a group
+/ whose only member is a zombie still succeeds: every such timeout was
+/ reported as having left processes behind. Where `ps` cannot list groups
+/ the signal is the test, as before.
 .tst.isolate.reapLeftovers:{[name;wd]
-    "if kill -TERM -- \"-$",name,"\" 2>/dev/null; then echo 1 > ",
-        .resq.util.shellQuote[wd,"/leftover.txt"],"; sleep 0.2; ",
-        "kill -KILL -- \"-$",name,"\" 2>/dev/null; fi;"
+    groupRef: "\"$", name, "\"";
+    "live=0; if lv=$(ps -eo pgid=,stat= 2>/dev/null) && [ -n \"$lv\" ]; then ",
+        "if printf '%s\\n' \"$lv\" | awk -v g=", groupRef, " '$1==g && $2 !~ /^Z/ {f=1} END {exit !f}'; then live=1; fi; ",
+        "elif kill -0 -- \"-$", name, "\" 2>/dev/null; then live=1; fi; ",
+        "if [ \"$live\" = 1 ]; then kill -TERM -- \"-$", name, "\" 2>/dev/null; echo 1 > ",
+        .resq.util.shellQuote[wd,"/leftover.txt"], "; sleep 0.2; ",
+        "kill -KILL -- \"-$", name, "\" 2>/dev/null; fi;"
  };
 
 .tst.isolate.groupStart:{[index;command]
