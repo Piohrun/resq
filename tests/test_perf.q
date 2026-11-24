@@ -376,3 +376,55 @@
     (0 < count r[`output] ss "1 total (1 passed") musteq 1b;
   };
  };
+
+/ Presentation of benchmark figures.
+.tst.desc["benchmark figures on the console"]{
+    should["print microseconds below 100 with decimals"]{
+        / every figure was rounded to a whole microsecond: 0.4 read "0us"
+        .tst.benchUs[0.42] musteq "0.42";
+        .tst.benchUs[3.14159] musteq "3.14";
+        .tst.benchUs[12.345] musteq "12.3";
+        .tst.benchUs[100.4] musteq "100";
+        .tst.benchUs[1234.5] musteq "1235";
+        .tst.benchUs[0n] musteq "n/a";
+        .tst.benchUs[7i] musteq "7.00";
+    };
+
+    should["decide on colour from NO_COLOR, TERM, the setting and the terminal"]{
+        .tst.colorWanted[""; "xterm-256color"; 1b; 1b] musteq 1b;
+        / a terminal that says it shows escape sequences as they are
+        .tst.colorWanted[""; "dumb"; 1b; 1b] musteq 0b;
+        .tst.colorWanted[enlist "1"; "xterm"; 1b; 1b] musteq 0b;
+        .tst.colorWanted[""; "xterm"; 0b; 1b] musteq 0b;
+        .tst.colorWanted[""; "xterm"; 1b; 0b] musteq 0b;
+        .tst.colorWanted[""; ""; 1b; 1b] musteq 1b;
+    };
+
+    should["show the benchmark table on a run that failed, and say when -desc writes no report #slow"]{
+        if[(0 = count @[system; "which q 2>/dev/null"; {()}]); :must[1b; "q unavailable"]];
+        wd: .resq.util.tempRoot[], "/resq_perf_red_", string[.z.i], "_", string `long$.z.p;
+        .resq.util.ensureDir wd;
+        .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist wd];
+        (hsym `$wd, "/test_perf_red.q") 0: (
+            ".tst.desc[\"with a benchmark\"]{";
+            "  perf[\"sums a vector\"; `runs!5]{ sum til 1000 };";
+            "  should[\"fails\"]{ 1 musteq 2; };";
+            " };");
+        run: {[wd;flags]
+            cmd: "cd ", .resq.util.shellQuote[wd], " && ", (.resq.util.shellQuote .resq.HOME, "/bin/resq"),
+                " test . ", flags, " -state-file out/s.json -flake-history out/f.json -flake-proposal-file out/p.json",
+                " < /dev/null 2>&1; echo exit=$?";
+            @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}]}[wd];
+        out: run "-perf";
+        (last out) musteq "exit=1";
+        table: first where out like "PERFORMANCE (1 benchmark):";
+        verdict: first where out like "TOTAL FAILURES: 1";
+        must[table < count out; "the benchmark table is printed on a red run"];
+        must[table < verdict; "before the verdict"];
+        / -desc runs nothing, so it writes no report; asked for one, it says so
+        out: run "-desc -json -outDir rep";
+        (any out like "NOTE: -desc lists the tests without running them; no json report is written.") musteq 1b;
+        (() ~ key hsym `$wd, "/rep/test-results.json") musteq 1b;
+    };
+};
+

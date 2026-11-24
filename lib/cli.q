@@ -275,6 +275,13 @@ if[not all .tst.cli.numericNames in .tst.cli.specNames;
         {[e] if[(99h = type e) and `desc in key e; -1 "      - ", .tst.toString e`desc]} each exsList;
     } each specsList;
     -1 "----------------------------------------------------------------------";
+    / Nothing ran, so there is no report to write. Asked for one, the run
+    / wrote none and did not say so: a pipeline then found no file.
+    wanted: (),@[get; `.tst.app.reportFormats; {`symbol$()}];
+    wanted: wanted where wanted in `json`junit`xunit`xml;
+    if[count wanted;
+        -1 "NOTE: -desc lists the tests without running them; no ",
+            ("/" sv string wanted), " report is written."];
  };
 
 / Usage text. Kept deliberately short: it lists the flags a user reaches for

@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- The benchmark table is printed on a run that failed too; it was shown only
+  when every test passed. `benchPrint` shows figures under 100 microseconds
+  with decimals instead of rounding them to `0us`. No colour is written when
+  `TERM=dumb`. `-desc` with `-json` or `-junit` says that it writes no report.
 - `mustmatchignoringorder` compares plain dictionaries (the same keys and
   values in any order). It signalled `'type` on one.
 - resQ says "needs q 4.0 or newer" when it is started on an older q, where

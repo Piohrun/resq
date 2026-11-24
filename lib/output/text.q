@@ -254,6 +254,7 @@
         failRows:{[table;i]table i}[allFails] each til count allFails;
         blockingFails:allFails where not .tst.rowIsNonBlockingQuarantine each failRows];
     if[0<count blockingFails;
+        if[not quiet; .resq.reportPerfTable[]];
         -1 "TOTAL FAILURES: ",string[count allFails];
         -1 .resq.color[`red; "Tests FAILED."];
         :()];
@@ -291,10 +292,24 @@
         { [f; ds] -1 string[f], " depends on: ", " " sv string ds }'[key .resq.testDeps; value .resq.testDeps];
     ];
 
-    / Benchmark measurements from perf blocks. Printed whenever any ran, pass or
-    / fail: the point of a benchmark is the number, not only the verdict.
-    / NB: not named `perf` -- the DSL exports `perf` into .q, and q signals
-    / 'assign for a local shadowing a .q name (only bites lazily-loaded modules).
+    .resq.reportPerfTable[];
+
+    if[count results;
+        -1 "\n----------------------------------------------------------------";
+        -1 "SLOWEST TESTS (TOP 5):";
+        / q's take (#) WRAPS when fewer rows exist, repeating entries on small
+        / suites; `5 sublist` caps without wrapping.
+        slow: 5 sublist xdesc[ `time; 0!select last time by suite, description from results ];
+        { [r] -1 "  ", (10$.tst.fmtDuration r`time), string[r`suite], ": ", string[r`description] } each slow;
+    ];
+ };
+
+/ Benchmark measurements from perf blocks. Printed whenever any ran, pass or
+/ fail: the point of a benchmark is the number, not only the verdict. A red
+/ run used to return before it reached them.
+/ NB: not named `perf` -- the DSL exports `perf` into .q, and q signals
+/ 'assign for a local shadowing a .q name (only bites lazily-loaded modules).
+.resq.reportPerfTable:{[]
     perfRows: @[get; `.tst.app.perfResults; {()}];
     if[98h = type perfRows; if[count perfRows;
         -1 "\n----------------------------------------------------------------";
@@ -316,15 +331,6 @@
             -1 line;
         } each perfRows;
     ]];
-
-    if[count results;
-        -1 "\n----------------------------------------------------------------";
-        -1 "SLOWEST TESTS (TOP 5):";
-        / q's take (#) WRAPS when fewer rows exist, repeating entries on small
-        / suites; `5 sublist` caps without wrapping.
-        slow: 5 sublist xdesc[ `time; 0!select last time by suite, description from results ];
-        { [r] -1 "  ", (10$.tst.fmtDuration r`time), string[r`suite], ": ", string[r`description] } each slow;
-    ];
  };
 
 / Human-scale elapsed time: "0.4 ms", "37 ms", "4.21 s", "2m 03s". The old

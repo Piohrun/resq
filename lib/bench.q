@@ -52,13 +52,22 @@ benchPrintHistogram:{[hist]
   }[;maxPct;barWidth] each hist;
  };
 
+/ Microseconds for a person: whole numbers from 100 up, decimals below. Every
+/ figure was rounded to a whole microsecond, so a function that takes 0.4 of
+/ one showed "Min=0us Avg=0us".
+benchUs:{[v]
+  if[null v; :"n/a"];
+  x: "f"$v;
+  $[x >= 100; string `long$x; x >= 10; .Q.f[1; x]; .Q.f[2; x]]
+ };
+
 / Print formatted benchmark results
 benchPrint:{[stats]
   -1 "";
   -1 "=== Benchmark Results ===";
   -1 "Iterations: ", string stats`iterations;
-  -1 "Timing: Min=", (string `int$stats`min_us), "us Avg=", (string `int$stats`avg_us), "us Max=", (string `int$stats`max_us), "us";
-  -1 "Percentiles: p50=", (string `int$stats`p50_us), "us p99=", (string `int$stats`p99_us), "us";
+  -1 "Timing: Min=", (benchUs stats`min_us), "us Avg=", (benchUs stats`avg_us), "us Max=", (benchUs stats`max_us), "us";
+  -1 "Percentiles: p50=", (benchUs stats`p50_us), "us p99=", (benchUs stats`p99_us), "us";
   if[not ()~stats`histogram; -1 "Distribution (us):"; benchPrintHistogram stats`histogram];
   -1 "";
  };

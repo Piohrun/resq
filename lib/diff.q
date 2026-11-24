@@ -27,7 +27,12 @@ detectTty:{[]
 /   - stdout auto-detects as a terminal (see detectTty).
 / When OFF, fmt.color emits plain text with no escape sequences at all, so CI
 / logs and redirected files stay clean.
-useColor: (0 = count getenv `NO_COLOR) and .tst.diffColors and detectTty[];
+/   - TERM is not "dumb", a terminal that says it shows escape sequences as
+/     they are (Emacs shell buffers, some CI consoles).
+colorWanted:{[noColor;term;enabled;terminal]
+    (0 = count noColor) and (not "dumb" ~ term) and enabled and terminal
+ };
+useColor: colorWanted[getenv `NO_COLOR; getenv `TERM; .tst.diffColors; detectTty[]];
 
 fmt.color:{[c;txt]
     if[not .tst.useColor; :txt];
