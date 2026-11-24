@@ -1,4 +1,27 @@
 / lib/runner.q - Simplified
+/ Remove what an earlier run left under the names this run is going to write.
+/ A run that dies before reporting (a test calls exit, q runs out of memory),
+/ or whose reporter fails, otherwise leaves the previous run's report in the
+/ output directory: the exit status is red, and whatever publishes the
+/ artifacts regardless of status picks up an older, green report.
+.tst.removeStaleReports:{[formats]
+    several: 1 < count formats except `text;
+    names: distinct raze {[several;fmt]
+        $[fmt ~ `json; enlist "test-results.json";
+          fmt ~ `junit; enlist $[several; "test-results.junit.xml"; "test-results.xml"];
+          fmt ~ `xunit; enlist $[several; "test-results.xunit.xml"; "test-results.xml"];
+          ()]}[several] each formats;
+    if[0 = count names; :()];
+    dir: .tst.toString .tst.runOutputDir[];
+    if[0 = count dir; dir: "."];
+    if[not dir like "/*"; dir: (system "cd"), "/", dir];
+    dir: .resq.util.normalizePath dir;
+    {[dir;name]
+        target: dir, "/", name;
+        if[.resq.util.isFile target; @[hdel; hsym `$target; {[e] ::}]];
+    }[dir] each names;
+ };
+
 .tst.initReporting:{[]
     / Defensive: ensure state exists
     if[not `xmlOutput in key `.tst.app; .tst.app.xmlOutput: 0b];
@@ -89,6 +112,7 @@
     if[`json in formats;formats:(formats except `json),`json];
     reportAvailability: .tst.loadOutputModule each formats;
     .tst.app.activeReportFormats: formats where reportAvailability;
+    .tst.removeStaleReports formats;
 
     / Invoke one reporter under a structural tag. This lets reportSelected try
     / every requested format even when an earlier serializer or file write fails.

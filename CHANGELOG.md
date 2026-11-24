@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A run that dies does not leave the previous run's report behind. After a
+  green run, a run in which a test called `exit`, or whose JSON reporter
+  failed, exited 1 but left the earlier, green `test-results.json` and JUnit
+  file in `-outDir`. The reports a run is going to write are now removed when
+  it starts.
 - `resq discover` follows `system "d .ns"`. It only followed `\d .ns`, so
   a source file that enters its namespace the other way had its functions
   recorded without the namespace and matched no test: resQ's own example

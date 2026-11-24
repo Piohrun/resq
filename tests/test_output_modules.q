@@ -650,3 +650,31 @@
     ((.j.k doc)`name) musteq "caf\\xE9";
   };
  };
+
+/ A run that never reaches its reporters must not leave the previous run's
+/ report for whatever collects artifacts afterwards.
+.tst.testState.stale.canRun:
+    (0 < count @[system; "which q 2>/dev/null"; {()}]) and
+    (0 < count @[system; "which timeout 2>/dev/null"; {()}]);
+
+.tst.desc["a report from an earlier run does not outlive a run that dies #slow"]{
+  should["be gone after a run in which a test calls exit"]{
+    if[not .tst.testState.stale.canRun; :must[1b; "q or timeout unavailable"]];
+    wd: .resq.util.tempRoot[], "/resq_stale_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist wd];
+    (hsym `$wd, "/test_a.q") 0: enlist ".tst.desc[\"a\"]{ should[\"passes\"]{ 1 musteq 1; }; };";
+    / a last parameter left open keeps these two as functions to call later
+    run: {[wd;u]
+        cmd: "cd ", .resq.util.shellQuote[wd], " && ", .resq.util.shellQuote[.resq.HOME, "/bin/resq"],
+            " test . -json -junit -outDir out -state-file out/s.json -flake-history out/f.json",
+            " -flake-proposal-file out/p.json >/dev/null 2>&1; echo $?";
+        "J"$last @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "-1"}]}[wd];
+    reports: {[wd;u] asc (string key hsym `$wd, "/out") inter ("test-results.json"; "test-results.junit.xml")}[wd];
+    run[::] musteq 0;
+    reports[::] musteq ("test-results.json"; "test-results.junit.xml");
+    (hsym `$wd, "/test_b.q") 0: enlist ".tst.desc[\"b\"]{ should[\"calls exit\"]{ exit 0; }; };";
+    run[::] musteq 1;
+    reports[::] musteq ();
+  };
+ };
