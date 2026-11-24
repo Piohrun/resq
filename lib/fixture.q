@@ -228,11 +228,32 @@ removeDirVars:{
 / A saved in-memory table does not imply the process cwd is a q database. Reload
 / only when at least one captured table has a corresponding on-disk directory;
 / this distinguishes a loaded partition/splay from an ordinary project checkout.
+/ The directory and the "/" are joined first. Written `dir,"/",/:names`, q
+/ read it right to left: the directory's characters became separate items,
+/ "/" among them, "/" is a directory, and the answer was always yes. After
+/ any directory fixture, restoreDir then ran `\l` on the current directory
+/ whenever the test's namespace held an in-memory table: it loaded the
+/ project root as a database, which runs the q scripts it finds there.
 savedDirHasDiskTables:{[]
- if["" ~ .tst.savedDir.directory;:0b];
+ dir:.tst.savedDir.directory;
+ if["" ~ dir;:0b];
  names:string .tst.savedDir.tables;
  if[0=count names;:0b];
- any .resq.util.isDir each .tst.savedDir.directory,"/",/:names
+ / a splayed table: <dir>/<table>
+ if[any .resq.util.isDir each (dir,"/"),/:names;:1b];
+ / a partitioned database: <dir>/<partition>/<table>, or a par.txt
+ if[.resq.util.isFile dir,"/par.txt";:1b];
+ entries:string @[key;hsym `$dir;{[e]`symbol$()}];
+ parts:entries where .tst.isPartitionName each entries;
+ if[0=count parts;:0b];
+ any .resq.util.isDir each raze {[dir;names;p](dir,"/",p,"/"),/:names}[dir;names] each -3#asc parts
+ }
+
+/ A directory name q takes for a partition: a date, a month, a year or an
+/ integer.
+isPartitionName:{[n]
+ if[0=count n;:0b];
+ $[not null "D"$n;1b;(7=count n) and not null "M"$n;1b;all n in .Q.n]
  }
 
 restoreDir:{

@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A directory fixture no longer loads the project directory as a database.
+  After the fixture, resQ reloads the database it displaced, and decided
+  whether there was one with a check that always said yes (the directory and
+  table names were joined right to left, and `"/"` is a directory). Whenever
+  the test's namespace held an in-memory table, it ran `\l` on the current
+  directory, which loads the q scripts found there. The check now looks for
+  the tables on disk, splayed or partitioned.
 - `.gitignore` covers every report resQ writes by default
   (`test-results.junit.xml`, `test-results.xunit.xml`,
   `snapshot-manifest.json`, `mutation-report.json`), and lists each entry
