@@ -260,3 +260,30 @@
 };
 
 ::
+
+/ `git status` refreshes the index as it goes and writes it back: every run
+/ in a checkout rewrote .git/index.
+.tst.desc["the git context is read without writing to the checkout"]{
+  should["leave .git/index as it was, and still read the commit"]{
+    if[0 = count @[system; "which git 2>/dev/null"; {()}]; :must[1b; "git unavailable"]];
+    repo: .utl.tempRoot[], "/resq_vcs_index_", string[.z.i], "_", string `long$.z.p;
+    .utl.ensureDir repo;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .utl.shellQuote d; {}]}; enlist repo];
+    q: .utl.shellQuote repo;
+    system "sh -c ", .utl.shellQuote "cd ", q, " && git init -q && echo a > f.txt && git add f.txt && ",
+        "git -c user.name=t -c user.email=t@example.invalid commit -qm init && true";
+    / the file's stat data no longer matches the index: status would refresh it
+    system "sh -c ", .utl.shellQuote "sleep 1.1; touch ", q, "/f.txt";
+    stamp: {[q] first system "stat -c %y ", q, "/.git/index"}[q];
+    before1: stamp[];
+    `.tst.app.vcsContextCache mock ()!();
+    `.tst.app.vcsContextCacheRoot mock "";
+    `.tst.app.vcsProbe mock 1b;
+    ctx: .tst.vcsContext repo;
+    (ctx`status) musteq "ok";
+    (count ctx`sha) musteq 40;
+    (ctx`dirty) musteq 0b;
+    stamp[] musteq before1;
+  };
+ };
+

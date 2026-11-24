@@ -828,7 +828,11 @@
     if[(99h=type cached) and (0<count cached) and root~cachedRoot;:cached];
     quoted:.resq.util.shellQuote root;
     .tst.app.vcsProbeCount:1j+"j"$@[get;`.tst.app.vcsProbeCount;0j];
-    lines:.tst.commandLines "git -C ",quoted,
+    / `git status` refreshes the index as it goes and writes it back: every
+    / run rewrote .git/index, which races an editor's or IDE's own git, and
+    / fails outright in a read-only checkout. GIT_OPTIONAL_LOCKS=0 asks git
+    / not to; a git too old to know it ignores it.
+    lines:.tst.commandLines "GIT_OPTIONAL_LOCKS=0 git -C ",quoted,
         " status --porcelain=v2 --branch --untracked-files=normal 2>/dev/null";
     oidLines:lines where lines like "# branch.oid *";
     headLines:lines where lines like "# branch.head *";

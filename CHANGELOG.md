@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A run in a git checkout no longer rewrites `.git/index`. Reading the
+  commit for the report ran `git status`, which refreshes the index and
+  writes it back, racing an editor's own git.
 - JUnit: two files that each hold a suite and a test of the same names gave
   testcases with the same `classname` and `name`, which is all a CI server
   tells tests apart by; those testcases now carry the file in their
