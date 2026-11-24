@@ -905,6 +905,8 @@
     .tst.app.discoveredFiles: tests;
     .tst.app.loadedFiles: ();
     .tst.app.emptyFiles: ();
+    / Test identities declared so far in this run; see numberDuplicateTests.
+    .tst.app.declaredTestIds: ();
     if[0 = count tests;
         -1 "WARNING: No test files found";
         unmatched: @[get; `.tst.app.unmatchedQFiles; {()}];
@@ -1026,9 +1028,11 @@
         / Start from a clean state so its failure is this file's, and take it
         / out again so the first test to run is not blamed for it.
         .tst.assertState: .tst.defaultAssertState;
+        .tst.app.numberingTests: 1b;
         res: @[{[lines] (0b; .tst.evalPreprocessed .tst.preprocessScript lines)};
                content;
                {[err] (1b; err)}];
+        .tst.app.numberingTests: 0b;
         loadFailures: .tst.toString each .tst.assertState.failures;
         .tst.assertState: .tst.defaultAssertState;
         if[(not 1b ~ first res) and count loadFailures;

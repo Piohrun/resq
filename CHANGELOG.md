@@ -16,6 +16,13 @@ All notable changes to the **resQ** project will be documented in this file.
   this because its coverage fixture loaded its source in the one way coverage
   did not see (fixed above) and measured nothing; it now refuses to compare
   empty coverage.
+- A repeated test description no longer stops the run. Two tests with the
+  same description in one suite share an identity, and resQ refused the whole
+  run, every file included, with a message that named only a hash. qspec runs
+  such a suite. The later declaration is now reported as "same name (2)", with
+  a warning that names the file, suite and line. Where an identity still
+  clashes (two suites with the same title and test in one file), the error
+  names the tests.
 - `.tst.musteq[actual;expected]` and the other explicit assertion spellings
   exist. resQ's own error message, the troubleshooting guide and the API
   reference recommend them, but only `.tst.mustmatchs` and `.tst.mustmatchst`

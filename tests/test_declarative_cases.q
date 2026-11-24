@@ -37,3 +37,41 @@
             (.tst.shouldEach;"bad";([] a:enlist 1);{[wrong]wrong})];
     };
 };
+
+/ Two tests with the same description in one suite have the same identity.
+/ qspec runs such a suite; resQ used to refuse the whole run. The later
+/ declaration now gets a name of its own while the file loads.
+.tst.desc["tests declared twice in one suite"]{
+  should["give each later one its own name and identity"]{
+    `.tst.app.declaredTestIds mock ();
+    spec: .tst.numberDuplicateTests .tst.desc["repeats"]{
+      should["same name"]{ 1 musteq 1 };
+      should["same name"]{ 1 musteq 1 };
+      should["other"]{ 1 musteq 1 };
+      should["same name"]{ 1 musteq 1 };
+    };
+    (spec[`expectations]`desc) musteq ("same name"; "same name (2)"; "other"; "same name (3)");
+    ids: .tst.expectationTestId[spec;] each spec`expectations;
+    (count distinct ids) musteq 4;
+  };
+  should["keep the cases of one shouldEach together and number a second shouldEach"]{
+    `.tst.app.declaredTestIds mock ();
+    spec: .tst.numberDuplicateTests .tst.desc["repeated cases"]{
+      shouldEach["cases"; ([] a:1 2)]{[a] a musteq a };
+      shouldEach["cases"; ([] a:3 4)]{[a] a musteq a };
+    };
+    (spec[`expectations]`desc) musteq ("cases [case 1]"; "cases [case 2]"; "cases (2) [case 1]"; "cases (2) [case 2]");
+    (spec[`expectations]`parentDesc) musteq ("cases"; "cases"; "cases (2)"; "cases (2)");
+    ids: .tst.expectationCaseId[spec;] each spec`expectations;
+    (count distinct ids) musteq 4;
+  };
+  should["leave a suite without repeats exactly as it was"]{
+    `.tst.app.declaredTestIds mock ();
+    spec: .tst.desc["no repeats"]{
+      should["first"]{ 1 musteq 1 };
+      should["second"]{ 1 musteq 1 };
+    };
+    numbered: .tst.numberDuplicateTests spec;
+    (numbered[`expectations]`desc) musteq ("first"; "second");
+  };
+ };

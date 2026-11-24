@@ -800,8 +800,12 @@
     if[count[executionIds]<>count distinct executionIds;
         unique:distinct executionIds;
         dup:first unique where 1<{[ids;id]sum ids~\:id}[executionIds;] each unique;
-        '"Duplicate executable test/case identity: ",dup,
-          ". Suite descriptions and declarative case positions must be unique within a file."];
+        / Name the tests, not only the hash: the reader has to find them.
+        clash:inventoryRows where executionIds~\:dup;
+        named:"; " sv {[r] .tst.toString[r`file],": suite \"",.tst.toString[r`suite],
+            "\", test \"",.tst.toString[r`description],"\" (line ",string[r`line],")"} each clash;
+        '"Duplicate executable test/case identity: ",dup," (",named,
+          "). Suite and test descriptions and declarative case positions must be unique within a file."];
     .tst.app.executionInventory:inventory;
     shardKeys:$[unit~`test;
         distinct .tst.toString each {x`testShardKey} each inventoryRows;

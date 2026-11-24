@@ -516,6 +516,64 @@
     .tst.stableTestId[file;suite;description]
  };
 
+/ Two tests with the same description in one suite of one file have the same
+/ identity, and every report, shard and history is keyed on identity. qspec
+/ accepts such a suite, and a copied test is an easy mistake, so the later
+/ declaration is given its own name ("same name (2)") instead of the whole
+/ run being refused. Applied while a test file loads, in declaration order,
+/ so the names do not depend on filters, ordering or isolation. The rows of
+/ one shouldEach share a declaration: its line and its description.
+.tst.numberDuplicateTests:{[spec]
+    expecs:spec`expectations;
+    if[not 98h=type expecs;:spec];
+    if[0=count expecs;:spec];
+    file:$[`tstPath in key spec;.resq.util.pathToString spec`tstPath;""];
+    suite:$[`title in key spec;spec`title;""];
+    seen:@[get;`.tst.app.declaredTestIds;{()}];
+    descs:(expecs`desc),enlist (::);          / the sentinel keeps the list general
+    parents:(expecs`parentDesc),enlist (::);
+    kinds:expecs`type;
+    lines:expecs`line;
+    free:{[file;suite;seen;name]
+        candidate:name;
+        k:1;
+        while[any seen~\:.tst.stableTestId[file;suite;candidate];
+            k+:1;
+            candidate:.tst.toString[name]," (",string[k],")"];
+        candidate};
+    renamed:();
+    current:();                             / (description; line; name in use) of the shouldEach being read
+    i:0;
+    while[i<count expecs;
+        $[`case~kinds i;
+            [parent:parents i;
+             if[not (parent;lines i)~2#current;
+                 name:free[file;suite;seen;parent];
+                 seen,:enlist .tst.stableTestId[file;suite;name];
+                 current:(parent;lines i;name);
+                 if[not name~parent;renamed,:enlist (.tst.toString parent;name;lines i)]];
+             if[not (current 2)~parent;
+                 descs[i]:(current 2),(count .tst.toString parent)_.tst.toString descs i;
+                 parents[i]:current 2]];
+            [name:free[file;suite;seen;descs i];
+             seen,:enlist .tst.stableTestId[file;suite;name];
+             if[not name~descs i;
+                 renamed,:enlist (.tst.toString descs i;name;lines i);
+                 descs[i]:name]]];
+        i+:1];
+    .tst.app.declaredTestIds:seen;
+    if[0=count renamed;:spec];
+    expecs[`desc]:-1_descs;
+    expecs[`parentDesc]:-1_parents;
+    spec[`expectations]:expecs;
+    {[file;suite;r]
+        -1 "WARNING: ",.tst.repoRelativePath[file],": suite \"",.tst.toString[suite],
+            "\" declares the test \"",r[0],"\" more than once; the one at line ",
+            string[r 2]," is reported as \"",r[1],"\"";
+    }[file;suite] each renamed;
+    spec
+ };
+
 .tst.expectationCaseId:{[spec;expec]
     if[not `case~$[`type in key expec;expec`type;`test];:""];
     .tst.stableCaseId[.tst.expectationTestId[spec;expec];
