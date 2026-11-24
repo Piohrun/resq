@@ -455,3 +455,22 @@
   must[0<count ss[bounded;"truncated"]; "a truncated rendering must say so"];
   };
 };
+
+.tst.desc["the explicit spelling of an assertion"]{
+  should["exist for every assertion, as the error messages and the docs say"]{
+    names: key .tst.asserts;
+    (names where not names in key `.tst) musteq `symbol$();
+    ({[name] .tst[name] ~ .tst.asserts name} each names) musteq (count names)#1b;
+  };
+  should["work in prefix and in infix form"]{
+    .tst.musteq[1;1];
+    .tst.must[1b;"explicit must"];
+    1 .tst.musteq 1;
+    .tst.mustthrow["boom";{'"boom"}];
+    (1 2 3) .tst.mustmatch 1 2 3;
+    / a one-character expected error is a char atom in q
+    .tst.mustthrow["x";{'`x}];
+    .tst.mustnotthrow["x";{1+1}];
+    .tst.assertState.assertsRun musteq 7;
+  };
+ };

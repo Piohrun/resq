@@ -308,6 +308,7 @@ asserts[`mustthrow]:{[e;c];
   / coerced here -- otherwise a symbol pattern crashes with 'type.
   pats: $[0=count (),e;     ();
           10h=type e;        enlist e;          / single string
+          -10h=type e;       enlist enlist e;   / one character: q reads "x" as a char
           -11h=type e;       enlist string e;   / single symbol
           11h=type e;        string e;          / symbol vector
           (),e];                                / list of strings
@@ -336,6 +337,7 @@ asserts[`mustnotthrow]:{[e;c];
   / stringified so `like` matches against the string error message).
   pats: $[0=count (),e;     ();
           10h=type e;        enlist e;          / single string
+          -10h=type e;       enlist enlist e;   / one character: q reads "x" as a char
           -11h=type e;       enlist string e;   / single symbol
           11h=type e;        string e;          / symbol vector
           (),e];
@@ -446,8 +448,12 @@ mustBeFasterThan: .tst.asserts[`mustBeFasterThan];
 mustAllocLessThan: .tst.asserts[`mustAllocLessThan];
 mustHaveBeenCalledWith: .tst.asserts[`mustHaveBeenCalledWith];
 
-.tst.mustmatchs: .tst.asserts[`mustmatchs];
-.tst.mustmatchst: .tst.asserts[`mustmatchst];
+/ The explicit spelling of every assertion: .tst.musteq[actual;expected]. The
+/ loader's own error text, the troubleshooting guide and the API reference all
+/ tell users to write this when a call cannot be bound in infix form, but
+/ only the two snapshot assertions were defined, so following the advice
+/ ended in "Error: .tst.musteq".
+{[name] (` sv `.tst,name) set .tst.asserts name} each key .tst.asserts;
 
 / Additive camelCase root aliases (compat). Assigned after targets exist.
 mustEqual: .tst.asserts[`mustEqual];
