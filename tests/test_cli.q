@@ -621,15 +621,17 @@
 .tst.desc["short flags through the launcher"]{
   should["print the version for -v, as --version does"]{
     launcher: .resq.util.shellQuote .resq.HOME, "/bin/resq";
-    short: @[system; launcher, " -v 2>&1; echo exit=$?"; {[e] enlist "failed: ", e}];
-    long: @[system; launcher, " --version 2>&1; echo exit=$?"; {[e] enlist "failed: ", e}];
+    / through sh -c: q's system captures only the last command of a list
+    run: {[launcher;flag] @[system; "sh -c ", .resq.util.shellQuote launcher, " ", flag, " 2>&1; echo exit=$?"; {[e] enlist "failed: ", e}]}[launcher];
+    short: run "-v";
+    long: run "--version";
     short musteq long;
     (last short) musteq "exit=0";
     (first short) musteq "resQ version ", .resq.VERSION;
   };
   should["print the help for -h"]{
     launcher: .resq.util.shellQuote .resq.HOME, "/bin/resq";
-    out: @[system; launcher, " -h 2>&1; echo exit=$?"; {[e] enlist "failed: ", e}];
+    out: @[system; "sh -c ", .resq.util.shellQuote launcher, " -h 2>&1; echo exit=$?"; {[e] enlist "failed: ", e}];
     (last out) musteq "exit=0";
     (any out like "USAGE*") musteq 1b;
   };
