@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- More of what a suite changes is put back for the next one: a namespace
+  member it deleted, every message handler it set (only `.z.ts` was watched,
+  and it was "restored" to an identity function when it had not been set), the
+  timer, the display precision and the console size. Each is reported.
 - Mocking a view is refused with a message. A view (`name::expression`)
   mocked like a variable was "restored" as a plain value: for the rest of the
   run it no longer followed the variables it was defined on.

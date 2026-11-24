@@ -326,6 +326,17 @@
                 -1 "  -> Cleaned up leaked members in ", string[ns], ".";
             ];
 
+            / A member the suite deleted is put back like one it changed.
+            goneKeys: (key originalState) except key currentState;
+            if[count goneKeys;
+                .tst.recordDiagnostic[`pollution;`warning;`cleanup;
+                    "Suite deleted namespace members";
+                    `suite`namespace`members!(.tst.toString title;.tst.toString ns;goneKeys)];
+                -1 "WARNING: Test '", .tst.toString[title], "' deleted members in ", string[ns], ": ", .tst.toString goneKeys;
+                {[k;v] @[{x set y}[k]; v; {[e] ::}]}'[goneKeys; originalState goneKeys];
+                -1 "  -> Restored deleted members in ", string[ns], ".";
+            ];
+
             commonKeys: (key currentState) inter key originalState;
             modifiedKeys: commonKeys where not {x ~ y}'[
                 originalState commonKeys; currentState commonKeys];
@@ -378,6 +389,43 @@
     `osHandles`ipcHandles`fileHandleOffset!(osHandles;ipcHandles;offset)
  };
 
+/ Process-wide handlers and settings a suite can change behind the back of
+/ the next one. Only .z.ts used to be watched, and it was "restored" to the
+/ identity function when it had not been set at all, which leaves a timer
+/ handler installed.
+.tst.suiteHandlerNames: `.z.ts`.z.pg`.z.ps`.z.po`.z.pc`.z.ph`.z.pp`.z.pw`.z.pi`.z.ws`.z.wo`.z.wc`.z.bm`.z.vs`.z.zd`.z.exit;
+
+.tst.handlerState:{[name] @[{[n] (1b; get n)}; name; {[e] (0b; ::)}]};
+
+.tst.captureProcessState:{[]
+    `handlers`timer`precision`console!(
+        .tst.suiteHandlerNames!.tst.handlerState each .tst.suiteHandlerNames;
+        system "t"; system "P"; system "c")
+ };
+
+.tst.restoreProcessState:{[specTitle;orig]
+    names: key orig`handlers;
+    was: value orig`handlers;
+    changed: where not was ~' .tst.handlerState each names;
+    if[count changed;
+        shown: ", " sv string names changed;
+        .tst.recordDiagnostic[`resource;`warning;`cleanup;
+            "Suite modified ", shown;
+            enlist[`suite]!enlist .tst.toString specTitle];
+        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' modified ", shown, ". Restoring.";
+        {[name;state]
+            / Put back the handler that was there, or unset one that was not.
+            $[first state; name set last state; @[system; "x ", string name; {[e] ::}]];
+        }'[names changed; was changed]];
+    settings: (`timer; "t"; "timer (\\t)"; `precision; "P"; "display precision (\\P)"; `console; "c"; "console size (\\c)");
+    {[specTitle;orig;setting]
+        current: system setting 1;
+        if[current ~ orig setting 0; :()];
+        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' changed the ", (setting 2), ". Restoring.";
+        system (setting 1), " ", " " sv string (), orig setting 0;
+    }[specTitle;orig] each 3 cut settings;
+ };
+
 .tst.finalizeSpecResources:{[specTitle;origResources;origTs]
     leakedIpc:(key .z.W) except origResources`ipcHandles;
     / Close IPC handles by their native q handle before re-reading Linux file
@@ -413,14 +461,7 @@
                 .tst.toString distinct remainingIpc,remainingOs]];
     ];
 
-    currentTs: @[get; `.z.ts; {::}];
-    if[not currentTs ~ origTs;
-        .tst.recordDiagnostic[`resource;`warning;`cleanup;
-            "Suite modified .z.ts";
-            enlist[`suite]!enlist .tst.toString specTitle];
-        -1 "WARNING: Test Suite '", .tst.toString[specTitle], "' modified .z.ts. Restoring.";
-        .z.ts: origTs;
-    ];
+    .tst.restoreProcessState[specTitle;origTs];
     ::
  };
 
@@ -570,7 +611,7 @@
         namespaces!.tst.snapshotNamespaceValues each namespaces;
         ()!()];
     origResources:.tst.captureResourceState[];
-    origTs: @[get; `.z.ts; {::}];
+    origTs: .tst.captureProcessState[];
     runAfterAll: not .tst.halt;
     .tst.beginSuiteMocks[];
 

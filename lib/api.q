@@ -8,7 +8,10 @@
 .resq.api.active:0b;
 .resq.api.appDefaults:get `.tst.app;
 .resq.api.allowed:`strict`qspecCompat`failFast`runPerformance`runSpecs`excludeSpecs`testFilePatterns`maxTestTime`fuzzLimit`randomOrder`seed`runCoverage`coverageSources`covStatements`covBranches`outDir;
-.resq.api.callbackNames:`.z.ts`.z.pg`.z.ps`.z.pc`.z.po`.z.ph`.z.pp`.z.ws`.z.exit;
+/ The same handlers the runner watches between suites. The shorter list used
+/ here before left a test's .z.pw (the authentication hook), .z.pi, .z.vs and
+/ .z.zd installed in the host.
+.resq.api.callbackNames:.tst.suiteHandlerNames;
 
 .resq.api.options:{[options]
     if[not 99h=type options;'"resQ run: options must be a symbol-keyed dictionary"];
@@ -154,7 +157,7 @@
     `.tst.app set appBefore;
     if[first resourceOutcome;:.resq.api.failure last resourceOutcome];
     resources:last resourceOutcome;
-    timerCallback:@[get;`.z.ts;{::}];
+    timerCallback:.tst.captureProcessState[];
     tempOutcome:@[{(0b;first system x)};
         "mktemp -d ",.resq.util.shellQuote[.resq.util.tempRoot[],"/resq-embedded-XXXXXXXX"];
         {[e](1b;e)}];

@@ -385,7 +385,14 @@ namespace, so the (now empty) names persist, exactly as for top-level names.
 
 ### Global Pollution Guard
 The runner snapshots application namespaces before and after each `desc` suite.
-If a suite introduces a name or modifies an existing global, resQ reports it.
+If a suite introduces a name, or changes or deletes an existing member of a
+namespace, resQ reports it and puts the namespace back. It does the same for
+the process: a message handler the suite set (`.z.pg`, `.z.ts`, `.z.po`, ...),
+the timer, the display precision and the console size.
+
+Variables in the root namespace itself are not restored. Under `-root-load`
+and `bin/qspec` they are the state the application and its suites share, as
+they are in qspec.
 
 For members added to existing namespaces, the runner cleans them up. For brand-new
 top-level names, the runner clears the value to `::` and warns — q does not allow
