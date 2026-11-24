@@ -27,8 +27,12 @@
 .tst.quarantineManifestPath:{[].tst.flakeConfiguredPath[`quarantineFile;".resq/quarantine.json";0b]};
 .tst.flakeProposalPath:{[].tst.flakeConfiguredPath[`flakeProposalFile;".resq/quarantine-proposals.json";1b]};
 
+/ `tests` holds the entries of a history that was read whole. A history in
+/ the one-test-to-a-line layout is kept as its lines instead (lineMode), and
+/ an entry is read from its line when it is asked for.
 .tst.emptyFlakeHistory:{[statusName]
-    `status`diagnostic`updatedAt`tests!(statusName;"";"";())
+    `status`diagnostic`updatedAt`tests`lineMode`lines`lineIds`window!(
+        statusName;"";"";();0b;();`symbol$();0Wj)
  };
 
 .tst.emptyQuarantineManifest:{[statusName]
@@ -53,7 +57,12 @@
     if[0=count lines;:result[`invalid;()!();"file is empty"]];
     decoded:@[{[text](0b;.j.k text)};"\n" sv lines;{[err](1b;err)}];
     if[first decoded;:result[`invalid;()!();"JSON parse failed: ",.tst.toString last decoded]];
-    doc:last decoded;
+    .tst.checkVersionedDocument[last decoded;expectedVersion;required]
+ };
+
+.tst.checkVersionedDocument:{[doc;expectedVersion;required]
+    result:{[statusName;document;diagnostic]
+        `status`document`diagnostic!(statusName;document;diagnostic)};
     if[not 99h=type doc;:result[`invalid;()!();"JSON root must be an object"]];
     if[not `schemaVersion in key doc;
         :result[`invalid;doc;"missing required key(s): schemaVersion"]];
@@ -168,31 +177,13 @@
 
 .tst.loadFlakeState:{[]
     hpath:.tst.flakeHistoryPath[];
-    rawHistory:.tst.readVersionedJson[hpath;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`tests];
-    rawHistory:.tst.requireIdentityDocument rawHistory;
+    rawHistory:.tst.requireIdentityDocument .tst.readFlakeHistoryRaw hpath;
     rawHistory:.tst.archiveUnsupportedIdentityState[rawHistory;hpath];
     / A workspace used by two q runtimes: take up this runtime's own history
     / where the other one left it.
     if[(`unsupported~rawHistory`status) and .tst.restoreIdentityState hpath;
-        rawHistory:.tst.requireIdentityDocument
-            .tst.readVersionedJson[hpath;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`tests]];
-    history:.tst.emptyFlakeHistory rawHistory`status;
-    history[`diagnostic]:rawHistory`diagnostic;
-    if[`ok~rawHistory`status;
-        hdoc:rawHistory`document;
-        semanticOk:.tst.validJsonText[hdoc`kind] and
-            "resq-flake-history"~hdoc`kind;
-        semanticOk:semanticOk and .tst.validJsonObjectRows hdoc`tests;
-        entries:$[semanticOk;.tst.jsonObjectRows hdoc`tests;()];
-        semanticOk:semanticOk and all .tst.validHistoryEntry each entries;
-        ids:$[semanticOk;{x`testId} each entries;()];
-        semanticOk:semanticOk and (count ids)=count distinct ids;
-        if[semanticOk;
-            history:`status`diagnostic`updatedAt`tests!(
-                `ok;"";$[`updatedAt in key hdoc;.tst.toString hdoc`updatedAt;""];entries)];
-        if[not semanticOk;
-            history:.tst.emptyFlakeHistory `invalid;
-            history[`diagnostic]:"history kind, row types, or execution IDs are invalid"]];
+        rawHistory:.tst.requireIdentityDocument .tst.readFlakeHistoryRaw hpath];
+    history:.tst.flakeStateFromRaw rawHistory;
     mpath:.tst.quarantineManifestPath[];
     rawManifest:.tst.readVersionedJson[mpath;.tst.QUARANTINE_MANIFEST_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`entries];
     rawManifest:.tst.requireIdentityDocument rawManifest;
@@ -270,8 +261,185 @@
  };
 
 .tst.flakeHistoryEntry:{[testId]
-    state:@[get;`.tst.app.flakeHistory;{.tst.emptyFlakeHistory `missing}];
+    .tst.flakeStateEntry[@[get;`.tst.app.flakeHistory;{.tst.emptyFlakeHistory `missing}];testId]
+ };
+
+/ One test's entry in a history that was read; ()!() when it has none.
+.tst.flakeStateEntry:{[state;testId]
+    if[1b~.tst.flakeStateValue[state;`lineMode;0b];
+        at:(state`lineIds)?`$.tst.toString testId;
+        :$[at<count state`lines;.tst.flakeLineEntry (state`lines) at;()!()]];
     .tst.flakeFindById[state`tests;testId]
+ };
+
+.tst.flakeStateValue:{[state;name;default] $[name in key state;state name;default]};
+
+/ ----------------------------------------------------------------------------
+/ The history file, one test to a line
+/ ----------------------------------------------------------------------------
+/ The history holds every observation in the window for every known test,
+/ and every run read all of it, rebuilt all of it and wrote all of it: 9,000
+/ tests at the default window are 25.7 MB, and a run of one test then took
+/ 1.75 s instead of 0.29 s. Almost all of that was parsing, building and
+/ freeing entries the run had nothing to say about.
+/ .
+/ The document is the same (schema v2, the same keys), laid out so that it
+/ need not be parsed whole: a first line that ends in "tests":[, then one
+/ entry to a line, then ]}. Each entry line starts with its testId and its
+/ file. A run reads the lines, parses the entries of the tests it ran and of
+/ those it has to age, and writes the others back as the text they were.
+/ A history in any other layout (written by an earlier version, or by a
+/ tool) is read whole as before and written back in this one.
+
+.tst.FLAKE_LINE_START:"{\"testId\":\"";
+.tst.FLAKE_LINE_FILE:"\",\"file\":\"";
+
+/ An entry as its line: the keys in a fixed order, the observations last.
+.tst.flakeEntryLine:{[entry]
+    .tst.output.strictJson `testId`file`unseenCompleteRuns`observations!(
+        .tst.toString entry`testId;
+        $[`file in key entry;.tst.toString entry`file;""];
+        "j"$$[`unseenCompleteRuns in key entry;entry`unseenCompleteRuns;0j];
+        .tst.jsonObjectRows entry`observations)
+ };
+
+/ A line as its entry; ()!() when it does not hold one.
+.tst.flakeLineEntry:{[line]
+    entry:@[.j.k;line;{[err]()!()}];
+    if[not .tst.validHistoryEntry entry;:()!()];
+    entry[`unseenCompleteRuns]:"j"$$[`unseenCompleteRuns in key entry;entry`unseenCompleteRuns;0j];
+    entry
+ };
+
+/ The testId of an entry line, read where it stands; "" when it is not there.
+.tst.flakeLineId:{[line]
+    start:count .tst.FLAKE_LINE_START;
+    rest:start _ (start+300) sublist line;
+    stop:rest?"\"";
+    $[stop<count rest;stop#rest;""]
+ };
+
+/ The file of an entry line: read where it stands, or from the parsed entry
+/ when the line is not laid out that way.
+.tst.flakeLineFile:{[line;id]
+    at:(count .tst.FLAKE_LINE_START)+count id;
+    rest:at _ (at+4200) sublist line;
+    intro:.tst.FLAKE_LINE_FILE;
+    stop:$[intro~(count intro)#rest;((count intro)_rest)?"\"";0W];
+    text:$[stop<count[rest]-count intro;stop#(count intro)_rest;"\\"];
+    if[not "\\" in text;:text];
+    entry:.tst.flakeLineEntry line;
+    $[`file in key entry;.tst.toString entry`file;""]
+ };
+
+/ The lines of a history file in the line layout, taken apart:
+/ (in that layout; the document without its tests; entry lines; their IDs).
+.tst.splitFlakeHistoryLines:{[lines]
+    no:(0b;()!();();`symbol$());
+    if[2>count lines;:no];
+    opening:"\"tests\":[";
+    if[not ("]}"~last lines) and opening~(neg count opening) sublist first lines;:no];
+    body:1 _ -1 _ lines;
+    if[count body;
+        if[any 3>count each body;:no];
+        commas:","=last each body;
+        if[not (all -1 _ commas) and not last commas;:no];
+        body:(neg "j"$commas) _' body;
+        if[not all body like .tst.FLAKE_LINE_START,"*";:no];
+        if[not all "]}"~/:-2#'body;:no]];
+    ids:.tst.flakeLineId each body;
+    if[count ids;
+        if[(any 0=count each ids) or (count ids)>count distinct ids;:no];
+        if["\\" in raze ids;:no]];
+    header:@[{[text](1b;.j.k text)};(first lines),"]}";{[err](0b;())}];
+    if[not first header;:no];
+    if[not 99h=type last header;:no];
+    (1b;last header;body;`$ids)
+ };
+
+/ Read a history file: `status`document`diagnostic as readVersionedJson
+/ gives them, with the entry lines when the file is in the line layout.
+.tst.readFlakeHistoryRaw:{[path]
+    required:`schemaVersion`identityAlgorithm`identityCodec`kind`tests;
+    whole:{[raw] raw,`lineMode`lines`lineIds!(0b;();`symbol$())};
+    if[not .resq.util.pathExists path;
+        :whole .tst.readVersionedJson[path;.tst.FLAKE_HISTORY_VERSION;required]];
+    readResult:@[{[p](1b;read0 hsym `$p)};path;{[err](0b;())}];
+    parts:$[first readResult;.tst.splitFlakeHistoryLines last readResult;enlist 0b];
+    if[not first parts;
+        :whole .tst.readVersionedJson[path;.tst.FLAKE_HISTORY_VERSION;required]];
+    raw:.tst.checkVersionedDocument[parts 1;.tst.FLAKE_HISTORY_VERSION;required];
+    raw,`lineMode`lines`lineIds!(1b;parts 2;parts 3)
+ };
+
+/ What the run works with, from what was read.
+.tst.flakeStateFromRaw:{[raw]
+    state:.tst.emptyFlakeHistory raw`status;
+    state[`diagnostic]:raw`diagnostic;
+    if[not `ok~raw`status;:state];
+    doc:raw`document;
+    invalid:{[]
+        state:.tst.emptyFlakeHistory `invalid;
+        state[`diagnostic]:"history kind, row types, or execution IDs are invalid";
+        state};
+    if[not .tst.validJsonText[doc`kind] and "resq-flake-history"~doc`kind;:invalid[]];
+    state[`updatedAt]:$[`updatedAt in key doc;.tst.toString doc`updatedAt;""];
+    if[raw`lineMode;
+        state[`lineMode]:1b;
+        state[`lines]:raw`lines;
+        state[`lineIds]:raw`lineIds;
+        state[`window]:$[`window in key doc;
+            $[.tst.validJsonLong[doc`window;1j];"j"$doc`window;0Wj];0Wj];
+        :state];
+    if[not .tst.validJsonObjectRows doc`tests;:invalid[]];
+    entries:.tst.jsonObjectRows doc`tests;
+    if[not all .tst.validHistoryEntry each entries;:invalid[]];
+    ids:{x`testId} each entries;
+    if[not (count ids)=count distinct ids;:invalid[]];
+    state[`tests]:entries;
+    state
+ };
+
+/ The history as entry lines, whichever way it was read:
+/ (lines; their IDs; the window they were last cut to).
+.tst.flakeHistoryLines:{[state]
+    if[not `ok~state`status;:(();`symbol$();0Wj)];
+    if[1b~.tst.flakeStateValue[state;`lineMode;0b];
+        :(state`lines;state`lineIds;.tst.flakeStateValue[state;`window;0Wj])];
+    entries:.tst.jsonObjectRows state`tests;
+    (.tst.flakeEntryLine each entries;`$.tst.toString each {x`testId} each entries;0Wj)
+ };
+
+/ One more complete run without this test. The line as it should be
+/ written, "" to drop it.
+.tst.flakeAgeLine:{[line]
+    entry:.tst.flakeLineEntry line;
+    if[0=count entry;:line];
+    entry[`unseenCompleteRuns]+:1;
+    $[entry[`unseenCompleteRuns]>.tst.FLAKE_HISTORY_UNSEEN_LIMIT;"";.tst.flakeEntryLine entry]
+ };
+
+/ When the entry on a line was last observed, read from the end of the line,
+/ where the last observation stands; from the parsed entry when it is not
+/ found there. Null when it cannot be told.
+.tst.flakeLineLastObserved:{[line]
+    ending:-260 sublist line;
+    marks:ss[ending;"\"occurredAt\":\""];
+    if[0=count marks;
+        entry:.tst.flakeLineEntry line;
+        :$[count entry;.tst.flakeLastObserved entry`observations;0Np]];
+    text:(14+last marks)_ending;
+    text:(text?"\"")#text;
+    "P"$text where text in "0123456789-:.T"
+ };
+
+.tst.flakeTrimLine:{[limit;line]
+    entry:.tst.flakeLineEntry line;
+    if[0=count entry;:line];
+    obs:.tst.jsonObjectRows entry`observations;
+    if[limit>=count obs;:line];
+    entry[`observations]:(neg limit)#obs;
+    .tst.flakeEntryLine entry
  };
 
 .tst.flakeExecutionId:{[row]
@@ -497,19 +665,24 @@
     all selected in executed
  };
 
-.tst.appendFlakeObservations:{[rows]
+/ This run's observations merged into the history: the entry lines to write,
+/ in ID order. Entries of tests the run did not see are carried as the text
+/ they were, unless a complete run has to age them.
+.tst.mergeFlakeLines:{[rows]
     historyState:@[get;`.tst.app.flakeHistory;{.tst.emptyFlakeHistory `missing}];
-    entries:$[`ok~(historyState`status);historyState`tests;()];
+    history:.tst.flakeHistoryLines historyState;
+    lines:history 0;
+    lineIds:history 1;
     eligible:rows where .tst.flakeEligibleRow each rows;
     rowIds:.tst.flakeExecutionId each eligible;
     ids:distinct rowIds;
     / Group once; re-deriving every row's id per test was quadratic.
     positions:group `$rowIds;
     window:"j"$@[get;`.tst.app.flakeWindow;20j];
-    updated:{[historyEntries;allRows;positions;limit;id]
-        priorEntry:.tst.flakeFindById[historyEntries;id];
-        obs:$[not 99h=type priorEntry;();
-            not `observations in key priorEntry;();
+    updated:{[lines;lineIds;allRows;positions;limit;id]
+        at:lineIds?`$id;
+        priorEntry:$[at<count lines;.tst.flakeLineEntry lines at;()!()];
+        obs:$[not `observations in key priorEntry;();
             .tst.jsonObjectRows priorEntry`observations];
         current:allRows positions `$id;
         ci:0;
@@ -517,46 +690,41 @@
             obs:.tst.appendObservation[obs;.tst.observationFromRow current ci];
             ci+:1];
         if[count[obs]>limit;obs:(neg limit)#obs];
-        `testId`file`observations`unseenCompleteRuns!(id;.tst.stateRowFile first current;obs;0j)
-      }[entries;eligible;positions;window;] each ids;
-    priorIds:$[count entries;{.tst.toString x`testId} each entries;()];
-    unseenIds:priorIds except ids;
-    complete:.tst.flakeCompleteInventoryRun eligible;
-    preserved:{[historyEntries;limit;id]
-        entry:.tst.flakeFindById[historyEntries;id];
-        obs:.tst.jsonObjectRows entry`observations;
-        if[count[obs]>limit;obs:(neg limit)#obs];
-        missed:"j"$$[`unseenCompleteRuns in key entry;entry`unseenCompleteRuns;0j];
-        `testId`file`observations`unseenCompleteRuns!(
-            id;$[`file in key entry;.tst.toString entry`file;""];obs;missed)
-      }[entries;window;] each unseenIds;
-    updated:.tst.eventRows updated;
-    preserved:.tst.eventRows preserved;
-    if[complete and count preserved;
+        .tst.flakeEntryLine `testId`file`observations`unseenCompleteRuns!(
+            id;.tst.stateRowFile first current;obs;0j)
+      }[lines;lineIds;eligible;positions;window;] each ids;
+    keep:where not lineIds in `$ids;
+    preserved:lines keep;
+    preservedIds:string lineIds keep;
+    / Entries last cut to a longer window than this run's.
+    if[(count preserved) and window<history 2;
+        preserved:.tst.flakeTrimLine[window] each preserved];
+    if[(count preserved) and .tst.flakeCompleteInventoryRun eligible;
         / Not seen in a complete run: one more step towards being dropped,
         / for a test whose file this run can speak for.
-        files:{x`file} each preserved;
-        aged:files in .tst.stateFilesInScope files;
-        preserved:{[row;age] if[age;row[`unseenCompleteRuns]+:1];row}'[preserved;aged];
-        preserved:preserved where {
-            (x`unseenCompleteRuns)<=.tst.FLAKE_HISTORY_UNSEEN_LIMIT
-        } each preserved;
+        files:.tst.flakeLineFile'[preserved;preservedIds];
+        aged:where files in .tst.stateFilesInScope files;
+        if[count aged;preserved[aged]:.tst.flakeAgeLine each preserved aged];
         / An entry from before files were recorded cannot be placed. It is
         / kept until it has not been observed for a month.
-        cutoff:.z.p-.tst.FLAKE_HISTORY_UNPLACED_AGE;
-        preserved:preserved where {[cutoff;row]
-            if[count row`file;:1b];
-            seen:.tst.flakeLastObserved row`observations;
-            (null seen) or seen>=cutoff
-        }[cutoff] each preserved];
-    sortRows:{[items]
-        rows:.tst.eventRows items;
-        $[0=count rows;rows;rows iasc {.tst.toString x`testId} each rows]};
-    updated:sortRows updated;
-    preserved:sortRows preserved;
+        unplaced:where 0=count each files;
+        if[count unplaced;
+            seen:.tst.flakeLineLastObserved each preserved unplaced;
+            expired:unplaced where (not null seen) and seen<.z.p-.tst.FLAKE_HISTORY_UNPLACED_AGE;
+            if[count expired;preserved[expired]:(count expired)#enlist ""]];
+        kept:where 0<count each preserved;
+        preserved:preserved kept;
+        preservedIds:preservedIds kept];
+    byId:{[items;itemIds] items iasc itemIds};
+    updated:byId[updated;ids];
+    preserved:byId[preserved;preservedIds];
+    allIds:(asc ids),asc preservedIds;
     bounded:.tst.FLAKE_HISTORY_MAX_TESTS sublist updated,preserved;
-    sortRows bounded
+    bounded iasc (count bounded)#allIds
  };
+
+/ The merged history as entries.
+.tst.appendFlakeObservations:{[rows] .tst.flakeLineEntry each .tst.mergeFlakeLines rows};
 
 / resQ's default state directory is <project>/.resq. Flake history, last-run
 / selection and quarantine proposals are run-to-run caches, so the directory
@@ -579,12 +747,25 @@
  };
 
 .tst.atomicWriteJson:{[path;doc;kind]
+    .tst.atomicWriteLines[path;enlist .tst.output.strictJson doc;kind]
+ };
+
+/ The history document with one entry to a line (see splitFlakeHistoryLines).
+/ `doc` is the document with tests as its last key, and empty.
+.tst.atomicWriteFlakeHistory:{[path;doc;lines]
+    head:.tst.output.strictJson doc;
+    if[not "[]}"~-3#head;'"history document must end with its tests"];
+    body:$[count lines;((-1 _ lines),\:","),enlist last lines;()];
+    .tst.atomicWriteLines[path;(enlist -2 _ head),body,enlist "]}";`flake]
+ };
+
+.tst.atomicWriteLines:{[path;lines;kind]
     slash:where path="/";
     dir:$[count slash;(last slash)#path;"."];
     if[0=count dir;dir:"/"];
     .tst.ensureStateDir dir;
     tmp:path,".tmp.",string .z.i;
-    written:.[{[p;text](hsym `$p) 0:enlist text;1b};(tmp;.tst.output.strictJson doc);{[err]0b}];
+    written:.[{[p;text](hsym `$p) 0:text;1b};(tmp;lines);{[err]0b}];
     if[not written;
         .tst.recordDiagnostic[kind;`warning;`persistence;"Unable to write state";
             enlist[`path]!enlist .tst.repoRelativePath path];
@@ -599,24 +780,7 @@
  };
 
 .tst.readFlakeHistoryAt:{[path]
-    raw:.tst.readVersionedJson[path;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`tests];
-    raw:.tst.requireIdentityDocument raw;
-    state:.tst.emptyFlakeHistory raw`status;
-    state[`diagnostic]:raw`diagnostic;
-    if[not `ok~raw`status;:state];
-    doc:raw`document;
-    valid:.tst.validJsonText[doc`kind] and "resq-flake-history"~doc`kind;
-    valid:valid and .tst.validJsonObjectRows doc`tests;
-    entries:$[valid;.tst.jsonObjectRows doc`tests;()];
-    valid:valid and all .tst.validHistoryEntry each entries;
-    ids:$[valid;{x`testId} each entries;()];
-    valid:valid and (count ids)=count distinct ids;
-    if[not valid;
-        state:.tst.emptyFlakeHistory `invalid;
-        state[`diagnostic]:"history kind, row types, or execution IDs are invalid";
-        :state];
-    `status`diagnostic`updatedAt`tests!(
-        `ok;"";$[`updatedAt in key doc;.tst.toString doc`updatedAt;""];entries)
+    .tst.flakeStateFromRaw .tst.requireIdentityDocument .tst.readFlakeHistoryRaw path
  };
 
 / A short-lived directory lock makes the read/merge/atomic-publish sequence a
@@ -701,19 +865,25 @@
                 "Archived incompatible identity history before rebuilding";
                 `path`archive!(.tst.repoRelativePath path;.tst.repoRelativePath archive)]];
         .tst.app.flakeHistory:latest;
-        entries:.tst.appendFlakeObservations eligible;
+        lines:.tst.mergeFlakeLines eligible;
         now:.tst.isoTimestamp .z.p;
+        window:"j"$@[get;`.tst.app.flakeWindow;20j];
         hdoc:`schemaVersion`identityAlgorithm`identityCodec`kind`updatedAt`window`retention`tests!(
             .tst.FLAKE_HISTORY_VERSION;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];
             "resq-flake-history";now;
-            "j"$@[get;`.tst.app.flakeWindow;20j];
+            window;
             `maxTests`unseenCompleteRuns!(
                 .tst.FLAKE_HISTORY_MAX_TESTS;.tst.FLAKE_HISTORY_UNSEEN_LIMIT);
-            entries);
-        ok:.tst.atomicWriteJson[path;hdoc;`flake];
+            ());
+        ok:.tst.atomicWriteFlakeHistory[path;hdoc;lines];
         if[ok;
-            .tst.app.flakeHistory:`status`diagnostic`updatedAt`tests!(
-                `ok;"";now;entries)];
+            saved:.tst.emptyFlakeHistory `ok;
+            saved[`updatedAt]:now;
+            saved[`lineMode]:1b;
+            saved[`lines]:lines;
+            saved[`lineIds]:`$.tst.flakeLineId each lines;
+            saved[`window]:window;
+            .tst.app.flakeHistory:saved];
         if[1b~@[get;`.tst.app.flakeProposalsEnabled;0b];
             proposals:@[get;`.tst.app.flakeProposals;{()}];
             pdoc:`schemaVersion`identityAlgorithm`identityCodec`kind`generatedAt`historyPath`manifestPath`proposals!(

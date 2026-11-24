@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- The flake history no longer slows every run down as it grows. It holds
+  every observation in the window for every known test, and each run parsed,
+  rebuilt and rewrote all of it: with 9,000 tests (25.7 MB) a run of one file
+  took 1.75 s instead of 0.24 s. The same document is now laid out one test
+  to a line, and a run parses only the entries it has something to say about:
+  that run takes 0.40 s. Schema, keys and file name are unchanged, and a
+  history in the old layout is converted the first time it is saved.
 - A flake-history lock that a killed run left behind is reclaimed. It was
   kept as long as its PID was running, and in a container that PID is running
   again in the next one, as another process: every run then waited five

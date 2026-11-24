@@ -36,6 +36,11 @@ it. A run that finds it held waits up to five seconds, then leaves the history
 untouched and says so on the console. A lock nobody holds is taken over: its
 process is gone, its PID now belongs to another process (as happens when a
 container is restarted), or it is more than two minutes old.
+The history is one JSON document laid out with one test to a line, so that a
+run reads and rewrites only the entries of the tests it ran; the others are
+carried over as the text they were. A history in any other layout, such as
+one written by an earlier version or by a tool, is read whole and written
+back in lines.
 History, proposal, and manifest documents use state schema v2 and carry the
 exact identity algorithm and canonical-value codec envelope.
 

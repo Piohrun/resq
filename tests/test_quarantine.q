@@ -301,14 +301,14 @@
     .tst.app.runSpecs:enlist "only-a";
     must[.tst.persistFlakeState[];"filtered merge must publish"];
     filtered:.tst.readFlakeHistoryAt path;
-    count[(.tst.flakeFindById[filtered`tests;b])`observations] musteq 1;
+    count[(.tst.flakeStateEntry[filtered;b])`observations] musteq 1;
 
     .tst.app.runSpecs:();
     .resq.state.results:(.tst.oneResultTable rowA) upsert rowB;
     must[.tst.persistFlakeState[];"complete merge must publish"];
     complete:.tst.readFlakeHistoryAt path;
-    count[(.tst.flakeFindById[complete`tests;a])`observations] musteq 3;
-    count[(.tst.flakeFindById[complete`tests;b])`observations] musteq 2;
+    count[(.tst.flakeStateEntry[complete;a])`observations] musteq 3;
+    count[(.tst.flakeStateEntry[complete;b])`observations] musteq 2;
 
     baseBefore:"\n" sv read0 hsym `$path;
     .tst.app.shardCount:2j;
@@ -323,8 +323,8 @@
     .tst.app.selectedExecutionIds:(a;b);
     must[.tst.persistFlakeState[];"post-shard full merge must publish"];
     final:.tst.readFlakeHistoryAt path;
-    count[(.tst.flakeFindById[final`tests;a])`observations] musteq 4;
-    count[(.tst.flakeFindById[final`tests;b])`observations] musteq 3;
+    count[(.tst.flakeStateEntry[final;a])`observations] musteq 4;
+    count[(.tst.flakeStateEntry[final;b])`observations] musteq 3;
   };
  };
 
@@ -597,6 +597,145 @@
     .tst.persistFlakeState[] musteq 0b;
     (count .tst.testState.lockNotes) musteq 1;
     ((first .tst.testState.lockNotes) like "the flake history is locked by another run*") musteq 1b;
+  };
+ };
+
+/ The history is one JSON document, and every run parsed, rebuilt and wrote
+/ all of it. It is now laid out one test to a line, and a run parses only
+/ the entries it has something to say about.
+.tst.desc["the flake history is kept one test to a line"]{
+  before{
+    wd:.utl.tempRoot[],"/resq_flake_lines_",string[.z.i],"_",string `long$.z.p;
+    .utl.ensureDir wd,"/tests";
+    (hsym `$wd,"/tests/test_a.q") 0: enlist "/ a";
+    (hsym `$wd,"/tests/test_b.q") 0: enlist "/ b";
+    .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.utl.shellQuote d;{}]};enlist wd];
+    `historyPath mock wd,"/history.json";
+    `.tst.app.flakeHistoryFile mock wd,"/history.json";
+    `.tst.app.flakeProposalFile mock wd,"/proposals.json";
+    `.tst.app.quarantineFile mock wd,"/quarantine.json";
+    `.tst.app.baseDir mock wd;
+    `.tst.app.allDiscoveredFiles mock enlist wd,"/tests/test_a.q";
+    `.tst.app.executionState mock `completed;
+    `.tst.app.executionIncompleteReason mock "";
+    `.tst.app.describeOnly mock 0b;
+    `.tst.app.isolateChild mock 0b;
+    `.tst.app.shardCount mock 1j;
+    `.tst.app.shardIndex mock 0j;
+    `.tst.app.rerunMode mock `all;
+    `.tst.app.runSpecs mock ();
+    `.tst.app.excludeSpecs mock ();
+    `.tst.app.tagFilter mock ();
+    `.tst.app.excludeTagFilter mock ();
+    `.tst.app.flakeWindow mock 20j;
+    `.tst.app.flakeProposalsEnabled mock 0b;
+    `.tst.app.runMetadata mock enlist[`id]!enlist "run_lines";
+    `.tst.app.flakeHistory mock .tst.emptyFlakeHistory `missing;
+    `.resq.state.results mock .resq.state.results;
+    `idA mock "test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    `idB mock "test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    `runOnly mock {[wd;id;file]
+      .resq.state.results:.tst.oneResultTable .tst.quarantineTest.scopeRow[id;wd,"/tests/",file];
+      .tst.app.selectedExecutionIds:enlist id;
+      .tst.loadFlakeState[];
+      .tst.persistFlakeState[]}[wd];
+  };
+
+  should["write a document that is still one valid JSON document"]{
+    must[runOnly[idA;"test_a.q"];"the history must be saved"];
+    lines:read0 hsym `$historyPath;
+    (count lines) musteq 3;
+    ((first lines) like "*\"tests\":[[]") musteq 1b;
+    (last lines) musteq "]}";
+    doc:.j.k "\n" sv lines;
+    (doc`schemaVersion) musteq 2f;
+    ({x`testId} each doc`tests) musteq enlist idA;
+    ((first doc`tests)`file) musteq "tests/test_a.q";
+    / the keys every earlier version reads are all there
+    (asc key first doc`tests) musteq asc `testId`file`unseenCompleteRuns`observations;
+  };
+
+  should["read it back without parsing the entries, and find one when asked"]{
+    runOnly[idA;"test_a.q"];
+    state:.tst.readFlakeHistoryAt historyPath;
+    (state`status) musteq `ok;
+    (state`lineMode) musteq 1b;
+    (state`lineIds) musteq enlist `$idA;
+    (count state`tests) musteq 0;
+    entry:.tst.flakeStateEntry[state;idA];
+    (entry`testId) musteq idA;
+    (count entry`observations) musteq 1;
+    (.tst.flakeStateEntry[state;idB]) musteq ()!();
+  };
+
+  should["carry the entry of a test it did not run as the text it was"]{
+    runOnly[idB;"test_b.q"];
+    before:read0 hsym `$historyPath;
+    runOnly[idA;"test_a.q"];
+    after:read0 hsym `$historyPath;
+    (count after) musteq 4;
+    / test_b's line is untouched, apart from the comma that now follows it
+    lineOf:{[lines;id] first lines where lines like "{\"testId\":\"",id,"*"};
+    (lineOf[after;idB]) musteq lineOf[before;idB];
+    / entries are in ID order
+    ((after 1) like "{\"testId\":\"",idA,"*") musteq 1b;
+    ((after 1) like "*,") musteq 1b;
+  };
+
+  should["read a history in any other layout whole, and write it back in lines"]{
+    whole:`schemaVersion`identityAlgorithm`identityCodec`kind`updatedAt`window`tests!(
+      2j;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];
+      "resq-flake-history";"2026-08-14T00:00:00Z";20j;
+      (.tst.quarantineTest.placedEntry[idA;"tests/test_a.q";.tst.isoTimestamp .z.p];
+       .tst.quarantineTest.placedEntry[idB;"tests/test_b.q";.tst.isoTimestamp .z.p]));
+    (hsym `$historyPath) 0: enlist .j.j whole;
+    state:.tst.readFlakeHistoryAt historyPath;
+    (state`status) musteq `ok;
+    (state`lineMode) musteq 0b;
+    (count state`tests) musteq 2;
+    runOnly[idA;"test_a.q"];
+    again:.tst.readFlakeHistoryAt historyPath;
+    (again`lineMode) musteq 1b;
+    (count (.tst.flakeStateEntry[again;idA])`observations) musteq 2;
+    (count (.tst.flakeStateEntry[again;idB])`observations) musteq 1;
+  };
+
+  should["not take a file for the line layout when a line is not an entry"]{
+    runOnly[idA;"test_a.q"];
+    runOnly[idB;"test_b.q"];
+    lines:read0 hsym `$historyPath;
+    / a line that was cut short
+    (hsym `$historyPath) 0: @[lines;1;:;30 sublist lines 1];
+    (first .tst.splitFlakeHistoryLines read0 hsym `$historyPath) musteq 0b;
+    ((.tst.readFlakeHistoryAt historyPath)`status) musteq `invalid;
+    / two entries with one ID
+    (hsym `$historyPath) 0: (lines 0;lines 1;-1 _ lines 1;lines 3);
+    (first .tst.splitFlakeHistoryLines read0 hsym `$historyPath) musteq 0b;
+  };
+
+  should["cut carried entries down when the window is made shorter"]{
+    `.tst.app.flakeWindow mock 5j;
+    do[4;runOnly[idB;"test_b.q"]];
+    (count (.tst.flakeStateEntry[.tst.readFlakeHistoryAt historyPath;idB])`observations) musteq 4;
+    `.tst.app.flakeWindow mock 2j;
+    runOnly[idA;"test_a.q"];
+    (count (.tst.flakeStateEntry[.tst.readFlakeHistoryAt historyPath;idB])`observations) musteq 2;
+  };
+
+  should["read a test's file and last observation from where they stand in the line"]{
+    entry:.tst.quarantineTest.placedEntry[idA;"tests/dir with space/test_a.q";"2026-11-01T10:00:00.000000000Z"];
+    line:.tst.flakeEntryLine entry;
+    (.tst.flakeLineId line) musteq idA;
+    (.tst.flakeLineFile[line;idA]) musteq "tests/dir with space/test_a.q";
+    (.tst.flakeLineLastObserved line) musteq 2026.11.01D10:00:00.000000000;
+    / a path that JSON has to escape is read from the parsed entry instead
+    odd:.tst.flakeEntryLine .tst.quarantineTest.placedEntry[idA;"tests/a\"b.q";"2026-11-01T10:00:00Z"];
+    (.tst.flakeLineFile[odd;idA]) musteq "tests/a\"b.q";
+    / and a line and its entry are the same thing
+    back:.tst.flakeLineEntry line;
+    (back`file) musteq "tests/dir with space/test_a.q";
+    (back`unseenCompleteRuns) musteq 0j;
+    (.tst.flakeEntryLine back) musteq line;
   };
  };
 
