@@ -75,7 +75,7 @@ child_pgid=""
 terminate_for_signal() {
   local signal_name="$1"
   local exit_code="$2"
-  trap - INT TERM
+  trap - INT TERM HUP QUIT
   if [ -n "$child_pid" ] && kill -0 "$child_pid" 2>/dev/null; then
     if [ -n "$child_pgid" ]; then
       if command -v pkill >/dev/null 2>&1; then
@@ -104,6 +104,12 @@ terminate_for_signal() {
 }
 trap 'terminate_for_signal INT 130' INT
 trap 'terminate_for_signal TERM 143' TERM
+# q runs in its own session (setsid), so a hangup or a quit sent to this
+# launcher never reaches it. Untrapped, either one killed the launcher and
+# left the whole run alive: a closed terminal or SSH session, with a hung test
+# then holding a licence for good.
+trap 'terminate_for_signal HUP 129' HUP
+trap 'terminate_for_signal QUIT 131' QUIT
 
 export RESQ_RUN_GUARD_DIR="$guard_dir"
 export RESQ_ISOLATE_ROOT="$isolate_root"

@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A hangup stops the run. `bin/resq` trapped only INT and TERM, and q runs in
+  its own session, so closing the terminal or SSH session killed the launcher
+  and left q and every child running. HUP and QUIT are now handled like TERM
+  (exit 129 and 131).
 - JUnit, xUnit and JSON reports stay well-formed whatever bytes a suite
   contains. A single byte that is not UTF-8 (a test name in a Latin-1 source
   file, a compared value, error text, an environment variable, captured

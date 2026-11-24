@@ -178,12 +178,22 @@ def verify(q_executable: str) -> None:
         hang_b = fixture_dir / "test hang b.q"
         write_hang(hang_a, pid_a, "interrupt a")
         write_hang(hang_b, pid_b, "interrupt b")
-        for signum, expected_status in ((signal.SIGINT, 130), (signal.SIGTERM, 143)):
+        # A hangup reaches the launcher when a terminal or SSH session closes;
+        # q runs in its own session and never sees it. bin/qspec --junit runs
+        # the launcher as a child and has to pass every signal on.
+        resq_launcher = [str(install / "bin/resq"), "test"]
+        qspec_launcher = [str(install / "bin/qspec"), "--junit"]
+        signal_cases = (
+            (resq_launcher, signal.SIGINT, 130),
+            (resq_launcher, signal.SIGTERM, 143),
+            (resq_launcher, signal.SIGHUP, 129),
+        )
+        for launcher, signum, expected_status in signal_cases:
             pid_a.unlink(missing_ok=True)
             pid_b.unlink(missing_ok=True)
             process = subprocess.Popen(
                 [
-                    str(install / "bin/resq"), "test", str(hang_a), str(hang_b),
+                    *launcher, str(hang_a), str(hang_b),
                     "-isolate", "-isolateWorkers", "2", "-isolateTimeout", "300", "-quiet",
                 ],
                 cwd=hostile_parent,
@@ -213,7 +223,8 @@ def verify(q_executable: str) -> None:
                 status = process.wait(timeout=15)
                 if status != expected_status:
                     raise RuntimeError(
-                        f"launcher signal {signum} returned {status}, expected {expected_status}"
+                        f"{Path(launcher[0]).name} signal {signum} returned {status}, "
+                        f"expected {expected_status}"
                     )
                 wait_for(lambda: not any(alive(pid) for pid in pids), seconds=5)
                 survivors = [pid for pid in pids if alive(pid)]
@@ -221,6 +232,8 @@ def verify(q_executable: str) -> None:
                     raise RuntimeError(f"signalled isolated children survived: {survivors!r}")
                 if list(hostile_parent.glob("resq-run-guard.*")):
                     raise RuntimeError("launcher-owned scratch survived signal cleanup")
+                if list(hostile_parent.glob("resq-qspec.*")):
+                    raise RuntimeError("qspec report scratch survived signal cleanup")
             finally:
                 if process.poll() is None:
                     os.killpg(process.pid, signal.SIGKILL)
@@ -233,7 +246,8 @@ def verify(q_executable: str) -> None:
     print(
         "hostile-environment verification passed: quoting, symlinked/spaced install, "
         "QBIN propagation, reporter anchoring/fail-closed writes, 0700 scratch, "
-        "INT/TERM signal cleanup, conventional status, reaping, and cleanup"
+        "INT/TERM/HUP signal cleanup through bin/resq and bin/qspec --junit, "
+        "conventional status, reaping, and cleanup"
     )
 
 
