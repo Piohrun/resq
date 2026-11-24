@@ -84,20 +84,23 @@ if[not .resq.hasQutil; .resq.offerUtl[`PKGLOADING; .resq.PKGLOADING]];
 / The adapter is inert unless its explicit external-provider environment is set.
 .resq.require .resq.HOME,"/lib/self_coverage.q"
 
-/ Configuration
-config: .tst.loadConfig[::];
+/ Configuration. Everything this script keeps goes under .resq: a plain
+/ assignment here is a global in the root namespace of the process under
+/ test, where an application that sets `config` or `args` only when they are
+/ undefined would take resQ's values for its own.
+.resq.bootConfig: .tst.loadConfig[::];
 / Validate config early; keep warnings non-fatal so execution can continue.
-.resq.config.validationWarnings: .tst.validateConfig[config];
+.resq.config.validationWarnings: .tst.validateConfig[.resq.bootConfig];
 .tst.printConfigWarnings .resq.config.validationWarnings;
-.tst.applyConfig[config];
+.tst.applyConfig[.resq.bootConfig];
 .resq.labelEnvironmentError:.tst.applyEnvironmentLabels[];
 if[count .resq.labelEnvironmentError;
     -2 "LABEL ERROR: RESQ_LABELS_JSON: ",.resq.labelEnvironmentError;
     exit .resq.EXIT.FAIL];
 
 / Ensure text reporter is loaded before mode dispatch
-textReporterLoaded: .tst.loadOutputModule "text";
-if[not textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."];
+.resq.textReporterLoaded: .tst.loadOutputModule "text";
+if[not .resq.textReporterLoaded; -1 "WARNING: Falling back to built-in text reporter."];
 
 / Initialize State (defaults set in lib/dsl/internals.q)
 / Here we just reset for a fresh run
@@ -127,7 +130,6 @@ if[.resq.hasQutil and 1b~@[get;`.tst.app.qspecDiscovery;0b];
 .resq.loadPluginFiles[];
 .resq.mode: .resq.cli`mode;
 .tst.app.args: .resq.cli`args;
-args: .tst.app.args;
 
 / --- DISPATCH ---
 
@@ -183,13 +185,13 @@ if[.resq.mode ~ `test;
                 exit $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR; .resq.EXIT.PASS];
             ];
             / Granular exit codes for CI/CD
-            noTestsFound: (not 1b~@[get;`.tst.app.emptyShard;0b]) and
+            .resq.noTestsFound: (not 1b~@[get;`.tst.app.emptyShard;0b]) and
                 (0 = count .tst.app.discoveredFiles) and (0 = count .resq.state.results);
-            exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
-                        noTestsFound; .resq.EXIT.NO_TESTS;
+            .resq.exitCode: $[0 < count .tst.app.loadErrors; .resq.EXIT.LOAD_ERROR;
+                        .resq.noTestsFound; .resq.EXIT.NO_TESTS;
                         not .tst.app.passed; .resq.EXIT.FAIL;
                         .resq.EXIT.PASS];
-            exit exitCode
+            exit .resq.exitCode
         ];
     ];
  ];
@@ -198,11 +200,12 @@ if[.resq.mode ~ `test;
 if[.resq.mode ~ `discover;
     / Defaults point at the bundled quickstart inside the install root,
     / since "examples/quickstart" is only meaningful relative to resq itself.
-    src: .resq.HOME, "/examples/quickstart/src"; tst: .resq.HOME, "/examples/quickstart/test";
-    if[0<count .tst.app.args; src: .tst.app.args 0];
-    if[1 < count .tst.app.args; tst: .tst.app.args 1];
+    .resq.discoverSrc: .resq.HOME, "/examples/quickstart/src";
+    .resq.discoverTst: .resq.HOME, "/examples/quickstart/test";
+    if[0<count .tst.app.args; .resq.discoverSrc: .tst.app.args 0];
+    if[1 < count .tst.app.args; .resq.discoverTst: .tst.app.args 1];
     if[.resq.cli[`options; `interactive]; .tst.start[]; exit 0];
-    .tst.main[src; tst];
+    .tst.main[.resq.discoverSrc; .resq.discoverTst];
     exit 0;
  ];
 
@@ -214,14 +217,14 @@ if[.resq.mode ~ `mutate;
 
 / MODE: WATCH
 if[.resq.mode ~ `watch;
-    dirs: enlist ".";
-    if[0<count .tst.app.args; dirs: .tst.app.args];
+    .resq.watchDirs: enlist ".";
+    if[0<count .tst.app.args; .resq.watchDirs: .tst.app.args];
     / Watch owns repeated full runAll invocations in this process. runnerCmd
     / composes reporters and starts coverage immediately before each rerun, so
     / the idle watcher never holds live instrumentation wrappers.
     / lib/watch.q's default runnerCmd already anchors at .resq.HOME, so
     / there is no need to override it here.
-    .tst.watch.init[dirs];
+    .tst.watch.init[.resq.watchDirs];
     -1 ">> Watch mode active. Press Ctrl+C to exit.";
     / Explicit foreground loop instead of .z.ts + `system "t": the timer
     / approach lets q reach EOF on stdin (CI, pipes, `< /dev/null`) and exit
@@ -229,7 +232,7 @@ if[.resq.mode ~ `watch;
     / TTY. `system "sleep"` is portable; Ctrl+C still interrupts the loop.
     while[1b;
         system "sleep ", string .tst.watch.interval;
-        changes: .tst.watch.check[];
-        if[0 < count changes; .tst.watch.onChanges[changes]];
+        .resq.watchChanges: .tst.watch.check[];
+        if[0 < count .resq.watchChanges; .tst.watch.onChanges[.resq.watchChanges]];
     ];
  ];

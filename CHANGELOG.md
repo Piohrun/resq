@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- resQ's start-up no longer leaves `config`, `args` and
+  `textReporterLoaded` in the root namespace. An application that sets
+  `config` only when it is undefined took resQ's settings dictionary.
 - A codebase with its own `.utl` namespace no longer breaks resQ, and resQ
   no longer replaces its definitions. resQ kept 25 helpers and state variables
   in `.utl` (`isDir`, `isFile`, `normalizePath`, `shellQuote`, `loaded`,

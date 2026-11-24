@@ -18,3 +18,13 @@
         1 musteq 1;
     };
 };
+
+.tst.desc["resQ's own start-up leaves no variables in the root namespace"]{
+  should["keep config, args and its other working values under .resq"]{
+    / An application that sets `config` or `args` only when undefined must not
+    / find resQ's there. The root namespace holds resQ's test words and nothing
+    / else of its own.
+    leaked: `config`args`textReporterLoaded`exitCode`noTestsFound`src`dirs`changes inter key `.;
+    leaked musteq `symbol$();
+  };
+ };
