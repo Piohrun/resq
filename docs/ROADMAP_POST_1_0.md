@@ -251,6 +251,25 @@ following checked-in contracts; the final release gate invokes all of them:
   exact candidate evidence; the certification commit is requalified before the
   annotated tag is pushed.
 
+## 2.4.0 — audit hardening
+
+- [x] Fix every P1, P2 and P3 finding of the 2.3.0 audit that affects a
+  verdict, a result, a process or portability.
+- [x] Stop on interrupts and on a dead launcher without writing reports or
+  state; name the running test when q dies.
+- [x] Run `-isolateWorkers` as a pool and cap captured child output.
+- [x] Keep flake history one test to a line; scope state ageing to the files a
+  run looked at; reclaim stale locks; apply the quarantine manifest under any
+  q build.
+- [x] Read `resq.json` from the nearest directory up to the top of the
+  checkout, with its directory as the project directory.
+- [x] Make resQ's own suite order-independent and run the gate's isolated lane
+  in random order.
+- [x] Require the interrupt, worker-pool, output-cap, directory-fixture,
+  manifest and `resq.json` lookup tests in the release gate.
+- [ ] Complete the clean-clone v2.4.0 release qualification.
+- [ ] Run `resq mutate` mutants through the worker pool.
+
 ## Post-2.0 ecosystem ideas — not implemented
 
 These are roadmap ideas, not resQ capabilities or release commitments:

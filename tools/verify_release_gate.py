@@ -58,6 +58,13 @@ REQUIRED_CONTRACT_TESTS = {
     "call a failing run a kill only when the mutant was applied",
     "kills, survivors, timeouts, uncovered and unmatched functions are told apart",
     "fail an empty condition under -strict, because it checks nothing",
+    "write no report and no state, and no made-up timeout, under -isolate",
+    "stop in process, write nothing, and take its guard directory away",
+    "start the next child as soon as one ends, not when the slowest has",
+    "keep the start and the end and drop the middle once the limit is passed",
+    "not take a partition-like directory without the table",
+    "apply a quarantine manifest written under another q build",
+    "read the project's resq.json and keep state and test IDs with the project",
 }
 
 

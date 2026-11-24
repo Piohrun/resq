@@ -4,6 +4,17 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.4.0] - 2026-11-24 - Audit Hardening
+
+resQ 2.4.0 fixes every finding of a full audit of 2.3.0 that could change a
+verdict, lose a result or leave a process behind, and a few found while
+fixing them. It keeps the 2.x DSL, the report-v2 contract and identity v3.
+Some gates that were silently off now apply, so a run that was green can
+fail: see "Runs that can now fail" in
+[the release notes](docs/RELEASE_NOTES_2_4_0.md).
+
 ### Fixed
 
 - A comment that starts at column 1 inside a test block no longer fails the

@@ -1041,4 +1041,4 @@ resq test tests/ -debug
 
 ---
 
-*Generated for resQ v2.3.0*
+*Generated for resQ v2.4.0*
