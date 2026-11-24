@@ -569,7 +569,11 @@
         .tst.toString specTitle;
     exList:.tst.orderItems[exList;orderStream];
 
-    res: {[s; ex] if[.tst.halt; :(::)]; .tst.runExpec[s; ex]}[spec] each exList;
+    res: {[s; ex]
+        / Told to stop: the tests not yet started are left alone.
+        if[.resq.util.runInterrupted[]; .tst.halt: 1b];
+        if[.tst.halt; :(::)];
+        .tst.runExpec[s; ex]}[spec] each exList;
     / Remove skipped expectations (halt)
     res: res where not (::)~/: res;
 
@@ -778,6 +782,7 @@
     .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
     .tst.app.cleanupErrors: ();
     .tst.app.perfResults: .tst.app.emptyPerfResults[];
+    .tst.app.interrupted: 0b;
     .tst.halt: 0b;
     .tst.assertState: .tst.defaultAssertState;
     .tst.pendingBacktrace: "";
@@ -1496,6 +1501,18 @@
     -1 .tst.isolatedReportSentinel;
  };
 
+/ A run the launcher was told to stop has not seen all of its tests, and the
+/ test that was running was killed, not finished. What it would write is false
+/ evidence: a report that ends in a made-up error, an `error` observation in
+/ the flake history, a failed entry for -last-failed. True when the run was
+/ interrupted; the caller then writes nothing and leaves.
+.tst.noteInterrupted:{[]
+    if[not .resq.util.runInterrupted[]; :0b];
+    .tst.app.interrupted: 1b;
+    .tst.app.passed: 0b;
+    1b
+ };
+
 .tst.runAll:{[]
     continue: .tst.runAllPhase.runSafely[`initRun; .tst.runAllPhase.initRun];
     if[continue; continue: .tst.runAllPhase.runSafely[`loadTests; {.tst.loadTests .tst.app.args}]];
@@ -1514,6 +1531,8 @@
     .tst.runAllPhase.runSafely[`cleanup; .tst.runAllPhase.finalCleanup];
     .tst.runAllPhase.runSafely[`cleanupErrors; .tst.runAllPhase.injectCleanupErrors];
     .tst.runAllPhase.runSafely[`restorePersistence; .tst.restoreRunPersistenceConfig];
+    / Cleanup has run. Nothing below is written for an interrupted run.
+    if[.tst.noteInterrupted[]; :(::)];
     .tst.runAllPhase.runSafely[`flakeState; .tst.applyFlakeState];
     .tst.runAllPhase.runSafely[`resultsSummary; .tst.runAllPhase.computePassed];
     .tst.runAllPhase.runSafely[`plugins; .tst.runRegisteredPlugins];

@@ -64,6 +64,35 @@ def write_hang(path: Path, pid_path: Path, label: str) -> None:
     )
 
 
+def state_files(root: Path) -> dict[str, tuple[int, int]]:
+    """Every file resQ keeps between runs under `root`, with size and mtime."""
+    found: dict[str, tuple[int, int]] = {}
+    state_dir = root / ".resq"
+    if state_dir.is_dir():
+        for path in sorted(state_dir.rglob("*")):
+            if path.is_file():
+                status = path.stat()
+                found[str(path.relative_to(root))] = (status.st_size, status.st_mtime_ns)
+    return found
+
+
+def path_without(tools: set[str], destination: Path) -> str:
+    """A PATH directory with every command of the current PATH except `tools`."""
+    destination.mkdir()
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        if not directory or not os.path.isdir(directory):
+            continue
+        for entry in os.scandir(directory):
+            link = destination / entry.name
+            if entry.name in tools or link.is_symlink() or link.exists():
+                continue
+            try:
+                link.symlink_to(entry.path)
+            except OSError:
+                continue
+    return str(destination)
+
+
 def run_checked(command: list[str], environment: dict[str, str], cwd: Path) -> subprocess.CompletedProcess[str]:
     completed = subprocess.run(
         command, cwd=cwd, env=environment, text=True, capture_output=True,
@@ -174,33 +203,57 @@ def verify(q_executable: str) -> None:
         # conventional shell signal codes.
         pid_a = hostile_parent / "child a.pid"
         pid_b = hostile_parent / "child b.pid"
+        pid_c = hostile_parent / "child c.pid"
+        pid_d = hostile_parent / "child d.pid"
         hang_a = fixture_dir / "test hang a.q"
         hang_b = fixture_dir / "test hang b.q"
+        hang_c = fixture_dir / "test hang c.q"
+        hang_d = fixture_dir / "test hang d.q"
         write_hang(hang_a, pid_a, "interrupt a")
         write_hang(hang_b, pid_b, "interrupt b")
+        # A second batch: a run that has been told to stop must not start it.
+        write_hang(hang_c, pid_c, "interrupt c")
+        write_hang(hang_d, pid_d, "interrupt d")
+        signal_reports = hostile_parent / "signal reports"
+        # A machine without setsid, pkill and pgrep: q then shares the
+        # launcher's process group, and its children are in groups of their
+        # own, out of reach of a signal sent to q.
+        bare_environment = dict(environment)
+        bare_environment["PATH"] = path_without(
+            {"setsid", "pkill", "pgrep"}, hostile_parent / "bare path"
+        )
         # A hangup reaches the launcher when a terminal or SSH session closes;
         # q runs in its own session and never sees it. bin/qspec --junit runs
         # the launcher as a child and has to pass every signal on.
         resq_launcher = [str(install / "bin/resq"), "test"]
         qspec_launcher = [str(install / "bin/qspec"), "--junit"]
         signal_cases = (
-            (resq_launcher, signal.SIGINT, 130),
-            (resq_launcher, signal.SIGTERM, 143),
-            (resq_launcher, signal.SIGHUP, 129),
-            (qspec_launcher, signal.SIGINT, 130),
-            (qspec_launcher, signal.SIGTERM, 143),
-            (qspec_launcher, signal.SIGHUP, 129),
+            (resq_launcher, signal.SIGINT, 130, environment),
+            (resq_launcher, signal.SIGTERM, 143, environment),
+            (resq_launcher, signal.SIGHUP, 129, environment),
+            (qspec_launcher, signal.SIGINT, 130, environment),
+            (qspec_launcher, signal.SIGTERM, 143, environment),
+            (qspec_launcher, signal.SIGHUP, 129, environment),
+            (resq_launcher, signal.SIGINT, 130, bare_environment),
+            (resq_launcher, signal.SIGTERM, 143, bare_environment),
         )
-        for launcher, signum, expected_status in signal_cases:
-            pid_a.unlink(missing_ok=True)
-            pid_b.unlink(missing_ok=True)
+        for launcher, signum, expected_status, case_environment in signal_cases:
+            for pid_file in (pid_a, pid_b, pid_c, pid_d):
+                pid_file.unlink(missing_ok=True)
+            shutil.rmtree(signal_reports, ignore_errors=True)
+            # bin/qspec --junit prints its report; an -outDir would bypass that path.
+            report_flags = (
+                ["-json", "-outDir", str(signal_reports)] if launcher is resq_launcher else []
+            )
+            state_before = state_files(hostile_parent)
             process = subprocess.Popen(
                 [
-                    *launcher, str(hang_a), str(hang_b),
+                    *launcher, str(hang_a), str(hang_b), str(hang_c), str(hang_d),
                     "-isolate", "-isolateWorkers", "2", "-isolateTimeout", "300", "-quiet",
+                    *report_flags,
                 ],
                 cwd=hostile_parent,
-                env=environment,
+                env=case_environment,
                 stdin=subprocess.DEVNULL,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -237,6 +290,34 @@ def verify(q_executable: str) -> None:
                     raise RuntimeError("launcher-owned scratch survived signal cleanup")
                 if list(hostile_parent.glob("resq-qspec.*")):
                     raise RuntimeError("qspec report scratch survived signal cleanup")
+                # The run was told to stop. It must not start the next batch,
+                # and must not publish what it has: a report or a state file
+                # from a run that was cut short is false evidence.
+                time.sleep(1.5)
+                late = [path for path in (pid_c, pid_d) if path.is_file()]
+                late_alive = [path.name for path in late if alive(int(path.read_text().strip()))]
+                if late_alive:
+                    raise RuntimeError(
+                        f"signal {signum}: children started after the signal are still running: "
+                        f"{late_alive!r}"
+                    )
+                if late:
+                    raise RuntimeError(
+                        f"signal {signum}: a batch was started after the signal: "
+                        f"{[path.name for path in late]!r}"
+                    )
+                written = sorted(path.name for path in signal_reports.glob("*")) if signal_reports.is_dir() else []
+                if written:
+                    raise RuntimeError(f"signal {signum}: an interrupted run wrote reports: {written!r}")
+                if state_files(hostile_parent) != state_before:
+                    raise RuntimeError(f"signal {signum}: an interrupted run changed its state files")
+                output = process.stdout.read() if process.stdout is not None else ""
+                # q ends at a hangup without a word; at INT and TERM it runs on,
+                # so the run itself has to say why it stopped.
+                if signum != signal.SIGHUP and "interrupted" not in output:
+                    raise RuntimeError(
+                        f"signal {signum}: the run did not say it was interrupted:\n{output[-2000:]}"
+                    )
             finally:
                 if process.poll() is None:
                     os.killpg(process.pid, signal.SIGKILL)
@@ -249,7 +330,8 @@ def verify(q_executable: str) -> None:
     print(
         "hostile-environment verification passed: quoting, symlinked/spaced install, "
         "QBIN propagation, reporter anchoring/fail-closed writes, 0700 scratch, "
-        "INT/TERM/HUP signal cleanup through bin/resq and bin/qspec --junit, "
+        "INT/TERM/HUP signal cleanup through bin/resq and bin/qspec --junit "
+        "(also without setsid/pkill: no later batch, no report, no state change), "
         "conventional status, reaping, and cleanup"
     )
 

@@ -65,6 +65,15 @@ if[not .resq.hasQutil; .resq.offerUtl[`PKGLOADING; .resq.PKGLOADING]];
     .resq.exitGuardWrite["verdict";string code];
     ::
  };
+/ The launcher was told to stop, and the run ended early without writing a
+/ report or state (.tst.noteInterrupted). Leave with the status the launcher
+/ leaves with; this is not q exiting behind resQ's back.
+.resq.endInterruptedRun:{[]
+    if[not 1b ~ @[get; `.tst.app.interrupted; 0b]; :(::)];
+    -2 "resQ: interrupted. The run stopped early; no report or state file was written.";
+    .resq.exitGuardArmed: 0b;
+    exit .resq.util.interruptExitCode[]
+ };
 .resq.onProcessExit:{[code]
     if[.resq.exitGuardArmed;
         -2 "resQ ERROR: q exited before resQ completed the test run (requested exit ",
@@ -184,6 +193,7 @@ if[.resq.mode ~ `test;
     / granular status; this entry point alone owns process exit policy.
     if[1b ~ @[get; `.tst.app.isolate; 0b];
         .resq.isolateExitCode: .tst.isolate.runAll .tst.app.args;
+        .resq.endInterruptedRun[];
         .resq.recordVerdict .resq.isolateExitCode;
         .resq.completeExitGuard[];
         if[1b ~ .tst.app.exit;
@@ -199,6 +209,7 @@ if[.resq.mode ~ `test;
             .resq.report: .tst.describeReport;
         ];
         .resq.runAllWithOptionalSelfCoverage[];
+        .resq.endInterruptedRun[];
         / -desc exits cleanly (0) when files loaded without error; a load error
         / still surfaces as LOAD_ERROR so a broken file is never silently listed.
         / Otherwise granular exit codes for CI/CD.
@@ -255,8 +266,14 @@ if[.resq.mode ~ `watch;
     / before any tick fires. A blocking loop keeps the process alive without a
     / TTY. `system "sleep"` is portable; Ctrl+C still interrupts the loop.
     while[1b;
-        system "sleep ", string .tst.watch.interval;
+        / Told to stop (Ctrl+C, TERM): leave quietly. q does not stop at the
+        / signal while this loop runs, and every command it then started
+        / failed, which printed an error trace on the way out.
+        .resq.watchSlept: @[{system x; 1b}; "sleep ", string .tst.watch.interval; {[e] 0b}];
+        if[.resq.util.runInterrupted[]; exit .resq.util.interruptExitCode[]];
+        if[not .resq.watchSlept; '"watch: the sleep command failed"];
         .resq.watchChanges: .tst.watch.check[];
+        if[.resq.util.runInterrupted[]; exit .resq.util.interruptExitCode[]];
         if[0 < count .resq.watchChanges; .tst.watch.onChanges[.resq.watchChanges]];
     ];
  ];

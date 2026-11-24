@@ -9,6 +9,17 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A run that is told to stop (Ctrl+C, SIGTERM, a closed terminal) stops.
+  q does not stop at a signal while it is busy, so in the second before the
+  launcher killed it an isolated run started its next batch of children, and
+  any run went on to write a report and state files: a "timeout" after two
+  seconds, an `error` observation in the flake history, a failed entry for
+  `-last-failed`. The launcher now tells the run first. It starts nothing
+  new, writes no report and no state, prints `resQ: interrupted.` and leaves
+  with the signal's status; `resq mutate` and `resq watch` do the same, and
+  watch no longer prints an error trace on Ctrl+C.
+- On a machine without `setsid` and `pkill`, an interrupted `-isolate` run
+  left its children running. The launcher now signals every process below q.
 - `resq watch`, `resq mutate <dir>`, `resq discover` and coverage no longer
   follow a symbolic link to a directory when they look for source files, as
   test discovery already did not. A link that points at an ancestor

@@ -932,6 +932,9 @@
     .tst.frameworkFunctionSnapshot: fwNames!get each fwNames;
 
     {[x]
+        / Told to stop: the files not yet loaded are left alone.
+        if[.resq.util.runInterrupted[]; :()];
+
         / Normalize path
         p: .resq.util.pathToString x;
 

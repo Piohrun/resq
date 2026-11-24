@@ -286,6 +286,7 @@ resQ exits with a meaningful code by default — no extra flag is needed:
 | 1 | One or more tests failed or errored; also `-strict` with no executed tests, or `-strict` with a test that ran no assertions |
 | 3 | No test files found (empty/missing directory) |
 | 4 | File load error or explicitly-passed path not found |
+| 129, 130, 131, 143 | The run was told to stop (hangup, Ctrl+C, quit, SIGTERM). It writes no report and no state file |
 
 Use `-noquit` to suppress the exit call (interactive sessions). Use `-exit` to
 force exit-on-completion even if `resq.json` has `"exit": false`.

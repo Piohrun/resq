@@ -603,6 +603,8 @@
 / directory each exit code is written to. An interrupted run kills every child.
 .tst.isolate.launchGroup:{[indexes;cmds;wds]
     if[0 = count indexes; :()];
+    / Told to stop: no more children are started.
+    if[.resq.util.runInterrupted[]; :()];
     / Background timeout itself (not a wrapper subshell), retain each PID,
     / then wait and write the corresponding rc file in deterministic order.
     starts:" " sv .tst.isolate.groupStart'[indexes;cmds];
@@ -611,7 +613,11 @@
         "if [ -n \"$pids\" ]; then for p in $pids; do kill -TERM -$p 2>/dev/null || kill -TERM $p 2>/dev/null || true; done; ",
         "sleep 1; for p in $pids; do kill -KILL -$p 2>/dev/null || kill -KILL $p 2>/dev/null || true; done; ",
         "wait $pids 2>/dev/null || true; fi; }; ",
-        "trap cleanup INT TERM HUP EXIT; ",starts,
+        / A trapped signal does not end a shell: after cleanup it went on to
+        / wait for children that were gone and to write their exit codes into
+        / scratch directories that had been removed.
+        "trap cleanup EXIT; trap 'cleanup; exit 130' INT; trap 'cleanup; exit 143' TERM; ",
+        "trap 'cleanup; exit 129' HUP; ",starts,
         " ",waits," trap - INT TERM HUP EXIT";
     @[system; batch; {[e] ()}];
  };
@@ -631,7 +637,10 @@
     .tst.isolate.resetScratch wd;
     if[not .tst.isolate.preparePrivateRerunState wd;
         '"unable to prepare private rerun state"];
+    if[.resq.util.runInterrupted[]; :()];
     @[system; .tst.isolate.fileCommand[wd; file; timeoutSecs]; {[e] ()}];
+    / A child that was killed with the run is not a child that failed.
+    if[.resq.util.runInterrupted[]; :()];
     .tst.isolate.interpretFile[wd; file; timeoutSecs; k; n; .tst.isolate.readExitCode wd]
  };
 
@@ -873,6 +882,13 @@
     runnableAt:where okFlags;
     .tst.isolate.launchGroup[runnableAt;cmds runnableAt;wds runnableAt];
 
+    / The launcher was told to stop and killed these children with the run.
+    / What they left is not a result: read as one, each became a "timeout"
+    / after two seconds or a process error.
+    if[.resq.util.runInterrupted[];
+        {[wd] if[count wd; @[.tst.isolate.cleanupScratch; wd; {[err] 0b}]];} each wds;
+        :()];
+
     raze {[timeoutSecs; n; wd; file; k]
         if[0 = count wd;
             :enlist .tst.isolate.errorRow[`ISOLATED_SETUP_ERROR; file;
@@ -958,9 +974,13 @@
         fileGroups: workers cut files;
         kGroups: workers cut 1 + til n;
         {[timeoutSecs; n; fg; kg]
+            if[.resq.util.runInterrupted[]; :()];
             .tst.isolate.upsertRows .tst.isolate.runGroup[fg; kg; timeoutSecs; n]
         }[timeoutSecs; n]'[fileGroups; kGroups];
     ];
+
+    / An interrupted run writes no report and no state: see .tst.noteInterrupted.
+    if[.tst.noteInterrupted[]; :.resq.util.interruptExitCode[]];
 
     / Child manifests describe the full post-filter inventory of their file,
     / including tests a fail-fast child never reached. Normalize those durable

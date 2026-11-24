@@ -624,7 +624,16 @@ chmod 755 tests/snapshots
 | 3 | `EXIT.NO_TESTS` | No test files found (no `-strict`); with `-strict`, injects a FAIL and exits 1 |
 | 4 | `EXIT.LOAD_ERROR` | A test file failed to load, or an explicitly-passed path was not found |
 
+| 129, 130, 131, 143 | — | The launcher was told to stop: hangup, Ctrl+C (INT), quit, SIGTERM |
+
 Codes 2 (`CONFIG_ERROR`) and 5 (`PARTIAL`) were removed — no code path emits them.
+
+An interrupted run prints `resQ: interrupted.` and writes nothing: no report,
+no `-last-failed` state, no flake history. It has not seen all of its tests,
+and the one that was running was killed, not finished. A CI job that was
+cancelled therefore leaves no report behind; a report that is there is from a
+run that finished. Under `-isolate` no further test file is started, and every
+child process is stopped, also on machines without `setsid` and `pkill`.
 
 Skipped and pending tests do **not** cause a non-zero exit on their own; only actual failures and errors do.
 

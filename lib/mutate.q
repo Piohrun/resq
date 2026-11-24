@@ -628,6 +628,11 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     cmds: {[ok;wd;file;secs] $[ok; .tst.isolate.processCommand[wd;file;secs]; ""]}'[ready;wds;files;timeouts];
     at: where ready;
     .tst.isolate.launchGroup[at; cmds at; wds at];
+    / The launcher was told to stop and killed these children with the run:
+    / none of them says anything about a mutant.
+    if[.resq.util.runInterrupted[];
+        {[wd] if[count wd; @[.tst.isolate.cleanupScratch; wd; {[e] ::}]];} each wds;
+        '.tst.mutate.interruptedSignal];
     results: {[ok;wd] $[ok; .tst.mutate.readChild wd; .tst.mutate.noChild[]]}'[ready;wds];
     {[wd] if[count wd; @[.tst.isolate.cleanupScratch; wd; {[e] ::}]];} each wds;
     results
@@ -1072,9 +1077,15 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     .resq.EXIT.PASS
  };
 
+.tst.mutate.interruptedSignal: "resq mutate: interrupted";
+
 .tst.mutate.main:{[args]
     outcome: @[{[a] (1b; .tst.mutate.run a)}; args; {[e] (0b; e)}];
     if[first outcome; :last outcome];
+    if[.tst.mutate.interruptedSignal ~ last outcome;
+        .tst.mutate.err "";
+        .tst.mutate.err "resQ: interrupted. Mutation testing stopped early; no score and no report.";
+        :.resq.util.interruptExitCode[]];
     .tst.mutate.err "MUTATION ERROR: ",last outcome;
     .resq.EXIT.FAIL
  };

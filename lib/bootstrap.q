@@ -203,6 +203,23 @@ $[.resq.hasQutil; .utl.require: .resq.requireOrQutil; .resq.offerUtl[`require; .
         "'", ssr[s; "'"; "'\"'\"'"], "'"]
  };
 
+/ The launcher leaves this marker in its guard directory when it is told to
+/ stop (INT, TERM, HUP, QUIT), before it signals q. A busy q does not stop at
+/ a signal: it went on to start the next batch of isolated children, and to
+/ write a report and state files from a run that had been cut short. The
+/ marker holds the exit status the launcher leaves with. An isolated child
+/ runs with an empty RESQ_RUN_GUARD_DIR, so only the run the launcher started
+/ looks for it; without a launcher there is nothing to look for.
+.resq.interruptMarker: {[dir] $[count dir; hsym `$dir, "/interrupted"; `]} getenv `RESQ_RUN_GUARD_DIR;
+.resq.util.runInterrupted:{[]
+    $[null .resq.interruptMarker; 0b; not () ~ @[key; .resq.interruptMarker; {[e] ()}]]
+ };
+.resq.util.interruptExitCode:{[]
+    text: @[read0; .resq.interruptMarker; {[e] ()}];
+    code: $[count text; "J"$first text; 0Nj];
+    $[null code; 130; code]
+ };
+
 / Root directory for scratch files, honouring TMPDIR. On many systems /tmp is
 / tmpfs (RAM-backed), so anything written there costs memory rather than disk —
 / respecting TMPDIR lets a caller point scratch at real storage.

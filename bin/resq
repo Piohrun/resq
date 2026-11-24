@@ -75,29 +75,53 @@ trap cleanup_guard EXIT
 
 child_pid=""
 child_pgid=""
+
+# Every process below the one given, from one listing of the process table.
+# q's children are found here even when setsid and pkill are not installed:
+# an isolated test file runs under `timeout`, which starts a process group of
+# its own, so a signal sent to q, or to q's group, never reached it.
+processes_below() {
+  local root="$1" table pid ppid frontier next found=""
+  table="$(ps -A -o pid= -o ppid= 2>/dev/null)" || return 0
+  frontier=" $root "
+  while [ "$frontier" != " " ]; do
+    next=" "
+    while read -r pid ppid; do
+      case "$frontier" in *" $ppid "*) next="$next$pid "; found="$found $pid" ;; esac
+    done <<< "$table"
+    frontier="$next"
+  done
+  printf '%s\n' "$found"
+}
+
+# Signal q and everything it started: by session and by process group where
+# q has its own, and process by process in every case.
+signal_run() {
+  local signal_name="$1" pid
+  if [ -n "$child_pgid" ]; then
+    if command -v pkill >/dev/null 2>&1; then
+      pkill "-$signal_name" -s "$child_pgid" 2>/dev/null || true
+    fi
+    kill -s "$signal_name" -- "-$child_pgid" 2>/dev/null || true
+  fi
+  for pid in $(processes_below "$child_pid") "$child_pid"; do
+    kill -s "$signal_name" -- "$pid" 2>/dev/null || true
+  done
+}
+
 terminate_for_signal() {
   local signal_name="$1"
   local exit_code="$2"
   trap - INT TERM HUP QUIT
+  # q does not stop at a signal while it is busy. Tell the run first, in a
+  # way it looks for: it then starts nothing new and writes no report or
+  # state from a run that was cut short.
+  printf '%s\n' "$exit_code" > "$guard_dir/interrupted" 2>/dev/null || true
   if [ -n "$child_pid" ] && kill -0 "$child_pid" 2>/dev/null; then
-    if [ -n "$child_pgid" ]; then
-      if command -v pkill >/dev/null 2>&1; then
-        pkill "-$signal_name" -s "$child_pgid" 2>/dev/null || true
-      fi
-      kill -s "$signal_name" -- "-$child_pgid" 2>/dev/null || true
-    else
-      kill -s "$signal_name" -- "$child_pid" 2>/dev/null || true
-    fi
+    signal_run "$signal_name"
     sleep 1
     if kill -0 "$child_pid" 2>/dev/null; then
-      if [ -n "$child_pgid" ]; then
-        if command -v pkill >/dev/null 2>&1; then
-          pkill -KILL -s "$child_pgid" 2>/dev/null || true
-        fi
-        kill -KILL -- "-$child_pgid" 2>/dev/null || true
-      else
-        kill -KILL -- "$child_pid" 2>/dev/null || true
-      fi
+      signal_run KILL
     fi
     wait "$child_pid" 2>/dev/null || true
   fi
