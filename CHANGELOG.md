@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `-mutation-min` no longer passes on the few mutants that could be
+  assessed. The score leaves unassessed mutants out, so one killed mutant out
+  of twelve, with eleven not assessed, read "100.0%" and passed any minimum.
+  For the gate, unassessed mutants now count as undetected, and the message
+  says so.
 - `resq mutate` no longer counts a child killed from outside as a detection.
   Exit 137 (SIGKILL) was read as "timed out", which counts as detected, so an
   out-of-memory killer could turn a 25% score into 100%. Only resQ's own

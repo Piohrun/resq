@@ -127,7 +127,7 @@ FILES CHANGED (1): in the working directory while mutants ran; nothing was undon
 | `-since REV` | Only mutants on lines changed since a git revision, including uncommitted changes. A file git does not track counts as entirely new. |
 | `-mutators LIST` | Comma-separated mutator names from the table above. Default all. |
 | `-max-mutants N` | Run an even sample of at most N mutants. |
-| `-mutation-min N` | Exit 1 when the mutation score is below N percent, or cannot be computed. |
+| `-mutation-min N` | Exit 1 when the mutation score is below N percent, or cannot be computed. Mutants that were not assessed count as undetected for this check, so the gate cannot pass on the few mutants that could be assessed. |
 | `-isolateWorkers N` | Run N children at once. Each needs a q licence slot. Default 1. |
 | `-isolateTimeout N` | Upper limit in seconds for any one child. Default 300. |
 | `-json -outDir DIR` | Also write `DIR/mutation-report.json`. |

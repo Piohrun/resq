@@ -1055,6 +1055,19 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         if[(null summary`score) or minimum>summary`score;
             .tst.mutate.out "";
             .tst.mutate.out "Mutation score ",.tst.mutate.showPercent[summary`score]," is below the required ",string[minimum],"%.";
+            :.resq.EXIT.FAIL];
+        / The score leaves out mutants that could not be assessed. A gate
+        / must not pass on what is missing: with 11 of 12 mutants unassessed,
+        / "100% (1 of 1)" is no evidence about the other eleven. For the gate
+        / they count as undetected.
+        detected: summary[`killed]+summary`timedOut;
+        worstCase: .tst.mutate.percent[detected; summary[`mutants]];
+        if[(0<summary`notAssessed) and minimum>worstCase;
+            .tst.mutate.out "";
+            .tst.mutate.out "Mutation score ",.tst.mutate.showPercent[summary`score],
+                " leaves out ",string[summary`notAssessed]," mutant(s) that could not be assessed.",
+                " Counting them as undetected gives ",.tst.mutate.showPercent[worstCase],
+                ", below the required ",string[minimum],"%.";
             :.resq.EXIT.FAIL]];
     .resq.EXIT.PASS
  };

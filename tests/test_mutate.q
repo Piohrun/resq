@@ -1836,6 +1836,21 @@
     saidNone mustmatch "Mutation score n/a is below the required 0%.";
   };
 
+  should["not pass the gate on the few mutants that could be assessed"]{
+    / One killed, three not assessed: the score is 100% of one mutant.
+    root: .tst.testState.mut.runSetup `killed`unmatched`unmatched`unmatched;
+    `.tst.app.mutationMin mock 80;
+    gated: .tst.mutate.run enlist root, "/src/calc.q";
+    said: last .tst.testState.mut.printed;
+    / Counted as undetected they give 25%: a minimum at or below that passes.
+    `.tst.app.mutationMin mock 25;
+    allowed: .tst.mutate.run enlist root, "/src/calc.q";
+    system "rm -rf ", .utl.shellQuote root;
+    gated musteq 1;
+    said mustmatch "Mutation score 100.0% leaves out 3 mutant(s) that could not be assessed. Counting them as undetected gives 25.0%, below the required 80%.";
+    allowed musteq 0;
+  };
+
   should["turn an error into a message and a failing exit code"]{
     .tst.testState.mut.capture[];
     `.tst.mutate.run mock {[args] count args};
