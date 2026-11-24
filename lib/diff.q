@@ -129,8 +129,10 @@ diffDeep:{[path;expected;actual]
             indices: indices where indices < n;
             indices: asc indices;
 
-            / Add a random sample on top for really huge tables.
-            if[n > hugeT; indices: distinct indices, 5?n];
+            / Five more rows spread evenly through a really huge table. It
+            / drew them at random, from q's one random stream: a failure
+            / moved the sequence a seeded test (\S 42) went on to see.
+            if[n > hugeT; indices: distinct indices, "j"$floor n * (1 + til 5) % 6];
             
             / Check these rows specifically
             badRows: indices where not (expected indices) ~' (actual indices);

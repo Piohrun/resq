@@ -102,3 +102,29 @@
         1 musteq 1;
     };
 };
+
+/ q has one random stream. A test that seeds it (\S 42) expects a known
+/ sequence; resQ drew from it for a temporary file's name and for the rows a
+/ huge-table diff samples, and moved the sequence under the test.
+.tst.desc["resQ leaves q's random stream to the test"]{
+  should["not draw from it for a temporary file"]{
+    system "S 42"; expected: 5?100;
+    system "S 42"; names: (.tst.tempFile ".txt"; .tst.tempFile ".txt"); got: 5?100;
+    got musteq expected;
+    / and the names still differ
+    (names 0) mustne names 1;
+  };
+  should["not draw from it for the rows a huge-table diff looks at"]{
+    `.resq.config.diffHugeTableThreshold mock 1000;
+    `.resq.config.diffLargeTableThreshold mock 100;
+    wanted: ([] x: til 3000);
+    differs: update x:-1 from wanted where i = 1500;
+    system "S 42"; expected: 5?100;
+    system "S 42"; lines: .tst.diff[wanted; differs]; got: 5?100;
+    got musteq expected;
+    / the row in the middle is among the ones looked at, the same every time
+    (any lines like "*1500*") musteq 1b;
+    lines musteq .tst.diff[wanted; differs];
+  };
+ };
+

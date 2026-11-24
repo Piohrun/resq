@@ -319,9 +319,15 @@ runSpecCleanupTasks:{[]
     .tst.drainQueue tasks;
  }
 
+/ A name of its own for each temporary file: the time, the process and a
+/ count. It drew a random number, from q's one random stream, which moved
+/ every later draw of a test that had seeded it (\S 42) to get a known
+/ sequence.
+tempFileCount: 0;
 tempFile:{[suffix]
     / Generate unique name
-    fn: "resq_", .tst.toString[.z.p], "_", string[first 1?1000], suffix;
+    .tst.tempFileCount+: 1;
+    fn: "resq_", .tst.toString[.z.p], "_", string[.z.i], "_", string[.tst.tempFileCount], suffix;
     path: .resq.util.normalizePath (system "cd"), "/", fn;
     
     / Register for cleanup
