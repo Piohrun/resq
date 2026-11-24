@@ -16,7 +16,7 @@
     p:.resq.util.normalizePath .tst.toString path;
     if[count p;
       if[not "/"=first p;
-        p:.resq.util.normalizePath .tst.toString[.tst.app.baseDir],"/",p]];
+        p:.resq.util.normalizePath .tst.toString[@[get;`.tst.app.baseDir;{system "cd"}]],"/",p]];
     p
  };
 

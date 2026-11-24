@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `-benchmark-baseline` accepts a relative path. The documented command
+  stopped the run before any test loaded ("Framework phase 'initRun' failed:
+  .tst.app.baseDir"); only an absolute path worked.
 - State written by another q runtime no longer costs the quarantine manifest.
   In a workspace used by both q 4.0 and q 4.1, one run under the other build
   renamed `.resq/quarantine.json` to a `.bak` file without a console message,

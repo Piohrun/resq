@@ -338,3 +338,41 @@
     probe[{mustBeFasterThan[{asc 50000?1000}; 0.0000001]}] musteq 1;
   };
  };
+
+/ The documented command gives the baseline as a path relative to the project
+/ (docs/CI.md, docs/PERFORMANCE.md). It used to stop the run before any test
+/ loaded, because the path was resolved before the base directory was set.
+.tst.testState.relBaseline.canRun:
+    (0 < count @[system; "which q 2>/dev/null"; {()}]) and
+    (0 < count @[system; "which timeout 2>/dev/null"; {()}]);
+
+.tst.testState.relBaseline.run:{[]
+    wd: .resq.util.tempRoot[], "/resq_relbaseline_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd, "/tests";
+    (hsym `$wd, "/tests/test_speed.q") 0: (
+        ".tst.desc[\"speed\"]{";
+        "  perf[\"sorts\"; `runs`gc!(5;0b)]{ asc 1000?100 };";
+        " };");
+    / "true &&" first: q itself takes a command that starts with "cd".
+    cmd: "true && cd ", (.resq.util.shellQuote wd), " && timeout -k 2 60 q ",
+         (.resq.util.shellQuote .resq.HOME, "/resq.q"),
+         " test tests -perf -benchmark-baseline benchmarks/baseline.json -json -outDir out",
+         " -state-file out/state.json -flake-history out/flake.json",
+         " -quarantine-file out/quarantine.json -flake-proposal-file out/proposals.json",
+         " > out.txt 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    output: "\n" sv @[read0; hsym `$wd, "/out.txt"; {()}];
+    if[wd like "*/resq_relbaseline_*"; system "rm -rf -- ", .resq.util.shellQuote wd];
+    `code`output!("J"$last exitLines; output)
+ };
+
+.tst.desc["A benchmark baseline given as a relative path #slow"]{
+  should["be resolved against the project directory, and the tests run"]{
+    if[not .tst.testState.relBaseline.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.relBaseline.run[];
+    r[`code] musteq 0;
+    (0 < count r[`output] ss "Framework phase") musteq 0b;
+    (0 < count r[`output] ss "baseline: benchmarks/baseline.json") musteq 1b;
+    (0 < count r[`output] ss "1 total (1 passed") musteq 1b;
+  };
+ };
