@@ -33,8 +33,15 @@ missingTests/
 plans/
 /output/
 /artifacts/
+# Reports resQ writes into the directory it runs in (the default -outDir)
 test-results.xml
 test-results.json
+test-results.junit.xml
+test-results.xunit.xml
+snapshot-manifest.json
+mutation-report.json
+coverage.html
+coverage.lcov
 # .tst.tempFile writes scratch into the CWD; cover every suffix a test may ask
 # for, so a run killed mid-flight cannot leave untracked files in the project.
 /resq_*
@@ -52,12 +59,8 @@ coverage_report.html
 # db/
 # wdb/
 # sym
-coverage.html
-coverage.lcov
-coverage_report.html
-missingTests/
-test-results.xml
-test-results.json
-test-results/
+
+# resQ's state between runs (it also writes a .gitignore of its own there)
 .resq/
+test-results/
 docs/reviews/

@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `.gitignore` covers every report resQ writes by default
+  (`test-results.junit.xml`, `test-results.xunit.xml`,
+  `snapshot-manifest.json`, `mutation-report.json`), and lists each entry
+  once.
 - A qspec suite may keep helpers in `.tst` under names resQ does not use.
   Loading copied all 52 `.resq` names into `.tst` (unused there), and a
   suite's own `.tst.color` or `.tst.state` then failed as a clash with a
