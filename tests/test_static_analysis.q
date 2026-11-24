@@ -123,3 +123,24 @@
         (exec name from fns) mustmatch `.a.f`g;
     };
 };
+
+.tst.desc["block comments nest, as in q"]{
+  should["keep a region commented out around an inner block comment"]{
+    src: ("a:1"; "/"; "old"; "/"; "inner"; "\\"; "b:2"; "\\"; "c:3");
+    masked: .tst.static.maskLines src;
+    (trim each masked) musteq ("a:1"; ""; ""; ""; ""; ""; ""; ""; "c:3");
+  };
+  should["read the same structure in the load graph lexer"]{
+    / "\n" vs gives one-character lines as strings, as read0 does.
+    lx: .tst.loadGraph.lex "\n" vs "a:1\n/\n/\n\\\nb:\"x.q\"\n\\\nc:\"y.q\"\n\\\nd:\"z.q\"";
+    / b is inside the outer comment; c is live; the last lone backslash ends
+    / the script, so d is not read.
+    (lx[`txt] like "*x.q*") musteq 0b;
+    (lx[`txt] like "*y.q*") musteq 1b;
+    (lx[`txt] like "*z.q*") musteq 0b;
+  };
+  should["drop the nested region when preprocessing a test file"]{
+    out: .tst.preprocessScript ("a:1;"; "/"; "/"; "\\"; "b:2;"; "\\"; "c:3;");
+    (out where 0 < count each out) musteq ("a:1;"; "c:3;");
+  };
+ };

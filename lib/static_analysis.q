@@ -41,8 +41,8 @@
  }
 
 / Shared cross-line driver. Walking a q source file correctly means tracking
-/ three pieces of state BETWEEN lines: whether a block comment is open (a lone
-/ "/" opens it, a lone "\\" closes it), whether the script has been terminated
+/ three pieces of state BETWEEN lines: how many block comments are open (a lone
+/ "/" opens one, a lone "\\" closes one, and q nests them), whether the script has been terminated
 / (a line starting "\\" that is otherwise bare), and whether a string literal is
 / still open with a pending escape. That logic is subtle and was duplicated
 / verbatim in two places; a fix to one would silently miss the other.
@@ -50,7 +50,7 @@
 / the terminator). lineFn: (raw; inString; escaped) -> (value; inString; escaped).
 .tst.static.scanSourceLines:{[lines; blankFn; lineFn]
     output: ();
-    inBlock: 0b;
+    inBlock: 0;
     terminated: 0b;
     inString: 0b;
     escaped: 0b;
@@ -60,11 +60,11 @@
         rightTrimmed: .tst.static.rstrip raw;
         $[terminated;
             output,: enlist blankFn raw;
-          inBlock;
+          inBlock > 0;
             [ output,: enlist blankFn raw;
-              if[rightTrimmed ~ enlist "\\"; inBlock: 0b] ];
+              inBlock+: $[rightTrimmed ~ enlist "/"; 1; rightTrimmed ~ enlist "\\"; -1; 0] ];
           (not inString) and rightTrimmed ~ enlist "/";
-            [ inBlock: 1b; output,: enlist blankFn raw ];
+            [ inBlock: 1; output,: enlist blankFn raw ];
           (not inString) and ((count raw) > 0) and
               ("\\" = first raw) and rightTrimmed ~ enlist "\\";
             [ terminated: 1b; output,: enlist blankFn raw ];

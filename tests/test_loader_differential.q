@@ -49,6 +49,9 @@
 /     (trailing spaces ignored); an INDENTED "/" does NOT open one.
 /   * Block comment closes ONLY on a column-1 line that rstrips to exactly "\";
 /     an INDENTED "\" does NOT close it; unclosed -> runs to EOF.
+/   * Block comments NEST: a lone "/" inside one opens another level, and each
+/     lone "\" closes one level.
+/   * A comment line at column 1 inside a multi-line lambda is a comment.
 /   * A leading-whitespace line continues the previous CODE line, across
 /     intervening blank AND comment lines.
 /   * read0 strips a trailing \r (CRLF), so CRLF scripts load identically.
@@ -382,7 +385,17 @@
   / multi-line lambda (brackets keep value joining; must stay equivalent)
   (.tst.testState.ldiff.row[`lambda; ("f:{[x]"; "  y:x+1;"; "  y*2 };"; "fres:f 10;")]),
   / over-adverb (+/) must not be mistaken for a comment
-  (.tst.testState.ldiff.row[`overAdverb; ("tot:(+/) 10 20 30;"; "nxt:5 / a real comment")]);
+  (.tst.testState.ldiff.row[`overAdverb; ("tot:(+/) 10 20 30;"; "nxt:5 / a real comment")]),
+  / DIVERGENCE FOUND (audit L3): block comments nest, so the region commented
+  / out around an inner block stays commented out and the code after it runs
+  (.tst.testState.ldiff.row[`nestedBlock;
+      ("na:1;"; "/"; "old notes"; "/"; " inner block"; "\\"; "nb:2;"; "\\"; "nc:3;")]),
+  / three levels, then a lone "\" at depth 0 terminates the script
+  (.tst.testState.ldiff.row[`nestedBlockDeep;
+      ("da:1;"; "/"; "/"; "/"; "\\"; "db:2;"; "\\"; "dc:3;"; "\\"; "dd:4;"; "\\"; "de:5;")]),
+  / DIVERGENCE FOUND (audit L5): a column-1 comment inside a multi-line lambda
+  (.tst.testState.ldiff.row[`col1CommentInLambda;
+      ("cf:{[x]"; "/ a comment at column 1 with a quote \" and a brace {"; "  x+1 };"; "cg:cf 1;")]);
 
 / ---- one-time setup: make dir + write the two dumpers --------------------
 .tst.testState.ldiff.setup:{[]

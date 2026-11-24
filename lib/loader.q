@@ -18,7 +18,10 @@
 /     whitespace ignored, preceding line irrelevant - real q opens a block here
 /     regardless of what came before). The block is terminated by a line that
 /     rstrips to exactly "\"; if no such line exists, the block runs to EOF and
-/     the rest of the file is comment (matching real q). The whole block (the
+/     the rest of the file is comment (matching real q). Blocks NEST: a lone
+/     "/" inside a block opens another level, and each lone "\" closes one, so
+/     a commented-out region that itself contains a block comment stays
+/     commented out. The whole block (the
 /     "/", its interior, and the closing "\") is DROPPED: q's own `value` cannot
 /     parse block comments, so emitting them verbatim would break loading.
 /     Dropping is comment-equivalent and guarantees nothing inside the block -
@@ -210,7 +213,7 @@
 .tst.dslMaskedSource:{[lines]
     source:.utl.pathToString each lines;
     out:enlist ();
-    state:0b;
+    state:0;                   / open block comments; q nests them
     stopped:0b;
     i:0;
     while[i<count source;
@@ -219,11 +222,11 @@
         blank:count[ln]#" ";
         $[stopped;
             out,:enlist blank;
-          state;
+          state>0;
             [out,:enlist blank;
-             if[trimmed~enlist "\\";state:0b]];
+             state+:$[trimmed~enlist "/";1;trimmed~enlist "\\";-1;0]];
           trimmed~enlist "/";
-            [out,:enlist blank;state:1b];
+            [out,:enlist blank;state:1];
           (0<count ln) and ("\\"=first ln) and trimmed~enlist "\\";
             [out,:enlist blank;stopped:1b];
           out,:enlist ln];
@@ -627,19 +630,20 @@
         [rootRanges:sourceScope`ranges;
          distinct rootRanges[`name] where rootRanges[`scope]=0j];
         `resqNoDslShadows];
-    state: 0b;                 / 1b while inside a block comment
+    state: 0;                  / open block comments; q nests them
     out: enlist ();            / sentinel keeps the accumulator heterogeneous
     i: 0;
     n: count lines;
     while[i < n;
         ln: lines i;
         trimmed: .tst.rstrip ln;
-        $[state;
-            / Inside a block comment: drop the line; watch for the "\" closer.
-            if[trimmed ~ enlist "\\"; state: 0b];
+        $[state > 0;
+            / Inside a block comment: drop the line. A lone "/" opens another
+            / level and a lone "\" closes one.
+            state+: $[trimmed ~ enlist "/"; 1; trimmed ~ enlist "\\"; -1; 0];
           trimmed ~ enlist "/";
             / Lone "/" outside a block ALWAYS opens a block comment (drop it).
-            state: 1b;
+            state: 1;
           (0 < count ln) and "\\" = first ln;
             / Column-1 backslash: terminator or system command.
             $[trimmed ~ enlist "\\";

@@ -36,8 +36,14 @@
 .tst.loadGraph.builtinLoaders: (".utl.require";".resq.require";".tst.loadSource";".tst.sysl";".utl.loadQFile");
 
 / Line classes: 0 lone "/", 1 lone "\", 2 anything else.
-/ Line states: 0 code, 1 block comment, 2 after the script terminator.
-.tst.loadGraph.lineTransitions: (1 2 0;1 0 1;2 2 2);
+/ Line state: the number of open block comments (q nests them), 0 in code,
+/ -1 after the script terminator.
+.tst.loadGraph.lineStep:{[state;class]
+    $[state < 0; state;
+      class = 0; state + 1;
+      class = 1; $[state = 0; -1; state - 1];
+      state]
+ };
 / Character classes: 0 quote, 1 backslash, 2 comment slash, 3 newline, 4 other.
 / Character states: 0 code, 1 string, 2 string after a backslash, 3 comment.
 .tst.loadGraph.charTransitions: (1 0 3 0 0;0 2 1 1 1;1 1 1 1 1;3 3 3 0 3);
@@ -84,7 +90,7 @@
     / system commands per line, before it looks at any character.
     stripped: .tst.loadGraph.rstrip each lines;
     lineClass: ?[stripped~\:enlist "/"; 0; ?[stripped~\:enlist "\\"; 1; 2]];
-    after: .tst.loadGraph.lineTransitions\[0; lineClass];
+    after: .tst.loadGraph.lineStep\[0; lineClass];
     live: (0=0, -1 _ after) and lineClass=2;
     sys: live and lines like "\\*";
     sysIdx: where sys;
