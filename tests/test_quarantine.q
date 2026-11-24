@@ -348,3 +348,69 @@
   };
  };
 ::
+
+/ A workspace used by two q runtimes (q 4.0 at work, q 4.1 on a laptop). Each
+/ runtime writes its own identity envelope, so each sees the other's state as
+/ a different generation.
+.tst.desc["state written by another q runtime"]{
+  before{
+    wd:.resq.util.tempRoot[],"/resq_two_runtimes_",string[.z.i],"_",string `long$.z.p;
+    .resq.util.ensureDir wd;
+    `.tst.testState.twoRuntimes.wd set wd;
+    `.tst.app.flakeHistoryFile mock wd,"/flake.json";
+    `.tst.app.quarantineFile mock wd,"/quarantine.json";
+    `.tst.app.stateFile mock wd,"/rerun.json";
+    `.tst.app.baseDir mock wd;
+    `.tst.app.shardCount mock 1j;
+    `.tst.app.passOnly mock 1b;
+    / the same documents as this runtime writes, stamped with another q build
+    other:.tst.identityCodecMetadata[];
+    other[`qVersion]:"3.9";
+    other[`qRelease]:"2001.01.01";
+    `.tst.testState.twoRuntimes.other set other;
+    .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.resq.util.shellQuote d;{}]};enlist wd];
+  };
+  should["leave the quarantine manifest where it is, and ignore it"]{
+    wd:.tst.testState.twoRuntimes.wd;
+    manifest:`schemaVersion`identityAlgorithm`identityCodec`kind`entries!(
+      2j;.tst.IDENTITY_ALGORITHM;.tst.testState.twoRuntimes.other;
+      "resq-quarantine-manifest";());
+    text:enlist .j.j manifest;
+    (hsym `$wd,"/quarantine.json") 0:text;
+    .tst.loadFlakeState[];
+    .tst.app.quarantineManifest[`status] musteq `unsupported;
+    (read0 hsym `$wd,"/quarantine.json") musteq text;
+    names:string key hsym `$wd;
+    (count names where names like "quarantine.json.identity-mismatch.*") musteq 0;
+    (0<count .tst.app.quarantineManifest[`diagnostic] ss "left in place and ignored") musteq 1b;
+  };
+  should["keep one archive per runtime however often they take turns"]{
+    wd:.tst.testState.twoRuntimes.wd;
+    history:`schemaVersion`identityAlgorithm`identityCodec`kind`tests!(
+      2j;.tst.IDENTITY_ALGORITHM;.tst.testState.twoRuntimes.other;"resq-flake-history";());
+    / a last parameter left open keeps these as functions to call later
+    writeOther:{[wd;history;u] (hsym `$wd,"/flake.json") 0:enlist .j.j history}[wd;history];
+    archives:{[wd;u] names:string key hsym `$wd; names where names like "flake.json.identity-mismatch.*"}[wd];
+    writeOther[::]; .tst.loadFlakeState[];
+    writeOther[::]; .tst.loadFlakeState[];
+    writeOther[::]; .tst.loadFlakeState[];
+    archives[::] musteq enlist "flake.json.identity-mismatch.",.tst.IDENTITY_ALGORITHM,".q3.9-2001.01.01.bak";
+  };
+  should["take up this runtime's own history where the other runtime left it"]{
+    wd:.tst.testState.twoRuntimes.wd;
+    mine:`schemaVersion`identityAlgorithm`identityCodec`kind`updatedAt`tests!(
+      2j;.tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[];"resq-flake-history";
+      "2026-11-24T00:00:00.000000000Z";());
+    theirs:mine;
+    theirs[`identityCodec]:.tst.testState.twoRuntimes.other;
+    / this runtime ran earlier and its history was archived by the other one
+    own:.tst.identityArchivePath[wd,"/flake.json";.tst.currentIdentityGenerationLabel[]];
+    (hsym `$own) 0:enlist .j.j mine;
+    (hsym `$wd,"/flake.json") 0:enlist .j.j theirs;
+    .tst.loadFlakeState[];
+    .tst.app.flakeHistory[`status] musteq `ok;
+    .tst.app.flakeHistory[`updatedAt] musteq "2026-11-24T00:00:00.000000000Z";
+    .resq.util.pathExists[own] musteq 0b;
+    .resq.util.pathExists[.tst.identityArchivePath[wd,"/flake.json";.tst.IDENTITY_ALGORITHM,".q3.9-2001.01.01"]] musteq 1b;
+  };
+ };

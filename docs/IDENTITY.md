@@ -96,10 +96,21 @@ order.
 
 Rerun state, flake history, quarantine manifests, and generated quarantine
 proposals use state schema v2 and contain both `identityAlgorithm` and
-`identityCodec`. A legacy or mismatched cache is never joined to current IDs:
-resQ moves it to an adjacent `*.identity-mismatch.<digest>.bak`, names that
-archive in a diagnostic, and rebuilds non-authoritative history from new runs.
-Quarantine policy remains blocking until explicitly migrated or reviewed.
+`identityCodec`. A legacy or mismatched cache is never joined to current IDs.
+
+resQ's own caches (rerun state and flake history) are moved to an adjacent
+`*.identity-mismatch.<generation>.bak`, where the generation names the ID
+algorithm and q runtime that wrote the file, for example
+`flake-history.json.identity-mismatch.resq-test-case-id-v3.q4.0-2023.08.11.bak`.
+There is one archive per generation. The move is reported on the console and
+in a diagnostic, and non-authoritative history is rebuilt from new runs. When
+a workspace is used by two q runtimes, each finds the copy it archived
+earlier and takes it up again, so each runtime keeps its own history.
+
+The quarantine manifest is policy that people write and commit. resQ never
+moves or changes it. A manifest written for another generation is ignored
+where it is, with a console warning, and its quarantines do not apply: the
+run stays blocking until the manifest is migrated or reviewed.
 
 When old and new full reports describe the same inventory, migrate a state file
 with an independently written destination:
@@ -108,7 +119,7 @@ with an independently written destination:
 tools/migrate_identity_state.py \
   --old-report artifacts/v1/test-results.json \
   --new-report artifacts/v2/test-results.json \
-  --state .resq/last-run.json.identity-mismatch.<digest>.bak \
+  --state .resq/last-run.json.identity-mismatch.<generation>.bak \
   --output .resq/last-run.migrated.json
 ```
 

@@ -9,6 +9,14 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- State written by another q runtime no longer costs the quarantine manifest.
+  In a workspace used by both q 4.0 and q 4.1, one run under the other build
+  renamed `.resq/quarantine.json` to a `.bak` file without a console message,
+  and every later run failed. The manifest is now never moved: one from
+  another runtime is ignored where it is, with a warning. Flake history and
+  last-run state are archived under a name that says which runtime wrote them
+  (one archive per runtime, where a new time-stamped file used to be left on
+  every switch), and each runtime takes up its own copy again.
 - A hangup stops the run. `bin/resq` trapped only INT and TERM, and q runs in
   its own session, so closing the terminal or SSH session killed the launcher
   and left q and every child running. HUP and QUIT are now handled like TERM

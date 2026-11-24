@@ -89,6 +89,10 @@
     raw[`diagnostic]:raw[`diagnostic],$[count archive;
         "; archived at ",.tst.repoRelativePath archive;
         "; unable to archive incompatible state"];
+    if[count archive;
+        .tst.noteIdentityState .tst.repoRelativePath[path],
+            " was written by another q runtime or resQ identity generation; kept as ",
+            .tst.repoRelativePath archive];
     raw
  };
 
@@ -159,6 +163,11 @@
     rawHistory:.tst.readVersionedJson[hpath;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`tests];
     rawHistory:.tst.requireIdentityDocument rawHistory;
     rawHistory:.tst.archiveUnsupportedIdentityState[rawHistory;hpath];
+    / A workspace used by two q runtimes: take up this runtime's own history
+    / where the other one left it.
+    if[(`unsupported~rawHistory`status) and .tst.restoreIdentityState hpath;
+        rawHistory:.tst.requireIdentityDocument
+            .tst.readVersionedJson[hpath;.tst.FLAKE_HISTORY_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`tests]];
     history:.tst.emptyFlakeHistory rawHistory`status;
     history[`diagnostic]:rawHistory`diagnostic;
     if[`ok~rawHistory`status;
@@ -179,7 +188,18 @@
     mpath:.tst.quarantineManifestPath[];
     rawManifest:.tst.readVersionedJson[mpath;.tst.QUARANTINE_MANIFEST_VERSION;`schemaVersion`identityAlgorithm`identityCodec`kind`entries];
     rawManifest:.tst.requireIdentityDocument rawManifest;
-    rawManifest:.tst.archiveUnsupportedIdentityState[rawManifest;mpath];
+    / The manifest is policy that people write and commit. It is never moved
+    / or changed here: one run under another q runtime used to rename it away,
+    / and every later run then failed without a word on the console. A
+    / manifest from another identity generation is ignored where it is, so
+    / its quarantines do not apply (the run stays blocking), and said so.
+    if[`unsupported~rawManifest`status;
+        rawManifest[`diagnostic]:rawManifest[`diagnostic],"; left in place and ignored";
+        -1 "WARNING: quarantine manifest ",.tst.repoRelativePath[mpath],
+            " was written for ",.tst.identityGenerationLabel[rawManifest`document],
+            "; this run is ",.tst.currentIdentityGenerationLabel[],
+            ". It is left unchanged and ignored: its quarantines do not apply.",
+            " See docs/IDENTITY.md to migrate it."];
     manifest:.tst.emptyQuarantineManifest rawManifest`status;
     manifest[`diagnostic]:rawManifest`diagnostic;
     if[`ok~rawManifest`status;

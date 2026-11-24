@@ -421,22 +421,64 @@
     .tst.identityCodecMatches doc`identityCodec
  };
 
-/ Preserve incompatible identity-bearing caches for explicit migration.  The
-/ original path is freed for a clean rebuild, while the unique sibling remains
-/ recoverable and is named in the caller's diagnostic.
+/ Which identity generation wrote a state document, as text that is safe in a
+/ file name: the ID algorithm and the q runtime, for example
+/ "resq-test-case-id-v3.q4.0-2023.08.11". "unknown" when the document does not
+/ say.
+.tst.identityGenerationLabel:{[doc]
+    if[not 99h=type doc;:"unknown"];
+    if[not all `identityAlgorithm`identityCodec in key doc;:"unknown"];
+    codec:doc`identityCodec;
+    if[not 99h=type codec;:"unknown"];
+    field:{[c;k] $[k in key c;.tst.toString c k;""]}[codec];
+    text:.tst.toString[doc`identityAlgorithm],".q",field[`qVersion],"-",field`qRelease;
+    text where text in .Q.an,".-"
+ };
+
+.tst.currentIdentityGenerationLabel:{[]
+    .tst.identityGenerationLabel `identityAlgorithm`identityCodec!(
+        .tst.IDENTITY_ALGORITHM;.tst.identityCodecMetadata[])
+ };
+
+.tst.identityArchivePath:{[path;label] path,".identity-mismatch.",label,".bak"};
+
+/ Preserve an incompatible identity-bearing cache for explicit migration. The
+/ original path is freed, and the archive is named after the generation that
+/ wrote the file, so there is one archive per generation however often two q
+/ runtimes take turns in a workspace. (A time-stamped name left one more file
+/ behind on every such run, without limit.) The archive is named in the
+/ caller's diagnostic.
 .tst.archiveIdentityState:{[path]
     if[not .resq.util.pathExists path;:""];
-    stamp:.tst.stableHashText[string[.z.p],"|",string .z.i];
-    base:path,".identity-mismatch.",stamp,".bak";
-    archive:base;
-    suffix:1j;
-    while[.resq.util.pathExists archive;
-        archive:base,".",string suffix;
-        suffix+:1j];
+    doc:@[{[p] .j.k raze read0 hsym `$p};path;{[err]()}];
+    label:.tst.identityGenerationLabel doc;
+    / Same generation by name, yet not accepted: keep it apart from this
+    / runtime's own archive.
+    if[label~.tst.currentIdentityGenerationLabel[];label:label,"-rejected"];
+    archive:.tst.identityArchivePath[path;label];
     moved:.[{[src;dst]
-        system "mv -- ",.resq.util.shellQuote[src]," ",.resq.util.shellQuote dst;
+        system "mv -f -- ",.resq.util.shellQuote[src]," ",.resq.util.shellQuote dst;
         1b};(path;archive);{[err]0b}];
     $[moved;archive;""]
+ };
+
+/ After an incompatible cache has been archived, bring back the copy this
+/ generation archived earlier, if there is one. With that, a workspace shared
+/ by two q runtimes keeps one history per runtime instead of starting from
+/ nothing on every switch. 1b when a file was restored.
+.tst.restoreIdentityState:{[path]
+    if[.resq.util.pathExists path;:0b];
+    own:.tst.identityArchivePath[path;.tst.currentIdentityGenerationLabel[]];
+    if[not .resq.util.pathExists own;:0b];
+    .[{[src;dst]
+        system "mv -- ",.resq.util.shellQuote[src]," ",.resq.util.shellQuote dst;
+        1b};(own;path);{[err]0b}]
+ };
+
+/ One console line when persisted state belongs to another generation. These
+/ events used to appear only in the JSON report's diagnostics.
+.tst.noteIdentityState:{[text]
+    if[not 1b~@[get;`.tst.app.passOnly;0b];-1 "resQ: ",text];
  };
 
 .tst.stableTestId:{[file;suite;description]

@@ -88,9 +88,22 @@
     if[`unsupported~state`status;
         archive:.tst.archiveIdentityState path;
         if[count archive;
-            state[`diagnostic]:state[`diagnostic],"; archived at ",.tst.repoRelativePath archive];
+            state[`diagnostic]:state[`diagnostic],"; archived at ",.tst.repoRelativePath archive;
+            .tst.noteIdentityState .tst.repoRelativePath[path],
+                " was written by another q runtime or resQ identity generation; kept as ",
+                .tst.repoRelativePath archive];
         if[0=count archive;
-            state[`diagnostic]:state[`diagnostic],"; unable to archive incompatible state"]];
+            state[`diagnostic]:state[`diagnostic],"; unable to archive incompatible state"];
+        / A workspace used by two q runtimes: take up this runtime's own
+        / state where the other one left it.
+        if[.tst.restoreIdentityState path;
+            restored:@[{[p](0b;read0 hsym `$p)};path;{[err](1b;())}];
+            if[not first restored;
+                own:.tst.decodeRerunState last restored;
+                if[`ok~own`status;
+                    state:own;
+                    .tst.app.rerunState:state;
+                    .tst.app.rerunStateStatus:state`status]]]];
     if[(state`status) in `invalid`unsupported;
         .tst.recordDiagnostic[`rerun;`warning;`selection;
             "Ignoring malformed or unsupported rerun state; running the full selection: ",state`diagnostic;
