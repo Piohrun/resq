@@ -37,7 +37,8 @@ REQUIRED_CONTRACT_TESTS = {
     "restore pollution after beforeAll throws, before the next suite",
     "run pollution restoration and spec cleanup after fail-hard halts",
     "finalize before re-signalling an unexpected runSpec exception",
-    "have closed the leaked handle",
+    # tests/fixtures/declaration_order/handles_timers.q, run in a child
+    "close the handle and restore .z.ts before the next suite",
     "include unloaded modules from an explicit source manifest",
     "keep LCOV, JSON, HTML, state, and test JSON totals consistent",
     "refuse a line gate over partial instrumentation by default",
