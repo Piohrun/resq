@@ -6,8 +6,8 @@ q self-tests cover the lower-level helpers and error classifications.
 
 | Boundary | Release behavior | Executable evidence |
 |----------|------------------|---------------------|
-| Shell quoting | Every variable path/argument passed to a POSIX shell uses `.utl.shellQuote`; argument-vector Python calls bypass the shell | checkout, q wrapper, test, report, and temp paths contain spaces, apostrophe, semicolon, dollar, and brackets |
-| Framework/source loading | `.utl.loadQFile` visits the containing directory, loads only the basename, and restores cwd on success/error | direct q and launcher runs through a symlinked install whose path contains hostile characters |
+| Shell quoting | Every variable path/argument passed to a POSIX shell uses `.resq.util.shellQuote`; argument-vector Python calls bypass the shell | checkout, q wrapper, test, report, and temp paths contain spaces, apostrophe, semicolon, dollar, and brackets |
+| Framework/source loading | `.resq.util.loadQFile` gives a path without whitespace straight to q; a path with whitespace is loaded by its basename from its own directory, and cwd is restored on success/error | direct q and launcher runs through a symlinked install whose path contains hostile characters |
 | Launcher temp data | `mktemp` chooses one exact guard directory, permissions are forced to `0700`, and launcher cleanup removes only that exact path | live mode/cleanup assertions in `verify_hostile_env.py` |
 | Isolation temp data | scratch is created beneath the launcher-owned private root when the launcher is used, is tracked by exact allocation, restricted to `0700`, and removed after interpretation | normal/concurrent isolation self-tests plus live permission audit |
 | Symlinks | launcher resolution is symlink-safe; recursive discovery does not follow directory symlinks | hostile symlinked-install audit and the golden symlink-cycle regression |

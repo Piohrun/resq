@@ -42,9 +42,9 @@
 / collapse to one string here, so it is the right key for de-duplication and for
 / deriving a stable sandbox name.
 .tst.canonicalPath:{[p]
-    s: .utl.pathToString p;
+    s: .resq.util.pathToString p;
     absPath: $["/" = first s; s; (system "cd"), "/", s];
-    .utl.normalizePath absPath
+    .resq.util.normalizePath absPath
  };
 
 / Load a q script the way `\l <path>` does, then (when coverage is enabled)
@@ -57,7 +57,7 @@
 / absolute); both `system "l"` and instrumentFile resolve it against the CWD the
 / same way, so it is passed through unchanged.
 .tst.sysl:{[path]
-    .utl.loadQFile path;
+    .resq.util.loadQFile path;
     if[1b ~ @[get; `.tst.coverageEnabled; 0b];
         if[`instrumentFile in key `.tst;
             @[.tst.instrumentFile; path; {[p;e]
@@ -236,7 +236,7 @@
 / Mask strings, comments, block comments and text after a script terminator,
 / preserving every remaining character offset for lexical scope analysis.
 .tst.dslMaskedSource:{[lines]
-    source:.utl.pathToString each lines;
+    source:.resq.util.pathToString each lines;
     out:enlist ();
     state:0;                   / open block comments; q nests them
     stopped:0b;
@@ -667,7 +667,7 @@
  };
 
 .tst.preprocessScript:{[lines]
-    lines: .utl.pathToString each lines;
+    lines: .resq.util.pathToString each lines;
     / q skips a "#!" interpreter line at the top of a script. Blank it rather
     / than drop it so every later line keeps its number.
     if[count lines; if["#!" ~ 2 sublist first lines; lines[0]: ""]];
@@ -807,7 +807,7 @@
 / In q, "/" opens a comment at column 1 or after whitespace; operator/adverb uses
 / such as x%y and +/ remain code. Block comments are removed before evaluation.
 .tst.bracketDelta:{[ln]
-    ln: (),.utl.pathToString ln;
+    ln: (),.resq.util.pathToString ln;
     if[0 = count ln; :0];
     / Brackets count only in code: the shared lexer marks strings (with their
     / escapes) and a trailing comment, as the old per-character walk did.
@@ -823,7 +823,7 @@
 / stays ONE statement (and thus parses as a unit). Returns (startLineNo; lines)
 / pairs with the 1-based ORIGINAL file line of each statement's first line.
 .tst.groupStatements:{[lines]
-    lines: .utl.pathToString each lines;
+    lines: .resq.util.pathToString each lines;
     out: ();              / list of (startLineNo; list-of-lines)
     depth: 0;             / current unbalanced bracket depth
     i: 0;
@@ -911,7 +911,7 @@
         if[count unmatched;
             -1 "  ", string[count unmatched], " .q file(s) did not match the test file patterns ",
                 (", " sv @[get; `.tst.app.testFilePatternsUsed; {()}]), ", e.g. ",
-                .utl.pathToString first unmatched;
+                .resq.util.pathToString first unmatched;
             -1 "  Rename them, pass them explicitly, set testFilePatterns in resq.json,";
             -1 "  or run them through bin/qspec, which loads every .q file like qspec does."];
         :()];
@@ -928,10 +928,10 @@
 
     {[x]
         / Normalize path
-        p: .utl.pathToString x;
+        p: .resq.util.pathToString x;
 
         / Verify file exists
-        if[not .utl.pathExists p; -1 "ERROR: Test file not found: ", p; :()];
+        if[not .resq.util.pathExists p; -1 "ERROR: Test file not found: ", p; :()];
 
         if[not .tst.app.quiet; -1 "Loading Test: ", p];
         .tst.app.loadedFiles,: enlist p;
@@ -974,10 +974,12 @@
         .tst.currentNs: nsName;
 
         / Set loading context with absolute path
-        .utl.FILELOADING: .utl.pathToHsym absPath;
+        / qutil's convention, which qspec-era test files read, and resQ's own copy.
+        .resq.FILELOADING: .resq.util.pathToHsym absPath;
+        .utl.FILELOADING: .resq.FILELOADING;
 
         / Read content
-        content: @[read0; .utl.FILELOADING; {[p;e] 
+        content: @[read0; .resq.FILELOADING; {[p;e] 
             -1 "ERROR reading ", p, ": ", e; 
             `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `read);
             ()
@@ -1119,7 +1121,7 @@
 / Canonical file selection boundary. Sharding extends this function later; all
 / callers already share it so normal and isolated execution cannot diverge.
 .tst.selectTestFiles:{[files]
-    ordered:files iasc .utl.pathToString each files;
+    ordered:files iasc .resq.util.pathToString each files;
     .tst.app.allDiscoveredFiles:ordered;
     shardIndex:"j"$@[get;`.tst.app.shardIndex;0j];
     shardCount:"j"$@[get;`.tst.app.shardCount;1j];
@@ -1170,8 +1172,8 @@
     if[(1b~@[get;`.tst.app.qspecDiscovery;0b]) and not patternsExplicit;
         patterns:enlist "*.q"];
 
-    directFiles: ps where {(.utl.isFile x) and x like "*.q"} each ps;
-    dirs: ps where .utl.isDir each ps;
+    directFiles: ps where {(.resq.util.isFile x) and x like "*.q"} each ps;
+    dirs: ps where .resq.util.isDir each ps;
 
     / Any explicit arg that is neither an existing file nor an existing
     / directory is a user mistake (typo, deleted path, ...). Historically these
@@ -1179,7 +1181,7 @@
     / file the user asked for. Record each as a load error so the run fails with
     / EXIT.LOAD_ERROR (4) and the missing path is reported. Guard the table init
     / in case findTests is reached before lib/init.q seeded it.
-    missing: ps where not (.utl.isFile each ps) or .utl.isDir each ps;
+    missing: ps where not (.resq.util.isFile each ps) or .resq.util.isDir each ps;
     if[0 < count missing;
         if[not `loadErrors in key `.tst.app;
             .tst.app.loadErrors: flip `file`error`type!(`symbol$(); (); `symbol$());
@@ -1205,12 +1207,12 @@
     files
  };
 
-/ Trapped predicates: .utl.isFile/.utl.isDir call `key`, which SIGNALS an OS
+/ Trapped predicates: .resq.util.isFile/.resq.util.isDir call `key`, which SIGNALS an OS
 / error on a broken symlink or a permission-denied entry. Untrapped, that kills
 / the whole run mid-discovery. These wrappers treat an unreadable entry as
 / "neither file nor dir" so it is simply skipped.
-.tst.safeIsFile:{[p] @[.utl.isFile; p; {[e] 0b}]};
-.tst.safeIsDir:{[p] @[.utl.isDir; p; {[e] 0b}]};
+.tst.safeIsFile:{[p] @[.resq.util.isFile; p; {[e] 0b}]};
+.tst.safeIsDir:{[p] @[.resq.util.isDir; p; {[e] 0b}]};
 
 / True when `p` is a symbolic link. q has no native lstat, so we shell out to
 / `test -L <p>; echo $?` - the same exit-code-absorbing idiom the golden harness
@@ -1221,7 +1223,7 @@
 / q is right-to-left and would otherwise fold the trailing text into the path
 / before quoting).
 .tst.isSymlink:{[p]
-    q: .utl.shellQuote .utl.pathToString p;
+    q: .resq.util.shellQuote .resq.util.pathToString p;
     out: @[system; "test -L ", q, "; echo $?"; {[e] enlist "1"}];
     / `echo $?` captures as a 1-char string ("0"), so compare as a string and
     / parse it: exit code 0 from `test -L` means the path is a symlink.
@@ -1238,12 +1240,12 @@
 .tst.suffixMatchDepth:{[suffix;path;depth]
     / Bail out of pathological recursion (symlink loops, absurdly deep trees).
     if[depth > 32;
-        -1 "WARNING: max directory depth exceeded, skipping: ", .utl.pathToString path;
+        -1 "WARNING: max directory depth exceeded, skipping: ", .resq.util.pathToString path;
         :0#enlist""
     ];
 
     / Normalize path to string
-    p: .utl.pathToString path;
+    p: .resq.util.pathToString path;
 
     / If path is a file with matching suffix, return it
     if[p like ("*", suffix); if[.tst.safeIsFile p; :(enlist p)]];
@@ -1253,7 +1255,7 @@
 
     / Get directory contents. `key` can signal on a bad entry; trap to a clean
     / empty so one broken dir does not abort the entire run.
-    h: .utl.pathToHsym p;
+    h: .resq.util.pathToHsym p;
     contents: @[key; h; {[e] ()}];
     if[() ~ contents; :0#enlist""];
 
@@ -1262,7 +1264,7 @@
     if[0 = count contents; :0#enlist""];
 
     / Build full paths - ensure we get a list of strings
-    fullPaths: {[base;name] b: .utl.pathToString base; b: $["/" = last b; b; b, "/"]; b, string name}[p] each contents;
+    fullPaths: {[base;name] b: .resq.util.pathToString base; b: $["/" = last b; b; b, "/"]; b, string name}[p] each contents;
 
     / Separate files and directories (trapped predicates skip unreadable entries)
     files: fullPaths where .tst.safeIsFile each fullPaths;

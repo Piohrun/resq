@@ -282,10 +282,10 @@
     / (we already returned above when allFails was nonzero).
     if[quiet; :()];
 
-    if[count .utl.testDeps;
+    if[count .resq.testDeps;
         -1 "\n----------------------------------------------------------------";
         -1 "DEPENDENCY SUMMARY:";
-        { [f; ds] -1 string[f], " depends on: ", " " sv string ds }'[key .utl.testDeps; value .utl.testDeps];
+        { [f; ds] -1 string[f], " depends on: ", " " sv string ds }'[key .resq.testDeps; value .resq.testDeps];
     ];
 
     / Benchmark measurements from perf blocks. Printed whenever any ran, pass or

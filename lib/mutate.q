@@ -487,7 +487,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 
 / Path as the user would type it: relative to the working directory if inside it.
 .tst.mutate.display:{[path]
-    p: .utl.pathToString path;
+    p: .resq.util.pathToString path;
     cwd: (system "cd"),"/";
     $[cwd~(count cwd)#p; (count cwd) _ p; p]
  };
@@ -498,11 +498,11 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.expandTarget:{[testFiles;target]
     path: target`path;
     spell: {[p] .tst.mutate.display .tst.canonicalPath p};
-    if[.utl.isFile path;
+    if[.resq.util.isFile path;
         :([] path:enlist spell path; lo:enlist target`lo; hi:enlist target`hi)];
-    if[not .utl.isDir path; '"no such file or directory: ",path];
+    if[not .resq.util.isDir path; '"no such file or directory: ",path];
     if[not null target`lo; '"a line range needs a file, not a directory: ",path];
-    canon: .tst.canonicalPath each .utl.pathToString each .tst.static.findSources path;
+    canon: .tst.canonicalPath each .resq.util.pathToString each .tst.static.findSources path;
     isTest: .tst.mutate.among[canon; testFiles] or .tst.watch.runnable each `$canon;
     files: .tst.mutate.display each canon where not isTest;
     ([] path:files; lo:(count files)#0N; hi:(count files)#0N)
@@ -512,7 +512,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 .tst.mutate.requireRevision:{[ref]
     / The subshell matters: q captures the output of the command it is given
     / as a whole, and a bare list would hand it only the last command's.
-    cmd: "(git rev-parse --verify --quiet ",.utl.shellQuote[ref,"^{commit}"]," >/dev/null 2>&1 && echo ok; true)";
+    cmd: "(git rev-parse --verify --quiet ",.resq.util.shellQuote[ref,"^{commit}"]," >/dev/null 2>&1 && echo ok; true)";
     out: @[system; cmd; {[e] ()}];
     if[not any out~\:"ok"; '"-since needs a git revision; this is not one here: ",ref];
  };
@@ -520,10 +520,10 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / Line ranges of `path` changed since git revision `ref`, as a list of (lo;hi)
 / pairs. A file git does not track yet is new, so every line counts.
 .tst.mutate.changedLines:{[ref;path]
-    quoted: .utl.shellQuote path;
+    quoted: .resq.util.shellQuote path;
     tracked: @[system; "(git ls-files --error-unmatch -- ",quoted," >/dev/null 2>&1 && echo ok; true)"; {[e] ()}];
     if[not any tracked~\:"ok"; :enlist 1 0W];
-    .tst.mutate.hunkRanges @[system; "(git diff -U0 --no-color ",.utl.shellQuote[ref]," -- ",quoted," 2>&1; true)"; {[e] ()}]
+    .tst.mutate.hunkRanges @[system; "(git diff -U0 --no-color ",.resq.util.shellQuote[ref]," -- ",quoted," 2>&1; true)"; {[e] ()}]
  };
 
 / New-side line ranges of the hunks in `git diff -U0` output. A hunk header
@@ -936,7 +936,7 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 
 .tst.mutate.writeJson:{[mutants;fns;base;summary;changes]
     / q creates the directory when it writes the file.
-    out: .utl.normalizePath @[get; `.resq.config.outDir; "."];
+    out: .resq.util.normalizePath @[get; `.resq.config.outDir; "."];
     doc: `schemaVersion`kind`framework`frameworkVersion`generatedAt`summary`testFiles`filesChanged`mutants!(
         1j; "resq-mutation-report"; "resQ"; .tst.toString @[get; `.resq.VERSION; {"unknown"}];
         .tst.isoTimestamp .z.P; summary;
@@ -960,11 +960,11 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / named. A path that does not exist is an error, not an empty result.
 .tst.mutate.testFiles:{[paths]
     if[0=count paths;
-        if[not .utl.isDir "tests"; '"there is no tests/ directory here; name the tests with -tests PATHS"];
+        if[not .resq.util.isDir "tests"; '"there is no tests/ directory here; name the tests with -tests PATHS"];
         paths: enlist "tests"];
-    missing: paths where not (.utl.isFile each paths) or .utl.isDir each paths;
+    missing: paths where not (.resq.util.isFile each paths) or .resq.util.isDir each paths;
     if[count missing; '"test path not found: ",", " sv missing];
-    files: asc .utl.pathToString each .tst.findTests paths;
+    files: asc .resq.util.pathToString each .tst.findTests paths;
     if[0=count files; '"no test files found under: ",", " sv paths];
     files
  };

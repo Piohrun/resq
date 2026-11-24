@@ -88,7 +88,7 @@ parametrize:{[paramDict;func]
 
     counts: "j"$count each pValues;
     total: .tst.paramCaseTotal counts;
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: parametrize data count ", string total];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: parametrize data count ", string total];
 
     / Stream each combination by mixed-radix decode of the case index (the
     / final parameter varies fastest, matching the old cross-product order).

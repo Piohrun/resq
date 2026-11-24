@@ -20,10 +20,10 @@ system "l bootstrap.q";
 system "cd ", .resq.startCwd;
 / Canonicalize once bootstrap makes normalizePath available. This also removes
 / the trailing "/." produced by the documented `q resq.q ...` invocation.
-.resq.HOME: .utl.normalizePath .resq.HOME;
-.utl.resqHomeAtBoot: .resq.HOME;
+.resq.HOME: .resq.util.normalizePath .resq.HOME;
+.resq.homeAtBoot: .resq.HOME;
 .resq.PKGLOADING: .resq.HOME, "/lib";
-if[not .resq.hasQutil; .utl.PKGLOADING: .resq.PKGLOADING];
+if[not .resq.hasQutil; .resq.offerUtl[`PKGLOADING; .resq.PKGLOADING]];
 
 / A q `exit 0` cannot be cancelled or have its status changed from .z.exit.
 / The supported launchers therefore supervise test-mode completion through a
@@ -138,7 +138,7 @@ if[.resq.mode ~ `cover; .tst.app.runCoverage: 1b; .resq.mode: `test];
 if[.resq.mode ~ `test;
     / Convention: if no path is given and a local tests/ directory exists,
     / use it. Keeps `resq test` useful without making the path mandatory.
-    if[(0 = count .tst.app.args) and .utl.isDir "tests";
+    if[(0 = count .tst.app.args) and .resq.util.isDir "tests";
         .tst.app.args: enlist "tests";
         -1 "No path specified; defaulting to tests/";
     ];

@@ -169,7 +169,7 @@ Rules:
 
 For source paths containing spaces, use `.utl.require path` once resQ is
 initialized; existing files load through resQ's path-safe loader and retain
-coverage/dependency tracking. `.utl.loadQFile path` is the lower-level native
+coverage/dependency tracking. `.resq.util.loadQFile path` is the lower-level native
 load helper (without that instrumentation). Raw native loading splits spaced
 paths. Source loads and load errors restore the caller's directory.
 
@@ -389,7 +389,7 @@ as a list (1 arg → `enlist arg`; 2+ → the tuple). Constraints:
 should["temp file auto-cleans"]{
     out: .tst.tempFile ".csv";              / hdel'd when this expectation ends
     (hsym `$out) 0: enlist "data";
-    must[.utl.isFile out; "written"];
+    must[.resq.util.isFile out; "written"];
 };
 ```
 
@@ -463,7 +463,7 @@ and resQ never writes them into reserved `.q`.
 | `WARNING: No test files found` | files don't match `test_*.q` / `*_test.q`; rename or set `testFilePatterns`. `resq test` (no path) looks for `./tests/`. |
 | `CRITICAL LOAD ERROR … near line N: assign` | assigned to a q builtin name (`abs:`, `count:`, `key:`…). Rename. |
 | `CRITICAL LOAD ERROR … near line N: [` or `}` | bracket/syntax error near that line. |
-| `'nyi` during a `\l`/`system "l"` load | spaced path in the loader line (§4). Use `.utl.loadQFile` for a path containing spaces. |
+| `'nyi` during a `\l`/`system "l"` load | spaced path in the loader line (§4). Use `.resq.util.loadQFile` for a path containing spaces. |
 | `Error: type` on a passing-looking assertion | q precedence — parenthesise the LHS (§6). A genuinely failing `musteq` shows a FAILURE DIFF, not a type error. |
 | `mustthrow expects [pattern; code] — got code first…` | you called it infix / code-first. Use `mustthrow[pattern; {code}]`. |
 | `Explicit test path not found: <path>` | a CLI path doesn't exist (exit 4). Fix the typo. |
@@ -481,7 +481,7 @@ and resQ never writes them into reserved `.q`.
 - [ ] Asserting on call count/args ⇒ used **`.tst.spy`**, not plain `mock`.
 - [ ] No mock/spy on `.q .Q .z .h .j .tst .resq .utl`.
 - [ ] Tests creating files use `tempFile` / `registerCleanup` (or `registerSpecCleanup` if a held handle blocks the `hdel`).
-- [ ] SUT loaded via `.utl.FILELOADING`-derived path; use `.utl.loadQFile` for spaced paths.
+- [ ] SUT loaded via `.utl.FILELOADING`-derived path; use `.resq.util.loadQFile` for spaced paths.
 - [ ] Tags that should filter are in the **suite (desc) title**, as `#word`.
 
 ## 15. Deeper docs

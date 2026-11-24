@@ -33,7 +33,7 @@
 .tst.loadGraph.symChars: .tst.loadGraph.idChars,":/";
 
 / Functions that load the path they are given. resQ's own, plus qutil's.
-.tst.loadGraph.builtinLoaders: (".utl.require";".resq.require";".tst.loadSource";".tst.sysl";".utl.loadQFile");
+.tst.loadGraph.builtinLoaders: (".utl.require";".resq.require";".tst.loadSource";".tst.sysl";".utl.loadQFile";".resq.util.loadQFile");
 
 / Line classes: 0 lone "/", 1 lone "\", 2 anything else.
 / Line state: the number of open block comments (q nests them), 0 in code,
@@ -457,8 +457,8 @@
 / ----------------------------------------------------------------------------
 
 .tst.loadGraph.canonical:{[cwd;p]
-    s: .utl.pathToString p;
-    .utl.normalizePath $["/"=first s; s; cwd,"/",s]
+    s: .resq.util.pathToString p;
+    .resq.util.normalizePath $["/"=first s; s; cwd,"/",s]
  };
 
 / Loader names as a list of strings, from a string, symbol or list of either.
@@ -478,7 +478,7 @@
         if[fingerprint~first .tst.loadGraph.cache k; :.tst.loadGraph.cache[k] 1 2]];
     lines: @[read0; hsym k; {[e] `unreadable}];
     lx: $[`unreadable~lines; .tst.loadGraph.emptyLex[]; .tst.loadGraph.lex lines];
-    if[`unreadable~lines; lx[`unreadable]: .utl.pathExists path];
+    if[`unreadable~lines; lx[`unreadable]: .resq.util.pathExists path];
     lits: .tst.loadGraph.scanLiterals lx;
     .tst.loadGraph.cache[k]: (fingerprint; lx; lits; (); ());
     (lx; lits)

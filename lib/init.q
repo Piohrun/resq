@@ -4,35 +4,35 @@ if[not `utl in key `; .utl:(enlist `)!enlist (::)];
 / temporary cwd switch, and restore the caller's directory even on failure.
 / .z.f names the command-line script, not this file under a nested load.
 / Native lambda metadata identifies this file under both system "l" and qutil.
-.utl.initSourcePath: {first -3#value .z.s}[];
-if[.utl.initSourcePath like ":*";.utl.initSourcePath:1_.utl.initSourcePath];
-.utl.initSourceParts: "/" vs .utl.initSourcePath;
-.utl.initSourceDir: $[1<count .utl.initSourceParts;
-    "/" sv -1_.utl.initSourceParts;
+.resq.initSourcePath: {first -3#value .z.s}[];
+if[.resq.initSourcePath like ":*";.resq.initSourcePath:1_.resq.initSourcePath];
+.resq.initSourceParts: "/" vs .resq.initSourcePath;
+.resq.initSourceDir: $[1<count .resq.initSourceParts;
+    "/" sv -1_.resq.initSourceParts;
     "."];
-if[0=count .utl.initSourceDir;.utl.initSourceDir:"/"];
+if[0=count .resq.initSourceDir;.resq.initSourceDir:"/"];
 if[0=count @[get;`.resq.HOME;{""}];
-    .resq.HOME:"/" sv -1_"/" vs .utl.initSourceDir];
-.utl.ensureInitBootstrap:{[]
+    .resq.HOME:"/" sv -1_"/" vs .resq.initSourceDir];
+.resq.ensureInitBootstrap:{[]
     / qutil's .utl.require does not imply that resQ has bootstrapped.
     if[(`require in @[key;`.resq;{`symbol$()}]) and
        `emptyResults in @[key;`.resq.state;{`symbol$()}];:()];
     previousDirectory:system "cd";
-    outcome:@[{system "cd ",.utl.initSourceDir;
+    outcome:@[{system "cd ",.resq.initSourceDir;
                system "l bootstrap.q";(0b;"")};();{[err](1b;err)}];
     system "cd ",previousDirectory;
     if[first outcome;'last outcome];
     ::
  };
-.utl.ensureInitBootstrap[];
+.resq.ensureInitBootstrap[];
 / Anchor module loads at the install root if it has been set (by resq.q).
 / Otherwise use the directory containing this init file, including when q was
 / launched from outside the checkout with an absolute script path.
-.utl.resqHomeAtBoot: @[get; `.resq.HOME; {""}];
-.resq.PKGLOADING: $[count .utl.resqHomeAtBoot;
-    .utl.resqHomeAtBoot,"/lib";
-    .utl.initSourceDir];
-if[not `DEBUG in key `.utl;.utl.DEBUG:0b];
+.resq.homeAtBoot: @[get; `.resq.HOME; {""}];
+.resq.PKGLOADING: $[count .resq.homeAtBoot;
+    .resq.homeAtBoot,"/lib";
+    .resq.initSourceDir];
+if[not `DEBUG in key `.resq;.resq.DEBUG:0b];
 
 / Initialize .resq sub-namespaces. Each guarded independently because
 / resq.q sets .resq.HOME before init.q runs, so a coarse `resq in key \``
@@ -132,7 +132,7 @@ if[not `strict in key .tst.app; .tst.app.strict: 0b];
         if[any mask;
             newItems: (qKeys where mask)!(vals where mask);
             .tst.originalQ:: .tst.originalQ, newItems;
-            if[.utl.DEBUG;
+            if[.resq.DEBUG;
                 -1 "INFO: resQ captured ", string[count newItems], " new .q original functions."];
         ];
     ];
@@ -219,7 +219,7 @@ if[`uiExports in key `.tst; .tst.registerDslExports .tst.uiExports];
 
   modulePath: .tst.PKGNAME, "/output/", (string outputModule), ".q";
   @[.resq.require; modulePath; {[e] -1 "WARNING: ", e;}];
-  outputLoaded: any modulePath ~/: .utl.loaded;
+  outputLoaded: any modulePath ~/: .resq.loaded;
   if[not outputLoaded; -1 "WARNING: Output module not available: ", string outputModule];
   if[not outputLoaded; :0b];
 

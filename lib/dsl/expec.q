@@ -14,7 +14,7 @@ runners:()!()
     / Build context string from current test context
     ctx: "";
     / tstPath is a file handle; print a path, not ":/abs/path".
-    fileCtx: .utl.pathToString .tst.toString .tst.currentContext`file;
+    fileCtx: .resq.util.pathToString .tst.toString .tst.currentContext`file;
     suiteCtx: .tst.toString .tst.currentContext`suite;
     testCtx: .tst.toString .tst.currentContext`test;
     if[0 < count fileCtx; ctx,: "File: ", fileCtx, "\n"];

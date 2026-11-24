@@ -297,10 +297,10 @@
 / repository remain absolute because fabricating a relative path would be
 / misleading. Literal prefix comparison avoids q `like metacharacters in paths.
 .tst.repoRelativePath:{[path]
-    p: .utl.pathToString path;
+    p: .resq.util.pathToString path;
     if[0 = count p; :""];
-    p: .utl.normalizePath p;
-    root: .utl.normalizePath @[get; `.tst.app.baseDir; {system "cd"}];
+    p: .resq.util.normalizePath p;
+    root: .resq.util.normalizePath @[get; `.tst.app.baseDir; {system "cd"}];
     prefix: root, "/";
     if[(count p) > count prefix;
         if[prefix ~ (count prefix) # p; :(count prefix) _ p]];
@@ -366,16 +366,16 @@
 / original path is freed for a clean rebuild, while the unique sibling remains
 / recoverable and is named in the caller's diagnostic.
 .tst.archiveIdentityState:{[path]
-    if[not .utl.pathExists path;:""];
+    if[not .resq.util.pathExists path;:""];
     stamp:.tst.stableHashText[string[.z.p],"|",string .z.i];
     base:path,".identity-mismatch.",stamp,".bak";
     archive:base;
     suffix:1j;
-    while[.utl.pathExists archive;
+    while[.resq.util.pathExists archive;
         archive:base,".",string suffix;
         suffix+:1j];
     moved:.[{[src;dst]
-        system "mv -- ",.utl.shellQuote[src]," ",.utl.shellQuote dst;
+        system "mv -- ",.resq.util.shellQuote[src]," ",.resq.util.shellQuote dst;
         1b};(path;archive);{[err]0b}];
     $[moved;archive;""]
  };
@@ -407,7 +407,7 @@
  };
 
 .tst.expectationTestId:{[spec;expec]
-    file:$[`tstPath in key spec;.utl.pathToString spec`tstPath;""];
+    file:$[`tstPath in key spec;.resq.util.pathToString spec`tstPath;""];
     suite:$[`title in key spec;spec`title;""];
     description:$[`parentDesc in key expec;
         $[count .tst.toString expec`parentDesc;expec`parentDesc;expec`desc];
@@ -639,7 +639,7 @@
     cached:@[get;`.tst.app.vcsContextCache;{()!()}];
     cachedRoot:@[get;`.tst.app.vcsContextCacheRoot;{""}];
     if[(99h=type cached) and (0<count cached) and root~cachedRoot;:cached];
-    quoted:.utl.shellQuote root;
+    quoted:.resq.util.shellQuote root;
     .tst.app.vcsProbeCount:1j+"j"$@[get;`.tst.app.vcsProbeCount;0j];
     lines:.tst.commandLines "git -C ",quoted,
         " status --porcelain=v2 --branch --untracked-files=normal 2>/dev/null";
@@ -856,7 +856,7 @@
 
 .tst.beginRunMetadata:{[]
     started:.z.p;
-    root:.utl.normalizePath system "cd";
+    root:.resq.util.normalizePath system "cd";
     host:getenv `HOSTNAME;
     if[0=count host;host:.tst.firstCommandLine "hostname 2>/dev/null"];
     runId:"run_",.tst.stableHashText[string[started],"\n",root,"\n",host];

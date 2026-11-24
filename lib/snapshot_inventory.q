@@ -27,7 +27,7 @@
  };
 
 .tst.snapshotBackendPath:{[backend;name]
-    .utl.pathToString $[backend~`binary;.tst.snapPath name;
+    .resq.util.pathToString $[backend~`binary;.tst.snapPath name;
       backend~`text;.tst.snapTxtPath name;
       '"Unknown snapshot backend: ",.tst.toString backend]
  };
@@ -116,7 +116,7 @@ if[not `snapshot in key `.resq;.resq.snapshot.init_:1b];
     while[i<count names;
         fileName:names i;
         absolute:.tst.snapshotAbsolutePath root,"/",fileName;
-        if[.utl.isFile absolute or .tst.snapshotIsSymlink absolute;
+        if[.resq.util.isFile absolute or .tst.snapshotIsSymlink absolute;
             snapName:(neg count suffix)_fileName;
             out,:enlist `backend`name`path`root`absolutePath`executionId`observedStatus`declared`dynamic!(
                 backend;snapName;.tst.repoRelativePath absolute;rootRow`path;absolute;"";"stored";0b;0b)];
@@ -149,7 +149,7 @@ if[not `snapshot in key `.resq;.resq.snapshot.init_:1b];
     refRows:matches where 0<count each .tst.snapshotApply[{.tst.toString x`executionId};matches];
     decRows:matches where .tst.snapshotApply[{1b~x`declared};matches];
     isReferenced:((count refRows)>0) or ((count decRows)>0);
-    exists:.utl.isFile absolute;
+    exists:.resq.util.isFile absolute;
     rootAbsolute:.tst.snapshotAbsolutePath firstRow`root;
     rootRows:roots where rootAbsolute~/:
         .tst.snapshotApply[{.tst.toString x`absolutePath};roots];
@@ -228,8 +228,8 @@ if[not `snapshot in key `.resq;.resq.snapshot.init_:1b];
     if[0=count outDir;outDir:"."];
     base:.tst.toString @[get;`.tst.app.baseDir;{system "cd"}];
     if[not "/"=first outDir;outDir:base,"/",outDir];
-    outDir:.utl.normalizePath outDir;
-    .utl.ensureDir outDir;
+    outDir:.resq.util.normalizePath outDir;
+    .resq.util.ensureDir outDir;
     path:outDir,"/snapshot-manifest.json";
     hsym[`$path] 0:enlist .tst.output.strictJson inventory;
     -1 "Snapshot manifest written to ",path;

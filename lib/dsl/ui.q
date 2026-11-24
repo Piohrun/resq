@@ -415,7 +415,8 @@ uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
  ];
  
  / Use hsym format for tstPath - compatible with ` vs for path operations
- specObj[`tstPath]: $[`FILELOADING in key `.utl; .utl.FILELOADING; `$":unknown"];
+ specObj[`tstPath]: $[`FILELOADING in key `.resq; .resq.FILELOADING;
+     `FILELOADING in key `.utl; .utl.FILELOADING; `$":unknown"];
   specObj[`expectations]:fillExpecBA .tst.expecList;
   / Attach suite-level hooks unconditionally ({} when never set) so every spec
   / dict carries identical keys (enlist-dict-becomes-table requires this).

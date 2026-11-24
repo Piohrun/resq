@@ -37,11 +37,11 @@
 / Require timeout's kill-after form and prove it can preempt a busy process.
 .tst.isolate.probeTimeout:{[exe]
     if[(0 = count exe) or 0 = count .tst.isolate.shExe; :0b];
-    help: @[system; "LC_ALL=C ",.utl.shellQuote[exe], " --help 2>/dev/null"; {[e] ()}];
+    help: @[system; "LC_ALL=C ",.resq.util.shellQuote[exe], " --help 2>/dev/null"; {[e] ()}];
     if[not any help like "*--verbose*"; :0b];
-    busy: .utl.shellQuote "while :; do :; done";
-    cmd:"LC_ALL=C ",.utl.shellQuote[exe], " -k 1 0.05 ",
-         .utl.shellQuote[.tst.isolate.shExe], " -c ", busy, " 2>&1; echo $?";
+    busy: .resq.util.shellQuote "while :; do :; done";
+    cmd:"LC_ALL=C ",.resq.util.shellQuote[exe], " -k 1 0.05 ",
+         .resq.util.shellQuote[.tst.isolate.shExe], " -c ", busy, " 2>&1; echo $?";
     out: @[system; cmd; {[e] enlist "-1"}];
     if[0 = count out; :0b];
     code: "J"$last out;
@@ -52,15 +52,15 @@
 / present in this allocation list may be recursively removed.
 .tst.isolate.allocated: ();
 
-/ Shares .utl.tempRoot (which honours TMPDIR) and then enforces the stricter
+/ Shares .resq.util.tempRoot (which honours TMPDIR) and then enforces the stricter
 / requirements isolation has: the root must exist and be a real directory,
 / because child processes are about to write scratch into it.
 .tst.isolate.tempRoot:{[]
     private:getenv `RESQ_ISOLATE_ROOT;
-    root:$[count private;.utl.normalizePath private;.utl.tempRoot[]];
+    root:$[count private;.resq.util.normalizePath private;.resq.util.tempRoot[]];
     if[(0 = count root) or not "/" = first root;
         '"TMPDIR must be an absolute directory: ", root];
-    if[not .utl.isDir root;
+    if[not .resq.util.isDir root;
         '"TMPDIR does not exist or is not a directory: ", root];
     root
  };
@@ -84,7 +84,7 @@
     if[0 = count .tst.isolate.chmodExe; '"chmod executable is required for isolation"];
     root: .tst.isolate.tempRoot[];
     template: (.tst.isolate.scratchPrefix root), "XXXXXXXX";
-    cmd: .utl.shellQuote[.tst.isolate.mktempExe], " -d ", .utl.shellQuote template;
+    cmd: .resq.util.shellQuote[.tst.isolate.mktempExe], " -d ", .resq.util.shellQuote template;
     made: @[system; cmd; {[e] '"mktemp failed: ", e}];
     if[0 = count made; '"mktemp returned no scratch directory"];
     wd: first made;
@@ -92,11 +92,11 @@
     suffix: (count prefix) _ wd;
     if[(not prefix ~ (count prefix) # wd) or (0 = count suffix) or any "/" = suffix;
         '"mktemp returned an unsafe scratch path: ", wd];
-    if[not .utl.isDir wd; '"mktemp scratch directory does not exist: ", wd];
+    if[not .resq.util.isDir wd; '"mktemp scratch directory does not exist: ", wd];
     .tst.isolate.allocated,: enlist wd;
     secured: @[
         {system x; 1b};
-        .utl.shellQuote[.tst.isolate.chmodExe], " 700 -- ", .utl.shellQuote wd;
+        .resq.util.shellQuote[.tst.isolate.chmodExe], " 700 -- ", .resq.util.shellQuote wd;
         {[e] 0b}];
     if[not secured;
         .tst.isolate.cleanupScratch wd;
@@ -112,10 +112,10 @@
     if[0 = count .tst.isolate.rmExe;
         .tst.isolate.print "ERROR: rm executable unavailable; cannot clean isolation scratch: ", wd;
         :0b];
-    cmd: .utl.shellQuote[.tst.isolate.rmExe], " -rf -- ", .utl.shellQuote wd;
+    cmd: .resq.util.shellQuote[.tst.isolate.rmExe], " -rf -- ", .resq.util.shellQuote wd;
     ok: @[{system x; 1b}; cmd; {[e] 0b}];
     inspected: @[
-        {[path] `ok`exists!(1b; .utl.pathExists path)};
+        {[path] `ok`exists!(1b; .resq.util.pathExists path)};
         wd;
         {[e] `ok`exists!(0b; 1b)}];
     if[not inspected`ok;
@@ -504,7 +504,7 @@
  };
 
 .tst.isolate.shellCommand:{[argv]
-    " " sv .utl.shellQuote each argv
+    " " sv .resq.util.shellQuote each argv
  };
 
 / Clear artifacts a previous attempt may have left, so a retry (or a reused
@@ -530,7 +530,7 @@
     / The parent launcher owns its completion marker. Isolated q children are
     / already supervised by this module and must not complete the parent's run.
     "LC_ALL=C RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
-        " < /dev/null > ", .utl.shellQuote[wd, "/out.txt"], " 2>&1"
+        " < /dev/null > ", .resq.util.shellQuote[wd, "/out.txt"], " 2>&1"
  };
 
 / The sequential retry helper also needs the exit code in rc.txt. Keeping it in
@@ -542,7 +542,7 @@
 / the trailing `; true` removed, every file reports "exit -1".
 .tst.isolate.fileCommand:{[wd; file; timeoutSecs]
     .tst.isolate.processCommand[wd;file;timeoutSecs]," & p0=$!; ",
-        "wait \"$p0\"; echo $? > ", .utl.shellQuote[wd, "/rc.txt"], "; ",
+        "wait \"$p0\"; echo $? > ", .resq.util.shellQuote[wd, "/rc.txt"], "; ",
         .tst.isolate.reapLeftovers["p0";wd], " true"
  };
 
@@ -555,7 +555,7 @@
 / (setsid, a daemon) is out of reach, as it is for the timeout itself.
 .tst.isolate.reapLeftovers:{[name;wd]
     "if kill -TERM -- \"-$",name,"\" 2>/dev/null; then echo 1 > ",
-        .utl.shellQuote[wd,"/leftover.txt"],"; sleep 0.2; ",
+        .resq.util.shellQuote[wd,"/leftover.txt"],"; sleep 0.2; ",
         "kill -KILL -- \"-$",name,"\" 2>/dev/null; fi;"
  };
 
@@ -566,7 +566,7 @@
 
 .tst.isolate.groupWait:{[index;wd]
     name:"p",string index;
-    "wait \"$",name,"\"; echo $? > ",.utl.shellQuote[wd,"/rc.txt"],"; ",
+    "wait \"$",name,"\"; echo $? > ",.resq.util.shellQuote[wd,"/rc.txt"],"; ",
         .tst.isolate.reapLeftovers[name;wd]
  };
 

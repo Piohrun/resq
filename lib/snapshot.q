@@ -6,24 +6,24 @@ snapRoot: @[get;`.resq.startCwd;{system "cd"}]
 snapDir: snapRoot,"/tests/snapshots"
 updateSnaps: 0b
 
-setSnapDir:{[d] .tst.snapDir: .utl.pathToString d}
+setSnapDir:{[d] .tst.snapDir: .resq.util.pathToString d}
 setUpdateSnaps:{[b] .tst.updateSnaps: b}
 
 .tst.snapshotAbsolutePath:{[path]
-    p:.utl.normalizePath .utl.pathToString path;
+    p:.resq.util.normalizePath .resq.util.pathToString path;
     if[count p;
       if[not "/"=first p;
-        base:.utl.pathToString @[get;`.tst.app.baseDir;{system "cd"}];
-        p:.utl.normalizePath base,"/",p]];
+        base:.resq.util.pathToString @[get;`.tst.app.baseDir;{system "cd"}];
+        p:.resq.util.normalizePath base,"/",p]];
     p
  };
 
 / A safe leaf is not enough when the root or existing leaf is a symlink: an
 / update could otherwise escape the reviewed snapshot tree.
 .tst.snapshotIsSymlink:{[path]
-    if[.utl.isWindows;:0b];
+    if[.resq.util.isWindows;:0b];
     p:.tst.snapshotAbsolutePath path;
-    cmd:"p=",.utl.shellQuote[p],"; while [ \"$p\" != / ]; do ",
+    cmd:"p=",.resq.util.shellQuote[p],"; while [ \"$p\" != / ]; do ",
         "if [ -L \"$p\" ]; then echo 0; exit; fi; ",
         "p=${p%/*}; [ -n \"$p\" ] || p=/; done; echo 1";
     out:@[system;cmd;{enlist "1"}];
@@ -48,7 +48,7 @@ setUpdateSnaps:{[b] .tst.updateSnaps: b}
     if[not `currentSnapshots in key `.tst;.tst.currentSnapshots:()];
     root:$[backend~`binary;.tst.snapDir;.tst.snapTxtDir];
     .tst.currentSnapshots,:enlist `backend`name`status`path`root`timestamp!(
-        backend;.tst.toString name;status;.tst.repoRelativePath .utl.pathToString path;
+        backend;.tst.toString name;status;.tst.repoRelativePath .resq.util.pathToString path;
         .tst.repoRelativePath .tst.snapshotAbsolutePath root;
         .tst.isoTimestamp .z.p);
     ::
@@ -74,11 +74,11 @@ snapPath:{[name]
         '"Invalid snapshot name '", n, "': must be a bare file name (no path separators, no leading dot)"];
     n: $[n like "*.snap"; n; n, ".snap"];
     target:.tst.snapDir,"/",n;
-    .utl.pathToHsym .tst.validateSnapshotTarget[.tst.snapDir;target]
+    .resq.util.pathToHsym .tst.validateSnapshotTarget[.tst.snapDir;target]
  };
 
 ensureDir:{[path]
-    .utl.ensureDir path;
+    .resq.util.ensureDir path;
  };
 
 loadSnap:{[name]

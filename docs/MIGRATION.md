@@ -149,6 +149,13 @@ depend on:
   QPATH loader; existing file paths still load through resQ so coverage and
   watch mode see them. Like qspec's `spec.q`, `bin/qspec` preloads qutil's
   `opts.q`, so code that calls `.utl.addOpt` without requiring it still works.
+- **Your own `.utl` namespace keeps working.** Many teams call their utility
+  namespace `.utl`. resQ keeps its helpers and state in `.resq` and reads
+  nothing from `.utl`. It offers `.utl.require`, `.utl.shellQuote`,
+  `.utl.isDir` and the like only where the name is free, and never replaces a
+  definition it did not put there. If your `.utl` is loaded first (from `q.q`
+  or `QINIT`), yours stay; if a test file loads it later, yours replace the
+  ones resQ offered. Use the `.resq.util.*` spelling when you mean resQ's.
 
 qspec keeps no state between runs. resQ does: rerun and flake history live in a
 `.resq/` directory under the working directory. That directory writes its own

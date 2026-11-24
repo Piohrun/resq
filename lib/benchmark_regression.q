@@ -13,10 +13,10 @@
  };
 
 .tst.benchmarkAbsolutePath:{[path]
-    p:.utl.normalizePath .tst.toString path;
+    p:.resq.util.normalizePath .tst.toString path;
     if[count p;
       if[not "/"=first p;
-        p:.utl.normalizePath .tst.toString[.tst.app.baseDir],"/",p]];
+        p:.resq.util.normalizePath .tst.toString[.tst.app.baseDir],"/",p]];
     p
  };
 

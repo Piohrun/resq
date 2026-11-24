@@ -23,9 +23,9 @@
  };
 
 .resq.writeSelfCoverage:{[rows;output;namespaces]
-    out:.utl.normalizePath output;
+    out:.resq.util.normalizePath output;
     if[not "/"=first out;out:(system "cd"),"/",out];
-    .utl.ensureDir out;
+    .resq.util.ensureDir out;
     summary:.resq.selfCoverageSummary rows;
     measurement:`provider`basis`complete`gatingSupported`scope`limitations`namespaces!(
         "KX Developer .cov";
@@ -68,10 +68,10 @@
         '"external self-coverage cannot be combined with resQ source coverage"];
     if[1b~@[get;`.tst.app.isolate;0b];
         '"external self-coverage cannot observe isolated child processes"];
-    if[not .utl.isFile library;
+    if[not .resq.util.isFile library;
         '"external self-coverage library is not a regular file: ",library];
     loadOutcome:@[
-        {[path].utl.loadQFile path;(0b;"")};
+        {[path].resq.util.loadQFile path;(0b;"")};
         library;
         {[e](1b;.tst.toString e)}];
     if[first loadOutcome;

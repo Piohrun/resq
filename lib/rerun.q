@@ -16,8 +16,8 @@
             ((count[configured]-5)#configured),suffix,".json";
             configured,suffix]];
     $[count[configured] and "/"=first configured;
-        .utl.normalizePath configured;
-        .utl.normalizePath base,"/",configured]
+        .resq.util.normalizePath configured;
+        .resq.util.normalizePath base,"/",configured]
  };
 
 .tst.emptyRerunState:{[statusName]
@@ -76,7 +76,7 @@
 .tst.loadRerunState:{[]
     path:.tst.rerunStatePath[];
     state:.tst.emptyRerunState `missing;
-    if[.utl.pathExists path;
+    if[.resq.util.pathExists path;
         readResult:@[{[p](0b;read0 hsym `$p)};path;{[err](1b;.tst.toString err)}];
         if[first readResult;
             state:.tst.emptyRerunState `invalid;
@@ -210,7 +210,7 @@
     / Re-check immediately before publication: another process or operator may
     / have replaced the path after init. Never overwrite a different identity
     / generation merely because this run already loaded its selection state.
-    if[.utl.pathExists path;
+    if[.resq.util.pathExists path;
         currentRead:@[{[p](0b;read0 hsym `$p)};path;{[err](1b;())}];
         if[not first currentRead;
             currentState:.tst.decodeRerunState last currentRead;
@@ -239,7 +239,7 @@
         .tst.recordDiagnostic[`rerun;`warning;`persistence;
             "Unable to write rerun state";enlist[`path]!enlist .tst.repoRelativePath path];
         :0b];
-    moved:.[{[src;dst]system "mv -f -- ",.utl.shellQuote[src]," ",.utl.shellQuote dst;1b};
+    moved:.[{[src;dst]system "mv -f -- ",.resq.util.shellQuote[src]," ",.resq.util.shellQuote dst;1b};
         (tmp;path);{[err]0b}];
     if[not moved;
         @[hdel;hsym `$tmp;{}];

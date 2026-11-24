@@ -76,7 +76,7 @@
         "qKeysBefore:key `.q;";
         "qValuesBefore:{get .Q.dd[`.q;x]} each qKeysBefore;";
         "system \"l \",.resq.HOME,\"/lib/bootstrap.q\";";
-        ".utl.resqHomeAtBoot:.resq.HOME;";
+        ".resq.homeAtBoot:.resq.HOME;";
         ".utl.PKGLOADING:.resq.HOME,\"/lib\";";
         "system \"l \",.resq.HOME,\"/lib/init.q\";";
         "qKeysAfter:key `.q;";

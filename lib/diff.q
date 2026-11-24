@@ -16,7 +16,7 @@ if[not `diffColors in key `.tst; .tst.diffColors: 1b];
 / means redirected (CI logs, files, golden subprocess capture). On non-Linux no
 / detection is possible so we assume a terminal (color on unless NO_COLOR set).
 detectTty:{[]
-    if[not .utl.isLinux; :1b];
+    if[not .resq.util.isLinux; :1b];
     lnk: first @[{system "readlink /proc/$PPID/fd/1 2>/dev/null"}; ::; {enlist ""}];
     (lnk like "/dev/pts/*") or (lnk like "/dev/tty*")
  };

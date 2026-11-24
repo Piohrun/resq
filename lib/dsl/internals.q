@@ -166,13 +166,15 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
 / Capture mutable process-level state affected while loading and running tests.
 / returns: dictionary suitable for .tst.restoreRuntimeContext
 .tst.captureRuntimeContext:{[]
-    `namespace`context`tstPath`currentNs`fileLoadingSet`fileLoading`cwd!(
+    `namespace`context`tstPath`currentNs`fileLoadingSet`fileLoading`ownFileLoadingSet`ownFileLoading`cwd!(
         system "d";
         @[get; `.tst.context; `.];
         @[get; `.tst.tstPath; `];
         @[get; `.tst.currentNs; `];
         `FILELOADING in key `.utl;
         @[get; `.utl.FILELOADING; {::}];
+        `FILELOADING in key `.resq;
+        @[get; `.resq.FILELOADING; {::}];
         .tst.currentCwd[])
  };
 
@@ -188,6 +190,10 @@ if[not `suppressAssertionDiff in key `.tst; .tst.suppressAssertionDiff: 0b];
     if[`fileLoadingSet in key ctx;
         if[ctx`fileLoadingSet; .utl.FILELOADING: ctx`fileLoading];
         if[not ctx`fileLoadingSet; delete FILELOADING from `.utl];
+    ];
+    if[`ownFileLoadingSet in key ctx;
+        if[ctx`ownFileLoadingSet; .resq.FILELOADING: ctx`ownFileLoading];
+        if[not ctx`ownFileLoadingSet; delete FILELOADING from `.resq];
     ];
 
     if[`cwd in key ctx;

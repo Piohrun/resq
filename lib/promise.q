@@ -50,25 +50,25 @@ clearDeferreds:{[]
 
 deferred:{[]
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: deferred called"];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: deferred called"];
 
     / Generate a unique numeric handle without growing q's interned symbol pool.
     id: .tst.deferredCounter;
 
     .tst.deferredCounter +: 1;
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: new id is ",string id];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: new id is ",string id];
 
     
 
     / Initialize state in global dict
-    if[@[get; `.utl.DEBUG; 0b];
+    if[@[get; `.resq.DEBUG; 0b];
         -1 "DEBUG: deferredStates type ", string type .tst.deferredStates;
         -1 "DEBUG: deferredStates value type ", string type value .tst.deferredStates
     ];
     .tst.deferredStates[id]: ([] state: enlist `pending; val: enlist (::); err: enlist (::));
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: deferredStates updated"];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: deferredStates updated"];
 
     
 
@@ -86,23 +86,23 @@ resolve:{[id;v]
 
     id: .tst.deferredKey id;
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: resolve called for ",string id];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: resolve called for ",string id];
 
     if[not id in key .tst.deferredStates;
-        if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: Unknown deferred ",string id];
+        if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: Unknown deferred ",string id];
         '"Unknown deferred"
     ];
 
     state: .tst.deferredStates[id];
     if[not ((first state[`state]) ~ `pending);
-        if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: Already settled"];
+        if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: Already settled"];
         '"Promise already settled"
     ];
 
     .tst.deferredStates[id;`state]: enlist `resolved;
     .tst.deferredStates[id;`val]: enlist v;
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: resolved ",string id];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: resolved ",string id];
 
  };
 
@@ -114,24 +114,24 @@ reject:{[id;e]
 
     id: .tst.deferredKey id;
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: reject called for ",string id];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: reject called for ",string id];
 
     if[not id in key .tst.deferredStates;
-        if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: Unknown deferred ",string id];
+        if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: Unknown deferred ",string id];
         '"Unknown deferred"
     ];
 
     state: .tst.deferredStates[id];
 
     if[not ((first state[`state]) ~ `pending);
-        if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: Already settled"];
+        if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: Already settled"];
         '"Promise already settled"
     ];
 
     .tst.deferredStates[id;`state]: enlist `rejected;
     .tst.deferredStates[id;`err]: enlist e;
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: rejected ",string id];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: rejected ",string id];
 
  };
 
@@ -158,16 +158,16 @@ getState:{[id]
 
     id: .tst.deferredKey id;
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: getState called for ",string id];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: getState called for ",string id];
 
     if[not id in key .tst.deferredStates;
-        if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: Unknown deferred ",string id];
+        if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: Unknown deferred ",string id];
         '"Unknown deferred"
     ];
 
     res: first .tst.deferredStates[id];
 
-    if[@[get; `.utl.DEBUG; 0b]; -1 "DEBUG: getState returning for ",string id];
+    if[@[get; `.resq.DEBUG; 0b]; -1 "DEBUG: getState returning for ",string id];
 
     res
 

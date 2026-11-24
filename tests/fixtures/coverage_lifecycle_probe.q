@@ -11,7 +11,7 @@
     "c:{[x]x+3};";
     "\\d .");
 system "l ",.tst.testState.coverageLifecycle.src;
-.utl.loaded:enlist .tst.testState.coverageLifecycle.src;
+.resq.loaded:enlist .tst.testState.coverageLifecycle.src;
 
 .tst.desc["coverage repeated lifecycle child"]{
     should["restore, roll back, and reject foreign ownership"]{
@@ -105,16 +105,16 @@ system "l ",.tst.testState.coverageLifecycle.src;
         src:.tst.tempFile ".q";
         (hsym `$src) 0:("\\d .covself";"a:{[x]x+1};";"\\d .");
         system "l ",src;
-        priorLoaded:.utl.loaded;
+        priorLoaded:.resq.loaded;
         priorInclude:@[get;`.tst.app.coverageInclude;{()}];
         priorContexts:.tst.coverageContexts;
         helpers:(.resq.HOME,"/lib/dsl/internals.q";
             .resq.HOME,"/lib/value_codec.q";
             .resq.HOME,"/lib/output/sanitize.q");
-        / The fixture header rewrote .utl.loaded, so name the helper files
+        / The fixture header rewrote .resq.loaded, so name the helper files
         / explicitly: instrumentation walks the loaded list, not the include
         / patterns.
-        .utl.loaded:distinct .utl.loaded,enlist[src],helpers;
+        .resq.loaded:distinct .resq.loaded,enlist[src],helpers;
         .tst.app.coverageInclude:enlist[src],helpers;
         .tst.coverageContexts:1b;
         observed:`long$();
@@ -128,7 +128,7 @@ system "l ",.tst.testState.coverageLifecycle.src;
         ];
         .tst.coverageContexts:priorContexts;
         .tst.app.coverageInclude:priorInclude;
-        .utl.loaded:priorLoaded;
+        .resq.loaded:priorLoaded;
         must[helperWrapped;
              "the probe must actually wrap a framework helper the recorder calls"];
         observed musteq 1 1j;

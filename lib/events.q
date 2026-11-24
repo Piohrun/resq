@@ -59,7 +59,7 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
  };
 
 .tst.fileContentDigest:{[file]
-    path:.utl.pathToString file;
+    path:.resq.util.pathToString file;
     lines:@[read0;hsym `$path;{()}];
     $[count lines;.tst.stableHashText "\n" sv lines;""]
  };
@@ -466,9 +466,9 @@ if[not `reporters in key `.resq.plugins;.resq.plugins.reporters:()!()];
     files:(),@[get;`.tst.app.pluginFiles;{()}];
     if[0=count files;:()];
     {[path]
-        p:.utl.pathToString path;
-        if[not .utl.isFile p;'"plugin file is not a regular file: ",p];
-        outcome:@[{[file].utl.loadQFile file;(0b;"")};p;{[e](1b;.tst.toString e)}];
+        p:.resq.util.pathToString path;
+        if[not .resq.util.isFile p;'"plugin file is not a regular file: ",p];
+        outcome:@[{[file].resq.util.loadQFile file;(0b;"")};p;{[e](1b;.tst.toString e)}];
         if[first outcome;'"failed to load plugin file ",p,": ",last outcome]
       } each files;
     ::

@@ -26,14 +26,14 @@
 / against the old definitions, and a broken edit stays green. resQ's own
 / modules stay loaded.
 .tst.watch.forgetLoaded:{[]
-    loaded: @[get; `.utl.loaded; {()}];
+    loaded: @[get; `.resq.loaded; {()}];
     if[0=count loaded; :()];
     canon: .tst.loadGraph.canonical[system "cd"];
     tracked: `$canon each key .tst.watch.fileStates;
     own: (canon .resq.PKGLOADING), "/";
     paths: canon each loaded;
     isOwn: {[own;p] (count[own]<=count p) and own~(count own)#p}[own] each paths;
-    .utl.loaded: loaded where not ((`$paths) in tracked) and not isOwn;
+    .resq.loaded: loaded where not ((`$paths) in tracked) and not isOwn;
  };
 
 / Default runner command (can be overridden). Accepts a list of files as
@@ -45,7 +45,7 @@
     / Reload runner state to clear previous runs. Anchor at install root
     / so this works no matter where the user invoked resq from.
     home: @[get; `.resq.HOME; {"."}];
-    .utl.loadQFile home,"/lib/runner.q";
+    .resq.util.loadQFile home,"/lib/runner.q";
 
     / Force no exit for watch mode runner
     .tst.app.exit: 0b;
@@ -70,7 +70,7 @@
 / is marked second-resolution so fingerprintWith can add a content digest. The
 / old code spawned one `stat` PER FILE PER TICK
 / (~2.6 ms each), so a 500-file tree blew past the 1s poll interval. Here every
-/ tracked path is shell-quoted (.utl.shellQuote - spaces in paths are safe) and
+/ tracked path is shell-quoted (.resq.util.shellQuote - spaces in paths are safe) and
 / passed to a SINGLE GNU `stat -c '%Y %n'` (BSD `stat -f '%m %N'` fallback).
 / .
 / q's `system` THROWS on a nonzero child exit, and `stat` exits nonzero if ANY
@@ -81,13 +81,13 @@
 / space only - paths may themselves contain spaces.
 .tst.watch.statBatch:{[paths]
     if[0 = count paths; :()!()];
-    quoted: " " sv .utl.shellQuote each paths;
+    quoted: " " sv .resq.util.shellQuote each paths;
     / q's `system` does NOT capture stdout when the command string contains
     / shell metacharacters like `;` (it streams them to the console instead and
     / returns nothing). So the WHOLE compound - `stat ... ; true` to swallow the
     / nonzero exit on a missing file - is wrapped as a single `sh -c <quoted>`
     / argument; q then sees one simple command and captures its stdout normally.
-    runner: {[inner] system "sh -c ", .utl.shellQuote inner};
+    runner: {[inner] system "sh -c ", .resq.util.shellQuote inner};
     / Tabs separate metadata from paths; a path containing a tab is reconstructed
     / from every remaining field. `%y` retains GNU stat's fractional seconds.
     out:@[runner;"stat --printf='%Y\\t%y\\t%n\\n' ",quoted," 2>/dev/null ; true";{()}];
@@ -142,10 +142,10 @@
  };
 
 .tst.watch.fingerprintWith:{[mtimeMap;f]
-    h: .utl.pathToHsym f;
+    h: .resq.util.pathToHsym f;
     if[() ~ key h; :(-1; ""; "")];     / missing -> sentinel
     sz: @[hcount; h; {[e] -1}];
-    ps: .utl.pathToString f;
+    ps: .resq.util.pathToString f;
     mt:$[ps in key mtimeMap;mtimeMap ps;"s:0"];
     / On platforms exposing only epoch seconds, add a fixed-width native digest.
     / This keeps the poll subprocess count batched while detecting same-size,
@@ -157,7 +157,7 @@
 / Single-file fingerprint convenience (used by tests). Runs its own one-path
 / stat batch so callers need not pre-build a map.
 .tst.watch.fingerprint:{[f]
-    .tst.watch.fingerprintWith[.tst.watch.statAll enlist .utl.pathToString f; f]
+    .tst.watch.fingerprintWith[.tst.watch.statAll enlist .resq.util.pathToString f; f]
  }
 
 / Scan and return dictionary of file->fingerprint. Collects every tracked path,
@@ -166,7 +166,7 @@
 .tst.watch.scanFiles:{[]
     files: raze { .tst.static.findSources x } each .tst.watch.watchDirs;
     if[0 = count files; :()!()];
-    mtimeMap: .tst.watch.statAll .utl.pathToString each files;
+    mtimeMap: .tst.watch.statAll .resq.util.pathToString each files;
     files!.tst.watch.fingerprintWith[mtimeMap] each files
  }
 

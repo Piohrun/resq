@@ -22,14 +22,14 @@ ensureFixtureRegistry:{[]
 
 / qspec's public helper for data kept next to a test file:
 / .tst.testFilePath `configs`normal -> `:/abs/test/dir/configs/normal
-testFilePath:{[parts] ` sv (` vs .utl.pathToHsym .tst.tstPath)[0],parts};
+testFilePath:{[parts] ` sv (` vs .resq.util.pathToHsym .tst.tstPath)[0],parts};
 
 currentDirFixture: `
 savedDir: `directory`vars`context`tables!("";(`,())!(),(::);`.;`symbol$())
 
 fixtureAs:{[fixtureName;name]
     / Get directory of current test file (tstPath should be absolute from loader)
-    tstPath: .utl.pathToString .tst.tstPath;
+    tstPath: .resq.util.pathToString .tst.tstPath;
     dirPath: $[0 = count tstPath; "."; "/" sv -1 _ "/" vs tstPath];
     if[0 = count dirPath; dirPath: "."];
 
@@ -38,7 +38,7 @@ fixtureAs:{[fixtureName;name]
 
     / If not found, try fixtures subdirectory
     fixturesDir: dirPath, "/fixtures";
-    if[(fp ~ `) and .utl.isDir fixturesDir; fp: .tst.fixtureInDir[fixtureName; fixturesDir]];
+    if[(fp ~ `) and .resq.util.isDir fixturesDir; fp: .tst.fixtureInDir[fixtureName; fixturesDir]];
 
     / Error if still not found
     if[fp ~ `; '"Error loading fixture '", (.tst.toString fixtureName), "', not found in ", dirPath];
@@ -53,13 +53,13 @@ fixtureAs:{[fixtureName;name]
 fixtureInDir:{[fname;dir]
     / Normalize inputs
     fnameStr: .tst.toString fname;
-    dirPath: .utl.pathToString dir;
+    dirPath: .resq.util.pathToString dir;
 
     / Check directory exists
-    if[not .utl.isDir dirPath; :` ];
+    if[not .resq.util.isDir dirPath; :` ];
 
     / Get directory contents
-    h: .utl.pathToHsym dirPath;
+    h: .resq.util.pathToHsym dirPath;
     contents: key h;
     if[() ~ contents; :` ];
 
@@ -129,20 +129,20 @@ cleanupAllFixtures:{[]
 
 loadFixture:{[path;name]
     / Get file extension from path
-    p: .utl.pathToString path;
+    p: .resq.util.pathToString path;
     base: last "/" vs p;
     parts: "." vs base;
     fext: `$$[1 < count parts; last parts; ""];
 
     / Handle based on extension or type (single line for q parser)
-    $[fext in `txt`csv`psv`tsv; .tst.loadFixtureTxt[path;name]; .utl.isFile p; .tst.loadFixtureFile[path;name]; .tst.loadFixtureDir[path;name]]
+    $[fext in `txt`csv`psv`tsv; .tst.loadFixtureTxt[path;name]; .resq.util.isFile p; .tst.loadFixtureFile[path;name]; .tst.loadFixtureDir[path;name]]
  }
 
 fixture: .tst.fixtureAs[;` ]
 
 loadFixtureDir:{[f;name]
     / Extract fixture/directory name
-    p: .utl.pathToString f;
+    p: .resq.util.pathToString f;
     fixtureName: `$last "/" vs p;
 
     dirLoaded: not ` ~ .tst.currentDirFixture;
@@ -160,7 +160,7 @@ loadFixtureDir:{[f;name]
               system "d ", string ctx;
               tbls: tables[];
               if[count tbls; ![ctx; (); 0b; tbls]];
-              (0b; .utl.loadQFile p)
+              (0b; .resq.util.loadQFile p)
             };
             (ctx;p);
             {[e](1b;e)}];
@@ -174,14 +174,14 @@ loadFixtureDir:{[f;name]
 
 loadFixtureTxt:{[f;name]
     / Extract fixture name from path (filename without extension)
-    p: .utl.pathToString f;
+    p: .resq.util.pathToString f;
     base: last "/" vs p;
     parts: "." vs base;
     fnameDefault: `$$[1 < count parts; "." sv -1 _ parts; base];
     fname: fnameDefault ^ name;
 
     / Read and parse content
-    h: .utl.pathToHsym f;
+    h: .resq.util.pathToHsym f;
     content: (raze l[0;1] vs l[0];enlist l[0;1]) 0: 1 _ l: read0 h;
     .tst.mock[fname; content];
     fname
@@ -189,13 +189,13 @@ loadFixtureTxt:{[f;name]
 
 loadFixtureFile:{[f;name]
     / Extract fixture name from path
-    p: .utl.pathToString f;
+    p: .resq.util.pathToString f;
     base: last "/" vs p;
     fnameDefault: `$base;
     fname: fnameDefault ^ name;
 
     / Load file content
-    h: .utl.pathToHsym f;
+    h: .resq.util.pathToHsym f;
     .tst.mock[fname; get h];
     fname
  }
@@ -232,7 +232,7 @@ savedDirHasDiskTables:{[]
  if["" ~ .tst.savedDir.directory;:0b];
  names:string .tst.savedDir.tables;
  if[0=count names;:0b];
- any .utl.isDir each .tst.savedDir.directory,"/",/:names
+ any .resq.util.isDir each .tst.savedDir.directory,"/",/:names
  }
 
 restoreDir:{
@@ -322,7 +322,7 @@ runSpecCleanupTasks:{[]
 tempFile:{[suffix]
     / Generate unique name
     fn: "resq_", .tst.toString[.z.p], "_", string[first 1?1000], suffix;
-    path: .utl.normalizePath (system "cd"), "/", fn;
+    path: .resq.util.normalizePath (system "cd"), "/", fn;
     
     / Register for cleanup
     .tst.registerCleanup[{[p] @[hdel; hsym `$p; {}]}; enlist path];

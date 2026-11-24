@@ -56,9 +56,9 @@
     baseDirStr: .tst.toString .tst.app.baseDir;
     if[0 = count baseDirStr; baseDirStr: system "cd"];
     if[not outDirStr like "/*"; outDirStr: baseDirStr, "/", outDirStr];
-    outDirStr: .utl.normalizePath outDirStr;
+    outDirStr: .resq.util.normalizePath outDirStr;
     outFile: outDirStr, "/test-results.json";
-    .utl.ensureDir outDirStr;
+    .resq.util.ensureDir outDirStr;
     hsym[`$outFile] 0: enlist jsonReport;
     -1 "JSON Report written to ", outFile;
  };

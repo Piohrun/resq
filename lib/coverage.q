@@ -72,7 +72,7 @@ if[not `coverageRecording in key `.tst;.tst.coverageRecording:0b];
     s: $[10h = abs type path; path; string path];
     if[s like ":*"; s: 1 _ s];
     if[not s like "/*"; s: (system "cd"), "/", s];
-    .utl.normalizePath s
+    .resq.util.normalizePath s
  };
 
 .tst._covNameStr:{[x]
@@ -260,7 +260,7 @@ if[not `coverageRecording in key `.tst;.tst.coverageRecording:0b];
     contextId:$[detail;
         "attempt_",.tst.stableHashText[executionId,"\n",string["j"$attempt]];
         executionId];
-    file:$[`tstPath in key spec;.utl.pathToString spec`tstPath;""];
+    file:$[`tstPath in key spec;.resq.util.pathToString spec`tstPath;""];
     metadata:.tst.coverageContextMeta[
         contextId;$[detail;"attempt";"test"];testId;
         $[detail;"j"$attempt;0j];
@@ -738,7 +738,7 @@ if[not `coverageRecording in key `.tst;.tst.coverageRecording:0b];
 / and it does accept a spaced directory) and `\l` the bare basename, then restore
 / the previous working directory. The cwd is restored on BOTH success and error.
 .tst.coverageLoadFile:{[pathStr]
-    .utl.loadQFile pathStr
+    .resq.util.loadQFile pathStr
  };
 
 / Load and instrument a source file explicitly
@@ -764,7 +764,7 @@ if[not `coverageRecording in key `.tst;.tst.coverageRecording:0b];
     / works). This guard therefore returned before instrumenting anything, so
     / coverage only ever saw files loaded through .tst.sysl (\l) and nothing
     / loaded via .utl.require. Probe the variable itself instead.
-    loaded: @[get; `.utl.loaded; {()}];
+    loaded: @[get; `.resq.loaded; {()}];
     if[0 = count loaded; :()];
 
     files: loaded where (loaded like "*.q") and not loaded like "*coverage.q";

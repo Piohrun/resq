@@ -54,9 +54,9 @@
       baseDirStr: .tst.toString .tst.app.baseDir;
       if[0 = count baseDirStr; baseDirStr: system "cd"];
       if[not outDirStr like "/*"; outDirStr: baseDirStr, "/", outDirStr];
-      outDirStr: .utl.normalizePath outDirStr;
+      outDirStr: .resq.util.normalizePath outDirStr;
       outFile: outDirStr, "/", fileName;
-      .utl.ensureDir outDirStr;
+      .resq.util.ensureDir outDirStr;
       hsym[`$outFile] 0: enlist xmlReport;
       -1 $[count getenv`RESQ_XML_REPORT_STDOUT; "XML Report written to stdout";
           "XML Report written to ", outFile];
@@ -164,7 +164,7 @@
 
         / Fallback: attempt a direct load if the require path did not register coverage.
         if[not `initCoverage in key `.tst;
-            @[.utl.loadQFile; home,"/lib/coverage.q"; {[e]
+            @[.resq.util.loadQFile; home,"/lib/coverage.q"; {[e]
                 -1 "Coverage module load failed: ", .tst.toString e;
                 :()
             }];
@@ -322,7 +322,7 @@
  };
 
 .tst.linuxOpenDescriptors:{[]
-    if[not .utl.isLinux; :`long$()];
+    if[not .resq.util.isLinux; :`long$()];
     / Read q's own proc directory with q-native directory enumeration. Calling
     / `system "ls /proc/self/fd"` inspects the helper process, and shell probing
     / once per suite adds minutes to a large run. `key` opens/closes the
@@ -334,7 +334,7 @@
 
 .tst.captureResourceState:{[]
     ipcHandles:key .z.W;
-    if[not .utl.isLinux;
+    if[not .resq.util.isLinux;
         :`osHandles`ipcHandles`fileHandleOffset!(`long$();ipcHandles;0j)];
     osHandles:.tst.linuxOpenDescriptors[];
     cachedOffset:@[get;`.tst.app.resourceFileHandleOffset;{0Nj}];
@@ -359,7 +359,7 @@
     / Close IPC handles by their native q handle before re-reading Linux file
     / descriptors, so they cannot also be mistaken for leaked file handles.
     if[count leakedIpc;{@[hclose;x;{}]} each leakedIpc];
-    leakedOs:$[.utl.isLinux;
+    leakedOs:$[.resq.util.isLinux;
         .tst.linuxOpenDescriptors[] except origResources`osHandles;
         `long$()];
     offset:origResources`fileHandleOffset;
@@ -380,7 +380,7 @@
 
     if[count leakedHandles;
         remainingIpc:(key .z.W) except origResources`ipcHandles;
-        remainingOs:$[.utl.isLinux;
+        remainingOs:$[.resq.util.isLinux;
             .tst.linuxOpenDescriptors[] except origResources`osHandles;
             `long$()];
         if[count remainingIpc,remainingOs;
@@ -584,7 +584,7 @@
 
         toSym: {`$ .tst.toString x};
         dur: `timespan$ first e[`time];
-        fileText: .tst.repoRelativePath $[`tstPath in key s; .utl.pathToString s`tstPath; ""];
+        fileText: .tst.repoRelativePath $[`tstPath in key s; .resq.util.pathToString s`tstPath; ""];
         namespaceText: $[`namespace in key e; .tst.toString e`namespace;
                          `namespace in key s; .tst.toString s`namespace;
                          ""];
@@ -707,11 +707,11 @@
     .tst.assertState: .tst.defaultAssertState;
     .tst.pendingBacktrace: "";
     .tst.suppressAssertionDiff: 1b ~ @[get; `.tst.app.passOnly; 0b];
-    if[`testDeps in key `.utl; .utl.testDeps: ()!()];
+    if[`testDeps in key `.resq; .resq.testDeps: ()!()];
 
     / On non-Linux, per-spec leak detection only sees IPC handles (.z.W),
     / not file descriptors. Warn once per session if we are using the fallback.
-    if[(not .utl.isLinux) and (not .tst.app.quiet) and not `handleWarnPrinted in key `.tst.app;
+    if[(not .resq.util.isLinux) and (not .tst.app.quiet) and not `handleWarnPrinted in key `.tst.app;
         -1 "NOTE: file-handle leak detection requires Linux /proc; on this OS only IPC handles (.z.W) are tracked.";
         .tst.app.handleWarnPrinted: 1b;
     ];
@@ -920,7 +920,7 @@
             `file`errorType!(.tst.repoRelativePath err`file;err`type)];
         baseRow:`suite`description`status`message`time`failures`assertsRun`file`line`namespace`tags`output`kind!(
             `FILE_LOAD_ERROR;err`file;`error;err`error;0Nn;enlist err`error;0i;
-            .utl.pathToString err`file;0Ni;"";`symbol$();"";`load);
+            .resq.util.pathToString err`file;0Ni;"";`symbol$();"";`load);
         toInsert:.tst.oneResultTable baseRow;
         `.resq.state.results upsert toInsert;
 
@@ -995,7 +995,7 @@
         testText: $[`test in key rec; .tst.toString rec`test; ""];
         scopeText: $[`scope in key rec; .tst.toString rec`scope; "cleanup"];
         messageText: $[`message in key rec; .tst.toString rec`message; "Cleanup failed"];
-        sourcePath: $[`file in key rec; .utl.pathToString rec`file; ""];
+        sourcePath: $[`file in key rec; .resq.util.pathToString rec`file; ""];
         .tst.recordDiagnostic[`cleanup;`error;`cleanup;messageText;rec];
         suiteSym: `$ $[count suiteText; suiteText; "CLEANUP_ERROR"];
         descSym: `$ "cleanup [",scopeText,"]",$[count testText; " after ",testText; ""];
@@ -1192,9 +1192,9 @@
     baseDirStr: .tst.toString .tst.app.baseDir;
     if[0 = count baseDirStr; baseDirStr: system "cd"];
     if[not outDirStr like "/*"; outDirStr: baseDirStr, "/", outDirStr];
-    outDirStr: .utl.normalizePath outDirStr;
+    outDirStr: .resq.util.normalizePath outDirStr;
     -1 "Coverage outDir: ", outDirStr;
-    .utl.ensureDir outDirStr;
+    .resq.util.ensureDir outDirStr;
 
     errors: ();
     covLCOV: @[get; `.tst.generateLCOV; {()}];
@@ -1342,11 +1342,11 @@
 
 / Phase-runner helper. Records the current phase name as a symbol
 / (overwriting earlier string-literal style) and optionally emits a trace
-/ line under .utl.DEBUG. Used as the single dispatch point in runAll so a
+/ line under .resq.DEBUG. Used as the single dispatch point in runAll so a
 / crash mid-run shows where via .tst._runAllStep.
 .tst.runAllPhase.run:{[name; fn]
     .tst._runAllStep: name;
-    if[.utl.DEBUG; -1 "[runAll] ", string name];
+    if[.resq.DEBUG; -1 "[runAll] ", string name];
     fn[]
  };
 

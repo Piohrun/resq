@@ -42,15 +42,20 @@ Codes 2 (CONFIG_ERROR) and 5 (PARTIAL) were removed — no code path emits them.
 - `skip` - skipped expectation
 - `pending` - pending placeholder expectation
 
-### `.utl` - Utilities
-Low-level utilities and loader.
+### `.resq.util` - Utilities
+Low-level utilities and loader. resQ reads nothing from `.utl`, which belongs
+to qutil and to many teams' own code. For test code written against the old
+names, each helper is also offered as `.utl.<name>` where that name is free.
 
 | Function | Purpose |
 |----------|---------|
-| `.utl.require` | Module loader |
-| `.utl.pathToString` | Path normalization |
-| `.utl.loaded` | Loaded modules tracking |
-| `.utl.isLinux/isMac/isWindows` | OS detection |
+| `.resq.require` (`.utl.require`) | Module loader |
+| `.resq.util.pathToString` | Path normalization |
+| `.resq.util.loadQFile` | Load a file as `\l` does, also when its path has spaces |
+| `.resq.util.shellQuote` | Quote a path for a shell command |
+| `.resq.util.isDir/isFile/pathExists` | File system checks |
+| `.resq.util.isLinux/isMac/isWindows` | OS detection |
+| `.resq.loaded` | Loaded modules tracking |
 
 ## Root Namespace Exports
 For convenience, key DSL functions are exported:

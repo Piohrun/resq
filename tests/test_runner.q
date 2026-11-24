@@ -32,7 +32,7 @@
         `.tst.assertState              mock ``failures`assertsRun!(::;enlist "old";9);
         `.tst.pendingBacktrace         mock "stale trace";
         `.tst.suppressAssertionDiff    mock 1b;
-        `.utl.testDeps                 mock (enlist `stale)!enlist enlist `dependency;
+        `.resq.testDeps                 mock (enlist `stale)!enlist enlist `dependency;
         `.resq.state.results           mock .resq.state.results;
     };
 
@@ -67,7 +67,7 @@
         .tst.pendingBacktrace musteq "";
         resetAssertState mustmatch .tst.defaultAssertState;
         .tst.suppressAssertionDiff musteq 0b;
-        (count .utl.testDeps) musteq 0;
+        (count .resq.testDeps) musteq 0;
     };
 
     should["suppress assertion diffs for pass-only runs"]{

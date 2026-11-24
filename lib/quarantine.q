@@ -12,8 +12,8 @@
     configured:.tst.toString @[get;` sv (`.tst.app;setting);{fallback}];
     base:.tst.toString @[get;`.tst.app.baseDir;{system "cd"}];
     path:$[count[configured] and "/"=first configured;
-        .utl.normalizePath configured;
-        .utl.normalizePath base,"/",configured];
+        .resq.util.normalizePath configured;
+        .resq.util.normalizePath base,"/",configured];
     shardCount:"j"$@[get;`.tst.app.shardCount;1j];
     shardIndex:"j"$@[get;`.tst.app.shardIndex;0j];
     if[sharded and shardCount>1;
@@ -45,7 +45,7 @@
 .tst.readVersionedJson:{[path;expectedVersion;required]
     result:{[statusName;document;diagnostic]
         `status`document`diagnostic!(statusName;document;diagnostic)};
-    if[not .utl.pathExists path;:result[`missing;()!();"file does not exist"]];
+    if[not .resq.util.pathExists path;:result[`missing;()!();"file does not exist"]];
     readResult:@[{[p](0b;read0 hsym `$p)};path;{[err](1b;.tst.toString err)}];
     if[first readResult;:result[`invalid;()!();"read failed: ",last readResult]];
     lines:last readResult;
@@ -486,10 +486,10 @@
     enlist "*";
     "!quarantine.json");
 .tst.ensureStateDir:{[dir]
-    .utl.ensureDir dir;
-    if[not ".resq"~last "/" vs .utl.normalizePath dir;:dir];
+    .resq.util.ensureDir dir;
+    if[not ".resq"~last "/" vs .resq.util.normalizePath dir;:dir];
     ignore:dir,"/.gitignore";
-    if[.utl.pathExists ignore;:dir];
+    if[.resq.util.pathExists ignore;:dir];
     @[{(hsym `$x) 0: .tst.STATE_DIR_GITIGNORE};ignore;{[e]}];
     dir
  };
@@ -505,7 +505,7 @@
         .tst.recordDiagnostic[kind;`warning;`persistence;"Unable to write state";
             enlist[`path]!enlist .tst.repoRelativePath path];
         :0b];
-    moved:.[{[src;dst]system "mv -f -- ",.utl.shellQuote[src]," ",.utl.shellQuote dst;1b};
+    moved:.[{[src;dst]system "mv -f -- ",.resq.util.shellQuote[src]," ",.resq.util.shellQuote dst;1b};
         (tmp;path);{[err]0b}];
     if[not moved;
         @[hdel;hsym `$tmp;{}];
@@ -544,7 +544,7 @@
     if[0=count dir;dir:"/"];
     .tst.ensureStateDir dir;
     lock:path,".lock";
-    quoted:.utl.shellQuote lock;
+    quoted:.resq.util.shellQuote lock;
     / 0 = acquired, 75 = held by a live writer, 73 = cannot be created at all
     / (read-only checkout, missing or foreign-owned state directory). Without
     / the 73 exit an unwritable directory spun the full 5 s busy-wait on every
@@ -556,7 +556,7 @@
         "if [ -n \"$owner\" ] && ! kill -0 \"$owner\" 2>/dev/null; then rm -rf -- \"$lock\"; continue; fi; ",
         "i=$((i+1)); if [ \"$i\" -ge 100 ]; then echo 75; exit 0; fi; sleep 0.05; done; ",
         "echo ",string[.z.i]," > \"$lock/pid\"; echo 0";
-    lines:@[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "75"}];
+    lines:@[system;"sh -c ",.resq.util.shellQuote cmd;{[err]enlist "75"}];
     $[count lines;"j"$"J"$last lines;75j]
  };
 
@@ -566,7 +566,7 @@
     owner:@[read0;hsym `$ownerPath;{()}];
     if[(count owner) and (last owner)~string .z.i;
         @[hdel;hsym `$ownerPath;{()}];
-        @[system;"rmdir ",.utl.shellQuote lock;{[err]()}]];
+        @[system;"rmdir ",.resq.util.shellQuote lock;{[err]()}]];
     ::
  };
 

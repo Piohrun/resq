@@ -501,7 +501,7 @@
 / runAll are mocked so only the argument hand-off is exercised.
 .tst.desc["watch: the full-suite fallback runs the watched directories"]{
   should["hand the runner the watched directories when given no files"]{
-    `.utl.loadQFile mock {[p] ::};
+    `.resq.util.loadQFile mock {[p] ::};
     `.tst.initReporting mock {[] ::};
     `.tst.runAll mock {[x] .tst.testState.watchsel.args: .tst.app.args};
     `.tst.app.exit mock .tst.app.exit;
@@ -524,24 +524,24 @@
   should["forget tracked files, keep resQ's own modules and unrelated paths"]{
     own: .resq.PKGLOADING, "/mock.q";
     `.tst.watch.fileStates mock (`$"/proj/src/a.q"; `$own)!((1; "t"; ""); (1; "t"; ""));
-    `.utl.loaded mock (""; "/proj/src/a.q"; ":/proj/src/a.q"; "/elsewhere/b.q"; own);
+    `.resq.loaded mock (""; "/proj/src/a.q"; ":/proj/src/a.q"; "/elsewhere/b.q"; own);
     .tst.watch.forgetLoaded[];
-    .utl.loaded mustmatch (""; "/elsewhere/b.q"; own);
+    .resq.loaded mustmatch (""; "/elsewhere/b.q"; own);
   };
 
   should["recognise a tracked file however it was spelled when required"]{
     here: system "cd";
     `.tst.watch.fileStates mock (enlist `$"src/rel.q")!enlist (1; "t"; "");
-    `.utl.loaded mock (""; here, "/src/rel.q"; "./src/rel.q"; "src/x/../rel.q"; "src/other.q");
+    `.resq.loaded mock (""; here, "/src/rel.q"; "./src/rel.q"; "src/x/../rel.q"; "src/other.q");
     .tst.watch.forgetLoaded[];
-    .utl.loaded mustmatch (""; "src/other.q");
+    .resq.loaded mustmatch (""; "src/other.q");
   };
 
   should["leave the list alone when nothing is tracked"]{
     `.tst.watch.fileStates mock ()!();
-    `.utl.loaded mock (""; "/proj/src/a.q");
+    `.resq.loaded mock (""; "/proj/src/a.q");
     .tst.watch.forgetLoaded[];
-    .utl.loaded mustmatch (""; "/proj/src/a.q");
+    .resq.loaded mustmatch (""; "/proj/src/a.q");
   };
  };
 

@@ -63,7 +63,7 @@
 .tst.desc["fixture directory namespace unwind"]{
     should["directory fixture restores namespace on error"]{
         .tst.testState.fixtureOriginalDir:: system "d";
-        `.utl.loadQFile mock {[path]
+        `.resq.util.loadQFile mock {[path]
             system "d .tst";
             '"synthetic fixture parse failure"
         };

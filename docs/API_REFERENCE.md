@@ -1089,7 +1089,7 @@ should["leak a handle and have the runner close it"]{
 should["produce a temp artifact only this expectation needs"]{
     out: .tst.tempFile ".csv";   / auto-cleaned at expectation end via registerCleanup
     (hsym `$out) 0: enlist "a,b,c";
-    must[.utl.isFile out; "should write file"];
+    must[.resq.util.isFile out; "should write file"];
 };
 ```
 
@@ -1501,7 +1501,7 @@ polls is sufficient; it is not general asynchronous execution.
 **Example:**
 ```q
 / Wait for file to appear
-.tst.eventually[{.utl.pathExists "/tmp/output.csv"}; 10000; 100];
+.tst.eventually[{.resq.util.pathExists "/tmp/output.csv"}; 10000; 100];
 
 / Wait for queue to drain
 .tst.eventually[{0 = count .queue.pending[]}; 5000; 50];

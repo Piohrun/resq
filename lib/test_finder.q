@@ -182,7 +182,7 @@
   if[not count untested; :()];
   od: .tst.toStr outDir;
   -1 "Mirroring structure to: ", od;
-  .utl.ensureDir od;
+  .resq.util.ensureDir od;
   b: .tst.toStr baseDir;
   if[(count b) and not "/"=last b; b,: "/"];
 
@@ -202,7 +202,7 @@
     dirP: .tst.getDir rel;
 
     td: od, $[(count dirP) and not dirP~"/"; "/", dirP; ""];
-    .utl.ensureDir td;
+    .resq.util.ensureDir td;
 
     baseN: .tst.getBase rel;
     if[baseN like "*.q"; baseN: ((-2 + count baseN) # baseN)];
@@ -298,7 +298,7 @@
   / source tree without cd-ing somewhere first.
   outDir: .tst.toString @[get; `.resq.config.outDir; "."];
   if[0 = count outDir; outDir: "."];
-  .utl.ensureDir outDir;
+  .resq.util.ensureDir outDir;
   -1 "Generating HTML report...";
   .tst.genHtmlReport[s; outDir, "/coverage_report.html"];
 

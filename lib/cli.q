@@ -402,7 +402,7 @@ initCLI:{[parsed]
     options: parsed`options;
     reportNames: `junit`xunit`json;
     .tst.app.reportFormats: reportNames where options reportNames;
-    if[options`debug; .utl.DEBUG: 1b];
+    if[options`debug; .resq.DEBUG: 1b];
     if[options`perf; .tst.app.runPerformance: 1b];
     / qspec's -pass means "run and return the status, but print no result".
     / quiet also suppresses loading/audit chatter; initReporting installs a

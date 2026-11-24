@@ -9,6 +9,15 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A codebase with its own `.utl` namespace no longer breaks resQ, and resQ
+  no longer replaces its definitions. resQ kept 25 helpers and state variables
+  in `.utl` (`isDir`, `isFile`, `normalizePath`, `shellQuote`, `loaded`,
+  `DEBUG`, ...). An application that defined the same names stopped the run
+  with "Framework phase 'loadTests' failed: type" and no reports, or stopped
+  resQ from starting when its `.utl` was loaded from `q.q`. resQ's helpers now
+  live in `.resq.util` and its state in `.resq`; nothing is read from `.utl`.
+  The old `.utl.<name>` spellings are still offered where the name is free.
+  Debug tracing is `.resq.DEBUG` (or `-debug`); `.utl.DEBUG` is no longer read.
 - Coverage sees source loaded with `system "l src/x.q"`. A test file that
   loaded its source that way was reported at 0%, because only `\l` and the
   computed form `system "l ", path` were instrumented.

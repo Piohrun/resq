@@ -999,7 +999,7 @@ Or in a test helper loaded before the run:
 Enable debug output for more information:
 
 ```q
-.utl.DEBUG: 1b;
+.resq.DEBUG: 1b;
 / Then run your tests
 ```
 

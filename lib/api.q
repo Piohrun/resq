@@ -20,7 +20,7 @@
         if[not -1h=type options`runCoverage;'"resQ run: runCoverage must be boolean"]];
     if[`outDir in key options;
         if[not (type options`outDir) in 10 -11h;'"resQ run: outDir must be a path"];
-        options[`outDir]:.utl.pathToString options`outDir;
+        options[`outDir]:.resq.util.pathToString options`outDir;
         if[0=count options`outDir;'"resQ run: outDir must not be empty"]];
     normalized:.tst.normalizeConfigDocument options;
     invalid:.tst.invalidConfigKeys `runCoverage _ normalized;
@@ -139,7 +139,7 @@
     paths:$[(type paths) in 10 -11h;enlist paths;paths];
     if[(not (type paths) in 0 11h) or 0=count paths;'"resQ run: provide nonempty test paths"];
     if[not all (type each paths) in 10 -11h;'"resQ run: paths must be strings or symbols"];
-    paths:.utl.pathToString each paths;
+    paths:.resq.util.pathToString each paths;
     if[any 0=count each paths;'"resQ run: paths must not be empty"];
     saved:`namespaces`callbackNames`callbacks`cwd`timer`namespace!(
         get each `.tst`.utl`.resq;.resq.api.callbackNames;
@@ -156,11 +156,11 @@
     resources:last resourceOutcome;
     timerCallback:@[get;`.z.ts;{::}];
     tempOutcome:@[{(0b;first system x)};
-        "mktemp -d ",.utl.shellQuote[.utl.tempRoot[],"/resq-embedded-XXXXXXXX"];
+        "mktemp -d ",.resq.util.shellQuote[.resq.util.tempRoot[],"/resq-embedded-XXXXXXXX"];
         {[e](1b;e)}];
     if[first tempOutcome;:.resq.api.failure "temporary directory: ",last tempOutcome];
     temp:last tempOutcome;
-    removeCmd:"rm -rf -- ",.utl.shellQuote temp;
+    removeCmd:"rm -rf -- ",.resq.util.shellQuote temp;
     .resq.api.active:1b;
     outcome:.[{[p;o;t](0b;.resq.api.prepare[p;o;t])};(paths;options;temp);{[e](1b;e)}];
     finishErrors:.[{[f;a] .[f;a];()};(finish;(first outcome;resources;timerCallback));{[e]enlist e}];
