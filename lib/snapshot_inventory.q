@@ -188,12 +188,16 @@ if[not `snapshot in key `.resq;.resq.snapshot.init_:1b];
             distinct .tst.snapshotApply[.tst.snapshotEntryKey;candidates];
         ()];
     statuses:.tst.snapshotApply[{.tst.toString x`status};entries];
-    unsafeCount:(sum .tst.snapshotApply[{1b~x`unsafe};entries])+
-        sum .tst.snapshotApply[{1b~x`symlink};roots];
+    / Count through a leading 0: with no entries at all (a project that has
+    / no snapshots yet) these lists are empty and untyped, their sum is an
+    / empty list, and the gate conditions below signalled 'type.
+    tally:{[flags] "j"$sum 0,(),flags};
+    unsafeCount:tally[.tst.snapshotApply[{1b~x`unsafe};entries]]+
+        tally .tst.snapshotApply[{1b~x`symlink};roots];
     counts:`referenced`missing`obsolete`unverified`unsafe`stored`declared!(
-        "j"$sum statuses~\:"referenced";"j"$sum statuses~\:"missing";
-        "j"$sum statuses~\:"obsolete";"j"$sum statuses~\:"unverified";
-        "j"$unsafeCount;"j"$count stored;"j"$sum .tst.snapshotApply[{1b~x`declared};entries]);
+        tally statuses~\:"referenced";tally statuses~\:"missing";
+        tally statuses~\:"obsolete";tally statuses~\:"unverified";
+        unsafeCount;"j"$count stored;tally .tst.snapshotApply[{1b~x`declared};entries]);
     gateEnabled:1b~@[get;`.tst.app.snapshotGate;0b];
     gateReasons:();
     if[gateEnabled and not complete;gateReasons,:enlist "inventory-incomplete"];

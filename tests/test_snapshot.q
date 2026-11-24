@@ -295,3 +295,46 @@
         (first read0 sentinelHandle) musteq "untouched";
     };
  };
+
+/ Snapshot audit and gate from the command line. Two cases that used to end
+/ in a framework error: a project that has no snapshots yet, and a gate that
+/ fails (the console reporter died while printing the reason).
+.tst.testState.snapcli.canRun:
+    (0 < count @[system; "which q 2>/dev/null"; {()}]) and
+    (0 < count @[system; "which timeout 2>/dev/null"; {()}]);
+
+.tst.testState.snapcli.run:{[stale;flags]
+    wd: .resq.util.tempRoot[], "/resq_snapcli_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir wd, "/tests";
+    (hsym `$wd, "/tests/test_s.q") 0: enlist ".tst.desc[\"s\"]{ should[\"passes\"]{ 1 musteq 1; }; };";
+    if[stale;
+        .resq.util.ensureDir wd, "/tests/__snapshots__";
+        (hsym `$wd, "/tests/__snapshots__/old.snap.txt") 0: enlist "stale"];
+    / "true &&" first: q itself takes a command that starts with "cd".
+    cmd: "true && cd ", (.resq.util.shellQuote wd), " && timeout -k 2 60 q ",
+         (.resq.util.shellQuote .resq.HOME, "/resq.q"), " test tests ", flags, " -outDir out",
+         " -state-file out/state.json -flake-history out/flake.json",
+         " -quarantine-file out/quarantine.json -flake-proposal-file out/proposals.json",
+         " > out.txt 2>&1; echo $?";
+    exitLines: @[system; cmd; {[err] enlist "-1"}];
+    output: "\n" sv @[read0; hsym `$wd, "/out.txt"; {()}];
+    if[wd like "*/resq_snapcli_*"; system "rm -rf -- ", .resq.util.shellQuote wd];
+    `code`output!("J"$last exitLines; output)
+ };
+
+.tst.desc["Snapshot audit and gate from the command line #slow"]{
+  should["audit a project that has no snapshots yet"]{
+    if[not .tst.testState.snapcli.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.snapcli.run[0b; "-snapshot-audit"];
+    r[`code] musteq 0;
+    (0 < count r[`output] ss "Framework phase") musteq 0b;
+    (0 < count r[`output] ss "referenced=0 missing=0 obsolete=0 unverified=0 unsafe=0") musteq 1b;
+  };
+  should["pass the gate when there is nothing to gate"]{
+    if[not .tst.testState.snapcli.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.snapcli.run[0b; "-snapshot-gate"];
+    r[`code] musteq 0;
+    (0 < count r[`output] ss "gate: PASS") musteq 1b;
+  };
+ };
+ };

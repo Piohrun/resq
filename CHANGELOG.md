@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `-snapshot-audit` and `-snapshot-gate` work in a project that has no
+  snapshots yet. They failed with "Framework phase 'snapshotAudit' failed:
+  type".
 - `-benchmark-baseline` accepts a relative path. The documented command
   stopped the run before any test loaded ("Framework phase 'initRun' failed:
   .tst.app.baseDir"); only an absolute path worked.
