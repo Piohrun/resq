@@ -27,6 +27,10 @@ fail: see "Runs that can now fail" in
   self-contained or runs its pair in a child resQ where declaration order
   holds. The release gate's isolated run of the suite is in random order,
   with a seed that changes each release.
+- `-random-order -seed N` gives the same order wherever the project is checked
+  out. The order of suites and tests was keyed on each file's absolute path,
+  so a seed printed by CI replayed another order on a laptop. Orders for a
+  given seed differ from 2.3.0's.
 - A directory fixture no longer loads the project directory as a database.
   After the fixture, resQ reloads the database it displaced, and decided
   whether there was one with a check that always said yes (the directory and

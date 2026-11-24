@@ -561,7 +561,7 @@
     / Per-suite testOnly focus: if any expectation is focused, convert the rest
     / to skipped (they flow through runExpec's terminal skip path unchanged).
     exList: .tst.applyTestOnlyFocus[specTitle; exList];
-    orderStream:"expectations/",.tst.toString[.tst.currentContext`file],"/",
+    orderStream:"expectations/",.tst.repoRelativePath[.tst.currentContext`file],"/",
         .tst.toString specTitle;
     exList:.tst.orderItems[exList;orderStream];
 
@@ -806,7 +806,9 @@
     paths:{[s].tst.toString $[`tstPath in key s;s`tstPath;""]} each specs;
     groupPaths:distinct paths;
     groups:{[allSpecs;allPaths;p]
-        .tst.orderItems[allSpecs where allPaths~\:p;"specs/",p]
+        / keyed by the path inside the project, so a seed gives the same order
+        / in every checkout
+        .tst.orderItems[allSpecs where allPaths~\:p;"specs/",.tst.repoRelativePath p]
     }[specs;paths;] each groupPaths;
     raze groups
  };

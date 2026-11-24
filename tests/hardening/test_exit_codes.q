@@ -24,8 +24,11 @@
     };
 
     should["track expectations correctly"]{
-        / Verify expectation counters are being updated
-        .tst.app.expectationsRan mustgt 0;
+        / The counters cover tests that have finished, so they are all 0 when
+        / this test runs first, as -random-order can arrange. What holds in any
+        / order is that every executed test is one that passed, failed or
+        / errored.
+        .tst.app.expectationsRan musteq .tst.app.expectationsPassed + .tst.app.expectationsFailed + .tst.app.expectationsErrored;
     };
 
 };

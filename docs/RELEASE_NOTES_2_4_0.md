@@ -137,6 +137,9 @@ directory, stay relative to where you are.
   toward zero.
 - `skill/SKILL.md`, the guide AI assistants follow, is current for 2.4.0.
 - The Python report tools work on Python 3.8 to 3.10.
+- `-random-order -seed N` gives the same order in any checkout; the order of
+  suites and tests depended on the project's absolute path. Orders for a given
+  seed differ from 2.3.0's.
 - resQ's own suite passes in any order, and the release gate runs its
   isolated lane in random order.
 
