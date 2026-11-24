@@ -129,3 +129,38 @@
   };
  };
 
+/ The launcher's guard directory is handed on in the environment. A test
+/ that starts `q resq.q ...` itself gave it to that second run, which wrote
+/ its own markers there: its "complete" stood for the first run.
+.tst.desc["a run started inside a test leaves the outer run's guard alone #slow"]{
+  should["write none of its markers into it"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    wd: .tst.testState.interrupt.workDir[];
+    .resq.util.ensureDir wd, "/inner";
+    (hsym `$wd, "/inner/test_inner.q") 0: enlist ".tst.desc[\"inner\"]{ should[\"a\"]{ 1 musteq 1; }; };";
+    (hsym `$wd, "/test_outer.q") 0: (
+        ".tst.desc[\"outer\"]{";
+        "  should[\"runs a resQ of its own\"]{";
+        "    guard: getenv `RESQ_RUN_GUARD_DIR;";
+        "    had: key hsym `$guard;";
+        "    system \"sh -c 'q \", (getenv `RESQ_HOME), \"/resq.q test inner -state-file out/i.json -flake-history out/if.json > inner.log 2>&1; true'\";";
+        "    (hsym `$\"guard-after.txt\") 0: string (key hsym `$guard) except had;";
+        "    (hsym `$\"guard-owner.txt\") 0: (first read0 hsym `$guard, \"/armed\"; string .z.i);";
+        "    1 musteq 1;";
+        "  };";
+        " };");
+    cmd: "cd ", .resq.util.shellQuote[wd], " && ", .resq.util.shellQuote[.resq.HOME, "/bin/resq"],
+        " test test_outer.q -state-file out/s.json -flake-history out/f.json -flake-proposal-file out/p.json",
+        " < /dev/null > run.log 2>&1; echo exit=$?";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    (last out) musteq "exit=0";
+    / the inner run did run, and passed
+    inner: read0 hsym `$wd, "/inner.log";
+    (any {[line] 0 < count ss[line; "1 total (1 passed"]} each inner) musteq 1b;
+    / and added nothing to the outer run's guard directory
+    (count read0 hsym `$wd, "/guard-after.txt") musteq 0;
+    owner: read0 hsym `$wd, "/guard-owner.txt";
+    (owner 0) musteq owner 1;
+  };
+ };
+

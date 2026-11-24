@@ -5,6 +5,9 @@
 / break resQ, and resQ used to overwrite theirs. resQ now reads nothing from
 / .utl. It only offers names there for existing test code (see the end of
 / this file), and never replaces one it did not put there itself.
+/ Loaded on its own (`\l lib/init.q` in a host process) there is no command
+/ line to answer for the q version: signal it.
+if[.z.K < 4.0; '"resQ needs q 4.0 or newer; this is q ", string .z.K];
 if[not `utl in key `; .utl: enlist[`]!enlist (::)];
 if[not `loaded in @[key; `.resq; {`symbol$()}]; .resq.loaded: enlist ""];
 / .utl names resQ has set, with the value it gave each.
@@ -210,12 +213,23 @@ $[.resq.hasQutil; .utl.require: .resq.requireOrQutil; .resq.offerUtl[`require; .
 / marker holds the exit status the launcher leaves with. An isolated child
 / runs with an empty RESQ_RUN_GUARD_DIR, so only the run the launcher started
 / looks for it; without a launcher there is nothing to look for.
-.resq.interruptMarker: {[dir] $[count dir; hsym `$dir, "/interrupted"; `]} getenv `RESQ_RUN_GUARD_DIR;
+/ .
+/ The guard directory belongs to the one q the launcher started. A test
+/ that starts `q resq.q ...` itself hands its environment on, and that
+/ second run wrote its own markers into the first run's directory: its
+/ `complete` stood for a run that had not completed. The first q to arm the
+/ guard writes its PID there; a process that finds another's has no guard.
+.resq.guardDir: {[dir]
+    if[0 = count dir; :""];
+    owner: @[read0; hsym `$dir, "/armed"; {[e] ()}];
+    $[(0 = count owner) or (first owner) ~ string .z.i; dir; ""]
+  } getenv `RESQ_RUN_GUARD_DIR;
+.resq.interruptMarker: {[dir] $[count dir; hsym `$dir, "/interrupted"; `]} .resq.guardDir;
 / Beside it, the run notes each test as it starts and ends. A q that dies in
 / the middle of a test (out of memory under -w, a crash, an exit) leaves no
 / report and says nothing; the launcher reads the last line and names the
 / test. See .tst.noteTestProgress.
-.resq.runningMarker: {[dir] $[count dir; hsym `$dir, "/running"; `]} getenv `RESQ_RUN_GUARD_DIR;
+.resq.runningMarker: {[dir] $[count dir; hsym `$dir, "/running"; `]} .resq.guardDir;
 .resq.util.runInterrupted:{[]
     $[null .resq.interruptMarker; 0b; not () ~ @[key; .resq.interruptMarker; {[e] ()}]]
  };

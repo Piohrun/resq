@@ -1,6 +1,13 @@
 / resq.q - Unified CLI Entry Point
 \e 1
 
+/ resQ is written for, and tested on, q 4.0 and 4.1. On anything older it
+/ would fail somewhere in the middle of loading, with whatever error the
+/ first unknown construct gives. Say it in one line instead.
+if[.z.K < 4.0;
+    -2 "resQ ERROR: resQ needs q 4.0 or newer; this is q ", string .z.K;
+    exit 1];
+
 / Resolve install root. Honor RESQ_HOME if set (bin/resq exports it), else
 / derive from .z.f (the path of this script). All framework module loads
 / use this absolute root so the user's CWD stays free for their own
@@ -30,7 +37,9 @@ if[not .resq.hasQutil; .resq.offerUtl[`PKGLOADING; .resq.PKGLOADING]];
 / private directory. The callback adds an immediate diagnostic; the completion
 / marker makes the launcher fail closed even if application code replaces
 / .z.exit while tests are loading.
-.resq.exitGuardDir: getenv `RESQ_RUN_GUARD_DIR;
+/ Empty for a run that some test started inside another run: see
+/ .resq.guardDir in lib/bootstrap.q.
+.resq.exitGuardDir: .resq.guardDir;
 .resq.exitGuardArmed: 0b;
 .resq.exitGuardPrevious: @[get; `.z.exit; {::}];
 .resq.exitGuardWrite:{[name;text]
