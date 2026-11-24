@@ -29,8 +29,11 @@ if[not `DEBUG in key `.utl; .utl.DEBUG: 0b];
   / Convert to string
   p: $[10h=abs type path; path; string path];
   
-  / Validation: ignore empty, namespace-like, or bracketed paths
-  if[(not count p) or (p like ".*"); :(::)];
+  / Validation: ignore empty, namespace-like, or bracketed paths. A leading
+  / dot alone does not make a namespace: ./src/x.q and ../lib/x.q are paths,
+  / and so is a dot-file that exists.
+  namespaceLike: (p like ".*") and not any (p like "./*"; p like "../*"; .utl.pathExists p);
+  if[(not count p) or namespaceLike; :(::)];
   / Check for leading bracket safely
   if["[" = first p; :(::)];
   
@@ -48,7 +51,10 @@ if[not `DEBUG in key `.utl; .utl.DEBUG: 0b];
 
   if[.utl.DEBUG; -1 "DEBUG: loading ", p];
   
-  / Try load
+  / Try load. A file that cannot be loaded is an error, as it is for `\l`:
+  / a warning here let a test file run without the code it asked for, and
+  / pass. The one quiet case is the optional coverage module being absent.
+  failure: "";
   res: @[{.utl.loadQFile x; 1b}; p; { [p;e]
     / Coverage is loaded lazily by the runner only when -cov is passed, so a
     / MISSING coverage.q is expected and stays quiet. One that EXISTS but fails
@@ -56,14 +62,14 @@ if[not `DEBUG in key `.utl; .utl.DEBUG: 0b];
     / module -- initCoverage defined, generateLCOV not -- behind the vague
     / "Coverage LCOV generator not available", and cost a long bisect to find.
     quiet: (p like "*coverage.q") and not .utl.pathExists p;
-    if[not quiet;
-        -1 "WARNING: Failed to load ", p, " (", e, ")";
-        if[(not "/" in p) and not p like "*.q";
-            -1 "  '", p, "' looks like a qutil package name. qspec ran with qutil, whose ",
-               ".utl.require finds packages on QPATH; load qutil's bootstrap (q.q or ",
-               "QINIT) before resQ and resQ will hand package names to it."]];
-    0b
+    if[quiet; :0b];
+    if[(not "/" in p) and not p like "*.q";
+        -1 "  '", p, "' looks like a qutil package name. qspec ran with qutil, whose ",
+           ".utl.require finds packages on QPATH; load qutil's bootstrap (q.q or ",
+           "QINIT) before resQ and resQ will hand package names to it."];
+    `resqRequireFailed, enlist "failed to load ", p, ": ", e
   }[p]];
+  if[not -1h = type res; 'last res];
   
   if[res;
     .utl.loaded,: enlist p;

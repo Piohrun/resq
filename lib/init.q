@@ -218,7 +218,7 @@ if[`uiExports in key `.tst; .tst.registerDslExports .tst.uiExports];
   outputModule:$[requestedModule ~ `console; `text; requestedModule ~ `xml; `junit; requestedModule];
 
   modulePath: .tst.PKGNAME, "/output/", (string outputModule), ".q";
-  .resq.require[modulePath];
+  @[.resq.require; modulePath; {[e] -1 "WARNING: ", e;}];
   outputLoaded: any modulePath ~/: .utl.loaded;
   if[not outputLoaded; -1 "WARNING: Output module not available: ", string outputModule];
   if[not outputLoaded; :0b];

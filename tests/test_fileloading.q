@@ -58,3 +58,36 @@
   $[(::) ~ prevPatterns; ![`.resq.config; (); 0b; enlist `testFilePatterns]; .resq.config.testFilePatterns: prevPatterns];
   };
  };
+
+.tst.desc["require fails when the file cannot be loaded"]{
+  before{
+    root: .utl.tempRoot[], "/resq_require_", string[.z.i], "_", string `long$.z.p;
+    system "mkdir -p ", .utl.shellQuote root, "/src";
+    (hsym `$root, "/src/ok.q") 0: enlist ".reqprobe.ok: 1 + @[get; `.reqprobe.ok; 0];";
+    (hsym `$root, "/src/throws.q") 0: (".reqprobe.partial: 1b;"; "'\"licence check failed\";"; ".reqprobe.late: 1b;");
+    `.tst.testState.reqRoot set root;
+    .tst.registerCleanup[{[d] @[system; "rm -rf ", .utl.shellQuote d; {}]; @[system; "x .reqprobe"; {}]}; enlist root];
+  };
+  should["signal, naming the file and the error it raised"]{
+    target: .tst.testState.reqRoot, "/src/throws.q";
+    err: @[{.utl.require x; ""}; target; {x}];
+    (0 < count err ss "failed to load ") musteq 1b;
+    (0 < count err ss "throws.q") musteq 1b;
+    (0 < count err ss "licence check failed") musteq 1b;
+  };
+  should["signal for a file that does not exist"]{
+    err: @[{.utl.require x; ""}; .tst.testState.reqRoot, "/src/missing.q"; {x}];
+    (0 < count err ss "failed to load ") musteq 1b;
+  };
+  should["load a path that starts with ./ or ../"]{
+    system "cd ", .tst.testState.reqRoot;
+    .utl.require "./src/ok.q";
+    .reqprobe.ok musteq 1;
+    system "cd src";
+    .utl.require "../src/../src/ok.q";
+    .reqprobe.ok musteq 2;
+  };
+  should["still ignore a namespace-like name"]{
+    (@[{.utl.require x; `ignored}; ".app.module"; {`signalled}]) musteq `ignored;
+  };
+ };

@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `.utl.require` fails when the file cannot be loaded. It printed a warning
+  and carried on, so a test file could run without the code it asked for and
+  pass. It now signals as `\l` does, which makes it a load error for the test
+  file (exit 4). A path that starts with `./` or `../` was skipped without a
+  word and is now loaded. A resQ module that fails to load stops resQ.
 - An assertion counts wherever it runs. One that failed in `after` was
   printed and ignored; it now fails its test ("In after: ..."). One that
   failed in `afterAll` or `beforeAll` is the hook's failure. One that failed
