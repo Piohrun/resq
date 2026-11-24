@@ -803,6 +803,48 @@
   };
  };
 
+/ A child's output went to a scratch file with no limit: a test that printed
+/ in a loop wrote gigabytes in seconds. The file is now cut down while the
+/ child runs; its two ends, which are all that is read back, are kept.
+.tst.desc["Isolate: a child's captured output is bounded #slow"]{
+  should["keep the start and the end and drop the middle once the limit is passed"]{
+    wd: .resq.util.ensureDir .tst.isotest.workDir[];
+    `.tst.isolate.outputKeep mock {[] 2000};
+    `.tst.isolate.outputLimit mock {[] 16000};
+    script: "echo START-OF-OUTPUT; i=0; while [ $i -lt 2 ]; do head -c 40000 /dev/zero | tr '\\000' x; echo; sleep 1; i=$((i+1)); done; echo END-OF-OUTPUT";
+    cmd: "sh -c ", .utl.shellQuote[script], " < /dev/null >> ", .utl.shellQuote[wd, "/out.txt"], " 2>&1";
+    .tst.isolate.launchGroup[enlist 0; enlist cmd; enlist wd];
+    (first read0 hsym `$wd, "/rc.txt") musteq enlist "0";
+    / 80 KB were written; what is left is the two ends
+    (hcount hsym `$wd, "/out.txt.head") musteq 2000;
+    must[45000 > hcount hsym `$wd, "/out.txt"; "the file was cut while the child ran"];
+    captured: .tst.isolate.readCaptured wd;
+    (captured like "START-OF-OUTPUT*") musteq 1b;
+    (captured like "*END-OF-OUTPUT*") musteq 1b;
+    (0 < count ss[captured; "dropped while it ran"]) musteq 1b;
+  };
+  should["leave a child that stays under the limit exactly as it was"]{
+    wd: .resq.util.ensureDir .tst.isotest.workDir[];
+    cmd: "sh -c 'echo one; echo two' < /dev/null >> ", .utl.shellQuote[wd, "/out.txt"], " 2>&1";
+    .tst.isolate.launchGroup[enlist 0; enlist cmd; enlist wd];
+    (() ~ key hsym `$wd, "/out.txt.head") musteq 1b;
+    (.tst.isolate.readCaptured wd) musteq "one\ntwo\n";
+  };
+  should["let the clock decide a timeout when the supervisor's own line was dropped"]{
+    wd: .resq.util.ensureDir .tst.isotest.workDir[];
+    `.tst.isolate.timeoutVerbose mock 1b;
+    put: {[wd;name;text] (hsym `$wd, "/", name) 0: enlist text}[wd];
+    put["out.txt"; "no word from the supervisor here"];
+    put["rc.txt"; "124"]; put["deadline.txt"; "1000"]; put["end.txt"; "1000"];
+    .tst.isolate.supervisorTimedOut[wd] musteq 1b;
+    / gone before the deadline: the child returned 124 itself
+    put["end.txt"; "999"];
+    .tst.isolate.supervisorTimedOut[wd] musteq 0b;
+    put["rc.txt"; "001"]; put["end.txt"; "1000"];
+    .tst.isolate.supervisorTimedOut[wd] musteq 0b;
+  };
+ };
+
 / Isolation needs a timeout command that can kill after a grace period. It
 / used to demand --verbose as well, which older GNU coreutils (RHEL 7) and
 / busybox do not have.

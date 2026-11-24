@@ -9,6 +9,14 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- The output of an isolated test file no longer fills the disk. It went to a
+  scratch file with no limit: a test that printed in a loop wrote 6.3 GB in
+  four seconds, with the default 300 seconds to go and, by default, on `/tmp`.
+  The file is now cut down while the child runs. Its start and its end are
+  kept, which is all a report ever showed, and the report says that output in
+  between was dropped. Such a file is also reported as a timeout again; it
+  was shown as "exited 137" because the supervisor's own line was no longer
+  among what was read back.
 - A run that is told to stop (Ctrl+C, SIGTERM, a closed terminal) stops.
   q does not stop at a signal while it is busy, so in the second before the
   launcher killed it an isolated run started its next batch of children, and

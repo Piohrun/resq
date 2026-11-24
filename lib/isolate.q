@@ -258,10 +258,13 @@
 .tst.isolate.supervisorTimedOut:{[wd]
     captured:.tst.isolate.readCaptured wd;
     if[0 < count ss[captured; "timeout: sending signal "]; :1b];
-    if[.tst.isolate.timeoutVerbose; :0b];
     code: .tst.isolate.readExitCode wd;
-    if[124 = code; :1b];
-    if[not 137 = code; :0b];
+    if[(124 = code) and not .tst.isolate.timeoutVerbose; :1b];
+    / The verbose line can be missing from what is read back: only the two
+    / ends of the output are, and a child that prints in a loop writes more
+    / than that between the line and its own end. Then the clock decides,
+    / as it does for a timeout that cannot be verbose.
+    if[not code in 124 137; :0b];
     stamp: {[wd;name] "J"$first @[read0; hsym `$wd, "/", name; {[e] enlist ""}]}[wd];
     deadline: stamp "deadline.txt";
     ended: stamp "end.txt";
@@ -273,10 +276,23 @@
 / while the framework verdict and runtime fatal text are near the back.
 .tst.isolate.readCaptured:{[wd]
     path: hsym `$wd, "/out.txt";
-    size: @[hcount; path; {[err] 0}];
-    if[size <= 0; :""];
+    size: 0 | @[hcount; path; {[err] 0}];
+    / outputWatch cut this file while the child ran: the start of the output
+    / is in the file it put aside, the end is what the file holds now.
+    cutPath: hsym `$wd, "/out.txt.head";
+    cutSize: @[hcount; cutPath; {[err] 0}];
+    if[(size <= 0) and cutSize <= 0; :""];
     limit: "j"$@[get; `.tst.output.reportLimit; 50000];
     if[(null limit) or limit <= 0; :""];
+    if[cutSize > 0;
+        cutMarker: "\n... [the child wrote more than ", string[.tst.isolate.outputLimit[]],
+            " bytes; output between the two ends was dropped while it ran] ...\n";
+        cutKeep: 0 | limit - count cutMarker;
+        headCount: cutSize & cutKeep div 2;
+        tailCount: size & cutKeep - headCount;
+        head: "c"$@[read1; (cutPath;0;headCount); {[err] `byte$()}];
+        tail: "c"$@[read1; (path;size - tailCount;tailCount); {[err] `byte$()}];
+        :.tst.isolate.trimChildReport head,cutMarker,tail];
     if[size <= limit;
         :.tst.isolate.trimChildReport "c"$@[read1; (path;0;size); {[err] `byte$()}]];
 
@@ -530,6 +546,8 @@
 / scratch) can never decode a stale report.
 .tst.isolate.resetScratch:{[wd]
     @[hdel; hsym `$wd, "/out.txt"; {}];
+    @[hdel; hsym `$wd, "/out.txt.head"; {}];
+    @[hdel; hsym `$wd, "/out.txt.keep"; {}];
     @[hdel; hsym `$wd, "/test-results.json"; {}];
     @[hdel; hsym `$wd, "/rc.txt"; {}];
     @[hdel; hsym `$wd, "/progress.txt"; {}];
@@ -547,17 +565,55 @@
     timedArgv: (enlist .tst.isolate.timeoutExe),
         $[.tst.isolate.timeoutVerbose; enlist "--verbose"; ()],
         ("-k"; .tst.toString .tst.isolate.killAfter; string timeoutSecs), childArgv;
-    / When the supervisor would stop this child, in Unix seconds, for a
-    / timeout command that cannot say so itself (see supervisorTimedOut).
-    if[not .tst.isolate.timeoutVerbose;
-        .[{[wd;at] (hsym `$wd, "/deadline.txt") 0: enlist string at};
-          (wd; timeoutSecs + "j"$(.z.p - 1970.01.01D00:00:00) % 1000000000);
-          {[e] ::}]];
+    / When the supervisor would stop this child, in Unix seconds, for when
+    / the timeout command's own word is not there to read (see
+    / supervisorTimedOut).
+    .[{[wd;at] (hsym `$wd, "/deadline.txt") 0: enlist string at};
+      (wd; timeoutSecs + "j"$(.z.p - 1970.01.01D00:00:00) % 1000000000);
+      {[e] ::}];
     / The parent launcher owns its completion marker. Isolated q children are
     / already supervised by this module and must not complete the parent's run.
     "LC_ALL=C RESQ_RUN_GUARD_DIR='' ", .tst.isolate.shellCommand[timedArgv],
-        " < /dev/null > ", .resq.util.shellQuote[wd, "/out.txt"], " 2>&1"
+        / Appended, not truncated on open: outputWatch can then cut the file
+        / while the child writes, and the next write lands at the new end.
+        " < /dev/null >> ", .resq.util.shellQuote[wd, "/out.txt"], " 2>&1"
  };
+
+/ A child's output goes to a file in its scratch directory, and nothing
+/ limited the file: a test that prints in a loop wrote 6.3 GB in four seconds,
+/ with 300 seconds to go and, by default, on /tmp. Only the two ends are ever
+/ read back (readCaptured), so the middle is dropped while the child runs:
+/ once a file passes outputLimit, its first outputKeep bytes are put aside
+/ (once) and the file is cut down to its last outputKeep bytes.
+.tst.isolate.outputKeep:{[] 1048576 | "j"$0 | 0 ^ "j"$@[get; `.tst.output.reportLimit; 50000]};
+.tst.isolate.outputLimit:{[] 8 * .tst.isolate.outputKeep[]};
+
+/ Shell fragment that starts the watch on these scratch directories in the
+/ background and leaves its PID in $wdog. Its own output goes nowhere: a
+/ `sleep` it leaves behind for a moment must not hold q's pipe open.
+.tst.isolate.outputWatch:{[wds]
+    if[0 = count wds; :""];
+    keep: string .tst.isolate.outputKeep[];
+    files: " " sv {[wd] "cap ", .resq.util.shellQuote[wd, "/out.txt"], ";"} each wds;
+    "( cap(){ [ -f \"$1\" ] || return 0; ",
+        "s=$(( $(wc -c < \"$1\" 2>/dev/null || echo 0) )); ",
+        "[ \"$s\" -gt ", string[.tst.isolate.outputLimit[]], " ] || return 0; ",
+        "[ -f \"$1.head\" ] || head -c ", keep, " \"$1\" > \"$1.head\"; ",
+        "tail -c ", keep, " \"$1\" > \"$1.keep\"; : > \"$1\"; ",
+        "cat \"$1.keep\" >> \"$1\"; rm -f \"$1.keep\"; }; ",
+        "while sleep ", .tst.isolate.outputWatchInterval[], "; do ", files,
+        " done ) > /dev/null 2>&1 & wdog=$!;"
+ };
+
+/ How often the watch looks, in seconds. A child can write a gigabyte a
+/ second, so a fraction of one where `sleep` takes it (it need not).
+.tst.isolate.outputWatchSleep: "";
+.tst.isolate.outputWatchInterval:{[]
+    if[0 = count .tst.isolate.outputWatchSleep;
+        .tst.isolate.outputWatchSleep: @[{[u] system "sh -c 'sleep 0.01 2>/dev/null'"; "0.2"}; ::; {[e] "1"}]];
+    .tst.isolate.outputWatchSleep
+ };
+.tst.isolate.outputWatchStop: "if [ -n \"$wdog\" ]; then kill \"$wdog\" 2>/dev/null; fi;";
 
 / The sequential retry helper also needs the exit code in rc.txt. Keeping it in
 / the child's own scratch prevents concurrent stdout from becoming ambiguous.
@@ -567,10 +623,11 @@
 / Any command after the redirect restores normal shell behaviour. Verified: with
 / the trailing `; true` removed, every file reports "exit -1".
 .tst.isolate.fileCommand:{[wd; file; timeoutSecs]
-    .tst.isolate.processCommand[wd;file;timeoutSecs]," & p0=$!; ",
+    "wdog=''; ", .tst.isolate.processCommand[wd;file;timeoutSecs]," & p0=$!; ",
+        .tst.isolate.outputWatch[enlist wd], " ",
         "wait \"$p0\"; echo $? > ", .resq.util.shellQuote[wd, "/rc.txt"], "; ",
         "date +%s > ", .resq.util.shellQuote[wd, "/end.txt"], " 2>/dev/null; ",
-        .tst.isolate.reapLeftovers["p0";wd], " true"
+        .tst.isolate.reapLeftovers["p0";wd], " ", .tst.isolate.outputWatchStop, " true"
  };
 
 / Shell fragment run once a child has been waited for. GNU timeout puts the
@@ -609,7 +666,8 @@
     / then wait and write the corresponding rc file in deterministic order.
     starts:" " sv .tst.isolate.groupStart'[indexes;cmds];
     waits:" " sv .tst.isolate.groupWait'[indexes;wds];
-    batch:"true; pids=''; cleanup(){ trap - INT TERM HUP EXIT; ",
+    batch:"true; pids=''; wdog=''; cleanup(){ trap - INT TERM HUP EXIT; ",
+        .tst.isolate.outputWatchStop, " ",
         "if [ -n \"$pids\" ]; then for p in $pids; do kill -TERM -$p 2>/dev/null || kill -TERM $p 2>/dev/null || true; done; ",
         "sleep 1; for p in $pids; do kill -KILL -$p 2>/dev/null || kill -KILL $p 2>/dev/null || true; done; ",
         "wait $pids 2>/dev/null || true; fi; }; ",
@@ -618,7 +676,8 @@
         / scratch directories that had been removed.
         "trap cleanup EXIT; trap 'cleanup; exit 130' INT; trap 'cleanup; exit 143' TERM; ",
         "trap 'cleanup; exit 129' HUP; ",starts,
-        " ",waits," trap - INT TERM HUP EXIT";
+        " ",.tst.isolate.outputWatch[wds],
+        " ",waits," ",.tst.isolate.outputWatchStop," trap - INT TERM HUP EXIT";
     @[system; batch; {[e] ()}];
  };
 

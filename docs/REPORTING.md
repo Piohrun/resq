@@ -286,6 +286,11 @@ ID identifies one execution and must not be used as a test identity.
 and the isolated-child transcript retained by the parent. Large child logs keep
 both their head and tail with an explicit truncation marker. The full temporary
 log is never loaded into parent memory. `reportLimit` can be set in `resq.json`.
+The log on disk is bounded as well: once a child has written more than eight
+times that much (at least 8 MB), resQ keeps the start and the end of what it
+wrote and drops the output in between while the child is still running, and
+the report says so. A test that prints in a loop therefore cannot fill the
+scratch directory.
 `reportListLimit` is also accepted and retained for compatibility, but the
 current reporters do not apply a separate list-element cap; rendered list
 content is bounded by `reportLimit`.
