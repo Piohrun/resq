@@ -38,6 +38,7 @@ SUITES = {
         "tools.tests.test_qspec_differential",
         "tools.tests.test_qspec_parity",
         "tools.tests.test_python_floor",
+        "tools.tests.test_launcher_syntax",
     ],
 }
 

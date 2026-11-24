@@ -503,6 +503,24 @@ def check_contracts() -> None:
             raise ValueError(f"{name}: contract row has no name")
 
 
+# Each launcher with the shell named on its first line. `bash -n a b c` checks
+# only `a`: the other names become its arguments.
+LAUNCHERS = ("bin/resq", "bin/qspec", "bin/resq-merge")
+
+
+def check_launchers(root: Path = ROOT) -> int:
+    for name in LAUNCHERS:
+        path = root / name
+        first = path.read_text(encoding="utf-8").splitlines()[0]
+        shell = "bash" if "bash" in first else "sh"
+        completed = subprocess.run(
+            [shell, "-n", str(path)], capture_output=True, text=True, check=False,
+        )
+        if completed.returncode != 0:
+            raise ValueError(f"{name} does not parse with {shell} -n: {completed.stderr.strip()}")
+    return len(LAUNCHERS)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -512,6 +530,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         check_package(args.expected_tag)
+        check_launchers()
         formatter_violations = check_formatter_boundaries()
         if formatter_violations:
             details = ", ".join(
@@ -529,7 +548,7 @@ def main() -> int:
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError, ElementTree.ParseError, ValueError) as exc:
         print(f"static verification failed: {exc}", file=sys.stderr)
         return 1
-    print(f"static verification passed: package, schema/report, XML, trap handlers, and {links} local documentation links")
+    print(f"static verification passed: package, launcher syntax, schema/report, XML, trap handlers, and {links} local documentation links")
     return 0
 
 

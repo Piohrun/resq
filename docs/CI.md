@@ -42,15 +42,15 @@ behind, so a report that is present is from a run that finished.
 ## Licence-free gate
 
 The `static` CI job runs on GitHub-hosted Linux before the licensed q job. It
-checks both launcher scripts with `bash -n`, validates the checked-in JSON v2
+checks each launcher script's syntax (`bash -n`, `sh -n`, one file at a
+time), validates the checked-in JSON v2
 and JUnit/xUnit contract fixtures, parses the public JSON Schema, resolves every
 repository-local documentation link, verifies the distributable file layout
 and executable bits, and runs the Python adapter tests. Run the same gate
 locally without q:
 
 ```bash
-bash -n bin/resq bin/qspec
-tools/verify_static.py
+tools/verify_static.py          # includes the launchers' syntax
 python3 -m unittest discover -s tools/tests -v
 ```
 

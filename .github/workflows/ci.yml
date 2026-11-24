@@ -41,7 +41,10 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/licence-free
           {
-            bash -n bin/resq bin/qspec bin/resq-merge
+            # one file each: `bash -n a b` checks only a
+            bash -n bin/resq
+            bash -n bin/qspec
+            sh -n bin/resq-merge
             tools/verify_static.py
             tools/verify_python_contracts.py
           } 2>&1 | tee artifacts/licence-free/contracts.txt

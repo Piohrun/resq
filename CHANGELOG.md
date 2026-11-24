@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- CI's syntax check of the launchers checked only `bin/resq`:
+  `bash -n a b c` takes `b` and `c` as arguments. Each launcher is checked on
+  its own, in CI and in `tools/verify_static.py`.
 - Documentation: the README's commands use the launcher (`resq ...`) and
   work from any directory, where `q resq.q ...` worked only inside the resQ
   checkout; `QBIN`, the `.resq/` state directory and q's own single-letter
