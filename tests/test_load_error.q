@@ -182,3 +182,38 @@
     (0 < count r[`output] ss "outer suite / outer test") musteq 1b;
   };
  };
+
+/ A statement that signals while its file loads parses without fault, so
+/ the search for a syntax error found nothing and the error had no line.
+.tst.desc["a load error says where #slow"]{
+  should["give the line of a statement that signalled while the file loaded"]{
+    if[not .tst.testState.clobber.canRun; :must[1b; "q or timeout unavailable"]];
+    files: enlist[`test_runtime.q]!enlist (
+        "/ a comment, a block comment and blank lines come first";
+        enlist "/";
+        "not: code;";
+        enlist "\\";
+        "";
+        "a: 1;";
+        "";
+        "b: a +";
+        "    undefinedThing;";
+        ".tst.desc[\"never declared\"]{ should[\"x\"]{ 1 musteq 1; }; };");
+    r: .tst.testState.dropped.run[files; ""];
+    r[`code] musteq 4;
+    (0 < count r[`output] ss "test_runtime.q near line 8: undefinedThing") musteq 1b;
+    (0 < count r[`output] ss "(near line 8: b: a +") musteq 1b;
+  };
+  should["report a file that failed to load once, not also as a file without tests"]{
+    if[not .tst.testState.clobber.canRun; :must[1b; "q or timeout unavailable"]];
+    files: `test_ok.q`test_bad.q!(
+        enlist ".tst.desc[\"ok\"]{ should[\"a\"]{ 1 musteq 1; }; };";
+        ("a: 1;"; "b: a + undefinedThing;"));
+    r: .tst.testState.dropped.run[files; "-strict"];
+    r[`code] musteq 4;
+    (0 < count r[`output] ss "test_bad.q near line 2: undefinedThing") musteq 1b;
+    (0 = count r[`output] ss "loaded but added no tests") musteq 1b;
+    (0 < count r[`output] ss "2 total (1 passed, 0 failed, 1 error") musteq 1b;
+  };
+ };
+

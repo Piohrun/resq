@@ -641,6 +641,9 @@
 .tst.bindDslLines:{[shadowed;lines]
     statements: .tst.groupStatements lines;
     out: enlist ();
+    / For each line that comes out, the index of the line it came from: the
+    / blank lines between statements do not come out, so the two differ.
+    from: `long$();
     i: 0;
     while[i < count statements;
         statementLines:statements[i;1];
@@ -660,11 +663,21 @@
         scopeArg:$[shadowed~`resqNoDslShadows;`symbol$();
             .tst.dslScopeWithGlobals[rewritten;shadowed]];
         qualified:.tst.qualifyDslLine[scopeArg;rewritten];
-        out,: "\n" vs qualified;
+        emitted: "\n" vs qualified;
+        out,: emitted;
+        firstAt: statements[i;0] - 1;
+        from,: firstAt + (count emitted) # (til count statementLines), (count emitted) # -1 + count statementLines;
         i+: 1;
     ];
+    .tst.boundLineSources: from;
     1 _ out
  };
+.tst.boundLineSources: `long$();
+/ The line of the file, counted from 1, that each line of the last
+/ preprocessed script came from. Lines are dropped on the way (block
+/ comments, blank lines, what follows a lone "\"), so a position in the
+/ result is not a position in the file.
+.tst.preprocessedLineNumbers: `long$();
 
 .tst.preprocessScript:{[lines]
     lines: .resq.util.pathToString each lines;
@@ -681,9 +694,11 @@
         `resqNoDslShadows];
     state: 0;                  / open block comments; q nests them
     out: enlist ();            / sentinel keeps the accumulator heterogeneous
+    origin: `long$();          / the file line of each line in `out`
     i: 0;
     n: count lines;
     while[i < n;
+        emittedBefore: count out;
         ln: lines i;
         trimmed: .tst.rstrip ln;
         $[state > 0;
@@ -722,9 +737,13 @@
             [lineScope:sourceScope;
              if[hasScopedNames;lineScope[`base]:lineOffsets i];
              out,: enlist .tst.preprocessOrdinaryLine[i + 1;lineScope;ln]] ];
+        if[emittedBefore < count out; origin,: (i + 1) & n];
         i +: 1;
     ];
-    .tst.bindDslLines[rootShadowed;1 _ out]
+    bound: .tst.bindDslLines[rootShadowed;1 _ out];
+    .tst.preprocessedLineNumbers: $[(count bound) = count .tst.boundLineSources;
+        origin .tst.boundLineSources; `long$()];
+    bound
  };
 
 / The path of a `\l` line. q takes the first word as the path and accepts a
@@ -894,11 +913,19 @@
 / are line comments. Signals on the first failing statement (the caller traps and
 / then localizes with parse, exactly as before).
 .tst.evalPreprocessed:{[ppLines]
-    code: ppLines where not {lt: .tst.lstrip x; (0 < count lt) and "/" = first lt} each ppLines;
+    kept: where not {lt: .tst.lstrip x; (0 < count lt) and "/" = first lt} each ppLines;
+    code: ppLines kept;
     stmts: .tst.groupStatements code;
-    {[st] value "\n" sv st 1} each stmts;
+    / The line of the statement being evaluated, in the file as written. A
+    / statement that signals leaves it behind: a runtime error while a file
+    / loads then has a line number, as a syntax error has.
+    numbers: $[(count ppLines) = count .tst.preprocessedLineNumbers;
+        .tst.preprocessedLineNumbers; (count ppLines) # 0N];
+    {[numbers;kept;st] .tst.loadingLine: numbers kept (st 0) - 1; value "\n" sv st 1}[numbers;kept] each stmts;
+    .tst.loadingLine: 0N;
     (::)
  };
+.tst.loadingLine: 0N;
 
 .tst.loadTests:{[paths]
     tests: .tst.selectTestFiles .tst.findTests paths;
@@ -1052,6 +1079,7 @@
         / out again so the first test to run is not blamed for it.
         .tst.assertState: .tst.defaultAssertState;
         .tst.app.numberingTests: 1b;
+        .tst.loadingLine: 0N;
         res: @[{[lines] (0b; .tst.evalPreprocessed .tst.preprocessScript lines)};
                content;
                {[err] (1b; err)}];
@@ -1064,6 +1092,9 @@
             `symbol$()];
         loadFailures: .tst.toString each .tst.assertState.failures;
         .tst.assertState: .tst.defaultAssertState;
+        / A file that failed to load is reported once, as that. It was also
+        / reported as a file that "loaded but added no tests".
+        loadFailed: (1b ~ first res) or 0 < count loadFailures;
         if[(not 1b ~ first res) and count loadFailures;
             e: "an assertion outside any test failed while the file was loading: ",
                 "; " sv loadFailures;
@@ -1073,18 +1104,27 @@
             e: .tst.dslLoadErrorHint[last res;content];
             / q signals some malformed expressions with a blank error name.
             if[all e in " "; e: "q signalled an unnamed error"];
-            lineNo: @[.tst.localizeSyntaxError; content; {0N}];
+            / The statement that was being evaluated is the one that
+            / signalled, whether q could not parse it or could not run it.
+            / Looking for a statement that does not parse found nothing for a
+            / runtime error, and found the inside of a block comment before
+            / the real one. It is asked only when no statement had started.
+            lineNo: $[null .tst.loadingLine;
+                @[.tst.localizeSyntaxError; content; {0N}];
+                .tst.loadingLine];
+            where1: "near line ";
+            .tst.loadingLine: 0N;
             if[not null lineNo;
                 stmtsForMsg: @[.tst.groupStatements; content; {()}];
-                excerpt: $[count stmtsForMsg;
-                    [ hit: first stmtsForMsg where stmtsForMsg[;0] = lineNo;
-                      stmtTxt: .tst.lstrip "\n" sv hit 1;
-                      (80 & count stmtTxt) # stmtTxt ];
+                hits: stmtsForMsg where stmtsForMsg[;0] = lineNo;
+                stmtTxt: .tst.lstrip $[count hits; "\n" sv (first hits) 1;
+                    lineNo <= count content; .resq.util.pathToString content lineNo - 1;
                     ""];
-                e: e, " (near line ", string[lineNo], $[count excerpt; ": ", excerpt; ""], ")";
+                excerpt: (80 & count stmtTxt) # stmtTxt;
+                e: e, " (", where1, string[lineNo], $[count excerpt; ": ", excerpt; ""], ")";
             ];
             e:.tst.limitLoadErrorHint e;
-            -1 "CRITICAL LOAD ERROR in ", p, $[not null lineNo; " near line ", string[lineNo]; ""], ": ", e;
+            -1 "CRITICAL LOAD ERROR in ", p, $[not null lineNo; " ", where1, string[lineNo]; ""], ": ", e;
             `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
             if[(count .tst.app.allSpecs) > preCount;
                 .tst.app.allSpecs: preCount # .tst.app.allSpecs;
@@ -1099,7 +1139,7 @@
 
         / Warn if no tests loaded. On the qspec path a spec-free file is a
         / helper (qspec loads every .q file), so it is only counted.
-        if[(count .tst.app.allSpecs) = preCount;
+        if[(not loadFailed) and (count .tst.app.allSpecs) = preCount;
             msg: "File ", p, " loaded but added no tests.";
             .tst.app.emptyFiles,: enlist p;
             if[not helperFiles; -1 "WARNING: ", msg];

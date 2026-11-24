@@ -9,6 +9,11 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A statement that signals while a test file loads is reported with its
+  line: `test_x.q near line 8: undefinedThing (near line 8: b: a + ...)`.
+  Only a syntax error had one, and a line inside a block comment could be
+  blamed instead of the real one. Under `-strict` such a file is no longer
+  reported a second time as a file that "loaded but added no tests".
 - After a property test whose generator signalled, every later failure in
   the run came without its diff. The property runner turns the diff off while
   it runs and now turns it back on however it ends.
