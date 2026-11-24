@@ -603,3 +603,65 @@
     must[not .tst.testState.watchchk.anyLike[o; "Error during test run"]; "no rerun may error: ", shown];
   };
  };
+
+/ Where stat gives whole seconds only, or is not there, a file's content
+/ decides whether it changed. That path signalled 'type: md5 was given the
+/ bytes read1 returns, and the empty stat map was asked a question it
+/ answers with a list.
+.tst.desc["watch: a change is seen without help from stat"]{
+  should["digest a file's content, the same for the same bytes"]{
+    dir: .resq.util.tempRoot[], "/resq_watch_digest_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir dir;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist dir];
+    (hsym `$dir, "/a.q") 0: enlist "x: 1";
+    (hsym `$dir, "/b.q") 0: enlist "x: 2";
+    (hsym `$dir, "/c.q") 0: enlist "x: 1";
+    digest: {[d;name] .tst.watch.contentDigest hsym `$d, "/", name}[dir];
+    (count digest "a.q") musteq 32;
+    (digest "a.q") musteq digest "c.q";
+    ((digest "a.q") ~ digest "b.q") musteq 0b;
+    / a file that cannot be read has no digest
+    (digest "missing.q") musteq "";
+  };
+  should["fingerprint a file when the stat map is empty"]{
+    dir: .resq.util.tempRoot[], "/resq_watch_nostat_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir dir;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist dir];
+    f: dir, "/a.q";
+    (hsym `$f) 0: enlist "x: 1";
+    before1: .tst.watch.fingerprintWith[()!(); f];
+    (before1 1) musteq "s:0";
+    (count before1 2) musteq 32;
+    / the same size, other content: the fingerprint changes
+    (hsym `$f) 0: enlist "x: 2";
+    after1: .tst.watch.fingerprintWith[()!(); f];
+    (before1 0) musteq after1 0;
+    (before1 ~ after1) musteq 0b;
+  };
+ };
+
+.tst.desc["watch: the paths it is given #slow"]{
+  should["refuse a path that is not there instead of watching nothing for ever"]{
+    if[not .tst.testState.watchchk.canQ; :must[1b; "q unavailable"]];
+    cmd: (.resq.util.shellQuote .resq.HOME, "/bin/resq"), " watch no-such-directory-here < /dev/null 2>&1; echo exit=$?";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    (last out) musteq "exit=1";
+    (any out like "CLI ERROR: watch path not found: no-such-directory-here") musteq 1b;
+  };
+  should["watch the current directory when it is given no path"]{
+    if[not .tst.testState.watchchk.canQ; :must[1b; "q unavailable"]];
+    if[0 = count @[system; "which timeout 2>/dev/null"; {()}]; :must[1b; "timeout unavailable"]];
+    dir: .resq.util.tempRoot[], "/resq_watch_nopath_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir dir;
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist dir];
+    cmd: "cd ", .resq.util.shellQuote[dir], " && timeout 3 ", (.resq.util.shellQuote .resq.HOME, "/bin/resq"),
+        " watch < /dev/null 2>&1; echo exit=$?";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    / still watching when the time was up, and no q error on the way
+    (last out) musteq "exit=124";
+    (any out like ">> Directories: .") musteq 1b;
+    (any out like ">> Load graph: 0 load(s)*") musteq 1b;
+    (any out like "'*") musteq 0b;
+  };
+ };
+

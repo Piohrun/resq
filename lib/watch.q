@@ -6,7 +6,7 @@
 .resq.require .resq.PKGLOADING,"/load_graph.q"
 
 / Configuration
-.tst.watch.watchDirs: enlist "."
+.tst.watch.watchDirs: enlist enlist "."
 .tst.watch.fileStates: ()!()
 .tst.watch.deletedFiles: `symbol$()
 / Extra loader function names, e.g. enlist ".lib.load", for a loader that is
@@ -136,7 +136,10 @@
         amount:65536j&size-offset;
         chunk:@[read1;(h;offset;amount);{[e]::}];
         if[(::)~chunk;failed:1b];
-        if[not failed;state:md5 state,md5 chunk];
+        / md5 takes text. Given the bytes read1 returns it signals 'type,
+        / which ended watch, and `resq mutate` in a checkout with changes,
+        / wherever stat gives whole seconds only or is not there at all.
+        if[not failed;state:md5 ("c"$state),"c"$md5 "c"$chunk];
         offset+:amount];
     $[failed;"";raze string state]
  };
@@ -146,7 +149,9 @@
     if[() ~ key h; :(-1; ""; "")];     / missing -> sentinel
     sz: @[hcount; h; {[e] -1}];
     ps: .resq.util.pathToString f;
-    mt:$[ps in key mtimeMap;mtimeMap ps;"s:0"];
+    / An empty map has no keys to look in: `ps in ()` asks about each
+    / character, and the list it answers with is not a condition.
+    mt:$[0=count mtimeMap;"s:0";ps in key mtimeMap;mtimeMap ps;"s:0"];
     / On platforms exposing only epoch seconds, add a fixed-width native digest.
     / This keeps the poll subprocess count batched while detecting same-size,
     / same-second rewrites that size+mtime alone cannot see.
@@ -272,7 +277,7 @@
 .tst.watch.describeGraph:{[]
     g: .tst.watch.tryGraph[];
     if[0=count g; :()];
-    -1 ">> Load graph: ", string[sum count each g`deps], " load(s) found between tracked files.";
+    -1 ">> Load graph: ", string[sum 0, count each g`deps], " load(s) found between tracked files.";
     opaque: .tst.watch.opaqueTests g;
     if[0=count opaque; :()];
     -1 ">> ", string[count opaque], " test file(s) rerun on every source change: a load they reach has no fixed target.";

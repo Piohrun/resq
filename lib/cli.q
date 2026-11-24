@@ -563,10 +563,12 @@ initCLI:{[parsed]
         .tst.app.runCoverage: 1b];
 
     / Version check
-    if[options`version; -1 "resQ version ", .resq.VERSION; exit 0];
+    if[options`version; @[{-1 x;}; "resQ version ", .resq.VERSION; {[e] ::}]; exit 0];
 
     / Help is checked before anything that could load tests or write artifacts.
-    if[options`help; .tst.printUsage[]; exit 0];
+    / `resq --help | head` closes the pipe before the text is out: that is
+    / the reader having read enough, not an error to print a q trace for.
+    if[options`help; @[.tst.printUsage; ::; {[e] ::}]; exit 0];
 
     / discover mode writes a test scaffold only when asked. Generating files into
     / the caller's tree is not what "scan and report" implies, and it used to

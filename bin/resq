@@ -21,12 +21,30 @@ RESQ_HOME="$(dirname "$DIR")"
 args=()
 app_args=0
 for a in "$@"; do
-  if [ "$app_args" = 1 ]; then args+=("$a"); continue; fi
+  if [ "$app_args" = 1 ]; then
+    # q reads every word of its command line, also what follows -args.
+    case "$a" in
+      -[bcCeEglLmopPqrsStTuUwWz]) ;;
+      -[A-Za-z])
+        echo "CLI ERROR: q rejects the single-letter option $a anywhere on its command line, also after -args. Give the application a whole word instead, or a plain value." >&2
+        exit 1 ;;
+    esac
+    args+=("$a"); continue
+  fi
   case "$a" in
     -args|--args) app_args=1; args+=("$a") ;;
     -h) args+=("--help") ;;
     -v) args+=("--version") ;;
     --) args+=("-paths") ;;
+    # The launcher starts q with -q already; q rejects it a second time.
+    -q) ;;
+    # q's own single-letter options go through to q (-p 5000, -s 4, ...).
+    -[bcCeEglLmopPrsStTuUwWz]) args+=("$a") ;;
+    # Any other single letter ends q with "'x invalid" before resQ has read
+    # a word of the command line.
+    -[A-Za-z])
+      echo "CLI ERROR: unknown option $a. resQ options are whole words (resq --help lists them); of single letters only q's own are passed on to q." >&2
+      exit 1 ;;
     *) args+=("$a") ;;
   esac
 done
@@ -39,6 +57,14 @@ export RESQ_HOME
 # Release qualification can select an explicit q binary; ordinary invocations
 # retain the familiar PATH lookup.
 q_bin="${QBIN:-q}"
+if ! command -v "$q_bin" >/dev/null 2>&1; then
+  if [ -n "${QBIN:-}" ]; then
+    echo "resQ ERROR: QBIN is set to '$q_bin', which is not an executable that can be found." >&2
+  else
+    echo "resQ ERROR: q was not found on PATH. Add q's directory to PATH, or set QBIN to the q executable." >&2
+  fi
+  exit 127
+fi
 
 # q honours `exit 0` immediately, even from test/application code, and its
 # .z.exit callback cannot change that status. Supervise test-mode completion

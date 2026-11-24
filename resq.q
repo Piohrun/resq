@@ -157,9 +157,25 @@ if[not .resq.cli`ok;
 if[.resq.hasQutil and 1b~@[get;`.tst.app.qspecDiscovery;0b];
     @[.resq.qutilRequire; "qutil/opts.q";
       {[e] -2 "resQ WARNING: could not preload qutil/opts.q as qspec does: ",.tst.toString e}]];
-.resq.loadPluginFiles[];
+/ A plugin that is not there, or does not load, is a mistake on the command
+/ line or in resq.json: one line, not a q trace.
+@[.resq.loadPluginFiles; ::; {[e]
+    -2 "CLI ERROR: ", e;
+    exit .resq.EXIT.FAIL}];
 .resq.mode: .resq.cli`mode;
 .tst.app.args: .resq.cli`args;
+/ An empty path, as from an unset shell variable (resq test "$DIR"), was
+/ dropped without a word, and the run tested the default directory instead.
+if[any 0 = count each .resq.util.pathToString each .tst.app.args;
+    -2 "CLI ERROR: an empty path was given. Leave the path out to use tests/, or name a file or directory.";
+    exit .resq.EXIT.FAIL];
+/ Options that only say how -isolate runs change nothing without it.
+if[(.resq.mode in `test`cover) and not 1b ~ @[get; `.tst.app.isolate; 0b];
+    .resq.unusedIsolate: (),{[name] $[0 < count (.resq.cli`options) name; enlist "-", string name; ()]} each `isolateTimeout`isolateWorkers;
+    if[count raze .resq.unusedIsolate;
+        -2 "CLI WARNING: ", (" and " sv raze .resq.unusedIsolate), " ",
+            $[1 < count raze .resq.unusedIsolate; "have"; "has"],
+            " no effect without -isolate; the run is in one process."]];
 
 / --- DISPATCH ---
 
@@ -252,8 +268,15 @@ if[.resq.mode ~ `mutate;
 
 / MODE: WATCH
 if[.resq.mode ~ `watch;
-    .resq.watchDirs: enlist ".";
-    if[0<count .tst.app.args; .resq.watchDirs: .tst.app.args];
+    / One path, "." (a list holding the string): `enlist "."` is that
+    / string itself, and `resq watch` with no path died with 'type.
+    .resq.watchDirs: enlist enlist ".";
+    if[0<count .tst.app.args; .resq.watchDirs: .resq.util.pathToString each .tst.app.args];
+    / A path that is not there was watched for ever, with nothing in it.
+    .resq.watchMissing: .resq.watchDirs where not .resq.util.pathExists each .resq.watchDirs;
+    if[count .resq.watchMissing;
+        -2 "CLI ERROR: watch path not found: ", ", " sv .resq.watchMissing;
+        exit .resq.EXIT.FAIL];
     / Watch owns repeated full runAll invocations in this process. runnerCmd
     / composes reporters and starts coverage immediately before each rerun, so
     / the idle watcher never holds live instrumentation wrappers.

@@ -9,6 +9,16 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- Command-line mistakes that ended in a q error are named in one line: a
+  single-letter option q does not know (`-x`, also after `-args`), q not
+  found (`QBIN` or `PATH`), a `-plugin` file that is not there, an empty path
+  (`resq test "$UNSET"` tested `tests/` instead). `-isolateTimeout` and
+  `-isolateWorkers` without `-isolate` give a warning. `resq --help | head`
+  no longer prints a broken-pipe trace, and `-q` may be given.
+- `resq watch` with no path works (it died with `'type`), a watch path that
+  does not exist is refused instead of being watched for ever, and watch and
+  `resq mutate` no longer die with `'type` where `stat` gives whole seconds
+  only or is missing (macOS, busybox).
 - State problems are said on the console, once and in one line: a corrupt
   last-run or flake-history file that is ignored, state that cannot be
   written, a history that is locked. They reached only the JSON report's

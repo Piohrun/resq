@@ -661,3 +661,83 @@
     status["missing.q"; "-noquit"] musteq 4;
   };
  };
+
+/ Mistakes on the command line that ended in a q error and a trace, or were
+/ passed over without a word.
+.tst.testState.cliEdge.canRun: 0 < count @[system; "which q 2>/dev/null"; {()}];
+.tst.testState.cliEdge.run:{[dir;words]
+    cmd: "cd ", .resq.util.shellQuote[dir], " && ", (.resq.util.shellQuote .resq.HOME, "/bin/resq"), " ", words,
+        " < /dev/null 2>&1; echo exit=$?";
+    @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}]
+ };
+
+.tst.desc["command line: mistakes are named in one line #slow"]{
+  before{
+    dir: .resq.util.tempRoot[], "/resq_cli_edge_", string[.z.i], "_", string `long$.z.p;
+    .resq.util.ensureDir dir, "/tests";
+    .tst.registerCleanup[{[d] @[system; "rm -rf -- ", .resq.util.shellQuote d; {}]}; enlist dir];
+    (hsym `$dir, "/tests/test_ok.q") 0: enlist ".tst.desc[\"ok\"]{ should[\"a\"]{ 1 musteq 1; }; };";
+    `edgeDir mock dir;
+    `state mock " -state-file out/s.json -flake-history out/f.json -flake-proposal-file out/p.json";
+  };
+
+  should["name a single-letter option q would reject, before q is started"]{
+    if[not .tst.testState.cliEdge.canRun; :must[1b; "q unavailable"]];
+    out: .tst.testState.cliEdge.run[edgeDir; "test tests -x"];
+    (last out) musteq "exit=1";
+    ((first out) like "CLI ERROR: unknown option -x.*") musteq 1b;
+    (count out) musteq 2;
+    / also where q would reject it after -args
+    out: .tst.testState.cliEdge.run[edgeDir; "test tests -args -x"];
+    (last out) musteq "exit=1";
+    ((first out) like "CLI ERROR: q rejects the single-letter option -x*") musteq 1b;
+  };
+
+  should["pass q's own single-letter options on, and not -q twice"]{
+    if[not .tst.testState.cliEdge.canRun; :must[1b; "q unavailable"]];
+    out: .tst.testState.cliEdge.run[edgeDir; "test tests -q -p 0", state];
+    (last out) musteq "exit=0";
+    (any {[line] 0 < count ss[line; "1 total (1 passed"]} each out) musteq 1b;
+  };
+
+  should["say that q is missing, in its own words"]{
+    if[not .tst.testState.cliEdge.canRun; :must[1b; "q unavailable"]];
+    out: .tst.testState.cliEdge.run[edgeDir; "test tests; true"];
+    cmd: "cd ", .resq.util.shellQuote[edgeDir], " && QBIN=/no/such/q ", (.resq.util.shellQuote .resq.HOME, "/bin/resq"),
+        " test tests < /dev/null 2>&1; echo exit=$?";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    (last out) musteq "exit=127";
+    ((first out) like "resQ ERROR: QBIN is set to '/no/such/q'*") musteq 1b;
+  };
+
+  should["report a plugin that is not there, and an empty path, as CLI errors"]{
+    if[not .tst.testState.cliEdge.canRun; :must[1b; "q unavailable"]];
+    out: .tst.testState.cliEdge.run[edgeDir; "test tests -plugin nope.q"];
+    (last out) musteq "exit=1";
+    (out 0) musteq "CLI ERROR: plugin file is not a regular file: nope.q";
+    (count out) musteq 2;
+    out: .tst.testState.cliEdge.run[edgeDir; "test \"\""];
+    (last out) musteq "exit=1";
+    ((first out) like "CLI ERROR: an empty path was given.*") musteq 1b;
+  };
+
+  should["warn when an isolate option is given without -isolate"]{
+    if[not .tst.testState.cliEdge.canRun; :must[1b; "q unavailable"]];
+    out: .tst.testState.cliEdge.run[edgeDir; "test tests -isolateTimeout 5 -isolateWorkers 2", state];
+    (last out) musteq "exit=0";
+    (any out like "CLI WARNING: -isolateTimeout and -isolateWorkers have no effect without -isolate*") musteq 1b;
+  };
+
+  should["print help into a pipe that is closed early without a q error"]{
+    if[not .tst.testState.cliEdge.canRun; :must[1b; "q unavailable"]];
+    cmd: (.resq.util.shellQuote .resq.HOME, "/bin/resq"), " --help 2>&1 < /dev/null | head -1";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "failed"}];
+    (count out) musteq 1;
+    ((first out) like "resQ *") musteq 1b;
+    (0 < count ss[first out; "testing"]) musteq 1b;
+    errors: @[system; "sh -c ", .resq.util.shellQuote "{ ", (.resq.util.shellQuote .resq.HOME, "/bin/resq"),
+        " --help < /dev/null | head -1 > /dev/null; } 2>&1"; {[e] enlist "failed"}];
+    (count errors) musteq 0;
+  };
+ };
+
