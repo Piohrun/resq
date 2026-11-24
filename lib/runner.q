@@ -425,14 +425,14 @@
  };
 
 .tst.finalizeSpecAfterAll:{[spec]
-    if[not `afterAll in key spec; :()];
-    specTitle: $[`title in key spec; spec`title; `];
-    afterAllResult: .tst.runHook spec`afterAll;
-    if[not afterAllResult ~ `ok;
-        .tst.recordCleanupError[`afterAll;
-            "afterAll hook failed for suite '", .tst.toString[specTitle], "': ",
-            .tst.toString afterAllResult 1];
-    ];
+    if[`afterAll in key spec;
+        specTitle: $[`title in key spec; spec`title; `];
+        afterAllResult: .tst.runHook spec`afterAll;
+        if[not afterAllResult ~ `ok;
+            .tst.recordCleanupError[`afterAll;
+                "afterAll hook failed for suite '", .tst.toString[specTitle], "': ",
+                .tst.toString afterAllResult 1];
+        ]];
     ::
  };
 
@@ -483,6 +483,8 @@
     / runSpec remembered for the first expectation.
     if[`beforeAll in key spec; .tst.cwdAfterRestore: ""];
     beforeAllResult: $[`beforeAll in key spec; .tst.runHook spec`beforeAll; `ok];
+    / Mocks installed by beforeAll stay for every test of the suite.
+    if[beforeAllResult ~ `ok; .tst.captureSuiteMocks[]];
 
     if[not beforeAllResult ~ `ok;
         / beforeAll threw: do NOT run expectations. Synthesize a single error
@@ -570,6 +572,7 @@
     origResources:.tst.captureResourceState[];
     origTs: @[get; `.z.ts; {::}];
     runAfterAll: not .tst.halt;
+    .tst.beginSuiteMocks[];
 
     runOutcome: @[{[s] (0b; .tst.runSpecBody s)}; spec; {[err] (1b; err)}];
     / Framework faults must not leak the last test's attribution into afterAll
@@ -579,6 +582,10 @@
         @[.tst.finalizeSpecAfterAll; spec; {[err]
             .tst.recordCleanupError[`specFinalizer;
                 "afterAll dispatch failed: ", .tst.toString err]}]];
+    / afterAll still saw the suite's mocks; now they go, and only they.
+    @[.tst.releaseSuiteMocks; ::; {[err]
+        .tst.recordCleanupError[`specFinalizer;
+            "suite mock restore failed: ", .tst.toString err]}];
     .tst.finalizeSpec[
         runCtx;specTitle;pollutionGuard;namespaces;fullSnapshot;origResources;origTs];
     .tst.consumeRunSpecOutcome runOutcome

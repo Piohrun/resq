@@ -123,3 +123,31 @@
     must[(r`xml) like "*before exploded*";   "the broken suite must also be reported"];
   };
  };
+
+/ A mock installed in beforeAll is the suite's. Every mock used to be undone
+/ after each test, so the suite's was gone from the second test on and the
+/ real dependency ran.
+.tst.testState.suiteMock.query: {[q] `real};
+.tst.testState.suiteMock.count: 0;
+
+.tst.desc["a mock installed in beforeAll"]{
+  beforeAll{ `.tst.testState.suiteMock.query mock {[q] `mocked}; };
+  should["is seen by one test"]{ .tst.testState.suiteMock.query[`x] musteq `mocked; };
+  should["is seen by another, which may mock the name again for itself"]{
+    .tst.testState.suiteMock.query[`x] musteq `mocked;
+    `.tst.testState.suiteMock.query mock {[q] `inner};
+    .tst.testState.suiteMock.query[`x] musteq `inner;
+  };
+  should["is the suite's version again in a third"]{ .tst.testState.suiteMock.query[`x] musteq `mocked; };
+  should["leaves a test's own mock of something else undone afterwards"]{
+    .tst.testState.suiteMock.count musteq 0;
+    `.tst.testState.suiteMock.count mock 5;
+    .tst.testState.suiteMock.count musteq 5;
+  };
+  should["and that other mock really is undone"]{ .tst.testState.suiteMock.count musteq 0; };
+  afterAll{ `.tst.testState.suiteMock.seenInAfterAll set .tst.testState.suiteMock.query `x; };
+ };
+
+.tst.desc["the suite after one that mocked in beforeAll"]{
+  should["sees the real function"]{ .tst.testState.suiteMock.query[`x] musteq `real; };
+ };

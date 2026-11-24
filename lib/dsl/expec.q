@@ -517,7 +517,7 @@ runExpec:{[spec;expec];
    / Between attempts: replicate teardownExpec's per-attempt cleanup, then
    / restore the pristine post-setup expec so the flaky test starts clean.
    if[not done;
-      .tst.restore[];
+      .tst.restoreAfterTest[];
       @[.tst.runCleanupTasks; (); {}];
       .tst.assertState: .tst.defaultAssertState;
       expec: pristine;
@@ -640,7 +640,7 @@ setupExpec:{[spec;expec];
 teardownExpec:{[spec;expec];
  ctx: $[`runtimeContext in key expec; expec`runtimeContext; ()!()];
  system "d .tst";
-  .tst.restore[];
+  .tst.restoreAfterTest[];
   @[.tst.runCleanupTasks; (); {}];
   .tst.assertState:.tst.defaultAssertState;
  .tst.callbacks.expecRan[spec;expec];

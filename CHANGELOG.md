@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- A mock installed in `beforeAll` lasts for the whole suite. Mocks are
+  undone after each test, and that included the suite's: from the second test
+  on the real dependency ran. The suite's mocks are now put back after each
+  test and undone after `afterAll`.
 - A report with a float property test passes resQ's own validation. When
   the failing inputs of a `holds` test included an infinity, the whole list
   was replaced by one envelope object, so the report no longer had one failed

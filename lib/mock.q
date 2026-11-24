@@ -6,6 +6,71 @@
 .tst.spyLog.impls:()!()
 .tst.seqs:()!()
 
+/ Mocks installed by a suite's beforeAll, for the whole suite. () when the
+/ suite has none. Suites nest (a test may run a suite), so the enclosing
+/ suite's entry waits on a stack, with the names that were already mocked
+/ when this suite began.
+.tst.mockState.suite: ();
+.tst.mockState.suiteStack: ();
+.tst.mockState.mockedBeforeSuite: `symbol$();
+
+.tst.mockedNames:{[] (key[.tst.mockState.store] except `), .tst.mockState.removeList};
+
+/ A suite starts: set aside the enclosing suite's mocks and note what is
+/ mocked already, so beforeAll's additions can be told apart.
+.tst.beginSuiteMocks:{[]
+    .tst.mockState.suiteStack,: enlist (.tst.mockState.suite; .tst.mockState.mockedBeforeSuite);
+    .tst.mockState.suite: ();
+    .tst.mockState.mockedBeforeSuite: .tst.mockedNames[];
+ };
+
+/ Remember the mocks beforeAll installed. After each test every mock is
+/ undone, which is right for the test's own; without this it also undid the
+/ suite's after the first test, and from the second test on the real
+/ dependency ran.
+.tst.captureSuiteMocks:{[]
+    names: .tst.mockedNames[] except .tst.mockState.mockedBeforeSuite;
+    if[0 = count names; .tst.mockState.suite: (); :()];
+    inStore: names inter key .tst.mockState.store;
+    .tst.mockState.suite: `originals`removeList`names`values`impls`seqs!(
+        inStore!.tst.mockState.store inStore; names inter .tst.mockState.removeList; names;
+        {@[get; x; {[e] ::}]} each names; .tst.spyLog.impls; .tst.seqs);
+ };
+
+/ End of the suite, after afterAll: undo the suite's own mocks, and only
+/ those. A suite run from inside a test must leave that test's mocks alone.
+.tst.releaseSuiteMocks:{[]
+    suite: .tst.mockState.suite;
+    if[99h = type suite;
+        mockSet: {[n;v] $[not (string n) like ".*"; @[`.;n;:;v]; n set v]};
+        originals: suite`originals;
+        {[mockSet;n;v] @[{[f;p] f . p}[mockSet]; (n;v); {[e] ::}]}[mockSet]'[key originals; value originals];
+        .tst.deleteVar each suite`removeList;
+        .tst.mockState.store: (key[originals]) _ .tst.mockState.store;
+        .tst.mockState.removeList: .tst.mockState.removeList except suite`removeList];
+    if[count .tst.mockState.suiteStack;
+        enclosing: last .tst.mockState.suiteStack;
+        .tst.mockState.suiteStack: -1 _ .tst.mockState.suiteStack;
+        .tst.mockState.suite: enclosing 0;
+        .tst.mockState.mockedBeforeSuite: enclosing 1];
+ };
+
+/ After a test: undo its mocks, and put the suite's back as beforeAll left
+/ them (a test may have mocked the same name again). Spy logs start empty.
+.tst.restoreAfterTest:{[]
+    suite: .tst.mockState.suite;
+    .tst.restore[];
+    if[not 99h = type suite; :()];
+    mockSet: {[n;v] $[not (string n) like ".*"; @[`.;n;:;v]; n set v]};
+    mockSet'[suite`names; suite`values];
+    .tst.mockState.store: .tst.mockState.store, suite`originals;
+    .tst.mockState.removeList: distinct .tst.mockState.removeList, suite`removeList;
+    .tst.spyLog.impls: suite`impls;
+    spied: key suite`impls;
+    .tst.spyLog.calls: $[count spied; spied!(count spied)#enlist (); ()!()];
+    .tst.seqs: suite`seqs;
+ };
+
 .tst.mock:{[name;newVal]
     if[not -11h=type name; '"Mock name must be symbol"];
     if[null name; '"Mock name null"];
