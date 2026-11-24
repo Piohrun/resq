@@ -212,6 +212,17 @@ def verify(q_executable: str) -> None:
             raise RuntimeError("run-level strict plugin failures were not coalesced faithfully")
 
         full_report, full_coverage = run_coverage(q_executable, root / "coverage-full", [])
+        # The comparisons below prove nothing on empty data. This fixture
+        # loads its source with a literal `system "l file"`, which coverage
+        # did not see before 2.3.1: every figure was zero in every shard, the
+        # merge agreed with itself, and a defect in merging branch edges went
+        # unnoticed.
+        measured = full_coverage["summary"]
+        if not (measured["functionsHit"] > 0 and measured["linesHit"] > 0 and measured["branchesHit"] > 0):
+            raise RuntimeError(
+                "coverage fixture measured nothing; the shard comparison would be vacuous: "
+                f"{ {key: measured[key] for key in ('functionsHit', 'linesHit', 'branchesHit')} }"
+            )
         coverage_reports: list[Path] = []
         for index in range(2):
             output = root / f"coverage-{index}"

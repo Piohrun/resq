@@ -29,6 +29,7 @@ from merge_shards import (  # noqa: E402
     validate_results,
     validate_snapshot_ownership,
     write_lcov,
+    recompute_coverage,
 )
 from review_corpus import scale_report  # noqa: E402
 from report_profiles import project  # noqa: E402
@@ -384,6 +385,30 @@ class MergerContractTests(unittest.TestCase):
             (paths[1].parent / "coverage.json").write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "coverage artifact"):
                 merge_coverage(paths, documents, root / "malformed", "run_" + "a" * 32)
+
+    def test_branch_aggregates_are_recomputed_in_the_function_copy_too(self) -> None:
+        # A branch site is recorded under its file and again under its
+        # function. After the edges of several shards are added up, both
+        # copies need new aggregates; the function copy used to keep one
+        # shard's, which the coverage validator rejects.
+        def site() -> dict:
+            return {
+                "siteId": "branch_a", "eligible": True, "instrumented": True,
+                "edgesFound": 2, "edgesHit": 0,
+                "edges": [
+                    {"edgeId": "edge_t", "index": 0, "label": "true", "hits": 3},
+                    {"edgeId": "edge_f", "index": 1, "label": "false", "hits": 1},
+                ],
+            }
+        ineligible = dict(site(), siteId="branch_b", eligible=False, instrumented=False, edgesFound=2, edgesHit=2)
+        files = [{
+            "functions": [{"name": ".m.f", "line": 1, "hits": 4, "branches": [site(), copy.deepcopy(ineligible)]}],
+            "branches": [site(), copy.deepcopy(ineligible)],
+        }]
+        recompute_coverage(files, artifact("test_branch_aggregates"))
+        for where in (files[0]["branches"], files[0]["functions"][0]["branches"]):
+            self.assertEqual((where[0]["edgesFound"], where[0]["edgesHit"]), (2, 2))
+            self.assertEqual((where[1]["edgesFound"], where[1]["edgesHit"]), (0, 0))
 
     def test_lcov_distinguishes_zero_edge_from_unexecuted_block(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

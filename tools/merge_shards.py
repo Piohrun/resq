@@ -472,9 +472,15 @@ def recompute_coverage(files: list[dict[str, Any]], template: dict[str, Any]) ->
             function["branchSitesInstrumented"] = sum(bool(row.get("instrumented")) for row in function.get("branches", []))
             function["branchFound"] = sum(len(row.get("edges", [])) for row in function.get("branches", []) if row.get("eligible"))
             function["branchHit"] = sum(int(edge.get("hits", 0)) > 0 for row in function.get("branches", []) for edge in row.get("edges", []) if row.get("eligible"))
-        for branch in branches:
-            branch["edgesFound"] = len(branch.get("edges", [])) if branch.get("eligible") else 0
-            branch["edgesHit"] = sum(int(edge.get("hits", 0)) > 0 for edge in branch.get("edges", []))
+        # A branch site is recorded twice: in its file and in its function.
+        # Both copies carry aggregates over their edges, and both have to be
+        # recomputed once the edges of several shards have been added up.
+        for branch in [*branches, *(row for function in functions for row in function.get("branches", []))]:
+            eligible = bool(branch.get("eligible"))
+            branch["edgesFound"] = len(branch.get("edges", [])) if eligible else 0
+            branch["edgesHit"] = (
+                sum(int(edge.get("hits", 0)) > 0 for edge in branch.get("edges", [])) if eligible else 0
+            )
         file["functionFound"] = len(functions)
         file["functionHit"] = sum(int(row.get("hits", 0)) > 0 for row in functions)
         file["statementFunctionsInstrumented"] = sum(bool(row.get("statementInstrumented")) for row in functions)

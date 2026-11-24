@@ -9,6 +9,13 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `resq-merge` writes consistent branch coverage. Each branch site is
+  recorded under its file and under its function; after adding up the edges
+  of several shards only the file copy got new totals, so a merged coverage
+  file with real branch data failed its own validation. The gate had not seen
+  this because its coverage fixture loaded its source in the one way coverage
+  did not see (fixed above) and measured nothing; it now refuses to compare
+  empty coverage.
 - `.tst.musteq[actual;expected]` and the other explicit assertion spellings
   exist. resQ's own error message, the troubleshooting guide and the API
   reference recommend them, but only `.tst.mustmatchs` and `.tst.mustmatchst`
