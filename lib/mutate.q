@@ -602,7 +602,10 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         ""];
     `code`valid`ran`failed`firstFailure`timedOut`licence`status`tail!(
         code; decoded`valid; count rows; count bad; firstFailure;
-        (code in 124 137) or 0<count ss[captured; "timeout: sending signal "];
+        / The supervisor says when it is the one that stopped the child. Exit
+        / 137 alone (SIGKILL) can also come from outside: the kernel's
+        / out-of-memory killer or a CI agent. That is not a timeout.
+        (code = 124) or 0<count ss[captured; "timeout: sending signal "];
         / q reports this on a line of its own that starts with a quote. Looking
         / for that, rather than the phrase anywhere, keeps test output that
         / merely mentions it from being taken for a licence failure.
@@ -751,6 +754,9 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     errored: any st like "error*";
     if[r`licence; :`retry];
     if[r`timedOut; :$[applied; `timeout; errored; `error; `retry]];
+    / Killed by something other than resQ's own timeout: no evidence either
+    / way about the mutant. Run it again; it ends as not assessed.
+    if[137 = r`code; :`retry];
     bad: (not r`valid) or (0<r`failed) or not 0=r`code;
     $[bad and applied; `killed; errored; `error; bad; `retry; applied; `survived; `unapplied]
  };

@@ -9,6 +9,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- `resq mutate` no longer counts a child killed from outside as a detection.
+  Exit 137 (SIGKILL) was read as "timed out", which counts as detected, so an
+  out-of-memory killer could turn a 25% score into 100%. Only resQ's own
+  timeout counts; anything else is retried and then not assessed.
 - `resq mutate -since REV` reads the changed lines when git is configured
   with an external diff program. It saw no hunks, printed "Nothing to
   mutate" and exited 0, which also passed `-mutation-min`.

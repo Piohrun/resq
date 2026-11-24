@@ -568,6 +568,10 @@
   should["report a timeout only with the mutant in place"]{
     .tst.mutate.verdict[.tst.testState.mut.child[124; 0b; 0; 1b; 0b; enlist "applied"]] musteq `timeout;
     .tst.mutate.verdict[.tst.testState.mut.child[124; 0b; 0; 1b; 0b; ()]] musteq `retry;
+    / SIGKILL from the supervisor after its grace period is still a timeout;
+    / SIGKILL from anywhere else (an out-of-memory killer) proves nothing.
+    .tst.mutate.verdict[.tst.testState.mut.child[137; 0b; 0; 1b; 0b; enlist "applied"]] musteq `timeout;
+    .tst.mutate.verdict[.tst.testState.mut.child[137; 0b; 0; 0b; 0b; enlist "applied"]] musteq `retry;
   };
 
   should["not trust a passing run when the child recorded an error"]{
@@ -877,7 +881,9 @@
     byText: .tst.mutate.readChild wd;
     .tst.testState.mut.drop rc;
     byCode[`timedOut] musteq 1b;
-    byKill[`timedOut] musteq 1b;
+    / SIGKILL without the supervisor's line came from somewhere else
+    byKill[`timedOut] musteq 0b;
+    byKill[`code] musteq 137;
     plain[`timedOut] musteq 0b;
     byText[`timedOut] musteq 1b;
     / No report was written in any of these.

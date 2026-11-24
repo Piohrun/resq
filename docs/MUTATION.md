@@ -96,6 +96,7 @@ A mutant that hangs or crashes ends only its own process. A child is stopped onc
 
 - **Exact match before mutating.** A function is changed only when the definition in memory is, character for character, the definition in the file. If a test file replaces the function, or the file is not what was loaded, the function is reported as not assessed.
 - **Proof before a kill.** The child records that the mutant is in place before any test can run on it. A failing run without that record (a licence blip, a startup failure, an unstable test) is retried twice and then reported as not assessed. It is never counted as a kill. The record is only ever added to, so nothing that runs later can remove it.
+- **No detection from an outside kill.** A child that resQ's own timeout stopped counts as timed out. A child killed with SIGKILL by anything else (the kernel's out-of-memory killer, a CI agent) is run again and then reported as not assessed.
 - **No survivor on doubt.** If the child hit an error while keeping the mutant in place, a passing run is reported as not assessed: the mutant may not have been there for every test.
 - **Same conditions for both runs.** The baseline and the mutant run each use one test file per process, so a test that only passes after another file has run cannot produce a false kill.
 
