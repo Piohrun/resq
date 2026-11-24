@@ -9,6 +9,9 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- Mocking a view is refused with a message. A view (`name::expression`)
+  mocked like a variable was "restored" as a plain value: for the rest of the
+  run it no longer followed the variables it was defined on.
 - A mock installed in `beforeAll` lasts for the whole suite. Mocks are
   undone after each test, and that included the suite's: from the second test
   on the real dependency ran. The suite's mocks are now put back after each

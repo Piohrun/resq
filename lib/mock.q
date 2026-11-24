@@ -71,6 +71,13 @@
     .tst.seqs: suite`seqs;
  };
 
+/ Is this name a view (`name::expression`)? q keeps views in the root
+/ namespace, by bare name.
+.tst.isView:{[fqn]
+    if[(string fqn) like ".*"; :0b];
+    fqn in views `.
+ };
+
 .tst.mock:{[name;newVal]
     if[not -11h=type name; '"Mock name must be symbol"];
     if[null name; '"Mock name null"];
@@ -90,6 +97,12 @@
     / For namespaced vars, use regular set
     mockSet: {[n;v] $[not (string n) like ".*"; @[`.;n;:;v]; n set v] };
 
+    / A view cannot be mocked and put back. What q hands over for it is its
+    / last value (or nothing, before first use), not its definition, so the
+    / "restored" name was a plain variable that no longer followed what it
+    / was defined on, for the rest of the run.
+    if[.tst.isView fqn;
+        '"cannot mock the view ", fqnStr, ": after the test it would be a plain value, no longer a view. Mock the variables it is defined on instead."];
     / Save original state if not already saved
     if[fqn in .tst.mockState.removeList; :mockSet[fqn;newVal]];
 

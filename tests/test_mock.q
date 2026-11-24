@@ -63,3 +63,38 @@
     (.z.ps 1) musteq `original;
   };
  };
+
+/ A view is `name::expression`. Mocked like a variable it came back as a
+/ plain value and no longer followed what it was defined on. q keeps views in
+/ the root namespace.
+.tst.desc["mocking a view"]{
+  before{
+    here: system "d";
+    system "d .";
+    value "resqViewBase:10";
+    value "resqViewDoubled::resqViewBase*2";
+    system "d ", string here;
+    .tst.registerCleanup[{[u] @[{![`.;();0b;x]}; `resqViewDoubled`resqViewBase; {[e] ::}]}; enlist (::)];
+  };
+  should["be refused with a message, and leave the view a view"]{
+    .tst.isView[`resqViewDoubled] musteq 1b;
+    .tst.isView[`resqViewBase] musteq 0b;
+    / as a test loaded into the root namespace would call it
+    saved: .tst.context;
+    .tst.context: `.;
+    outcome: @[{.tst.mock[`resqViewDoubled; 999]; "mocked"}; ::; {x}];
+    .tst.context: saved;
+    (outcome like "cannot mock the view resqViewDoubled*") musteq 1b;
+    / the view is untouched and still follows its base
+    @[`.; `resqViewBase; :; 50];
+    here: system "d";
+    system "d .";
+    doubled: get `resqViewDoubled;
+    system "d ", string here;
+    doubled musteq 100;
+  };
+  should["mock an ordinary name in a namespace that does not exist yet"]{
+    `.resqNoSuchNamespace.item mock 1;
+    .resqNoSuchNamespace.item musteq 1;
+  };
+ };
