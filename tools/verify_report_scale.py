@@ -138,9 +138,9 @@ def lifecycle_document(
     actual_files = min(file_count, test_count)
     files: dict[str, dict[str, Any]] = {}
     suites: set[tuple[str, str]] = set()
-    for index, (row, entry) in enumerate(
-        zip(document["tests"], document["manifest"]["tests"], strict=True)
-    ):
+    if len(document["tests"]) != len(document["manifest"]["tests"]):
+        raise AssertionError("tests and manifest tests are out of step")
+    for index, (row, entry) in enumerate(zip(document["tests"], document["manifest"]["tests"])):
         file_index = index % actual_files
         suite_index = (index // actual_files) % suites_per_file
         path = f"tests/generated/lifecycle_{file_index:04d}.q"
@@ -314,7 +314,7 @@ def q_lifecycle_measurement(
             f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
         )
     lines = [
-        line.removeprefix("RESQ_LIFECYCLE_SCALE=")
+        line[len("RESQ_LIFECYCLE_SCALE="):]
         for line in completed.stdout.splitlines()
         if line.startswith("RESQ_LIFECYCLE_SCALE=")
     ]

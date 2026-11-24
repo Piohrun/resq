@@ -52,10 +52,30 @@ def require(obj: dict[str, Any], keys: set[str], where: str) -> None:
         raise ValueError(f"{where}: missing {', '.join(missing)}")
 
 
+_FRACTION = re.compile(r"^(?P<head>[^.]*)\.(?P<digits>\d+)(?P<tail>.*)$")
+
+
+def parse_timestamp(value: str) -> datetime:
+    """Parse one of resQ's timestamps on every supported Python.
+
+    resQ writes nanoseconds ("2026-11-23T21:48:21.402222384Z"). Before Python
+    3.11 datetime.fromisoformat takes neither "Z" nor a fraction of any length
+    but three or six digits, so every valid report was refused there with
+    "Invalid isoformat string", which reads as a fault in the report. The
+    fraction is cut or padded to microseconds, which is all datetime holds.
+    """
+    text = value.replace("Z", "+00:00")
+    match = _FRACTION.match(text)
+    if match:
+        digits = (match.group("digits") + "000000")[:6]
+        text = f"{match.group('head')}.{digits}{match.group('tail')}"
+    return datetime.fromisoformat(text)
+
+
 def iso8601(value: Any, where: str) -> datetime:
     if not isinstance(value, str):
         raise ValueError(f"{where}: expected ISO-8601 string")
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    parsed = parse_timestamp(value)
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError(f"{where}: timezone offset is required")
     return parsed

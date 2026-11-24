@@ -9,6 +9,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - A comment that starts at column 1 inside a test block no longer fails the
   file when it mentions an assertion or `mock` (a commented-out
   `/    r musteq 3;`, or `/ TODO: mock the feed`). qspec loads such files.
+- The Python tools that read reports work on Python 3.8 to 3.10. Report
+  validation, the converters, ingestion and `resq-merge` refused every valid
+  report there ("Invalid isoformat string"), because timestamps carry
+  nanoseconds and `datetime.fromisoformat` takes those only from 3.11. The
+  message blamed the report. The documented requirement is now "Python 3.8 or
+  newer".
 - `-noquit` and `"exit": false` no longer turn a failing run green. Through
   the launcher q has no input, so without the `exit` call it ended with status
   0 whatever the tests did, and one committed config key disabled CI. The

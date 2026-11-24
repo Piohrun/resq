@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from coverage_contract import validate_coverage_artifact
-from validate_report import validate
+from validate_report import parse_timestamp, validate
 
 
 class MergeError(ValueError):
@@ -591,7 +591,11 @@ def merge_coverage(
     if not any(present):
         return None
     documents = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
-    for document, report in zip(documents, reports, strict=True):
+    # The strict keyword of zip needs Python 3.10. The two lists come from one loop
+    # over the same paths, so a difference in length is a programming error.
+    if len(documents) != len(reports):
+        raise MergeError("coverage artifacts and reports are out of step")
+    for document, report in zip(documents, reports):
         validate_coverage_artifact(document, report)
     same(documents, lambda d: (d.get("schemaVersion"), d.get("kind"), d.get("framework"), d.get("frameworkVersion")), "coverage schema/framework")
     files = merge_records(
@@ -656,7 +660,7 @@ def write_lcov(coverage: dict[str, Any], path: Path) -> None:
 
 
 def iso(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parse_timestamp(value)
 
 
 def timestamp(value: datetime) -> str:

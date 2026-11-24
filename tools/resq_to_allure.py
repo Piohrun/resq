@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from validate_report import validate
+from validate_report import parse_timestamp, validate
 
 
 STATUS = {
@@ -24,7 +24,7 @@ STATUS = {
 
 
 def epoch_millis(timestamp: str) -> int:
-    parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    parsed = parse_timestamp(timestamp)
     # Historical reports predate the validator's offset requirement. Preserve
     # their intended UTC clock rather than letting datetime use host-local time.
     if parsed.tzinfo is None or parsed.utcoffset() is None:

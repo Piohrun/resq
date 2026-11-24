@@ -215,7 +215,9 @@ Linux x64 runner labeled `kdb`. The runner needs:
   `QLIC`;
 - Bash, `mktemp`, `chmod`, `rm`, and `rmdir` for the supervised launcher;
 - GNU `timeout` with `--kill-after` plus `sh` for process isolation;
-- Python 3 for independent JSON/XML artifact validation.
+- Python 3.8 or newer for the tools that read reports: artifact validation,
+  the converters, ingestion and `resq-merge`. Running tests, coverage and
+  mutation testing needs no Python.
 
 The q jobs in `ci.yml`, `nightly.yml` and `release.yml` run only when the
 repository variable `RESQ_KDB_RUNNER` is `true`. Register the runner first,
