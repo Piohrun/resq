@@ -533,4 +533,6 @@ and resQ never writes them into reserved `.q`.
 (qspec migration), `ASYNC.md` (deferreds, polling, callback spies),
 `FIXTURES.md`, `PBT.md` (fuzz), `SNAPSHOTS.md`,
 `TROUBLESHOOTING.md`, `WATCH.md`; `docs/README.md` is the index.
+`docs/TEAM_CHEATSHEET.md` is the one-page version for a team: the five
+commands, exit codes and a CI recipe.
 `CHANGELOG.md` tracks behaviour changes.

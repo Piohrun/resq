@@ -186,6 +186,7 @@ resQ binds bare names while loading test source and does not modify reserved
 
 ## Where to go next
 
+- [resQ on one page](TEAM_CHEATSHEET.md) — the five commands, exit codes and a CI recipe to share with a team
 - [API reference](API_REFERENCE.md) — DSL, assertions, CLI, and configuration
 - [Test reporting](REPORTING.md) — console, JSON, JUnit, and xUnit contracts
 - [Continuous Integration](CI.md) — runner prerequisites and production gates

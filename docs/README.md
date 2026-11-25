@@ -4,6 +4,7 @@
 
 ### New users
 1. [Getting Started](GETTING_STARTED.md) — Installation, first test, qspec replacement, and a CI-ready baseline
+   - [resQ on one page](TEAM_CHEATSHEET.md) — the five commands a team needs, exit codes, and a CI recipe
 2. [API Reference](API_REFERENCE.md) — Complete DSL, assertions cheat-sheet, CLI flags, and config
 3. [Test Reporting](REPORTING.md) — Console output and JSON/JUnit/xUnit contracts
 4. [Test observability](OBSERVABILITY.md) — Stable identity, quality signals, and ingestion
@@ -77,6 +78,7 @@
 | File | Audience | Purpose |
 |------|----------|---------|
 | `GETTING_STARTED.md` | New users | Installation, first test, migration, and production adoption |
+| `TEAM_CHEATSHEET.md` | Teams | Five commands, exit codes and a CI recipe on one page |
 | `VERIFICATION.md` | Users / maintainers | Claim-to-gate map for supported correctness and performance behavior |
 | `API_REFERENCE.md` | Users | Full API — DSL, assertions, CLI, config |
 | `REPORTING.md` | Users / CI consumers | Console, JSON, JUnit, and xUnit contracts |

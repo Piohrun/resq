@@ -4,6 +4,12 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `docs/TEAM_CHEATSHEET.md`: resQ on one page for a team, with the five
+  commands that matter, the exit codes and a three-step CI recipe, each
+  checked on the bundled quickstart.
+
 ### Fixed
 
 - `resq cover` measures code a test file loads through a loader of its own

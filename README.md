@@ -105,7 +105,9 @@ CI-ready adoption sequence, and the
 
 ## Quick Start
 
-resQ comes with a unified CLI for all operations.
+resQ comes with a unified CLI for all operations. For a team, the five
+commands that matter and a CI recipe are on
+[one page](docs/TEAM_CHEATSHEET.md).
 
 ```bash
 # Run tests (from your project root, after installing the launcher)
