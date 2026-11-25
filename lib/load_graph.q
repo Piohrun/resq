@@ -290,7 +290,10 @@
 / `close` on its line: the lambda is then the whole value being assigned.
 .tst.loadGraph.endsStatement:{[code;close]
     rest: (close+1) _ code;
-    rest: trim (rest?"\n")#rest;
+    rest: (rest?"\n")#rest;
+    / q's trim takes spaces only: `f:{x}<tab>/ note` looked like it went on,
+    / and resq mutate left f out.
+    rest: rest where not rest in " \t\r";
     (0=count rest) or ";"=first rest
  };
 

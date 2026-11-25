@@ -16,6 +16,11 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- `resq mutate` no longer skips a function whose definition is followed by a
+  tab: `f:{x+1}<tab>/ note` and `g:{x+2}<tab>` were left out, because q's
+  `trim` takes spaces only. KX's `e/c.q` and TorQ's settings are written so.
+  The watch-mode dependency graph judged a load inside such a function as a
+  load of the file itself.
 - `-last-failed` runs the whole selection, and says so, when none of the
   tests that failed last time is in it. It ran nothing, printed "No tests
   ran" and exited 1, so `resq test tests/test_b.q -last-failed` failed

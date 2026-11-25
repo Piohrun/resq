@@ -431,6 +431,15 @@
     .tst.testState.mut.drop path;
     names mustmatch `f`g;
   };
+
+  / q's trim takes spaces only: a tab after the brace, or the CR of a CRLF
+  / line end, made the definition look like it went on, and it was skipped.
+  should["find a function whose line ends in a tab, a tab and a comment, or CRLF"]{
+    path: .tst.testState.mut.scratch["src.q"; ("f:{x+1}\t/ tab then comment"; "g:{x+2}\t"; "h:{x+3};\r"; "k:{x+4}\r")];
+    names: (.tst.mutate.functionsIn path)`name;
+    .tst.testState.mut.drop path;
+    names mustmatch `f`g`h`k;
+  };
  };
 
 / ---------------------------------------------------------------------------
