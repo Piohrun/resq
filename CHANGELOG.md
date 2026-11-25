@@ -4,7 +4,16 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+
+- `resq cover` measures code a test file loads through a loader of its own
+  (a function that calls `system "l ..."`, as team codebases do). Only
+  `\l`, `system "l ..."` in the test file and `.utl.require` were watched,
+  so such code was listed from `--source` with no hits, called or not. Once
+  the test files have loaded, every `--source` file that memory holds as the
+  file defines it, and that was not instrumented on the way in, is
+  instrumented. A stub a test defines under a source function's name does
+  not count.
 
 ## [2.4.1] - 2026-11-25 - Loader and Process Fixes
 

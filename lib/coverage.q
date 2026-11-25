@@ -777,6 +777,34 @@ if[not `coverageRecording in key `.tst;.tst.coverageRecording:0b];
         }[.tst.resolvePath x]] } each files;
  };
 
+/ Whether memory holds a function as the source file defines it: same name,
+/ same text. A function of that name that a test defined itself (a stub for a
+/ module it never loads) does not make the file loaded.
+.tst.coverageFileInMemory:{[fileSym]
+    fns: @[.tst.mutate.functionsIn; string fileSym; {[e] ()}];
+    if[not 98h = type fns; :0b];
+    if[0 = count fns; :0b];
+    any {[name;text] live: .tst.safeValue name;
+        $[100h = type live; text ~ last value live; 0b]}'[fns`name; fns`text]
+ };
+
+/ The source files whose functions are in memory but were never instrumented.
+/ A test file that loads its code through a loader of its own (a function
+/ that calls system "l", as team codebases do) gets it in by a road coverage
+/ did not watch: only \l, system "l" in a test file and .utl.require were.
+/ Those files were listed from --source with no hits, called or not. Once
+/ the test files have loaded, each is instrumented as if loaded with \l. A
+/ file already instrumented is left alone: instrumenting twice would replace
+/ the wrappers in place. Returns the files instrumented.
+.tst.instrumentSourcesInMemory:{[]
+    if[not 1b ~ @[get; `.tst.coverageEnabled; 0b]; :`symbol$()];
+    files: (key .tst.coverageData) except @[get; `.tst.coverageLoadedFiles; {`symbol$()}];
+    files: files where .tst.coverageFileInMemory each files;
+    {[f] @[.tst.instrumentFile; string f; {[p;e]
+        -1 "Coverage: could not instrument ", p, ": ", .tst.toString e}[string f]]} each files;
+    files
+ };
+
 / Initialize coverage and instrument already-loaded files
 .tst.initCoverage:{[files]
     / Never clear ownership before unwinding the preceding session.

@@ -65,7 +65,16 @@ coverage-aware loader intercepts the load, instruments every named function
 defined in that file (wrapping it to record a hit), then makes the function
 available as normal. The test file does not need to be modified.
 
-Files loaded by other mechanisms (e.g. `\l` inside a helper that is itself loaded outside the watched path, or `value` calls that eval source strings) are not instrumented.
+A test file that loads its code through a loader of its own — a function
+that calls `system "l ..."`, as most team codebases have — needs nothing
+either. Once the test files have loaded, every `--source` file whose functions
+are in memory, as the file defines them (same name, same text), and that was
+not instrumented on the way in, is instrumented then. Code loaded only later,
+inside a `beforeAll` or a test, is instrumented when it comes in through `\l`,
+`system "l ..."` or `.utl.require`, and not otherwise. A function a test
+defines itself under a source function's name (a stub) does not count as the
+source being loaded. Code evaluated from strings with `value` is not
+instrumented.
 
 Compiled operators and derived functions (e.g. `+/`, `each`) are skipped — they cannot be wrapped.
 

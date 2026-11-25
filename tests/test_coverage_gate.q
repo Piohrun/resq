@@ -455,3 +455,76 @@
     (0 < count r[`output] ss "Coverage:") musteq 0b;
   };
  };
+
+/ A test file that loads its code through a loader of its own (a function
+/ that calls system "l", as team codebases do) got it in by a road coverage
+/ did not watch: the --source files were listed, and every function in them
+/ had no hits, called or not.
+.tst.testState.covgate.runLoaderWith:{[extra]
+    wd: .utl.tempRoot[], "/resq_covloader_", string[.z.i], "_", string `long$.z.p;
+    .utl.ensureDir wd, "/src";
+    (hsym `$wd, "/src/calc.q") 0: (
+        ".mx.add:{[x;y] x+y};";
+        ".mx.grade:{[x] $[x>=50; `pass; `fail]};";
+        ".mx.unused:{[x] x*2};");
+    (hsym `$wd, "/loader.q") 0: (
+        ".ld.loaded: ();";
+        ".ld.load:{[module]";
+        "    if[module in .ld.loaded; :()];";
+        "    .ld.loaded,: module;";
+        "    system \"l \", \"", wd, "/src/\", string[module], \".q\";";
+        " };");
+    (hsym `$wd, "/test_loader.q") 0: (
+        "system \"l ", wd, "/loader.q\";";
+        ".ld.load `calc;";
+        ".tst.desc[\"calc\"]{";
+        "  should[\"add\"]{ .mx.add[1;2] musteq 3 };";
+        "  should[\"grade\"]{ .mx.grade[80] musteq `pass };";
+        "};");
+    cmd: "true && timeout -k 2 60 q ", (.utl.shellQuote .resq.HOME, "/resq.q"),
+         " cover ", (.utl.shellQuote wd, "/test_loader.q"), " --source ",
+         (.utl.shellQuote wd, "/src"), " ", extra, " -json -outDir ",
+         (.utl.shellQuote wd), .tst.testState.covgate.stateFlags[wd],
+         " -quiet > ", (.utl.shellQuote wd, "/out.txt"), " 2>&1; echo $?";
+    exitCode: "J"$last @[system; cmd; {[err] enlist "-1"}];
+    raw: @[read0; hsym `$wd, "/coverage.json"; {()}];
+    detail: $[count raw; .j.k raze raw; ()!()];
+    output: @[read0; hsym `$wd, "/out.txt"; {()}];
+    if[wd like "*/resq_covloader_*"; system "rm -rf -- ", .utl.shellQuote wd];
+    files: $[count detail; detail`files; ()];
+    calc: first files where (files`path) like "*calc.q";
+    `code`calc`output!(exitCode; calc; output)
+ };
+
+.tst.desc["Coverage of code a test file loads through its own loader #slow"]{
+    skipIf[not .tst.testState.covgate.canRun;
+           "count the functions it calls, by function"]{
+        r: .tst.testState.covgate.runLoaderWith "";
+        r[`code] musteq 0;
+        must[99h = type r`calc; "calc.q is in the report: ", "\n" sv r`output];
+        r[`calc;`loaded] musteq 1b;
+        hits: (`$r[`calc;`functions;`name])!r[`calc;`functions;`hits];
+        must[all 0 < hits `.mx.add`.mx.grade; "called functions have hits: ", .Q.s1 hits];
+        hits[`.mx.unused] musteq 0f;
+    };
+    skipIf[not .tst.testState.covgate.canRun;
+           "count the statements it runs, with -cov-statements"]{
+        r: .tst.testState.covgate.runLoaderWith "-cov-statements";
+        r[`code] musteq 0;
+        must[99h = type r`calc; "calc.q is in the report: ", "\n" sv r`output];
+        r[`calc;`statementSitesHit] musteq 2f;
+        r[`calc;`statementSitesInstrumented] musteq 3f;
+    };
+ };
+
+.tst.desc["Coverage of code loaded through a loader: what counts as loaded"]{
+    should["take a source file for loaded only when memory holds its text"]{
+        path: .tst.tempFile ".q";
+        (hsym `$path) 0: enlist ".covstub.f:{[x] x+1};";
+        fileSym: `$path;
+        `.covstub.f mock {[x] x+100};
+        .tst.coverageFileInMemory[fileSym] musteq 0b;
+        `.covstub.f mock {[x] x+1};
+        .tst.coverageFileInMemory[fileSym] musteq 1b;
+    };
+ };

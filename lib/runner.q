@@ -1520,6 +1520,10 @@
 .tst.runAll:{[]
     continue: .tst.runAllPhase.runSafely[`initRun; .tst.runAllPhase.initRun];
     if[continue; continue: .tst.runAllPhase.runSafely[`loadTests; {.tst.loadTests .tst.app.args}]];
+    / Code the test files loaded through a loader of their own: see
+    / .tst.instrumentSourcesInMemory.
+    if[continue and 1b ~ @[get; `.tst.coverageEnabled; 0b];
+        continue: .tst.runAllPhase.runSafely[`coverageLoaded; .tst.instrumentSourcesInMemory]];
     / A mutation child puts its probes or its mutant in place once the test
     / files, and the source they load, are in memory. See lib/mutate.q.
     if[continue and .tst.mutate.active; .tst.mutate.install `.tst.mutate.child];
