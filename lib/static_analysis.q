@@ -254,7 +254,9 @@
     systemNs: $[cleanL like "system \"d *";
         [body: (count "system \"d ") _ cleanL; trim (body ? "\"") # body];
         ""];
-    if[(braceDepth=0) and live and (cleanL like "\\d *") or 0 < count systemNs;
+    / Not inside a block: a `system "d .x"` in a desc block or a lambda runs
+    / when that does, not as the file loads.
+    if[(braceDepth=0) and (outerDepth=0) and live and (cleanL like "\\d *") or 0 < count systemNs;
       newNs: $[count systemNs; systemNs; trim 3 _ cleanL];
       / `\d .` resets to the root namespace. newNs is a 1-char string ".",
       / so compare against `enlist "."` -- comparing to the char atom "."

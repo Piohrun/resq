@@ -160,6 +160,19 @@
         fns: .tst.static.exploreFile tf;
         (exec name from fns) mustmatch enlist `top;
     };
+
+    should["exploreFile not follow a namespace switch inside a block"]{
+        tf: .tst.tempFile ".q";
+        contents: (
+            ".tst.desc[\"d\"]{";
+            "  system \"d .inner\";";
+            "  helper:{x};";
+            " };";
+            "top:{x}");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch enlist `top;
+    };
 };
 
 .tst.desc["block comments nest, as in q"]{
