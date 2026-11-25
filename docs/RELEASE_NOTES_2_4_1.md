@@ -54,6 +54,8 @@ full list is in the [changelog](../CHANGELOG.md).
 
 ## Also fixed
 
+- A property test shrinks the cells of a generated table as far as its other
+  inputs; each cell was offered only its first shrink.
 - `.tst.describe` is resQ's `desc`; it was q's `desc` (sort descending).
 - The release gate's syntax step checks all three launchers.
 

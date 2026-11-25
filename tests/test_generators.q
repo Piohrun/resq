@@ -251,6 +251,15 @@
     (`a`b!(4;3 4 5)) mustin candidates;
     (`a`b!(8;3 5)) mustin candidates;
   };
+  / A table's cells were offered only their first shrink: when that one did
+  / not fail, shrinking gave up on the cell.
+  should["offer every candidate of each table cell"]{
+    gen:.resq.gen.table[(enlist `v)!enlist .resq.gen.scalar[`long;-10;10];1;3];
+    item:([] v:enlist 8);
+    candidates:.resq.gen.shrinkCandidates[gen;item];
+    ([] v:enlist 0) mustin candidates;
+    ([] v:enlist 4) mustin candidates;
+  };
   should["shrink a bounded number toward zero, or the bound nearest it"]{
     .resq.gen.scalarTarget[`lower`upper!(-1000;1000);-829] musteq 0;
     .resq.gen.scalarTarget[`lower`upper!(5;100);42] musteq 5;

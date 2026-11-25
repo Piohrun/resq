@@ -43,6 +43,9 @@ identity v3. See [the release notes](docs/RELEASE_NOTES_2_4_1.md).
   looked nested and was left out (13 of 15 in KX's `csvutil.q`). A `k)`
   statement is now left alone, as k code is not something q mutators can
   change; the watch-mode dependency graph reads past it correctly too.
+- A property test shrinks the cells of a generated table
+  (`.resq.gen.table`) as far as its other inputs: each cell was offered only
+  its first shrink, and shrinking gave up on the cell when that one passed.
 - `.tst.describe` is resQ's `desc`. It was q's `desc` (sort descending):
   `desc` is a q keyword, so `describe:desc` in the `.tst` namespace bound
   q's. The root `describe` was right.

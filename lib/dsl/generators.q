@@ -410,12 +410,16 @@
     rowIndex:0j;
     while[rowIndex<count item;
       shrinks:.resq.gen.shrinkCandidates[schema field;item[field] rowIndex];
+      / Every shrink of the cell, as for a dictionary's fields: only the
+      / first was offered, and shrinking gave up on the cell when it did not
+      / fail. The shrinker's candidate budget bounds the cost.
       if[count shrinks;
-        changed:0!item;
-        column:changed field;
-        column[rowIndex]:first shrinks;
-        changed[field]:column;
-        candidates,:enlist changed];
+        candidates,:{[item;field;rowIndex;shrunk]
+          changed:0!item;
+          column:changed field;
+          column[rowIndex]:shrunk;
+          changed[field]:column;
+          changed}[item;field;rowIndex] each shrinks];
       rowIndex+:1];
     columnIndex+:1];
   .resq.gen.distinctCandidates[candidates;item]
