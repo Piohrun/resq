@@ -1463,7 +1463,10 @@
         {[pair] .tst.runAllPhase.run[pair 0;pair 1]; (0b;"")};
         (name;fn);
         {[err] (1b;err)}];
-    if[first outcome; .tst.runAllPhase.recordFrameworkError[name;last outcome]];
+    / A phase cut short by Ctrl+C or a signal ('stop) is not a framework
+    / error: the run ends as interrupted, and says so once.
+    if[first outcome;
+        if[not .resq.util.runInterrupted[]; .tst.runAllPhase.recordFrameworkError[name;last outcome]]];
     not first outcome
  };
 

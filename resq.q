@@ -230,6 +230,12 @@ if[(.resq.mode in `test`cover) and not 1b ~ @[get; `.tst.app.isolate; 0b];
             $[1 < count raze .resq.unusedIsolate; "have"; "has"],
             " no effect without -isolate; the run is in one process."]];
 
+/ resQ is loaded and its command line read. Until the launcher finds this,
+/ a signal for the run stops q at once: q has started nothing that needs
+/ stopping, and a signal in the middle of loading made it print a trace of
+/ the load it cut short.
+.resq.exitGuardWrite["ready"; string .z.i];
+
 / --- DISPATCH ---
 
 / MODE: COVER

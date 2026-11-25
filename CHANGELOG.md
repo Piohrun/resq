@@ -30,6 +30,14 @@ All notable changes to the **resQ** project will be documented in this file.
   running for up to 0.2 s when the watch was stopped; the watch now stops
   it. The warning now names what was left (`left background processes
   running (sleep 600)`).
+- Ctrl+C, or another signal, prints only `resQ: interrupted. ...`, however
+  early it comes. In the first half-second it printed q's trace of the
+  library load it cut short, `CRITICAL LOAD ERROR ... stop` for the test
+  file being loaded, `Framework phase 'loadTests' failed: stop`, or the
+  failure diff of a test whose child process the signal had also stopped;
+  and when q, busy in a system call, did not stop within its second, the
+  launcher killed it and nothing was printed at all. Until resQ has loaded,
+  the launcher now stops q at once.
 - An isolated child's output watch ends when the shell that started it has
   gone, and a pool wrapper stopped by a signal stops its watch. A wrapper
   that ended any other way left the watch checking a deleted file every

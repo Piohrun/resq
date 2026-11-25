@@ -33,9 +33,15 @@ renderDiffText:{[expected;actual]
       {[err] ""}]
  };
 
+/ No diff once the run has been told to stop: an assertion that fails then
+/ is most likely the interruption's doing (its child process got the signal
+/ too), and the run ends as interrupted with no report.
+diffQuiet:{[] .tst.suppressAssertionDiff or .resq.util.runInterrupted[]};
+
 / Print a already-rendered diff under a labelled banner.
 printDiffText:{[text]
     if[0 = count text; :()];
+    if[.resq.util.runInterrupted[]; :()];
     label: .tst.diffContextLabel[];
     -1 "";
     -1 "FAILURE DIFF", $[count label; " [", label, "] "; " "],
@@ -386,7 +392,7 @@ asserts[`mustmatchignoringorder]:{[l;r];
   r1: norm r;
   m: "Expected value (ignoring order) match failed.";
   if[not l1~r1;
-    if[(not .tst.suppressAssertionDiff) and all 2 = count each distinct type each (l1;r1);
+    if[(not .tst.diffQuiet[]) and all 2 = count each distinct type each (l1;r1);
       -1 "FAILURE DIFF (Ignoring Order) ------------------------------------";
       $[100h < type .tst.diff; @[{ -1 .tst.diff[x 0; x 1] }; (r1;l1); {[err] -1 "  (diff rendering failed: ", err, ")" }]; -1 "Diff not available"];
       -1 "----------------------------------------------------------------";
@@ -406,7 +412,7 @@ asserts[`mustincludecols]:{[l;r];
   ];
   lSub: cr # l;
   m: "Columns match failed.";
-  if[(not lSub~r) and not .tst.suppressAssertionDiff;
+  if[(not lSub~r) and not .tst.diffQuiet[];
     -1 "FAILURE DIFF (Included Columns) ------------------------------------";
     $[100h < type .tst.diff; @[{ -1 .tst.diff[x 0; x 1] }; (r;lSub); {[err] -1 "  (diff rendering failed: ", err, ")" }]; -1 "Diff not available"];
     -1 "----------------------------------------------------------------";

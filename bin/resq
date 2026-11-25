@@ -185,13 +185,33 @@ terminate_for_signal() {
   # way it looks for: it then starts nothing new and writes no report or
   # state from a run that was cut short.
   printf '%s\n' "$exit_code" > "$guard_dir/interrupted" 2>/dev/null || true
+  local killed=0
+  # bash reports a job it sees killed ("line 164: 1234 Killed  setsid ...");
+  # that is this launcher's doing, not news. Its own stderr is set aside
+  # while it stops q.
+  exec 3>&2 2>/dev/null
   if [ -n "$child_pid" ] && kill -0 "$child_pid" 2>/dev/null; then
-    signal_run "$signal_name"
-    sleep 1
-    if kill -0 "$child_pid" 2>/dev/null; then
+    # Until q has loaded resQ (it then writes "ready") it has started nothing
+    # and has nothing to clean up: a signal only made it print a trace of the
+    # load it cut short.
+    if [ ! -f "$guard_dir/ready" ]; then
       signal_run KILL
+      killed=1
+    else
+      signal_run "$signal_name"
+      sleep 1
+      if kill -0 "$child_pid" 2>/dev/null; then
+        signal_run KILL
+        killed=1
+      fi
     fi
     wait "$child_pid" 2>/dev/null || true
+  fi
+  exec 2>&3 3>&-
+  # q says so itself when it stops in time. Killed, it said nothing, and a
+  # Ctrl+C in a test that was waiting on a process ended without a word.
+  if [ "$killed" = 1 ]; then
+    echo "resQ: interrupted. The run stopped early; no report or state file was written." >&2
   fi
   cleanup_guard
   trap - EXIT

@@ -1119,8 +1119,11 @@
                 e: e, " (", where1, string[lineNo], $[count excerpt; ": ", excerpt; ""], ")";
             ];
             e:.tst.limitLoadErrorHint e;
-            -1 "CRITICAL LOAD ERROR in ", p, $[not null lineNo; " ", where1, string[lineNo]; ""], ": ", e;
-            `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load);
+            / A load cut short by Ctrl+C or a signal is not a broken file: the
+            / run ends as interrupted. It was reported as a load error ('stop).
+            if[not .resq.util.runInterrupted[];
+                -1 "CRITICAL LOAD ERROR in ", p, $[not null lineNo; " ", where1, string[lineNo]; ""], ": ", e;
+                `.tst.app.loadErrors upsert `file`error`type!(`$p; e; `load)];
             if[(count .tst.app.allSpecs) > preCount;
                 .tst.app.allSpecs: preCount # .tst.app.allSpecs;
                 -1 "  -> Rolled back partial specs from ", p;

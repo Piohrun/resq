@@ -655,6 +655,11 @@ and the one that was running was killed, not finished. A CI job that was
 cancelled therefore leaves no report behind; a report that is there is from a
 run that finished. Under `-isolate` no further test file is started, and every
 child process is stopped, also on machines without `setsid` and `pkill`.
+That line is all it prints, however early the signal comes: while resQ is
+still loading, the launcher stops q at once, and a test file or an assertion
+cut short by the signal is not reported as broken or failed. q has a second
+to stop by itself; when the launcher has to kill it, the launcher prints the
+line.
 
 Skipped and pending tests do **not** cause a non-zero exit on their own; only actual failures and errors do.
 

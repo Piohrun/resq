@@ -264,3 +264,56 @@
     (0 < count r[`log] ss "resQ: interrupted") musteq 0b;
   };
  };
+
+/ A signal while resQ or a test file was still loading printed q's trace,
+/ "CRITICAL LOAD ERROR ... stop" or "Framework phase 'loadTests' failed",
+/ and one in a test waiting on a process that the signal also stopped printed
+/ that test's failure diff, or nothing at all when q was killed.
+.tst.testState.interrupt.inFile:{[wd;lines]
+    (hsym `$wd, "/test_cut.q") 0: lines;
+    cmd: "cd ", .resq.util.shellQuote[wd], " && timeout -k 2 60 ",
+        .resq.util.shellQuote[.resq.HOME, "/bin/resq"], " test test_cut.q -quiet",
+        " -json -outDir out -state-file out/s.json -flake-history out/f.json",
+        " -flake-proposal-file out/p.json < /dev/null > run.log 2>&1; echo exit=$?";
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    `status`log!(last out; @[read0; hsym `$wd, "/run.log"; {[e] ()}])
+ };
+.tst.testState.interrupt.said: "resQ: interrupted. The run stopped early; no report or state file was written.";
+
+.tst.desc["a run interrupted while something loads says one line #slow"]{
+  should["not call a test file cut short while it loads broken"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.interrupt.inFile[.tst.testState.interrupt.workDir[];
+        (".resq.interruptMarker 0: enlist \"130\";"; "'stop")];
+    r[`status] musteq "exit=130";
+    (r`log) mustmatch enlist .tst.testState.interrupt.said;
+  };
+  should["show no failure diff for an assertion that fails after the signal"]{
+    if[not .tst.testState.interrupt.canRun; :must[1b; "q or timeout unavailable"]];
+    r: .tst.testState.interrupt.inFile[.tst.testState.interrupt.workDir[]; enlist
+        ".tst.desc[\"cut\"]{ should[\"fails after the signal\"]{ .resq.interruptMarker 0: enlist \"130\"; 1 musteq 2 }; };"];
+    r[`status] musteq "exit=130";
+    (any (r`log) like "*FAILURE DIFF*") musteq 0b;
+    (any (r`log) like "*Framework phase*") musteq 0b;
+    (any (r`log) like "resQ: interrupted.*") musteq 1b;
+  };
+  should["stop q at once when it has not finished loading resQ, and say so"]{
+    wd: .tst.testState.interrupt.workDir[];
+    fake: wd, "/slow q";
+    (hsym `$fake) 0: ("#!/bin/sh"; "echo $$ > \"$(dirname \"$0\")/fake.pid\""; "sleep 30");
+    system "chmod +x ", .resq.util.shellQuote fake;
+    cmd: "cd ", .resq.util.shellQuote[wd], " && { QBIN=", .resq.util.shellQuote[fake], " ",
+        .resq.util.shellQuote[.resq.HOME, "/bin/resq"], " test x.q < /dev/null > run.log 2>&1 & } ;",
+        " pid=$!; sleep 1; kill -TERM \"$pid\"; wait \"$pid\"; echo exit=$?";
+    started: .z.p;
+    out: @[system; "sh -c ", .resq.util.shellQuote cmd; {[e] enlist "exit=-1"}];
+    took: .z.p - started;
+    pid: first @[read0; hsym `$wd, "/fake.pid"; {[e] enlist ""}];
+    (last out) musteq "exit=143";
+    (read0 hsym `$wd, "/run.log") mustmatch enlist .tst.testState.interrupt.said;
+    (.tst.isolate.processAlive pid) musteq 0b;
+    / no second of grace for a q that has nothing to clean up
+    must[took < 0D00:00:01.8; "took ", string took];
+  };
+ };
+
