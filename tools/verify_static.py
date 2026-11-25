@@ -529,7 +529,19 @@ def main() -> int:
         "--expected-tag", default="",
         help="require the package version to match this vMAJOR.MINOR.PATCH tag",
     )
+    parser.add_argument(
+        "--launchers-only", action="store_true",
+        help="only check that each launcher parses with the shell it names",
+    )
     args = parser.parse_args()
+    if args.launchers_only:
+        try:
+            count = check_launchers()
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            print(f"launcher syntax failed: {exc}", file=sys.stderr)
+            return 1
+        print(f"launcher syntax passed: {count} launchers ({', '.join(LAUNCHERS)})")
+        return 0
     try:
         check_package(args.expected_tag)
         check_launchers()

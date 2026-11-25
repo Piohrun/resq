@@ -536,10 +536,10 @@ def verify(q_executable: str, requested_output: Path | None) -> Path:
     ledger = finding_ledger()
     started_at = datetime.now(timezone.utc)
     try:
+        # One launcher at a time: `bash -n a b c` checks only `a`.
         audit.run(
             "shell syntax contracts",
-            ["bash", "-n", str(ROOT / "bin/resq"), str(ROOT / "bin/qspec"),
-             str(ROOT / "bin/resq-merge")],
+            [str(ROOT / "tools/verify_static.py"), "--launchers-only"],
         )
         audit.run("licence-free contracts", [str(ROOT / "tools/verify_static.py")])
         audit.run(

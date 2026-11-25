@@ -29,6 +29,12 @@ class LauncherSyntaxTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, LAUNCHERS[-1]):
                 check_launchers(root)
 
+    def test_the_release_gate_checks_each_launcher(self) -> None:
+        # Its first step ran `bash -n bin/resq bin/qspec bin/resq-merge`.
+        gate = (ROOT / "tools/verify_release_gate.py").read_text(encoding="utf-8")
+        self.assertIn('"--launchers-only"', gate)
+        self.assertNotIn('"bash", "-n"', gate)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,9 @@ All notable changes to the **resQ** project will be documented in this file.
   ran" and exited 1, so `resq test tests/test_b.q -last-failed` failed
   whenever last run's failures were in another file. Under `-isolate` the
   parent decides from the files the failures were in.
+- The release gate's first step checks each launcher's syntax with the shell
+  it names. It ran `bash -n bin/resq bin/qspec bin/resq-merge`, which checks
+  only `bin/resq`; the gate's static step already checked all three.
 
 ## [2.4.0] - 2026-11-24 - Audit Hardening
 
