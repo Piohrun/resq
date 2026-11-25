@@ -284,7 +284,9 @@ following checked-in contracts; the final release gate invokes all of them:
   system commands, leading `:` lines, `k)` lines and tabs in `resq mutate`,
   the function inventory of discover and coverage, `\l` comments in the
   dependency graph, `.tst.describe`.
-- [ ] Complete the clean-clone v2.4.1 release qualification.
+- [x] Complete the clean-clone v2.4.1 release qualification and archive the
+  exact candidate evidence; the certification commit is requalified before the
+  annotated tag is pushed.
 - [ ] Merge the two dependency scanners (`deps.q`, `load_graph.q`) and the two
   function finders (`exploreFile`, `.tst.mutate.functionsIn`).
 - [ ] Record the repository state (`vcs`) and a digest of each source and
