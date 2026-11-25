@@ -287,6 +287,9 @@ following checked-in contracts; the final release gate invokes all of them:
 - [ ] Complete the clean-clone v2.4.1 release qualification.
 - [ ] Merge the two dependency scanners (`deps.q`, `load_graph.q`) and the two
   function finders (`exploreFile`, `.tst.mutate.functionsIn`).
+- [ ] Record the repository state (`vcs`) and a digest of each source and
+  test file in `mutation-report.json`, so a mutant can be tied to the code
+  it was made from without a separate receipt.
 
 ## Post-2.0 ecosystem ideas — not implemented
 
