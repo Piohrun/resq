@@ -128,3 +128,19 @@
     masked mustmatch "a:1\n::\nb:\"   \"";
   };
  };
+
+/ q joins the lines that continue a system command to it, as KX's TAQ
+/ scripts rely on (\t a:select ... / ` where ...`). The loader ended the
+/ command at its first line and ran the continuation on its own.
+.tst.desc["a system command continued on the next line"]{
+  should["be one command, as q reads it"]{
+    pp: .tst.preprocessScript ("\\t .tst.testState.cont.a:til"; ""; "/ a comment"; " 10"; "r:1");
+    pp mustmatch ("system \"t .tst.testState.cont.a:til\\n 10\";"; "r:1");
+    .tst.preprocessScript[("\\d .x"; "y:1")] mustmatch ("system \"d .x\";"; "y:1");
+  };
+  should["run as q runs it"]{
+    .tst.testState.cont.b: ();
+    .tst.evalPreprocessed .tst.preprocessScript ("\\t .tst.testState.cont.b:til"; "  5");
+    .tst.testState.cont.b mustmatch til 5;
+  };
+ };

@@ -699,6 +699,7 @@
     n: count lines;
     while[i < n;
         emittedBefore: count out;
+        skipTo: i;
         ln: lines i;
         trimmed: .tst.rstrip ln;
         $[state > 0;
@@ -716,8 +717,14 @@
                 / statement so it does not chain into the next line when the whole
                 / file is joined and value'd (\cmd was line-terminated; system
                 / "..." is not).
-                [ body: 1 _ ln;
-                  esc: ssr[ssr[body; "\\"; "\\\\"]; "\""; "\\\""];
+                [ / q joins the lines that continue a command to it
+                  / (\t a:select ... / ` where ...`), skipping blank and
+                  / comment lines between them.
+                  more: .tst.commandContinuation[lines; i];
+                  body: "\n" sv (enlist 1 _ ln), lines more;
+                  / the lines it took are not read again (see the loop's end)
+                  if[count more; skipTo: last more];
+                  esc: ssr[ssr[ssr[body; "\\"; "\\\\"]; "\""; "\\\""]; "\n"; "\\n"];
                   / A `\l <path>` loads the code-under-test. Route it through
                   / .tst.sysl instead of bare `system "l ..."` so coverage can
                   / instrument the freshly-loaded source (system "l" is invisible
@@ -727,7 +734,7 @@
                   / Every other \cmd keeps the plain system rewrite. Match "l "
                   / (load with an argument) precisely so "\l" alone and unrelated
                   / commands fall through unchanged.
-                  $[(body ~ "l") or body like "l *";
+                  $[(0 = count more) and (body ~ "l") or body like "l *";
                       / strip the leading "l" + following whitespace to get the path
                       [ pathArg: $[body ~ "l"; ""; .tst.loadCommandPath 2 _ body];
                         pEsc: ssr[ssr[pathArg; "\\"; "\\\\"]; "\""; "\\\""];
@@ -738,12 +745,29 @@
              if[hasScopedNames;lineScope[`base]:lineOffsets i];
              out,: enlist .tst.preprocessOrdinaryLine[i + 1;lineScope;ln]] ];
         if[emittedBefore < count out; origin,: (i + 1) & n];
-        i +: 1;
+        i: 1 + i | skipTo;
     ];
     bound: .tst.bindDslLines[rootShadowed;1 _ out];
     .tst.preprocessedLineNumbers: $[(count bound) = count .tst.boundLineSources;
         origin .tst.boundLineSources; `long$()];
     bound
+ };
+
+/ The lines that continue the system command on line i, as q joins them: lines
+/ that start with a space or a tab, with blank and comment lines between them
+/ skipped. A block comment or the terminator ends the command.
+.tst.commandContinuation:{[lines;i]
+    more: `long$();
+    j: i + 1;
+    while[j < count lines;
+        ln: (),lines j;
+        t: .tst.rstrip ln;
+        $[0 = count t; j +: 1;
+          (t ~ enlist "/") or t ~ enlist "\\"; :more;
+          "/" = first ln; j +: 1;
+          (first ln) in " \t"; [more,: j; j +: 1];
+          :more]];
+    more
  };
 
 / The path of a `\l` line. q takes the first word as the path and accepts a

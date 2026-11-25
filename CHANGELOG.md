@@ -26,6 +26,10 @@ All notable changes to the **resQ** project will be documented in this file.
   looked nested and was left out (13 of 15 in KX's `csvutil.q`). A `k)`
   statement is now left alone, as k code is not something q mutators can
   change; the watch-mode dependency graph reads past it correctly too.
+- A system command continued on the next line is one command, as q reads
+  it: `\t a:select ... from trade` followed by an indented ` where ...` (as
+  in KX's TAQ scripts). The loader ended the command at its first line and
+  ran the rest on its own.
 - A test-file line that starts with `:` is loaded as written. The loader
   passed source lines through a path helper that drops a leading `:` (as
   from a file handle): `:x` became `x`, `::` disappeared, and every offset
