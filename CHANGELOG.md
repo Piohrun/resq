@@ -26,6 +26,12 @@ All notable changes to the **resQ** project will be documented in this file.
   looked nested and was left out (13 of 15 in KX's `csvutil.q`). A `k)`
   statement is now left alone, as k code is not something q mutators can
   change; the watch-mode dependency graph reads past it correctly too.
+- `resq discover` and coverage list only the functions a file defines. The
+  scanner they share had a lexer of its own that knew no block comments, and
+  took any `name:{` for a function: a function that was commented out, and a
+  value computed by a lambda (`x:{...} getenv y`, `x:{...}[]`), were listed
+  and counted in the function coverage denominator. It now reads the file as
+  the rest of resQ does.
 - A system command continued on the next line is one command, as q reads
   it: `\t a:select ... from trade` followed by an indented ` where ...` (as
   in KX's TAQ scripts). The loader ended the command at its first line and

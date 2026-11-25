@@ -223,7 +223,11 @@
   currBody: "";
   currArgs: ();
   currLine: 0;
-  pState: `inStr`inComm`esc`braceDepth!(0b;0b;0b;0);
+  / Strings, comments, block comments and what follows the script
+  / terminator masked as everywhere else (.tst.static.maskLines). This loop
+  / had a copy of its own that knew no block comments, so a function in one
+  / was reported as defined.
+  masked: .tst.static.maskLines lines;
 
   / Pattern for function definition: *:{*
   funcPat: "*:", (enlist .tst.static.LBRACE), "*";
@@ -234,33 +238,10 @@
   do[count lines;
     l: lines i;
     cleanL: trim l;
-    inStr: pState`inStr;
-    inComm: 0b;
-    esc: pState`esc;
-    res: "";
-    j: 0;
-    cnt: count l;
-    do[cnt;
-        c: l j;
-        $[inComm; res,: " ";
-          inStr; (
-            $[esc; esc: 0b;
-              c="\\"; esc: 1b;
-              c="\""; inStr: 0b;
-              (::)];
-            res,: " "
-          );
-          $[c="\""; (inStr: 1b; res,: " ");
-            (c="/") and ((j=0) or (l[j-1] in " \t")); (inComm: 1b; res,: " ");
-            res,: c
-          ]
-        ];
-        j+:1;
-    ];
-    delta: sum (res=.tst.static.LBRACE) - (res=.tst.static.RBRACE);
-    pState[`inStr]: inStr;
-    pState[`esc]: esc;
-    maskedL: res;
+    maskedL: masked i;
+    / a line q does not run: a comment, a block comment, string contents
+    live: any not maskedL in " \t";
+    delta: sum (maskedL=.tst.static.LBRACE) - (maskedL=.tst.static.RBRACE);
     / A namespace is entered with `\d .ns` or with `system "d .ns"`. Only
     / the first form was followed, so a source file written with the second
     / (resQ's own example project is) had every function recorded without its
@@ -268,14 +249,14 @@
     systemNs: $[cleanL like "system \"d *";
         [body: (count "system \"d ") _ cleanL; trim (body ? "\"") # body];
         ""];
-    if[(braceDepth=0) and (not pState`inStr) and (cleanL like "\\d *") or 0 < count systemNs;
+    if[(braceDepth=0) and live and (cleanL like "\\d *") or 0 < count systemNs;
       newNs: $[count systemNs; systemNs; trim 3 _ cleanL];
       / `\d .` resets to the root namespace. newNs is a 1-char string ".",
       / so compare against `enlist "."` -- comparing to the char atom "."
       / never matches and leaves a stale "." prefix on later globals.
       if[(count newNs) and not " " in newNs; currentNs: $[newNs ~ enlist "."; ""; newNs]];
     ];
-    if[(not inFunc) and (braceDepth=0);
+    if[(not inFunc) and (braceDepth=0) and live;
        / Collapse whitespace around the first ":" so `name: {` (space after
        / the colon, or before it) is detected the same as `name:{`. We only
        / normalize for definition detection / name extraction below; the raw
@@ -348,10 +329,21 @@
     ];
     if[inFunc;
         if[i+1 > currLine; currBody,: " ", l];
+        before: braceDepth;
         braceDepth+: delta;
         if[braceDepth <= 0;
             inFunc: 0b;
             braceDepth: 0;
+            / Only a lambda that is the whole value is a function: after its
+            / closing brace come at most ";", a bracket that closes around it
+            / (`if[c; f:{...}]`) and a comment. `x:{...} getenv y` and
+            / `x:{...}[]` are values, and were reported as functions.
+            from: $[(i+1)=currLine; bracePos; 0];
+            depthAt: before + sums (maskedL=.tst.static.LBRACE) - maskedL=.tst.static.RBRACE;
+            closeAt: first where (depthAt<=0) and (til count maskedL) >= from;
+            rest: $[null closeAt; ""; (1+closeAt) _ maskedL];
+            rest: rest where not rest in " \t\r";
+            plain: (0=count rest) or (first rest) in ";])";
             deps: .tst.static.findDeps[currBody; currName];
             / Ensure args is a enlisted list of strings if empty
             if[0=count currArgs; currArgs: enlist ""];
@@ -359,7 +351,7 @@
             
             fileSym: $[10h=type file; `$file; -11h=type file; file; `$string file];
             row: (`$currName; currArgs; currLine; fileSym; enlist deps; enlist currBody);
-            fns: fns upsert row;
+            if[plain; fns: fns upsert row];
         ];
     ];
     i+: 1;

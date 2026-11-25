@@ -122,6 +122,28 @@
         fns: .tst.static.exploreFile tf;
         (exec name from fns) mustmatch `.a.f`g;
     };
+
+    / exploreFile had a lexer of its own that knew no block comments, and it
+    / took any `name:{` for a function: resq discover and coverage listed
+    / values computed by a lambda, and functions that are commented out.
+    should["exploreFile list only functions that a file defines"]{
+        tf: .tst.tempFile ".q";
+        contents: (
+            "f:{x+1}";
+            enlist "/";
+            "commented:{x+2}";
+            enlist "\\";
+            "applied:{x+3} 4";
+            "indexed:{x+4}[]";
+            "projected:{x+y}[1]";
+            "if[1b;";
+            "    conditional:{x+5}];";
+            "withComment:{x+6}  / a note";
+            "g:{x+7};");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch `f`conditional`withComment`g;
+    };
 };
 
 .tst.desc["block comments nest, as in q"]{
