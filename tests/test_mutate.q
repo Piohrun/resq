@@ -440,6 +440,15 @@
     .tst.testState.mut.drop path;
     names mustmatch `f`g`h`k;
   };
+
+  / The ")" of a k) prefix counted as a closing bracket: depth stayed one off
+  / for the rest of the file, and no function after the line was found.
+  should["skip k code, and find the q functions after it"]{
+    path: .tst.testState.mut.scratch["src.q"; ("f:{x+1}"; "k)kf:{$[~@x;.z.s'x;(+/&\\~x in \" \")_x]}"; "k)kg:{x+1"; "  }"; "g:{x+2}"; "h:{[a;b] a*b}")];
+    names: (.tst.mutate.functionsIn path)`name;
+    .tst.testState.mut.drop path;
+    names mustmatch `f`g`h;
+  };
  };
 
 / ---------------------------------------------------------------------------

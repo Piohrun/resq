@@ -69,9 +69,20 @@
         ("";"";`long$();`long$();`boolean$();enlist 0j;`long$();();();0b)
  };
 
+/ 1b for each line of a k) statement: the k) line and the lines that continue
+/ it, up to the next line that starts a statement of its own.
+.tst.loadGraph.kStatements:{[lines;live;sys]
+    kStart: live and lines like "k)*";
+    if[not any kStart; :kStart];
+    first1: {$[count x; first x; " "]} each lines;
+    starter: (live and not first1 in " \t/") or sys;
+    {[inK;row] row[0] or inK and not row 1}\[0b; flip (kStart; starter)]
+ };
+
 / Lex a file given as the list of lines read0 returns.
 /   txt     source joined by "\n", with block comments, text after the script
-/           terminator and "\cmd" lines emptied (line numbers are preserved)
+/           terminator, "\cmd" lines and k) statements emptied (line numbers
+/           are preserved)
 /   code    txt with string contents and comments blanked; both quotes of a
 /           string are kept so a literal's extent is visible
 /   opens   offsets of opening quotes; closes: offsets of the matching quotes
@@ -101,7 +112,10 @@
     nsLine: sysIdx where isNs;
     nsName: {n: trim 3 _ x; $[n~enlist "."; ""; n]} each sysLines where isNs;
 
-    dead: where not live and not sys;
+    / A k) statement is k, not q: the ")" of its prefix counted as a closing
+    / bracket, every depth after it was one off, and resq mutate found no
+    / function after the line. It is emptied with its continuation lines.
+    dead: where (not live and not sys) or .tst.loadGraph.kStatements[lines; live; sys];
     lines[dead,sysIdx]: (count dead,sysIdx)#enlist "";
     txt: "\n" sv lines;
     starts: 0, -1 _ sums 1+count each lines;

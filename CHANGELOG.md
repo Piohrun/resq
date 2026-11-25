@@ -21,6 +21,11 @@ All notable changes to the **resQ** project will be documented in this file.
   `trim` takes spaces only. KX's `e/c.q` and TorQ's settings are written so.
   The watch-mode dependency graph judged a load inside such a function as a
   load of the file itself.
+- `resq mutate` no longer stops finding functions at a `k)` line: the `)` of
+  the prefix counted as a closing bracket, so every function after the line
+  looked nested and was left out (13 of 15 in KX's `csvutil.q`). A `k)`
+  statement is now left alone, as k code is not something q mutators can
+  change; the watch-mode dependency graph reads past it correctly too.
 - The dependency graph (`deps.q`) reads `\l dep.q / note` as a load of
   `dep.q`. It kept the comment as part of the path, as the loader did before
   2.4.0, and so pointed at a file that does not exist.
