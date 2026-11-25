@@ -1920,7 +1920,7 @@ status because q's `.z.exit` callback cannot change an existing `exit 0`.
 | `-fh` / `--fail-hard` | Halt remaining expectations and suites on first failure; mandatory cleanup still runs |
 | `-random-order` / `--randomOrder` | Deterministically permute files, suites, and expectations with resQ's private PRNG |
 | `-seed N` | Non-negative replay seed for `-random-order` (default `0`); recorded in report metadata |
-| `-last-failed` / `-lf` | Run only tests whose stable IDs failed or errored in the previous run; missing/empty history safely falls back to the full selection |
+| `-last-failed` / `-lf` | Run only tests whose stable IDs failed or errored in the previous run; missing/empty history, or a selection that holds none of those tests, falls back to the full selection |
 | `-failed-first` | Run previous failures first, then the rest, preserving the current deterministic order within each cohort |
 | `-state-file PATH` | Override the versioned rerun cache path (default `.resq/last-run.json`) |
 | `-flake-history PATH` | Override bounded observation history (default `.resq/flake-history.json`; shard-suffixed) |
@@ -2013,7 +2013,10 @@ algorithm and exact q codec envelope. Collection/framework-only failures and
 describe-only runs leave prior history intact. `-last-failed` and
 `-failed-first` use the report's stable `testId`; missing, empty, corrupt, or
 unsupported history falls back to the complete current selection and emits a
-typed rerun diagnostic; identity-mismatched state is preserved beside the
+typed rerun diagnostic. So does `-last-failed` when none of the tests that
+failed last time is in the current selection, which resQ also says on the
+console; under `-isolate` the parent decides this from the files the
+failures were in; identity-mismatched state is preserved beside the
 cache for explicit migration. The default `.resq/` cache directory stays out of
 version control on its own: resQ writes a `.resq/.gitignore` that ignores
 everything except the reviewed `quarantine.json` (an existing `.gitignore` there

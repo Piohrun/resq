@@ -53,6 +53,20 @@
   (hsym `$path) 0:enlist .j.j doc;
  };
 
+/ Run resQ in `wd` with `args`: (exit code; descriptions of the tests in
+/ the report; console output).
+.tst.reruntest.runIn:{[wd;args]
+  qexe:first @[system;"command -v q 2>/dev/null";{enlist (getenv[`QHOME]),"/l64/q"}];
+  cmd:"cd ",.utl.shellQuote[wd]," && timeout -k 5 30 ",.utl.shellQuote[qexe]," ",
+      .utl.shellQuote[.resq.HOME,"/resq.q"]," test ",args,
+      " -state-file state/last-run.json -flake-history state/flake.json",
+      " -flake-proposal-file state/proposals.json -json -quiet -outDir report",
+      " < /dev/null > out.txt 2>&1; echo $?";
+  code:"J"$last @[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "-1"}];
+  doc:.j.k "\n" sv read0 hsym `$wd,"/report/test-results.json";
+  (code;{.tst.toString x`description} each doc`tests;read0 hsym `$wd,"/out.txt")
+ };
+
 .tst.reruntest.cleanup:{[]
   expected:.utl.tempRoot[],"/resq_rerun_test_",string .z.i;
   if[not .tst.reruntest.base~expected;'"refusing unsafe rerun cleanup path"];
@@ -241,17 +255,7 @@
     .utl.ensureDir wd,"/tests";
     (hsym `$wd,"/tests/test_red.q") 0: enlist ".tst.desc[\"red\"]{ should[\"still fails\"]{ 1 musteq 2 }; };";
     (hsym `$wd,"/tests/test_green.q") 0: enlist ".tst.desc[\"green\"]{ should[\"passes\"]{ 1 musteq 1 }; };";
-    qexe:first @[system;"command -v q 2>/dev/null";{enlist (getenv[`QHOME]),"/l64/q"}];
-    run:{[wd;qexe;args]
-      cmd:"cd ",.utl.shellQuote[wd]," && timeout -k 5 30 ",.utl.shellQuote[qexe]," ",
-          .utl.shellQuote[.resq.HOME,"/resq.q"]," test ",args,
-          " -state-file state/last-run.json -flake-history state/flake.json",
-          " -flake-proposal-file state/proposals.json -json -quiet -outDir report",
-          " < /dev/null > out.txt 2>&1; echo $?";
-      code:"J"$last @[system;"sh -c ",.utl.shellQuote cmd;{[err]enlist "-1"}];
-      doc:.j.k "\n" sv read0 hsym `$wd,"/report/test-results.json";
-      (code;{.tst.toString x`description} each doc`tests)
-    }[wd;qexe];
+    run:.tst.reruntest.runIn wd;
     (first run "tests") musteq 1;
     / a run of the other file, as watch mode does after an edit
     (first run "tests/test_green.q") musteq 0;
@@ -260,6 +264,60 @@
     (again 1) musteq enlist "still fails";
     state:.j.k "\n" sv read0 hsym `$wd,"/state/last-run.json";
     ({.tst.toString x`file} each state`failedTests) musteq enlist "tests/test_red.q";
+  };
+ };
+
+/ -last-failed ran nothing, said "No tests ran" and exited 1 when the tests
+/ that failed last time were all in files outside the selection.
+.tst.desc["-last-failed when none of the earlier failures is selected"]{
+  before{
+    base:.utl.tempRoot[],"/resq_rerun_elsewhere_",string[.z.i],"_",string `long$.z.p;
+    .utl.ensureDir base,"/tests";
+    .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.utl.shellQuote d;{}]};enlist base];
+    `.tst.app.baseDir mock base;
+    `.tst.app.rerunState mock `status`diagnostic`failedTestIds`failedTests`runId`updatedAt!(
+        `ok;"";enlist "id_red";enlist ("id_red";"tests/test_red.q";0j);"";"");
+    `selected mock (base,"/tests/test_red.q";base,"/tests/test_green.q");
+  };
+
+  should["decide for isolated children from the files the failures were in"]{
+    (.tst.rerunFilesHaveFailure selected) musteq 1b;
+    (.tst.rerunFilesHaveFailure 1#selected) musteq 1b;
+    (.tst.rerunFilesHaveFailure 1_selected) musteq 0b;
+  };
+
+  should["count a failure whose file is not on record as selected"]{
+    `.tst.app.rerunState mock @[.tst.app.rerunState;`failedTests;:;enlist ("id_red";"";0j)];
+    (.tst.rerunFilesHaveFailure 1_selected) musteq 1b;
+  };
+
+  should["leave a run without usable history to the children"]{
+    `.tst.app.rerunState mock .tst.emptyRerunState `missing;
+    (.tst.rerunFilesHaveFailure 1_selected) musteq 1b;
+  };
+
+  skipIf[0=count @[system;"command -v timeout 2>/dev/null";{()}];
+         "run the whole selection, in process and isolated #slow"]{
+    wd:.utl.tempRoot[],"/resq_rerun_lf_",string[.z.i],"_",string `long$.z.p;
+    .utl.ensureDir wd,"/tests";
+    .tst.registerCleanup[{[d] @[system;"rm -rf -- ",.utl.shellQuote d;{}]};enlist wd];
+    (hsym `$wd,"/tests/test_red.q") 0: enlist ".tst.desc[\"red\"]{ should[\"still fails\"]{ 1 musteq 2 }; };";
+    (hsym `$wd,"/tests/test_green.q") 0: enlist ".tst.desc[\"green\"]{ should[\"passes\"]{ 1 musteq 1 }; should[\"passes too\"]{ 2 musteq 2 }; };";
+    run:.tst.reruntest.runIn wd;
+    (first run "tests") musteq 1;
+    note:"resQ: -last-failed: the test that failed last time is not in this selection*";
+    inProcess:run "tests/test_green.q -last-failed";
+    (inProcess 0) musteq 0;
+    (inProcess 1) musteq ("passes";"passes too");
+    (any (inProcess 2) like note) musteq 1b;
+    isolated:run "tests/test_green.q -last-failed -isolate";
+    (isolated 0) musteq 0;
+    (isolated 1) musteq ("passes";"passes too");
+    (any (isolated 2) like note) musteq 1b;
+    / the failure in the other file is still the one -last-failed selects
+    again:run "tests -last-failed";
+    (again 0) musteq 1;
+    (again 1) musteq enlist "still fails";
   };
  };
 

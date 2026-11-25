@@ -457,7 +457,7 @@
 / the parent still applies the ordinary no-results failure after all files have
 / been aggregated, so a filter that matches nowhere remains non-zero.
 .tst.isolate.filtersActive:{[]
-    (1b~@[get;`.tst.app.lastFailed;0b]) or any 0 < count each (
+    .tst.lastFailedSelects[] or any 0 < count each (
         @[get; `.tst.app.runSpecs; ()];
         @[get; `.tst.app.excludeSpecs; ()];
         @[get; `.tst.app.tagFilter; ()];
@@ -493,7 +493,7 @@
     argv: .tst.isolate.appendFlag[argv; "-random-order"; @[get; `.tst.app.randomOrder; 0b]];
     if[1b~@[get;`.tst.app.randomOrder;0b];
         argv:.tst.isolate.appendValue[argv;"-seed";@[get;`.tst.app.executionSeed;0j]]];
-    argv:.tst.isolate.appendFlag[argv;"-last-failed";@[get;`.tst.app.lastFailed;0b]];
+    argv:.tst.isolate.appendFlag[argv;"-last-failed";.tst.lastFailedSelects[]];
     argv:.tst.isolate.appendFlag[argv;"-failed-first";@[get;`.tst.app.failedFirst;0b]];
     argv:.tst.isolate.appendValue[argv;"-state-file";.tst.isolate.privateRerunPath wd];
     / The parent is the sole durable flake-history writer. Give every child
@@ -1196,6 +1196,11 @@
     n: count files;
     .tst.app.discoveredFiles: files;
     .tst.isolate.upsertRows .tst.isolate.parentLoadRows[];
+    / A child sees one file, so whether -last-failed selects anything is
+    / decided here, from the files the earlier failures were in.
+    .tst.app.lastFailedElsewhere: 0b;
+    if[(1b~@[get;`.tst.app.lastFailed;0b]) and (0<n) and not .tst.rerunFilesHaveFailure files;
+        .tst.noteLastFailedElsewhere count .tst.app.rerunState`failedTestIds];
 
     unavailable: 0b;
     if[0 < n;

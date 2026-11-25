@@ -4,7 +4,13 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+
+- `-last-failed` runs the whole selection, and says so, when none of the
+  tests that failed last time is in it. It ran nothing, printed "No tests
+  ran" and exited 1, so `resq test tests/test_b.q -last-failed` failed
+  whenever last run's failures were in another file. Under `-isolate` the
+  parent decides from the files the failures were in.
 
 ## [2.4.0] - 2026-11-24 - Audit Hardening
 

@@ -192,12 +192,54 @@
     amended:.tst.rerunAmendSpec[mode;ids;] each specs;
     if[mode~`lastFailed;
         amended:amended where 0<count each .tst.rerunExpectations each amended];
+    / None of the earlier failures is in this selection. An isolated child
+    / sees one file of the parent's selection, which decided this for the
+    / whole run (see .tst.rerunFilesHaveFailure): it selects what it has.
+    if[(mode~`lastFailed) and (0=count amended) and not 1b~@[get;`.tst.app.isolateChild;0b];
+        .tst.noteLastFailedElsewhere count ids;
+        .tst.app.selectedTestCount:.tst.rerunExpectationCount specs;
+        :specs];
     if[mode~`failedFirst;
         priority:.tst.rerunSpecHasFailure[ids;] each amended;
         amended:(amended where priority),amended where not priority];
     .tst.app.rerunApplied:1b;
     .tst.app.selectedTestCount:.tst.rerunExpectationCount amended;
     amended
+ };
+
+/ -last-failed when none of the tests that failed last time is in the
+/ selection: the whole selection runs, as with no failures on record. It used
+/ to run nothing, print "No tests ran" and exit 1, so `resq test tests/b.q
+/ -last-failed` failed whenever the failures were in another file.
+.tst.noteLastFailedElsewhere:{[known]
+    .tst.app.lastFailedElsewhere:1b;
+    .tst.recordDiagnostic[`rerun;`info;`selection;
+        "None of the previous failures is in this selection; running the full selection";
+        `mode`priorFailedCount!(`lastFailed;"j"$known)];
+    if[not 1b~@[get;`.tst.app.passOnly;0b];
+        -1 "resQ: -last-failed: ",$[1=known;
+            "the test that failed last time is not";
+            "none of the ",string[known]," tests that failed last time is"],
+            " in this selection; running all of it."];
+ };
+
+/ Whether -last-failed selects anything from these files: a test that failed
+/ last time is in one of them, or its file is not on record. Without usable
+/ history or failures, children run their whole file anyway.
+.tst.rerunFilesHaveFailure:{[files]
+    state:@[get;`.tst.app.rerunState;{.tst.emptyRerunState `missing}];
+    if[not `ok~state`status;:1b];
+    failures:state`failedTests;
+    if[0=count failures;:1b];
+    known:failures[;1];
+    if[any 0=count each known;:1b];
+    looked:.tst.repoRelativePath each files;
+    any {[looked;file] any file~/:looked}[looked] each known
+ };
+
+/ Whether this run selects by -last-failed.
+.tst.lastFailedSelects:{[]
+    (1b~@[get;`.tst.app.lastFailed;0b]) and not 1b~@[get;`.tst.app.lastFailedElsewhere;0b]
  };
 
 .tst.selectionMetadata:{[]
@@ -219,7 +261,7 @@
     .tst.app.rerunMode:mode;
     .tst.app.priorFailedCount:count state`failedTestIds;
     .tst.app.rerunApplied:(not mode~`all) and (`ok~state`status) and
-        0<count state`failedTestIds;
+        (0<count state`failedTestIds) and not 1b~@[get;`.tst.app.lastFailedElsewhere;0b];
     .tst.app.selectedTestCount:"j"$selectedCount;
     ::
  };

@@ -755,6 +755,7 @@
     .tst.app.selectedExecutionIds:();
     .tst.app.rerunMode: `all;
     .tst.app.rerunApplied: 0b;
+    .tst.app.lastFailedElsewhere: 0b;
     .tst.app.priorFailedCount: 0j;
     .tst.app.selectedTestCount: 0j;
     .tst.app.loadedFiles: ();
