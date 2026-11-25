@@ -1612,6 +1612,38 @@
     (count changed[`mutants] 2) musteq 0;
   };
 
+  / A reader such as Atlas needed a receipt written beside the report to tie
+  / a survivor to the commit and the source bytes it was made from.
+  should["say which commit and which source bytes the mutants were made from"]{
+    .tst.testState.mut.capture[];
+    marker: .tst.testState.mut.scratch["marker"; enlist ""];
+    dir: .utl.normalizePath .tst.static.getDir[marker], "/reports";
+    `.resq.config.outDir mock dir;
+    `.tst.mutate.provenanceRecord mock `vcs`sources!(
+        `sha`branch`dirty`status!(40#"a"; "main"; 0b; "ok");
+        (enlist `$"src/a.q")!enlist 64#"b");
+    m: .tst.testState.mut.reportMutants[];
+    .tst.mutate.writeJson[m; .tst.testState.mut.reportFns; .tst.testState.mut.reportBase; .tst.mutate.summary m; .tst.testState.mut.reportChanges];
+    doc: .j.k raze read0 hsym `$dir, "/mutation-report.json";
+    .tst.testState.mut.drop marker;
+    must[1 = doc`schemaVersion; "still schema version one"];
+    doc[`vcs] mustmatch `sha`branch`dirty`status!(40#"a"; "main"; 0b; "ok");
+    doc[`sources] mustmatch (enlist `$"src/a.q")!enlist 64#"b";
+  };
+
+  should["take the commit before the mutants run, and each mutated file's SHA-256"]{
+    path: .tst.testState.mut.scratch["src.q"; enlist ".p.f:{x+1};"];
+    `.tst.vcsState mock {[root;untracked] `sha`branch`dirty`status!(root; untracked; 1b; "ok")};
+    prov: .tst.mutate.provenance["/the/root"; enlist path];
+    expected: first " " vs first system "sha256sum -- ", .utl.shellQuote path;
+    .tst.testState.mut.drop path;
+    / tracked files only: reports written into the checkout are not a change
+    prov[`vcs] mustmatch `sha`branch`dirty`status!("/the/root"; "no"; 1b; "ok");
+    (value prov`sources) mustmatch enlist expected;
+    (key prov`sources) mustmatch enlist `$.tst.mutate.display path;
+    (count first value prov`sources) musteq 64;
+  };
+
   should["show progress marks unless asked to be quiet"]{
     .tst.testState.mut.capture[];
     `.tst.app.quiet mock 0b;

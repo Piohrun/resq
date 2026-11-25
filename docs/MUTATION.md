@@ -168,6 +168,8 @@ resq mutate src/ -tests tests/ -qspec-compat -qspec-discovery
 {
   "schemaVersion": 1,
   "kind": "resq-mutation-report",
+  "vcs": {"sha": "5e1c...", "branch": "main", "dirty": false, "status": "ok"},
+  "sources": {"src/pricing.q": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"},
   "summary": {"mutants": 22, "killed": 11, "timedOut": 0, "survived": 8,
               "notCovered": 3, "notAssessed": 0, "score": 50.0, "coveredScore": 57.9},
   "testFiles": [{"file": "tests/test_pricing.q", "usable": true, "reason": ""}],
@@ -179,6 +181,15 @@ resq mutate src/ -tests tests/ -qspec-compat -qspec-discovery
   ]
 }
 ```
+
+`vcs` and `sources` say what the mutants were made from, taken before any
+mutant runs: the commit, the branch and whether a tracked file differed from
+the commit (`dirty`; untracked files, such as reports a pipeline writes into
+the checkout, do not count), and the SHA-256 of each source file with mutants,
+under the path `mutants[].file` uses. A reader can check these against the
+commit to tie each survivor to the exact source it was made from. `status` is
+`ok`, `unavailable` outside a git checkout, or `disabled` with `-no-vcs`; a
+file whose digest cannot be computed is left out of `sources`.
 
 `status` is one of `killed`, `timeout`, `survived`, `uncovered`, `unloaded`, `unmatched`, `unapplied`, `error`. `uncovered` and `unloaded` are both reported as *not covered*: the first means the function was in memory but never called, the second that no test file loaded it. The last three are *not assessed*. `score` and `coveredScore` are `null` when nothing could be assessed. `filesChanged` lists each file with `change` (`created`, `modified`, `deleted` or `restored`) and the `id`s of the mutants that were running; the list of ids is empty when that is not known.
 

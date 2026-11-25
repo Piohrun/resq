@@ -6,6 +6,12 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Added
 
+- `mutation-report.json` says what the mutants were made from: `vcs` (the
+  commit, the branch and whether a tracked file differed from it) and
+  `sources` (the SHA-256 of each mutated source file), both taken before any
+  mutant runs. A reader such as Atlas can tie a survivor to the commit and
+  the bytes it came from without a receipt written beside the report. The
+  report stays schema version 1.
 - `docs/TEAM_CHEATSHEET.md`: resQ on one page for a team, with the five
   commands that matter, the exit codes and a three-step CI recipe, each
   checked on the bundled quickstart.

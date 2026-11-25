@@ -835,14 +835,25 @@
     cached:@[get;`.tst.app.vcsContextCache;{()!()}];
     cachedRoot:@[get;`.tst.app.vcsContextCacheRoot;{""}];
     if[(99h=type cached) and (0<count cached) and root~cachedRoot;:cached];
-    quoted:.resq.util.shellQuote root;
     .tst.app.vcsProbeCount:1j+"j"$@[get;`.tst.app.vcsProbeCount;0j];
+    result:.tst.vcsState[root;"normal"];
+    .tst.app.vcsContextCacheRoot:root;
+    .tst.app.vcsContextCache:result;
+    result
+ };
+
+/ The repository state at root: commit, branch, and whether anything differs
+/ from the commit. untracked is git's --untracked-files value: "normal" counts
+/ an untracked file as a difference, "no" counts tracked files only.
+.tst.vcsState:{[root;untracked]
+    if[not 1b~@[get;`.tst.app.vcsProbe;1b];:`sha`branch`dirty`status!("";"";0b;"disabled")];
+    quoted:.resq.util.shellQuote root;
     / `git status` refreshes the index as it goes and writes it back: every
     / run rewrote .git/index, which races an editor's or IDE's own git, and
     / fails outright in a read-only checkout. GIT_OPTIONAL_LOCKS=0 asks git
     / not to; a git too old to know it ignores it.
     lines:.tst.commandLines "GIT_OPTIONAL_LOCKS=0 git -C ",quoted,
-        " status --porcelain=v2 --branch --untracked-files=normal 2>/dev/null";
+        " status --porcelain=v2 --branch --untracked-files=",untracked," 2>/dev/null";
     oidLines:lines where lines like "# branch.oid *";
     headLines:lines where lines like "# branch.head *";
     sha:$[count oidLines;13 _ first oidLines;""];
@@ -851,10 +862,7 @@
     if[branch~"(detached)";branch:""];
     dirty:any not lines like "# *";
     status:$[(count oidLines)+(count headLines);"ok";"unavailable"];
-    result:`sha`branch`dirty`status!(sha;branch;dirty;status);
-    .tst.app.vcsContextCacheRoot:root;
-    .tst.app.vcsContextCache:result;
-    result
+    `sha`branch`dirty`status!(sha;branch;dirty;status)
  };
 
 .tst.envValue:{[environment;name]

@@ -1065,12 +1065,34 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     s
  };
 
+/ What the mutants were made from: the repository state before any mutant
+/ ran, and the SHA-256 of each source file with mutants, keyed by the path the
+/ report gives for it. A reader can then tie a survivor to the commit and the
+/ bytes it was made from without a receipt written beside the report. `dirty`
+/ counts tracked files only: reports a pipeline writes into the checkout do
+/ not make the code under test differ from the commit. A digest that cannot
+/ be computed is left out.
+.tst.mutate.noProvenance:{[]
+    `vcs`sources!(`sha`branch`dirty`status!("";"";0b;"unavailable"); (`symbol$())!())
+ };
+.tst.mutate.provenance:{[root;files]
+    files: distinct files;
+    digest:{[file]
+        out: @[system; "(sha256sum -- ", .resq.util.shellQuote[file], " 2>/dev/null; true)"; {[e] ()}];
+        d: $[count out; first " " vs first out; ""];
+        $[(64 = count d) and all d in "0123456789abcdef"; d; ""]};
+    digests: digest each files;
+    keep: where 0 < count each digests;
+    `vcs`sources!(.tst.vcsState[root;"no"]; (`$.tst.mutate.display each files keep)!digests keep)
+ };
+
 .tst.mutate.writeJson:{[mutants;fns;base;summary;changes]
     / q creates the directory when it writes the file.
     out: .resq.util.normalizePath @[get; `.resq.config.outDir; "."];
-    doc: `schemaVersion`kind`framework`frameworkVersion`generatedAt`summary`testFiles`filesChanged`mutants!(
+    prov: @[get; `.tst.mutate.provenanceRecord; {[e] .tst.mutate.noProvenance[]}];
+    doc: `schemaVersion`kind`framework`frameworkVersion`generatedAt`vcs`sources`summary`testFiles`filesChanged`mutants!(
         1j; "resq-mutation-report"; "resQ"; .tst.toString @[get; `.resq.VERSION; {"unknown"}];
-        .tst.isoTimestamp .z.P; summary;
+        .tst.isoTimestamp .z.P; prov`vcs; prov`sources; summary;
         {[r] `file`usable`reason!(.tst.mutate.display r`file; r`usable; r`why)} each base;
         {[c] `path`change`mutants!(c`path; string c`change; c`mutants)} each changes;
         {[fns;i;m]
@@ -1148,6 +1170,8 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     .tst.mutate.parent: 1b;
     cap: "j"$@[get; `.tst.app.isolateTimeout; .tst.mutate.childLimit];
 
+    / Before any child runs: what the mutants are made from.
+    .tst.mutate.provenanceRecord: .tst.mutate.provenance[system "cd"; fns[`file] distinct mutants`fnIdx];
     .tst.mutate.out "  Tests:  ",string[count testFiles]," file(s), each first run on its own without a mutant";
     .tst.mutate.tick "  ";
     base: .tst.mutate.baseline[testFiles;fns;.tst.isolate.workerCount count testFiles;cap];
