@@ -36,6 +36,11 @@
 / Otherwise we test block-open (lone "/") BEFORE the terminator / system-command
 / rewrite - a lone "/" is never a system command, and a lone "\" outside a block
 / is the terminator, never a block close.
+/ A line of source as text. Not .resq.util.pathToString, which takes a
+/ leading ":" for a file handle's and drops it: "::" became ":" and ":x"
+/ became "x".
+.tst.sourceText:{[x] $[-11h = type x; string x; x]};
+
 / Canonical absolute+normalized form of a path. Absolutizes against the current
 / working directory when relative, then resolves "." / ".." segments. Two
 / different spellings of the same file (./x.q vs x.q vs an absolute path) all
@@ -236,7 +241,7 @@
 / Mask strings, comments, block comments and text after a script terminator,
 / preserving every remaining character offset for lexical scope analysis.
 .tst.dslMaskedSource:{[lines]
-    source:.resq.util.pathToString each lines;
+    source:.tst.sourceText each lines;
     out:enlist ();
     state:0;                   / open block comments; q nests them
     stopped:0b;
@@ -675,7 +680,7 @@
 .tst.preprocessedLineNumbers: `long$();
 
 .tst.preprocessScript:{[lines]
-    lines: .resq.util.pathToString each lines;
+    lines: .tst.sourceText each lines;
     / q skips a "#!" interpreter line at the top of a script. Blank it rather
     / than drop it so every later line keeps its number.
     if[count lines; if["#!" ~ 2 sublist first lines; lines[0]: ""]];
@@ -821,7 +826,7 @@
 / In q, "/" opens a comment at column 1 or after whitespace; operator/adverb uses
 / such as x%y and +/ remain code. Block comments are removed before evaluation.
 .tst.bracketDelta:{[ln]
-    ln: (),.resq.util.pathToString ln;
+    ln: (),.tst.sourceText ln;
     if[0 = count ln; :0];
     / Brackets count only in code: the shared lexer marks strings (with their
     / escapes) and a trailing comment, as the old per-character walk did.
@@ -837,7 +842,7 @@
 / stays ONE statement (and thus parses as a unit). Returns (startLineNo; lines)
 / pairs with the 1-based ORIGINAL file line of each statement's first line.
 .tst.groupStatements:{[lines]
-    lines: .resq.util.pathToString each lines;
+    lines: .tst.sourceText each lines;
     out: ();              / list of (startLineNo; list-of-lines)
     depth: 0;             / current unbalanced bracket depth
     i: 0;
@@ -1113,7 +1118,7 @@
                 stmtsForMsg: @[.tst.groupStatements; content; {()}];
                 hits: stmtsForMsg where stmtsForMsg[;0] = lineNo;
                 stmtTxt: .tst.lstrip $[count hits; "\n" sv (first hits) 1;
-                    lineNo <= count content; .resq.util.pathToString content lineNo - 1;
+                    lineNo <= count content; .tst.sourceText content lineNo - 1;
                     ""];
                 excerpt: (80 & count stmtTxt) # stmtTxt;
                 e: e, " (", where1, string[lineNo], $[count excerpt; ": ", excerpt; ""], ")";

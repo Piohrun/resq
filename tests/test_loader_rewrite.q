@@ -109,3 +109,22 @@
     .tst.rewriteSystemLoad[line] musteq line;
   };
  };
+
+/ Source lines went through .resq.util.pathToString, which takes a leading
+/ ":" for a file handle's and drops it: "::" became ":", and every offset
+/ after such a line in the masked source was one off.
+.tst.desc["a line that starts with a colon"]{
+  should["keep it as written when the file is read"]{
+    lines: ("a:1"; "::"; ":x"; "b:2");
+    pp: .tst.preprocessScript lines;
+    (pp where not pp like "/*") mustmatch lines;
+    (.tst.groupStatements lines)[;1] mustmatch enlist each lines;
+    .tst.bracketDelta[":["] musteq 1;
+  };
+  should["keep every offset of the masked source"]{
+    lines: ("a:1"; "::"; "b:\"str\"");
+    masked: .tst.dslMaskedSource lines;
+    (count masked) musteq count "\n" sv lines;
+    masked mustmatch "a:1\n::\nb:\"   \"";
+  };
+ };

@@ -26,6 +26,10 @@ All notable changes to the **resQ** project will be documented in this file.
   looked nested and was left out (13 of 15 in KX's `csvutil.q`). A `k)`
   statement is now left alone, as k code is not something q mutators can
   change; the watch-mode dependency graph reads past it correctly too.
+- A test-file line that starts with `:` is loaded as written. The loader
+  passed source lines through a path helper that drops a leading `:` (as
+  from a file handle): `:x` became `x`, `::` disappeared, and every offset
+  after such a line in the DSL scope analysis was one off.
 - The dependency graph (`deps.q`) reads `\l dep.q / note` as a load of
   `dep.q`. It kept the comment as part of the path, as the loader did before
   2.4.0, and so pointed at a file that does not exist.
