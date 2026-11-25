@@ -144,3 +144,25 @@
     .tst.testState.cont.b mustmatch til 5;
   };
  };
+
+/ The loader read each physical line on its own, so the lines that continue
+/ a multi-line string looked like code: resQ words in them were rewritten
+/ (`should[x]` became `.tst.shouldEntry[2][x]`), brackets in them were
+/ counted, and `it: x` in one made `it` look like a name the file defines.
+.tst.desc["a multi-line string in a test file"]{
+  should["keep its text, whatever resQ words it holds"]{
+    lines: (".tst.testState.mls.s:\"usage:"; "  should[x] runs after{y} and it[z]"; "  before[1] skip[2]"; "  a musteq b; t:`p\"");
+    .tst.testState.mls.s: ();
+    .tst.evalPreprocessed .tst.preprocessScript lines;
+    .tst.testState.mls.s mustmatch "usage:\n  should[x] runs after{y} and it[z]\n  before[1] skip[2]\n  a musteq b; t:`p";
+  };
+  should["still rewrite the code after the string on the same line"]{
+    pp: .tst.preprocessScript ("s:\"a"; "  b\"; should[\"t\"]{ 1 musteq 1 }");
+    must[(pp 1) like "  b\"; .tst.should*"; pp 1];
+  };
+  should["not count its brackets, nor take a word in it for a declaration"]{
+    lines: ("usage:\"Usage: [options"; "  more text (with brackets\""; "f:{x+1}"; "g:2");
+    (count .tst.groupStatements lines) musteq 3;
+    .tst.dslPotentialShadowedNames[("s:\"text"; "  it: something\""; "t:1")] mustmatch `symbol$();
+  };
+ };

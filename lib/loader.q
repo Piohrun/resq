@@ -191,6 +191,90 @@
     ?[body; " "; txt]
  };
 
+/ The source lines as q lexes them: block comments, what follows the script
+/ terminator and system-command lines blanked, every length kept.
+.tst.lexableLines:{[lines]
+    source:{(),.tst.sourceText x} each lines;
+    / The usual file has no block comment, terminator or system command, and
+    / nothing to blank: only lines that start with "/" or "\\" can be one.
+    heads:{$[count x; first x; " "]} each source;
+    marked:where heads in "/\\";
+    if[not any {t:.tst.rstrip x; (t~enlist "/") or "\\"=first x} each source marked; :source];
+    out:enlist ();
+    state:0;                   / open block comments; q nests them
+    stopped:0b;
+    i:0;
+    while[i<count source;
+        ln:(),source i;
+        trimmed:.tst.rstrip ln;
+        blank:count[ln]#" ";
+        $[stopped; out,:enlist blank;
+          state>0;
+            [out,:enlist blank;
+             state+:$[trimmed~enlist "/";1;trimmed~enlist "\\";-1;0]];
+          trimmed~enlist "/"; [out,:enlist blank; state:1];
+          (0<count ln) and "\\"=first ln;
+            [out,:enlist blank; if[trimmed~enlist "\\"; stopped:1b]];
+          out,:enlist ln];
+        i+:1];
+    1 _ out
+ };
+
+/ Each line masked as .tst.maskQLine masks one, but read as part of the whole
+/ file: a line that continues a multi-line string is string. Masking each
+/ line on its own took those lines for code.
+.tst.maskQLines:{[lines]
+    src:.tst.lexableLines lines;
+    if[0=count src; :()];
+    lens:count each src;
+    masked:.tst.maskQLine "\n" sv src;
+    {[m;s;l] x:l sublist s _ m; x,(l-count x)#" "}[masked]'[0, -1 _ sums 1+lens; lens]
+ };
+
+/ For each line, whether it begins inside a string an earlier line opened.
+.tst.lineStartsInString:{[lines]
+    if[not "\"" in raze {(),.tst.sourceText x} each lines; :(count lines)#0b];
+    src:.tst.lexableLines lines;
+    if[0=count src; :`boolean$()];
+    txt:"\n" sv src;
+    if[0=count txt; :(count src)#0b];
+    states:first .tst.qLexStates txt;
+    starts:0, -1 _ sums 1+count each src;
+    (0^states starts) in 1 2
+ };
+
+/ How much of a line that begins inside a string is still that string: up to
+/ and including its closing quote, or the whole line.
+.tst.stringPrefixLength:{[line]
+    txt:(),line;
+    if[0=count txt; :0];
+    after:.tst.maskTransitions\[1; "\"\\/\n"?txt];
+    closeAt:first where after=0;
+    $[null closeAt; count txt; 1+closeAt]
+ };
+
+/ The brackets each line opens net of those it closes, counting code only and
+/ reading the lines as one text: a bracket in a multi-line string is text.
+.tst.lineBracketCounts:{[lines]
+    src:.tst.lexableLines lines;
+    if[0=count src; :`long$()];
+    lens:count each src;
+    txt:"\n" sv src;
+    if[0=count txt; :(count src)#0j];
+    code:0=first .tst.qLexStates txt;
+    cum:0, sums "j"$(code and txt in "{([") - code and txt in "})]";
+    starts:0, -1 _ sums 1+lens;
+    (cum starts+lens) - cum starts
+ };
+
+/ Apply f to the code of a line that may begin inside a string: the string
+/ part is kept as it is.
+.tst.outsideString:{[f;inString;line]
+    txt:(),line;
+    p:$[inString; .tst.stringPrefixLength txt; 0];
+    $[p=0; f txt; p<count txt; (p#txt), f p _ txt; txt]
+ };
+
 .tst.bareTokenAt:{[txt;at;name]
     n: count name;
     if[not name ~ n # at _ txt; :0b];
@@ -232,7 +316,7 @@
 / that actually declare a DSL-shaped name pay for nested lexical scope ranges.
 .tst.dslPotentialShadowedNames:{[lines]
     names:string key .tst.dslExports;
-    maskedLines:.tst.maskQLine each lines;
+    maskedLines:.tst.maskQLines lines;
     `$names where {[masked;name]
         any .tst.dslLineDeclares[;name] each masked
       }[maskedLines;] each names
@@ -653,11 +737,13 @@
         / binding while avoiding one whole-desc copy/rescan per ordinary assert.
         / A line that cannot bind by itself is left for the statement-wide pass.
         if[shadowed~`resqNoDslShadows;
-            statementLines:{[ln]
-                .[.tst.rewriteInfixAssertions;
-                  (`resqNoDslShadows;ln);
-                  {[source;err]source}[ln;]]
-              } each statementLines];
+            / A line that continues a multi-line string keeps its string.
+            statementLines:{[inString;ln]
+                .tst.outsideString[{[ln]
+                    .[.tst.rewriteInfixAssertions;
+                      (`resqNoDslShadows;ln);
+                      {[source;err]source}[ln;]]}; inString; ln]
+              }'[.tst.lineStartsInString statementLines; statementLines]];
         joined: "\n" sv statementLines;
         rewritten: .tst.rewriteInfixAssertions[shadowed;joined];
         scopeArg:$[shadowed~`resqNoDslShadows;`symbol$();
@@ -684,6 +770,9 @@
     / q skips a "#!" interpreter line at the top of a script. Blank it rather
     / than drop it so every later line keeps its number.
     if[count lines; if["#!" ~ 2 sublist first lines; lines[0]: ""]];
+    / The lines that continue a multi-line string: their string part is data,
+    / though each line is rewritten on its own below.
+    inString:.tst.lineStartsInString lines;
     potential:.tst.dslPotentialShadowedNames lines;
     hasScopedNames:0<count potential;
     sourceScope:$[hasScopedNames;.tst.dslScopeArgument lines;`symbol$()];
@@ -742,8 +831,9 @@
                       out,: enlist "system \"", esc, "\";" ] ] ];
             / Ordinary line (includes "/ text" line comments).
             [lineScope:sourceScope;
-             if[hasScopedNames;lineScope[`base]:lineOffsets i];
-             out,: enlist .tst.preprocessOrdinaryLine[i + 1;lineScope;ln]] ];
+             p:$[inString i; .tst.stringPrefixLength ln; 0];
+             if[hasScopedNames;lineScope[`base]:p+lineOffsets i];
+             out,: enlist .tst.outsideString[.tst.preprocessOrdinaryLine[i + 1;lineScope;]; inString i; ln]] ];
         if[emittedBefore < count out; origin,: (i + 1) & n];
         i: 1 + i | skipTo;
     ];
@@ -867,6 +957,10 @@
 / pairs with the 1-based ORIGINAL file line of each statement's first line.
 .tst.groupStatements:{[lines]
     lines: .tst.sourceText each lines;
+    / Counted over the whole text: a bracket in a multi-line string is text.
+    / Counting each line on its own merged the statements after a string
+    / with a bracket in it (TorQ's usage texts) into it.
+    netBrackets: .tst.lineBracketCounts lines;
     out: ();              / list of (startLineNo; list-of-lines)
     depth: 0;             / current unbalanced bracket depth
     i: 0;
@@ -884,7 +978,7 @@
             out[(count out)-1; 1]: (out[(count out)-1; 1]), enlist ln;
             out,: enlist (i+1; enlist ln)         / start a new top-level stmt
         ];
-        depth +: .tst.bracketDelta ln;
+        depth +: netBrackets i;
         if[depth < 0; depth: 0];                  / defensive: never go negative
         i +: 1;
     ];
@@ -1217,7 +1311,7 @@
 / `.tst.<name>` targets of `:`/`::` assignments in code (not strings or
 / comments), as fully qualified symbols.
 .tst.sourceAssignedTstNames:{[content]
-    code: "\n" sv .tst.maskQLine each (),/:content;
+    code: "\n" sv .tst.maskQLines content;
     starts: "j"$code ss ".tst.";
     starts: starts where {[code;at] (at = 0) or not code[at - 1] in .Q.an,"."}[code] each starts;
     identChars: .Q.an;

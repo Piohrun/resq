@@ -16,6 +16,14 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ### Fixed
 
+- A test file's multi-line string keeps its text. The loader read each line on
+  its own, so the lines that continue a string looked like code: resQ words in
+  them were rewritten (`should[x]` became `.tst.shouldEntry[2][x]`, `a musteq
+  b` became `.tst.dsl.musteq[a;] b`), a bracket in them made the statements
+  after the string run as one (TorQ's usage texts), and `it: x` in one made
+  `it` look like a name the file defines. The loader now reads the lines as
+  one text. Over a 3,240-file corpus its statements now match q's on every
+  file q accepts in full.
 - `resq mutate` no longer skips a function whose definition is followed by a
   tab: `f:{x+1}<tab>/ note` and `g:{x+2}<tab>` were left out, because q's
   `trim` takes spaces only. KX's `e/c.q` and TorQ's settings are written so.
