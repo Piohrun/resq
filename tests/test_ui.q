@@ -128,3 +128,13 @@
   };
  };
 
+
+/ desc is a q keyword: under \d .tst a bare `desc` is q's sort, and
+/ .tst.describe was bound to it instead of to resQ's desc.
+.tst.desc["describe, the alias of desc"]{
+  should["be resQ's desc, not q's sort"]{
+    (.tst.describe ~ .tst.desc) musteq 1b;
+    (.tst.describe ~ desc) musteq 0b;
+    ((.tst.uiCode .tst.uiNames ? `describe) ~ .tst.desc) musteq 1b;
+  };
+ };

@@ -446,11 +446,13 @@ uiRuntimeCode: (.tst.fixture;.tst.fixtureAs;.tst.mock)
   .tst.callbacks.descLoaded specObj;
   specObj
  }
-describe:desc
+/ desc is a q keyword: a bare `desc` here is q's sort, not .tst.desc, and
+/ describe was bound to it.
+describe:.tst.desc
 it:should
 
 uiNames:`before`after`should`it`holds`perf`alt`describe`skip`pending`skipIf
-uiCode:(before;after;should;it;holds;perf;alt;desc;skip;pending;skipIf)
+uiCode:(before;after;should;it;holds;perf;alt;.tst.desc;skip;pending;skipIf)
 
 \d .
 / Expose DSL in root for direct/root-context compatibility. init.q also captures

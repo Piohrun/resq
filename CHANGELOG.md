@@ -26,6 +26,9 @@ All notable changes to the **resQ** project will be documented in this file.
   looked nested and was left out (13 of 15 in KX's `csvutil.q`). A `k)`
   statement is now left alone, as k code is not something q mutators can
   change; the watch-mode dependency graph reads past it correctly too.
+- `.tst.describe` is resQ's `desc`. It was q's `desc` (sort descending):
+  `desc` is a q keyword, so `describe:desc` in the `.tst` namespace bound
+  q's. The root `describe` was right.
 - `resq discover` and coverage list only the functions a file defines. The
   scanner they share had a lexer of its own that knew no block comments, and
   took any `name:{` for a function: a function that was commented out, and a
