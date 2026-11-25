@@ -595,6 +595,10 @@
 / file whose last test started an isolated run was then reported for
 / leaving `sleep 0.2` behind. `wait` with no operand also waits for a sleep
 / started just before the signal, before its PID was in $nap.
+/ It also ends when the shell that started it is gone ($$ in a subshell is
+/ that shell). A wrapper ended by a signal left its watch looping for ever:
+/ the release gate's signal checks left two such loops each, still running a
+/ day later.
 .tst.isolate.outputWatch:{[wds]
     if[0 = count wds; :""];
     keep: string .tst.isolate.outputKeep[];
@@ -606,7 +610,7 @@
         "[ -f \"$1.head\" ] || head -c ", keep, " \"$1\" > \"$1.head\"; ",
         "tail -c ", keep, " \"$1\" > \"$1.keep\"; : > \"$1\"; ",
         "cat \"$1.keep\" >> \"$1\"; rm -f \"$1.keep\"; }; ",
-        "while :; do sleep ", .tst.isolate.outputWatchInterval[], " & nap=$!; wait $nap || exit 0; ",
+        "while :; do sleep ", .tst.isolate.outputWatchInterval[], " & nap=$!; wait $nap || exit 0; kill -0 $$ 2>/dev/null || exit 0; ",
         .tst.isolate.launcherWatch[], files,
         " done ) > /dev/null 2>&1 & wdog=$!;"
  };
@@ -1047,7 +1051,7 @@
 .tst.isolate.startChild:{[wd;command]
     sq: .resq.util.shellQuote;
     script: "wdog=''; ", command, " & p0=$!; printf '%s\\n%s\\n' \"$p0\" \"$$\" > ", sq[wd, "/pid.txt"], "; ",
-        "trap 'kill -TERM -- \"-$p0\" 2>/dev/null; sleep 1; kill -KILL -- \"-$p0\" 2>/dev/null; exit 143' INT TERM HUP; ",
+        "trap 'kill -TERM -- \"-$p0\" 2>/dev/null; ", .tst.isolate.outputWatchStop, " sleep 1; kill -KILL -- \"-$p0\" 2>/dev/null; exit 143' INT TERM HUP; ",
         .tst.isolate.outputWatch[enlist wd], " ",
         "wait \"$p0\"; echo $? > ", sq[wd, "/rc.tmp"], "; ",
         "date +%s > ", sq[wd, "/end.txt"], " 2>/dev/null; ",

@@ -856,6 +856,19 @@
       }[wd; nap];
     (count1 each til 5) mustmatch 5#0j;
   };
+
+  / A wrapper ended by a signal left its watch looping for ever.
+  should["end the output watch when the shell that started it is gone"]{
+    wd: .resq.util.ensureDir .tst.isotest.workDir[];
+    pidFile: wd, "/wdog.txt";
+    system "sh -c ", .utl.shellQuote["wdog=''; ", .tst.isolate.outputWatch[enlist wd],
+        " echo $wdog > ", .utl.shellQuote[pidFile], "; exit 0"];
+    pid: first read0 hsym `$pidFile;
+    {[pid;attempt] if[.tst.isolate.processAlive pid; system "sleep 0.2"]}[pid] each til 15;
+    alive: .tst.isolate.processAlive pid;
+    if[alive; system "kill ", pid, " 2>/dev/null; true"];
+    alive musteq 0b;
+  };
  };
 
 / -isolateWorkers ran fixed groups of N and waited for the slowest file of

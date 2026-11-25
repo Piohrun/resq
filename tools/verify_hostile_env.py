@@ -43,6 +43,22 @@ def alive(pid: int) -> bool:
     return True
 
 
+def processes_mentioning(text: str) -> list[str]:
+    """Processes whose command line contains `text`, as "pid: command"."""
+    found = []
+    try:
+        listing = subprocess.run(
+            ["ps", "-eo", "pid=,args="], capture_output=True, text=True, check=False,
+        ).stdout
+    except OSError:
+        return found
+    for line in listing.splitlines():
+        pid, _, command = line.strip().partition(" ")
+        if text in command and pid != str(os.getpid()):
+            found.append(f"{pid}: {command[:200]}")
+    return found
+
+
 def assert_private(path: Path) -> None:
     mode = stat.S_IMODE(path.stat().st_mode)
     if mode != 0o700:
@@ -286,6 +302,14 @@ def verify(q_executable: str) -> None:
                 survivors = [pid for pid in pids if alive(pid)]
                 if survivors:
                     raise RuntimeError(f"signalled isolated children survived: {survivors!r}")
+                # Nothing the run started may outlive it: a wrapper ended by
+                # the signal left its output watch looping for ever.
+                wait_for(lambda: not processes_mentioning(str(hostile_parent)), seconds=5)
+                lingering = processes_mentioning(str(hostile_parent))
+                if lingering:
+                    raise RuntimeError(
+                        f"signal {signum}: processes of the run outlived it: {lingering!r}"
+                    )
                 if list(hostile_parent.glob("resq-run-guard.*")):
                     raise RuntimeError("launcher-owned scratch survived signal cleanup")
                 if list(hostile_parent.glob("resq-qspec.*")):

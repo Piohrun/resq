@@ -30,6 +30,12 @@ All notable changes to the **resQ** project will be documented in this file.
   running for up to 0.2 s when the watch was stopped; the watch now stops
   it. The warning now names what was left (`left background processes
   running (sleep 600)`).
+- An isolated child's output watch ends when the shell that started it has
+  gone, and a pool wrapper stopped by a signal stops its watch. A wrapper
+  that ended any other way left the watch checking a deleted file every
+  0.2 s for ever: fourteen such loops from release-gate stress runs were
+  still going a day later. The hostile-environment audit now fails when
+  any process of a signalled run outlives it.
 
 ## [2.4.0] - 2026-11-24 - Audit Hardening
 
