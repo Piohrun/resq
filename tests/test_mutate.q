@@ -823,13 +823,40 @@
  };
 
 / Stand-in for .tst.mutate.runBatch: records each call and answers every
-/ (test file; plan) from .tst.testState.mut.respond.
+/ (test file; plan) from .tst.testState.mut.respond. Children then run in
+/ groups, as where `sleep` takes no fractions; .tst.testState.mut.pool
+/ stands in for the pool.
 .tst.testState.mut.script:{[respond]
   .tst.testState.mut.calls: ();
   .tst.testState.mut.respond: respond;
+  `.tst.isolate.poolAvailable mock {[] 0b};
   `.tst.mutate.runBatch mock {[files;plans;timeouts]
     .tst.testState.mut.calls,: enlist `files`plans`timeouts!(files; plans; timeouts);
     .tst.testState.mut.respond'[files; plans]};
+ };
+
+/ Stand-in for the pool's children: each ends as soon as it is started and
+/ answers (test file; plan) from `respond`, as .tst.testState.mut.script
+/ does for groups. .tst.testState.mut.most is the most running at once.
+.tst.testState.mut.pool:{[respond]
+  .tst.testState.mut.respond: respond;
+  .tst.testState.mut.poolFiles: ();
+  .tst.testState.mut.fileOf: (`symbol$())!();
+  .tst.testState.mut.live: 0;
+  .tst.testState.mut.most: 0;
+  `.tst.isolate.poolAvailable mock {[] 1b};
+  `.tst.mutate.runBatch mock {[files;plans;timeouts] '"runBatch used with the pool"};
+  `.tst.isolate.processCommand mock {[wd;file;secs]
+    .tst.testState.mut.fileOf[`$wd]: file;
+    .tst.testState.mut.poolFiles,: enlist file;
+    "true"};
+  `.tst.isolate.startChild mock {[wd;command]
+    .tst.testState.mut.live+: 1;
+    .tst.testState.mut.most|: .tst.testState.mut.live;
+    (hsym `$wd, "/rc.txt") 0: enlist enlist "0";};
+  `.tst.mutate.readChild mock {[wd]
+    .tst.testState.mut.live-: 1;
+    .tst.testState.mut.respond[.tst.testState.mut.fileOf `$wd; get hsym `$.tst.mutate.planPath wd]};
  };
 
 / Child results by name.
@@ -1207,6 +1234,77 @@
     must[all `killed=r`status; "all killed"];
     (count each .tst.testState.mut.calls`files) mustmatch 25 25 11;
     .tst.testState.mut.marks mustmatch (60#"."), "\n", ".";
+  };
+ };
+
+/ Mutants ran in groups of -isolateWorkers, each group waiting for its
+/ slowest child. Where `sleep` takes fractions they go through the pool.
+.tst.desc["mutation: the worker pool"]{
+  should["give the same verdicts as groups, never running more at once than told"]{
+    .tst.testState.mut.capture[];
+    names: ("lives"; "half"; "never"; "hangs"; "broken");
+    .tst.testState.mut.byScript (`$("lives@b.q"; "lives@a.q"; "half@b.q"; "half@a.q"; "never@b.q"; "never@a.q"; "hangs@b.q"; "broken@b.q"))!(
+      enlist `survived; enlist `survived;
+      enlist `unapplied; enlist `survived;
+      enlist `unapplied; enlist `unapplied;
+      enlist `timeout;
+      enlist `error);
+    .tst.testState.mut.pool .tst.testState.mut.respond;
+    r: .tst.testState.mut.exec[.tst.testState.mut.mutantsOf[names; 5#0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 2; 300];
+    (r`status) mustmatch `survived`survived`unapplied`timeout`error;
+    (r`killedBy) mustmatch (""; ""; ""; "b.q"; "");
+    (asc .tst.testState.mut.marks) mustmatch asc "SS-TE";
+    .tst.testState.mut.most musteq 2;
+    / quickest file first: every mutant on b.q, and the three that lived on a.q
+    (asc .tst.testState.mut.poolFiles) mustmatch asc (5#enlist "b.q"), 3#enlist "a.q";
+  };
+
+  should["retry a run that proves nothing and move on, as in groups"]{
+    .tst.testState.mut.capture[];
+    .tst.testState.mut.byScript (`$("blip@b.q"; "blip@a.q"; "dead@b.q"; "late@b.q"; "late@a.q"))!(
+      `retry`retry`survived; `retry`killed;
+      enlist `retry;
+      enlist `survived; `retry`retry`retry);
+    .tst.testState.mut.pool .tst.testState.mut.respond;
+    r: .tst.testState.mut.exec[.tst.testState.mut.mutantsOf[("blip"; "dead"; "late"); 3#0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 3; 300];
+    (r`status) mustmatch `killed`error`error;
+    (r`killedBy) mustmatch ("a.q"; ""; "");
+    seen: .tst.testState.mut.seen;
+    seen[`$"blip@b.q"] musteq 3;
+    seen[`$"blip@a.q"] musteq 2;
+    seen[`$"dead@b.q"] musteq 3;
+    seen[`$"late@a.q"] musteq 3;
+  };
+
+  should["look at the working directory after every so many ends, and at the end"]{
+    .tst.testState.mut.capture[];
+    .tst.testState.mut.script {[file;plan] .tst.testState.mut.outcome `killed};
+    .tst.testState.mut.pool .tst.testState.mut.respond;
+    .tst.testState.mut.snapshots (
+      .tst.testState.mut.listed enlist "mine.txt";
+      .tst.testState.mut.listed ("mine.txt"; "stray.txt");
+      .tst.testState.mut.listed ("mine.txt"; "stray.txt"; "other.txt"));
+    r: .tst.mutate.execute[.tst.testState.mut.mutantsOf[("a"; "b"; "c"); 0 0 0]; .tst.testState.mut.fns4; .tst.testState.mut.base3; 2; 300];
+    (r[`mutants]`status) mustmatch `killed`killed`killed;
+    c: r`changes;
+    (c`path) mustmatch ("stray.txt"; "other.txt");
+    (c`mutants) mustmatch (0 1; enlist 2);
+    .tst.testState.mut.snapCalls musteq 3;
+  };
+
+  should["time each test file of the baseline on its own"]{
+    .tst.testState.mut.capture[];
+    / a and b start at 10 and 11 and end at 12.5 and 14; c runs from 20.
+    .tst.testState.mut.clockAt 10 11 12.5 14 20 20.25;
+    .tst.testState.mut.script {[file;plan]
+      $[file~"b.q"; .tst.testState.mut.child[1; 1b; 1; 0b; 0b; enlist "done"];
+        .tst.testState.mut.child[0; 1b; 0; 0b; 0b; ("matched 0"; "hit 0"; "done")]]};
+    .tst.testState.mut.pool .tst.testState.mut.respond;
+    base: .tst.mutate.baseline[("a.q"; "b.q"; "c.q"); .tst.testState.mut.fns4; 2; 77];
+    (base`usable) mustmatch 101b;
+    (base`secs) mustmatch 2.5 3 0.25;
+    (base[`hits] 0) mustmatch enlist 0;
+    .tst.testState.mut.marks mustmatch ".x.";
   };
  };
 

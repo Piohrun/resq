@@ -4,6 +4,16 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `resq mutate -isolateWorkers N` runs its baseline and its mutants through
+  the worker pool `-isolate` uses: the next child starts as soon as one
+  ends. They ran in groups of N, each group waiting for its slowest child.
+  A small project with one slow test file went from 9.8 s to 8.0 s on four
+  workers, with the same report. Where `sleep` takes no fractions they still
+  run in groups. Each test file's baseline time is now its own, not its
+  group's.
+
 ### Fixed
 
 - `-last-failed` runs the whole selection, and says so, when none of the

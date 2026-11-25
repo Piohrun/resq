@@ -102,7 +102,7 @@ A mutant that hangs or crashes ends only its own process. A child is stopped onc
 
 ### Files a mutant changes
 
-A function that writes a file may, as a mutant, write a different one. In a git checkout resQ looks at the working directory before the mutants run and after each batch, and lists what changed:
+A function that writes a file may, as a mutant, write a different one. In a git checkout resQ looks at the working directory before the mutants run and again each time N children have ended (N is `-isolateWorkers`), and lists what changed:
 
 ```text
 FILES CHANGED (1): in the working directory while mutants ran; nothing was undone
@@ -110,7 +110,7 @@ FILES CHANGED (1): in the working directory while mutants ran; nothing was undon
 ```
 
 - **What is seen:** files created, modified or deleted under the working directory, and a changed file put back as committed (`restored`). Files git ignores are not looked at.
-- **Which mutant:** with one mutant at a time, the one that was running. With `-isolateWorkers N`, one of the N in that batch; up to three are named.
+- **Which mutant:** with one mutant at a time, the one that was running. With `-isolateWorkers N`, one of those that ran since the last look; up to three are named.
 - **What resQ does about it:** nothing. It will not delete or restore a file, because it cannot know the file is not yours. Remove strays yourself; `git status` shows them.
 - **Large trees:** if one look takes more than half a second, resQ looks once at the end instead, and reports the change without naming a mutant.
 - **Outside a git checkout** the run says it cannot list changed files, and carries on.
@@ -128,7 +128,7 @@ FILES CHANGED (1): in the working directory while mutants ran; nothing was undon
 | `-mutators LIST` | Comma-separated mutator names from the table above. Default all. |
 | `-max-mutants N` | Run an even sample of at most N mutants. |
 | `-mutation-min N` | Exit 1 when the mutation score is below N percent, or cannot be computed. Mutants that were not assessed count as undetected for this check, so the gate cannot pass on the few mutants that could be assessed. |
-| `-isolateWorkers N` | Run N children at once. Each needs a q licence slot. Default 1. |
+| `-isolateWorkers N` | Run N children at once; the next starts as soon as one ends. Each needs a q licence slot. Default 1. |
 | `-isolateTimeout N` | Upper limit in seconds for any one child. Default 300. |
 | `-json -outDir DIR` | Also write `DIR/mutation-report.json`. |
 | `-quiet` | No progress marks. |

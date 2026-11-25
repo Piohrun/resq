@@ -45,7 +45,8 @@ not the running, of the files after it.
 The pool needs a `sleep` that accepts fractions of a second (GNU, BSD and
 macOS do; some minimal busybox builds do not). Without one, files run in
 groups of N: the next group starts when the slowest file of the current one
-has finished. `resq mutate` runs its mutants in such groups everywhere.
+has finished. `resq mutate -isolateWorkers N` uses the same pool for its
+baseline and its mutants, and the same groups without one.
 
 Isolation needs a `timeout` command on `PATH` that takes `-k` (kill after a
 grace period): GNU coreutils of any age, or a recent busybox. resQ checks that

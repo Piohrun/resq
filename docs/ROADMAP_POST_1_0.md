@@ -270,7 +270,7 @@ following checked-in contracts; the final release gate invokes all of them:
 - [x] Complete the clean-clone v2.4.0 release qualification and archive the
   exact candidate evidence; the certification commit is requalified before the
   annotated tag is pushed.
-- [ ] Run `resq mutate` mutants through the worker pool.
+- [x] Run `resq mutate` mutants through the worker pool (after 2.4.0).
 
 ## Post-2.0 ecosystem ideas — not implemented
 

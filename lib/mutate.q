@@ -614,17 +614,26 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
         .tst.isolate.tail[wd; 12])
  };
 
+/ A scratch directory made ready for a child with this plan: private rerun
+/ state, and the plan with the path of the status file in it. "" when it
+/ could not be made ready.
+.tst.mutate.prepare:{[plan]
+    wd: @[.tst.isolate.createScratch; ::; {[e] ""}];
+    if[0=count wd; :""];
+    .tst.isolate.resetScratch wd;
+    ok: 1b~@[.tst.isolate.preparePrivateRerunState; wd; {[e] 0b}];
+    if[ok;
+        plan[`status]: .tst.mutate.statusPath wd;
+        ok: @[{[a] (hsym `$a 0) set a 1; 1b}; (.tst.mutate.planPath wd; plan); {[e] 0b}]];
+    if[not ok; @[.tst.isolate.cleanupScratch; wd; {[e] ::}]; :""];
+    wd
+ };
+
 / Run one child per (test file; plan; timeout) at the same time and return a
 / table with one row of readChild per child.
 .tst.mutate.runBatch:{[files;plans;timeouts]
-    wds: {[unused] @[.tst.isolate.createScratch; ::; {[e] ""}]} each files;
-    ready: {[wd;plan]
-        if[0=count wd; :0b];
-        .tst.isolate.resetScratch wd;
-        if[not 1b~@[.tst.isolate.preparePrivateRerunState; wd; {[e] 0b}]; :0b];
-        plan[`status]: .tst.mutate.statusPath wd;
-        @[{[a] (hsym `$a 0) set a 1; 1b}; (.tst.mutate.planPath wd; plan); {[e] 0b}]
-    }'[wds;plans];
+    wds: .tst.mutate.prepare each plans;
+    ready: 0<count each wds;
     cmds: {[ok;wd;file;secs] $[ok; .tst.isolate.processCommand[wd;file;secs]; ""]}'[ready;wds;files;timeouts];
     at: where ready;
     .tst.isolate.launchGroup[at; cmds at; wds at];
@@ -636,6 +645,81 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     results: {[ok;wd] $[ok; .tst.mutate.readChild wd; .tst.mutate.noChild[]]}'[ready;wds];
     {[wd] if[count wd; @[.tst.isolate.cleanupScratch; wd; {[e] ::}]];} each wds;
     results
+ };
+
+/ ----------------------------------------------------------------------------
+/ Scheduling children
+/ ----------------------------------------------------------------------------
+/ Both the baseline and the mutants hand out jobs and take back results:
+/ `nextJob[]` gives the next job to start as (id; test file; plan; timeout), or ()
+/ when there is none to start now, and `settle[id; result; secs]` takes the
+/ readChild result of one that ended and how long it took. `looked[]` is
+/ called after every `workers` children have ended.
+/ .
+/ Mutants ran in groups of `workers`, each group started together and waited
+/ for as a whole: one slow test file held up the other workers. Where `sleep`
+/ takes fractions they now go through the pool -isolateWorkers uses, and the
+/ next child starts as soon as one ends; elsewhere they still run in groups.
+.tst.mutate.pooled:{[workers] (workers>1) and .tst.isolate.poolAvailable[]};
+
+.tst.mutate.schedule:{[workers;nextJob;settle;looked]
+    $[.tst.mutate.pooled workers;
+        .tst.mutate.inPool[workers;nextJob;settle;looked];
+        .tst.mutate.inGroups[workers;nextJob;settle;looked]];
+ };
+
+/ Groups of at most `workers` jobs, through runBatch. Each job in a group is
+/ given the time the group took.
+.tst.mutate.inGroups:{[workers;nextJob;settle;looked]
+    while[1b;
+        ids: `long$(); files: (); plans: (); timeouts: `long$();
+        taking: 1b;
+        while[taking and workers>count ids;
+            job: nextJob[];
+            $[0=count job; taking: 0b;
+                [ids,: job 0; files,: enlist job 1; plans,: enlist job 2; timeouts,: job 3]]];
+        if[0=count ids; :(::)];
+        started: .tst.mutate.clock[];
+        res: .tst.mutate.runBatch[files; plans; timeouts];
+        secs: ("f"$.tst.mutate.clock[]-started)%1e9;
+        {[settle;secs;id;r] settle[id;r;secs]}[settle;secs]'[ids; res];
+        looked[]];
+ };
+
+/ Through the isolation pool (.tst.isolate.pool). Each job is given the time
+/ from its start until its end was seen.
+.tst.mutate.inPool:{[workers;nextJob;settle;looked]
+    .tst.mutate.poolRunning: (`long$())!();
+    .tst.mutate.poolStarted: (`long$())!`timestamp$();
+    .tst.mutate.poolEnded: 0;
+    source: {[nextJob;settle;unused]
+        while[count job: nextJob[];
+            wd: .tst.mutate.prepare job 2;
+            if[count wd;
+                .tst.mutate.poolRunning[job 0]: wd;
+                .tst.mutate.poolStarted[job 0]: .tst.mutate.clock[];
+                :(job 0; wd; .tst.isolate.processCommand[wd; job 1; job 3])];
+            / No scratch directory: the job ends here, as in runBatch.
+            settle[job 0; .tst.mutate.noChild[]; 0f]];
+        ()}[nextJob;settle];
+    ended: {[workers;settle;looked;id;wd]
+        r: .tst.mutate.readChild wd;
+        @[.tst.isolate.cleanupScratch; wd; {[e] ::}];
+        secs: ("f"$.tst.mutate.clock[]-.tst.mutate.poolStarted id)%1e9;
+        .tst.mutate.poolRunning: (enlist id)_.tst.mutate.poolRunning;
+        settle[id; r; secs];
+        .tst.mutate.poolEnded+: 1;
+        if[0=.tst.mutate.poolEnded mod workers; looked[]];
+    }[workers;settle;looked];
+    / An error here would leave the children running: stop them first.
+    finished: .[.tst.isolate.pool; (workers; source; ended); {[e]
+        .tst.isolate.stopChildren value .tst.mutate.poolRunning;
+        {[wd] @[.tst.isolate.cleanupScratch; wd; {[e] ::}];} each value .tst.mutate.poolRunning;
+        'e}];
+    if[not finished;
+        {[wd] @[.tst.isolate.cleanupScratch; wd; {[e] ::}];} each value .tst.mutate.poolRunning;
+        '.tst.mutate.interruptedSignal];
+    if[0<.tst.mutate.poolEnded mod workers; looked[]];
  };
 
 / Everything the command prints goes through these, so it can be checked.
@@ -672,19 +756,28 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
 / target functions it matched, found different, and called.
 .tst.mutate.baseline:{[testFiles;fns;workers;cap]
     plan: `mode`names`texts`mutated`status!(`probe; fns`name; fns`text; ""; "");
-    groups: workers cut til count testFiles;
-    raze {[testFiles;plan;cap;idx]
-        started: .tst.mutate.clock[];
-        res: .tst.mutate.runBatch[testFiles idx; (count idx)#enlist plan; (count idx)#cap];
-        secs: ("f"$.tst.mutate.clock[]-started)%1e9;
-        why: .tst.mutate.baselineReason each res;
-        .tst.mutate.tick raze ?[0=count each why; "."; "x"];
-        ([] file:testFiles idx; usable:0=count each why; why:why; secs:(count idx)#secs;
-            matched:.tst.mutate.statusIndexes[;"matched"] each res`status;
-            differs:.tst.mutate.statusIndexes[;"differs"] each res`status;
-            hits:.tst.mutate.statusIndexes[;"hit"] each res`status;
-            tail:res`tail)
-    }[testFiles;plan;cap] each groups
+    n: count testFiles;
+    .tst.mutate.probes: `files`plan`cap`next`results`secs!(
+        testFiles; plan; cap; 0; n#enlist .tst.mutate.noChild[]; n#0f);
+    nextJob: {[unused]
+        st: .tst.mutate.probes;
+        k: st`next;
+        if[k>=count st`files; :()];
+        .tst.mutate.probes[`next]: k+1;
+        (k; st[`files] k; st`plan; st`cap)};
+    settle: {[k;r;secs]
+        .tst.mutate.probes[`results; k]: r;
+        .tst.mutate.probes[`secs; k]: secs;
+        .tst.mutate.tick $[0=count .tst.mutate.baselineReason r; "."; "x"];};
+    .tst.mutate.schedule[workers; nextJob; settle; {[unused] ::}];
+    res: .tst.mutate.probes`results;
+    why: .tst.mutate.baselineReason each res;
+    statuses: {[r] r`status} each res;
+    ([] file:testFiles; usable:0=count each why; why:why; secs:.tst.mutate.probes`secs;
+        matched:.tst.mutate.statusIndexes[;"matched"] each statuses;
+        differs:.tst.mutate.statusIndexes[;"differs"] each statuses;
+        hits:.tst.mutate.statusIndexes[;"hit"] each statuses;
+        tail:{[r] r`tail} each res)
  };
 
 / ----------------------------------------------------------------------------
@@ -782,56 +875,83 @@ if[not `parent in key `.tst.mutate; .tst.mutate.parent: 0b];
     differs: {[base;usable;f] any {[f;h] f in h}[f] each base[`differs] usable}[base;usable] each til nf;
     fnStatus: ?[0<count each calledBy; `pending; ?[matched; `uncovered; ?[differs; `unmatched; `unloaded]]];
 
-    status: fnStatus mutants`fnIdx;
-    killedBy: n#enlist "";
-    step: n#0;
-    tries: n#0;
-    everApplied: n#0b;
-    changes: .tst.mutate.noChanges[];
     started: .tst.mutate.clock[];
     seen: .tst.mutate.snapshot[];
-    eachBatch: .tst.mutate.snapshotBudget>.tst.mutate.clock[]-started;
-    while[count active: where status=`pending;
-        batch: workers sublist active;
-        fileIdx: {[calledBy;f;k] calledBy[f] k}[calledBy]'[mutants[`fnIdx] batch; step batch];
-        plans: {[fns;m]
-            f: fns m`fnIdx;
-            `mode`names`texts`mutated`status!(`mutant; enlist f`name; enlist f`text; m`text; "")
-        }[fns] each mutants batch;
-        / Generous next to the unmutated run, so only a real hang times out.
-        timeouts: cap&"j"$ceiling 5+3*base[`secs] fileIdx;
-        res: .tst.mutate.runBatch[base[`file] fileIdx; plans; timeouts];
-        if[eachBatch;
-            now: .tst.mutate.snapshot[];
-            delta: .tst.mutate.changes[seen;now];
-            changes,: update mutants:(count delta)#enlist batch from delta;
-            seen: now];
-        verdicts: .tst.mutate.verdict each res;
-        i: 0;
-        while[i<count batch;
-            m: batch i;
-            v: verdicts i;
-            if[v in `killed`timeout; killedBy[m]: base[`file] fileIdx i; status[m]: v];
-            if[v~`error; status[m]: `error];
-            if[v~`retry;
-                tries[m]+: 1;
-                if[tries[m]>=3; status[m]: `error]];
-            if[v in `survived`unapplied;
-                everApplied[m]: everApplied[m] or v~`survived;
-                step[m]+: 1;
-                tries[m]: 0;
-                if[step[m]>=count calledBy mutants[`fnIdx] m;
-                    status[m]: $[everApplied m; `survived; `unapplied]]];
-            if[not status[m]~`pending;
-                .tst.mutate.tick .tst.mutate.marks status m;
-                if[0=(sum status in key .tst.mutate.marks) mod 60; .tst.mutate.tick "\n"]];
-            i+: 1];
-    ];
+    / What the scheduler's callbacks work on. `running`: mutants started and
+    / not yet settled; `ran`: those that may have written since the last look.
+    .tst.mutate.runs: `mutants`fns`base`calledBy`cap`status`killedBy`step`tries`everApplied`running`ran`changes`seen`eachLook!(
+        mutants; fns; base; calledBy; cap;
+        fnStatus mutants`fnIdx; n#enlist ""; n#0; n#0; n#0b;
+        `long$(); `long$(); .tst.mutate.noChanges[]; seen;
+        .tst.mutate.snapshotBudget>.tst.mutate.clock[]-started);
+    .tst.mutate.schedule[workers; .tst.mutate.nextMutant; .tst.mutate.settleMutant; .tst.mutate.lookForChanges];
+    .tst.mutate.lookForChanges[];
+    st: .tst.mutate.runs;
+    changes: st`changes;
     / Looked at once: which mutant it was cannot be told.
-    if[not eachBatch;
+    if[not st`eachLook;
         delta: .tst.mutate.changes[seen; .tst.mutate.snapshot[]];
         changes,: update mutants:(count delta)#enlist `long$() from delta];
-    `mutants`changes!(update status:status, killedBy:killedBy from mutants; changes)
+    `mutants`changes!(update status:st`status, killedBy:st`killedBy from mutants; changes)
+ };
+
+/ The next mutant to run, on the next test file that calls its function:
+/ (mutant; test file; plan; timeout), or () when every pending mutant is
+/ running.
+.tst.mutate.nextMutant:{[]
+    st: .tst.mutate.runs;
+    free: where (st[`status]=`pending) and not (til count st`status) in st`running;
+    if[0=count free; :()];
+    m: first free;
+    f: st[`mutants;`fnIdx] m;
+    fileIdx: (st[`calledBy] f) st[`step] m;
+    fn: st[`fns] f;
+    plan: `mode`names`texts`mutated`status!(`mutant; enlist fn`name; enlist fn`text; st[`mutants;`text] m; "");
+    / Generous next to the unmutated run, so only a real hang times out.
+    secs: st[`cap]&"j"$ceiling 5+3*st[`base;`secs] fileIdx;
+    .tst.mutate.runs[`running],: m;
+    .tst.mutate.runs[`ran],: m;
+    (m; st[`base;`file] fileIdx; plan; secs)
+ };
+
+/ What one run of mutant `m` shows: killed or timed out ends it; survived or
+/ never applied moves it on to the next test file, or ends it after the last;
+/ a run that proves nothing is tried again, three times at most.
+.tst.mutate.settleMutant:{[m;r;secs]
+    st: .tst.mutate.runs;
+    st[`running]: st[`running] except m;
+    f: st[`mutants;`fnIdx] m;
+    fileIdx: (st[`calledBy] f) st[`step] m;
+    v: .tst.mutate.verdict r;
+    if[v in `killed`timeout; st[`killedBy;m]: st[`base;`file] fileIdx; st[`status;m]: v];
+    if[v~`error; st[`status;m]: `error];
+    if[v~`retry;
+        st[`tries;m]+: 1;
+        if[st[`tries;m]>=3; st[`status;m]: `error]];
+    if[v in `survived`unapplied;
+        st[`everApplied;m]: st[`everApplied;m] or v~`survived;
+        st[`step;m]+: 1;
+        st[`tries;m]: 0;
+        if[st[`step;m]>=count st[`calledBy] f;
+            st[`status;m]: $[st[`everApplied;m]; `survived; `unapplied]]];
+    .tst.mutate.runs: st;
+    if[not `pending~st[`status;m];
+        .tst.mutate.tick .tst.mutate.marks st[`status;m];
+        if[0=(sum st[`status] in key .tst.mutate.marks) mod 60; .tst.mutate.tick "\n"]];
+ };
+
+/ Look at the working directory, when that is quick enough (`eachLook`), and
+/ name the mutants that ran since the last look with what changed.
+.tst.mutate.lookForChanges:{[]
+    st: .tst.mutate.runs;
+    if[not st`eachLook; :(::)];
+    if[0=count st`ran; :(::)];
+    now: .tst.mutate.snapshot[];
+    delta: .tst.mutate.changes[st`seen; now];
+    .tst.mutate.runs[`changes],: update mutants:(count delta)#enlist distinct st`ran from delta;
+    .tst.mutate.runs[`seen]: now;
+    / Those still running may yet write: they count for the next look too.
+    .tst.mutate.runs[`ran]: st`running;
  };
 
 / ----------------------------------------------------------------------------
