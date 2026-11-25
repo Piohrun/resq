@@ -110,6 +110,14 @@
     (recs`target) musteq enlist "lib/mock.q";
     (first recs`kind) musteq `load;
   };
+
+  / The comment was kept as part of the path, as the loader did before 2.4.0.
+  should["read a \\l path as q does: a comment after it is not part of it"]{
+    tmpFile: .tst.tempFile ".q";
+    (hsym `$tmpFile) 0: ("\\l dep.q / code under test"; "\\l other.q /no space"; "\\l /abs/path.q"; "\\l my file.q");
+    recs: .tst.parseDependencyRecords tmpFile;
+    (recs`target) mustmatch ("dep.q"; "other.q"; "/abs/path.q"; "my file.q");
+  };
 };
 
 / Two public entry points of the dependency graph had no test and no caller in

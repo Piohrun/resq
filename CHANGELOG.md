@@ -21,6 +21,9 @@ All notable changes to the **resQ** project will be documented in this file.
   `trim` takes spaces only. KX's `e/c.q` and TorQ's settings are written so.
   The watch-mode dependency graph judged a load inside such a function as a
   load of the file itself.
+- The dependency graph (`deps.q`) reads `\l dep.q / note` as a load of
+  `dep.q`. It kept the comment as part of the path, as the loader did before
+  2.4.0, and so pointed at a file that does not exist.
 - `-last-failed` runs the whole selection, and says so, when none of the
   tests that failed last time is in it. It ran nothing, printed "No tests
   ran" and exited 1, so `resq test tests/test_b.q -last-failed` failed

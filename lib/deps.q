@@ -186,7 +186,8 @@ parseDependencyRecords:{[filepath]
     lineIndex: 0;
     while[lineIndex < count lines;
         if[(masked lineIndex) like "\\l *";
-            targets,: enlist trim 3 _ lines lineIndex;
+            / As the loader reads it: `\l dep.q / note` loads dep.q.
+            targets,: enlist .tst.loadCommandPath 3 _ lines lineIndex;
             tails,: 0b;
             kinds,: `load];
         lineIndex+: 1];
