@@ -203,18 +203,23 @@
     out:enlist ();
     state:0;                   / open block comments; q nests them
     stopped:0b;
+    / the lines a system command takes with it (.tst.commandContinuation):
+    / a quote in one is the command's, not the file's
+    taken:`long$();
     i:0;
     while[i<count source;
         ln:(),source i;
         trimmed:.tst.rstrip ln;
         blank:count[ln]#" ";
-        $[stopped; out,:enlist blank;
+        $[(i in taken) or stopped; out,:enlist blank;
           state>0;
             [out,:enlist blank;
              state+:$[trimmed~enlist "/";1;trimmed~enlist "\\";-1;0]];
           trimmed~enlist "/"; [out,:enlist blank; state:1];
           (0<count ln) and "\\"=first ln;
-            [out,:enlist blank; if[trimmed~enlist "\\"; stopped:1b]];
+            [out,:enlist blank;
+             $[trimmed~enlist "\\"; stopped:1b;
+               taken,:.tst.commandContinuation[source; i]]];
           out,:enlist ln];
         i+:1];
     1 _ out

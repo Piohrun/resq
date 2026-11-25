@@ -165,4 +165,8 @@
     (count .tst.groupStatements lines) musteq 3;
     .tst.dslPotentialShadowedNames[("s:\"text"; "  it: something\""; "t:1")] mustmatch `symbol$();
   };
+  should["not take the string of a system command for one of the file's"]{
+    / the command opens the string and its continuation line closes it
+    .tst.lineStartsInString[("\\t s:\"abc"; "  def\""; "x:1"; "y:2")] mustmatch 0000b;
+  };
  };
