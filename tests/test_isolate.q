@@ -430,7 +430,7 @@
       pidLines: @[read0; hsym `$pidFile; {()}];
       musteq[r`code; 0];
       must[0 < count pidLines; "the fixture must have started its process"];
-      must[.tst.isotest.anyLike[r`out; "left background processes running"]; "the leftover must be reported"];
+      must[.tst.isotest.anyLike[r`out; "left background processes running (sleep 600)"]; "the leftover must be reported by name"];
       must[not .tst.isotest.childAlive $[count pidLines; first pidLines; ""]; "the leftover process must be gone"];
     } each 1 2;
   };
@@ -830,6 +830,31 @@
     musteq[r`code; 1];
     must[.tst.isotest.anyLike[r`out; "test_hard.q ... TIMEOUT"]; "the file timed out"];
     must[not .tst.isotest.anyLike[r`out; "left background processes"]; "and left nothing behind"];
+  };
+ };
+
+/ The warning names what was left; it used to say only that something was.
+.tst.desc["Isolate: the processes a file left behind"]{
+  should["be named in the warning, the first three, shortened"]{
+    .tst.isolate.leftoverText[enlist "1"] mustmatch "";
+    .tst.isolate.leftoverText[("1"; "sleep 600"; "")] mustmatch " (sleep 600)";
+    long: 80#"x";
+    .tst.isolate.leftoverText[("1"; "aa"; long; "cc"; "dd"; "ee")] mustmatch " (aa; ", (57#"x"), "...; cc; 2 more)";
+  };
+
+  / A watch stopped in its sleep left the sleep running for up to its
+  / interval: an isolated run at the end of a test file was then reported
+  / for leaving `sleep 0.2` behind.
+  should["leave no sleep of the output watch running once it is stopped"]{
+    if[0 = count @[system; "ps -o pgid= -p $$ 2>/dev/null"; {[e] ()}]; :must[1b; "no ps that lists process groups"]];
+    wd: .resq.util.ensureDir .tst.isotest.workDir[];
+    nap: .tst.isolate.outputWatchInterval[];
+    count1: {[wd;nap;attempt]
+        cmd: "wdog=''; ", .tst.isolate.outputWatch[enlist wd], " sleep 0.05; ", .tst.isolate.outputWatchStop,
+            " g=$(ps -o pgid= -p $$ | tr -d ' '); ps -eo pgid=,args= | awk -v g=\"$g\" '$1==g && $2==\"sleep\" && $3==\"", nap, "\"' | wc -l";
+        "J"$ trim last system cmd
+      }[wd; nap];
+    (count1 each til 5) mustmatch 5#0j;
   };
  };
 

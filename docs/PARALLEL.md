@@ -62,7 +62,8 @@ after the final checkpoint. The failure message states how many were lost.
 
 When an isolated file finishes, resQ terminates any background process the
 file started and left running (anything still in the child's process group)
-and prints a warning naming the file. Stop such processes in `after` or
+and prints a warning naming the file and the first three processes found.
+Stop such processes in `after` or
 `afterAll` instead of relying on this. A process that moved itself to another
 session (`setsid`, a daemon) is not reached. `-maxTestTime N` is an observational post-return test
 budget and cannot stop a hang. Coverage instrumentation does not compose with

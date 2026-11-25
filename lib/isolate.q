@@ -589,19 +589,24 @@
 .tst.isolate.outputLimit:{[] 8 * .tst.isolate.outputKeep[]};
 
 / Shell fragment that starts the watch on these scratch directories in the
-/ background and leaves its PID in $wdog. Its own output goes nowhere: a
-/ `sleep` it leaves behind for a moment must not hold q's pipe open.
+/ background and leaves its PID in $wdog. Its own output goes nowhere.
+/ Stopped (outputWatchStop), it stops its `sleep` and waits for it: killed
+/ in a sleep, it left the sleep running for up to its interval, and a test
+/ file whose last test started an isolated run was then reported for
+/ leaving `sleep 0.2` behind. `wait` with no operand also waits for a sleep
+/ started just before the signal, before its PID was in $nap.
 .tst.isolate.outputWatch:{[wds]
     if[0 = count wds; :""];
     keep: string .tst.isolate.outputKeep[];
     files: " " sv {[wd] "cap ", .resq.util.shellQuote[wd, "/out.txt"], ";"} each wds;
-    "( cap(){ [ -f \"$1\" ] || return 0; ",
+    "( nap=''; trap 'kill $nap 2>/dev/null; wait; exit 0' TERM; ",
+        "cap(){ [ -f \"$1\" ] || return 0; ",
         "s=$(( $(wc -c < \"$1\" 2>/dev/null || echo 0) )); ",
         "[ \"$s\" -gt ", string[.tst.isolate.outputLimit[]], " ] || return 0; ",
         "[ -f \"$1.head\" ] || head -c ", keep, " \"$1\" > \"$1.head\"; ",
         "tail -c ", keep, " \"$1\" > \"$1.keep\"; : > \"$1\"; ",
         "cat \"$1.keep\" >> \"$1\"; rm -f \"$1.keep\"; }; ",
-        "while sleep ", .tst.isolate.outputWatchInterval[], "; do ",
+        "while :; do sleep ", .tst.isolate.outputWatchInterval[], " & nap=$!; wait $nap || exit 0; ",
         .tst.isolate.launcherWatch[], files,
         " done ) > /dev/null 2>&1 & wdog=$!;"
  };
@@ -627,7 +632,7 @@
         .tst.isolate.outputWatchSleep: @[{[u] system "sh -c 'sleep 0.01 2>/dev/null'"; "0.2"}; ::; {[e] "1"}]];
     .tst.isolate.outputWatchSleep
  };
-.tst.isolate.outputWatchStop: "if [ -n \"$wdog\" ]; then kill \"$wdog\" 2>/dev/null; fi;";
+.tst.isolate.outputWatchStop: "if [ -n \"$wdog\" ]; then kill \"$wdog\" 2>/dev/null; wait \"$wdog\" 2>/dev/null; fi;";
 
 / The sequential retry helper also needs the exit code in rc.txt. Keeping it in
 / the child's own scratch prevents concurrent stdout from becoming ambiguous.
@@ -658,12 +663,24 @@
 / the signal is the test, as before.
 .tst.isolate.reapLeftovers:{[name;wd]
     groupRef: "\"$", name, "\"";
-    "live=0; if lv=$(ps -eo pgid=,stat= 2>/dev/null) && [ -n \"$lv\" ]; then ",
-        "if printf '%s\\n' \"$lv\" | awk -v g=", groupRef, " '$1==g && $2 !~ /^Z/ {f=1} END {exit !f}'; then live=1; fi; ",
+    / leftover.txt: "1", then the command line of each process found.
+    "live=0; left=''; if lv=$(ps -eo pgid=,stat=,args= 2>/dev/null) && [ -n \"$lv\" ]; then ",
+        "left=$(printf '%s\\n' \"$lv\" | awk -v g=", groupRef, " '$1==g && $2 !~ /^Z/ {$1=\"\"; $2=\"\"; sub(/^ +/, \"\"); print}'); ",
+        "if [ -n \"$left\" ]; then live=1; fi; ",
         "elif kill -0 -- \"-$", name, "\" 2>/dev/null; then live=1; fi; ",
-        "if [ \"$live\" = 1 ]; then kill -TERM -- \"-$", name, "\" 2>/dev/null; echo 1 > ",
+        "if [ \"$live\" = 1 ]; then kill -TERM -- \"-$", name, "\" 2>/dev/null; printf '1\\n%s\\n' \"$left\" > ",
         .resq.util.shellQuote[wd,"/leftover.txt"], "; sleep 0.2; ",
         "kill -KILL -- \"-$", name, "\" 2>/dev/null; fi;"
+ };
+
+/ The processes named in leftover.txt (see reapLeftovers) for the warning:
+/ the first three command lines, shortened. Empty where ps listed none.
+.tst.isolate.leftoverText:{[lines]
+    lines: 1 _ lines;
+    found: lines where 0 < count each lines;
+    if[0 = count found; :""];
+    shown: {$[60 < count x; (57#x), "..."; x]} each (3 & count found)#found;
+    " (", ("; " sv shown), $[3 < count found; "; ", string[count[found] - 3], " more"; ""], ")"
  };
 
 .tst.isolate.groupStart:{[index;command]
@@ -757,9 +774,10 @@
         `symbol$()];
     hasFailingRows: any rowStatus in `fail`error;
     progress: "[", string[k], "/", string[n], "] ", file, " ... ";
-    if[0 < count @[read0; hsym `$wd, "/leftover.txt"; {[err] ()}];
-        .tst.isolate.print "WARNING: ", file,
-            " left background processes running; resQ terminated them"];
+    leftover: @[read0; hsym `$wd, "/leftover.txt"; {[err] ()}];
+    if[0 < count leftover;
+        .tst.isolate.print "WARNING: ", file, " left background processes running",
+            .tst.isolate.leftoverText[leftover], "; resQ terminated them"];
     / A child that died left no final report; keep what it had checkpointed.
     kept: $[valid; (); .tst.isolate.checkpointRows wd];
     recovered: count kept;

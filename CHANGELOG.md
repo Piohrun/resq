@@ -14,6 +14,12 @@ All notable changes to the **resQ** project will be documented in this file.
 - The release gate's first step checks each launcher's syntax with the shell
   it names. It ran `bash -n bin/resq bin/qspec bin/resq-merge`, which checks
   only `bin/resq`; the gate's static step already checked all three.
+- A test file whose last test ran an `-isolate` run was sometimes reported,
+  when itself run isolated, for leaving background processes behind. The
+  process was the `sleep` of the inner run's output watch, which was left
+  running for up to 0.2 s when the watch was stopped; the watch now stops
+  it. The warning now names what was left (`left background processes
+  running (sleep 600)`).
 
 ## [2.4.0] - 2026-11-24 - Audit Hardening
 
