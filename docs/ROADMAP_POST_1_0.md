@@ -270,7 +270,23 @@ following checked-in contracts; the final release gate invokes all of them:
 - [x] Complete the clean-clone v2.4.0 release qualification and archive the
   exact candidate evidence; the certification commit is requalified before the
   annotated tag is pushed.
-- [x] Run `resq mutate` mutants through the worker pool (after 2.4.0).
+- [x] Run `resq mutate` mutants through the worker pool (in 2.4.1).
+
+## 2.4.1 — loader and process fixes
+
+- [x] Fall back to the full selection when `-last-failed` holds none of the
+  earlier failures.
+- [x] Run `resq mutate` through the worker pool.
+- [x] Print one line on an interrupt, however early; leave no output watch
+  or `sleep` behind.
+- [x] Measure the q-source scanners against q's tokenizer on a 3,240-file
+  corpus and fix what disagrees: multi-line strings in test files, continued
+  system commands, leading `:` lines, `k)` lines and tabs in `resq mutate`,
+  the function inventory of discover and coverage, `\l` comments in the
+  dependency graph, `.tst.describe`.
+- [ ] Complete the clean-clone v2.4.1 release qualification.
+- [ ] Merge the two dependency scanners (`deps.q`, `load_graph.q`) and the two
+  function finders (`exploreFile`, `.tst.mutate.functionsIn`).
 
 ## Post-2.0 ecosystem ideas — not implemented
 

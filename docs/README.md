@@ -40,6 +40,7 @@
 - [Post-1.0 delivery ledger](ROADMAP_POST_1_0.md) — Branch coverage, distributed execution, quality automation, and completion gates
 - [Release checklist](RELEASE_CHECKLIST.md) — Executable release gate and human sign-off
 - [resQ 2.4.0 production audit](PRODUCTION_AUDIT_2_4_0.md) — Clean-clone certification and supported claim
+- [resQ 2.4.1 release notes](RELEASE_NOTES_2_4_1.md) — loader and process fixes: multi-line strings, mutate pool and k) lines, interrupts, last-failed
 - [resQ 2.4.0 release notes](RELEASE_NOTES_2_4_0.md) — audit hardening: interrupts, worker pool, state, resq.json lookup, qspec loading
 - [resQ 2.3.0 production audit](PRODUCTION_AUDIT_2_3_0.md) — Clean-clone certification and supported claim
 - [resQ 2.3.0 release notes](RELEASE_NOTES_2_3_0.md) — mutation testing, load-aware watch, embedded runs, isolation and loader fixes
@@ -102,6 +103,7 @@
 | `ROADMAP_POST_1_0.md` | Contributors | Post-1.0 delivery tasks, dependencies, and release gates |
 | `RELEASE_CHECKLIST.md` | Maintainers | One-command release evidence and manual sign-off |
 | `PRODUCTION_AUDIT_2_4_0.md` | Users / maintainers | resQ 2.4.0 clean-clone production evidence and limits |
+| `RELEASE_NOTES_2_4_1.md` | Users / maintainers | resQ 2.4.1 loader and process fixes release notes |
 | `RELEASE_NOTES_2_4_0.md` | Users / maintainers | resQ 2.4.0 audit-hardening release notes |
 | `PRODUCTION_AUDIT_2_3_0.md` | Users / maintainers | resQ 2.3.0 clean-clone production evidence and limits |
 | `RELEASE_NOTES_2_3_0.md` | Users / maintainers | resQ 2.3.0 mutation testing and load-aware watch release notes |

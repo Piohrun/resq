@@ -65,6 +65,18 @@ REQUIRED_CONTRACT_TESTS = {
     "not take a partition-like directory without the table",
     "apply a quarantine manifest written under another q build",
     "read the project's resq.json and keep state and test IDs with the project",
+    # 2.4.1
+    "run the whole selection, in process and isolated #slow",
+    "keep its text, whatever resQ words it holds",
+    "not count its brackets, nor take a word in it for a declaration",
+    "be one command, as q reads it",
+    "skip k code, and find the q functions after it",
+    "find a function whose line ends in a tab, a tab and a comment, or CRLF",
+    "give the same verdicts as groups, never running more at once than told",
+    "exploreFile list only functions that a file defines",
+    "stop q at once when it has not finished loading resQ, and say so",
+    "leave no sleep of the output watch running once it is stopped",
+    "end the output watch when the shell that started it is gone",
 }
 
 

@@ -4,6 +4,15 @@ All notable changes to the **resQ** project will be documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.4.1] - 2026-11-25 - Loader and Process Fixes
+
+resQ 2.4.1 finishes the follow-ups to the 2.4.0 audit and fixes what a
+measurement of resQ's q-source scanners against q's own tokenizer found over
+3,240 distinct q files. It keeps the 2.x DSL, the report-v2 contract and
+identity v3. See [the release notes](docs/RELEASE_NOTES_2_4_1.md).
+
 ### Changed
 
 - `resq mutate -isolateWorkers N` runs its baseline and its mutants through
