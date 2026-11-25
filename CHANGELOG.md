@@ -40,9 +40,10 @@ All notable changes to the **resQ** project will be documented in this file.
 - `resq discover` and coverage list only the functions a file defines. The
   scanner they share had a lexer of its own that knew no block comments, and
   took any `name:{` for a function: a function that was commented out, and a
-  value computed by a lambda (`x:{...} getenv y`, `x:{...}[]`), were listed
-  and counted in the function coverage denominator. It now reads the file as
-  the rest of resQ does.
+  value computed by a lambda (`x:{...} getenv y`, `x:{...}[]`), and a
+  helper defined inside a `desc` block or a lambda kept by index
+  (`asserts[`m]:{...}`) were listed and counted in the function coverage
+  denominator. It now reads the file as the rest of resQ does.
 - A system command continued on the next line is one command, as q reads
   it: `\t a:select ... from trade` followed by an indented ` where ...` (as
   in KX's TAQ scripts). The loader ended the command at its first line and

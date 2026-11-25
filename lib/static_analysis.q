@@ -219,6 +219,10 @@
   currentNs: "";
   inFunc: 0b;
   braceDepth: 0;
+  / Braces of blocks that are not a function found here: a desc block, a
+  / lambda kept by index (`asserts[`m]:{...}`). A definition inside one is
+  / not one of the file's, and was taken for one.
+  outerDepth: 0;
   currName: "";
   currBody: "";
   currArgs: ();
@@ -242,6 +246,7 @@
     / a line q does not run: a comment, a block comment, string contents
     live: any not maskedL in " \t";
     delta: sum (maskedL=.tst.static.LBRACE) - (maskedL=.tst.static.RBRACE);
+    wasInFunc: inFunc;
     / A namespace is entered with `\d .ns` or with `system "d .ns"`. Only
     / the first form was followed, so a source file written with the second
     / (resQ's own example project is) had every function recorded without its
@@ -256,7 +261,7 @@
       / never matches and leaves a stale "." prefix on later globals.
       if[(count newNs) and not " " in newNs; currentNs: $[newNs ~ enlist "."; ""; newNs]];
     ];
-    if[(not inFunc) and (braceDepth=0) and live;
+    if[(not inFunc) and (braceDepth=0) and (outerDepth=0) and live;
        / Collapse whitespace around the first ":" so `name: {` (space after
        / the colon, or before it) is detected the same as `name:{`. We only
        / normalize for definition detection / name extraction below; the raw
@@ -354,6 +359,8 @@
             if[plain; fns: fns upsert row];
         ];
     ];
+    / a line that is no function's, and starts none
+    if[(not wasInFunc) and not currLine=i+1; outerDepth: 0|outerDepth+delta];
     i+: 1;
   ];
   0!fns }

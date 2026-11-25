@@ -144,6 +144,22 @@
         fns: .tst.static.exploreFile tf;
         (exec name from fns) mustmatch `f`conditional`withComment`g;
     };
+
+    should["exploreFile not take a function inside a block for one of the file's"]{
+        tf: .tst.tempFile ".q";
+        contents: (
+            ".tst.desc[\"d\"]{";
+            "  helper:{x+1};";
+            "  should[\"s\"]{ 1 musteq 1 };";
+            " };";
+            "table[`k]:{[a]";
+            "  inner:{a+1};";
+            "  inner a};";
+            "top:{x}");
+        (hsym `$tf) 0: contents;
+        fns: .tst.static.exploreFile tf;
+        (exec name from fns) mustmatch enlist `top;
+    };
 };
 
 .tst.desc["block comments nest, as in q"]{
